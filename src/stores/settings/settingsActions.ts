@@ -4,7 +4,7 @@ import {
 } from "../../api/settings/api/settingsApi";
 import { AppDispatch } from "../store";
 import { setSettings } from "./settingsReducer";
-import UpdateSettingsRequest from "../../api/settings/models/updateSettingsRequest";
+import UpdateSettingsRequest from "../../api/settings/dto/updateSettingsRequest";
 
 /** Loads the settings into the store. Applying them (theme, zoom, body
  * classes, sync-on-close) is handled reactively by the `SettingsSync`

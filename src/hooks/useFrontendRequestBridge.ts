@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { resolveFrontendRequest } from "../api/common/commonApi";
+import { resolveFrontendRequest } from "../api/common/api/commonApi";
 
 export interface FrontendRequestEvent {
 	requestId: string;

@@ -4,7 +4,7 @@ import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectSettings } from "../../../stores/settings/settingsSelector";
 import { saveSettings } from "../../../stores/settings/settingsActions";
-import { buildUpdateSettingsRequest } from "../../../api/settings/models/updateSettingsRequest";
+import { buildUpdateSettingsRequest } from "../../../api/settings/dto/updateSettingsRequest";
 import { Theme } from "../../../api/settings/dto/updateSettingsRequestDto";
 import { isMobile } from "../../../utils/tauriUtils";
 
