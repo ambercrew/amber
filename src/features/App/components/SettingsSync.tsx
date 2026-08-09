@@ -4,9 +4,7 @@ import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { AppDispatch } from "../../../stores/store";
 import { selectSettings } from "../../../stores/settings/settingsSelector";
-import UpdateSettingsRequestDto, {
-	Theme,
-} from "../../../api/settings/dto/updateSettingsRequestDto";
+import SettingsDto, { Theme } from "../../../api/settings/dto/settingsDto";
 import { sync } from "../../../stores/sync/syncActions";
 import { defaultCloseRequestedEventManager } from "../../../managers/closeRequestedEventManager";
 import { tryGetCurrentWebView, isMobile } from "../../../utils/tauriUtils";
@@ -26,7 +24,7 @@ const THEME_TO_COLOR_SCHEME: Record<Theme, MantineColorScheme> = {
  * off `data-mantine-color-scheme`, so the setting must flow into Mantine here.
  */
 async function applySettings(
-	settings: UpdateSettingsRequestDto,
+	settings: SettingsDto,
 	dispatch: AppDispatch,
 	setColorScheme: (value: MantineColorScheme) => void,
 ) {

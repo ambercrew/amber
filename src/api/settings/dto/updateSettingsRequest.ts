@@ -1,4 +1,3 @@
-// TODO: Move to dto folder
 import {
 	AiProvider,
 	AiProviderSettings,
