@@ -1,6 +1,6 @@
 import { Select, Stack, TagsInput } from "@mantine/core";
-import { TagsFilter } from "../../../../api/savedSearches/dto/elementFilter";
-import { FILTER_EDITOR_WIDTH } from "../../config/constants";
+import { TagsFilter } from "../../../../../api/savedSearches/dto/elementFilter";
+import { FILTER_EDITOR_WIDTH } from "../../../config/constants";
 
 const operatorOptions = [
 	{ value: "isAnyOf", label: "is any of" },

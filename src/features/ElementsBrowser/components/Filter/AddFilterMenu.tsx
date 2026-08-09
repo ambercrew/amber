@@ -1,7 +1,7 @@
 import { Button, Menu } from "@mantine/core";
 import { PlusIcon } from "@phosphor-icons/react";
-import { ElementFilterField } from "../../../api/savedSearches/dto/elementFilter";
-import { filterFieldMetas } from "../utils/filterFieldMeta";
+import { ElementFilterField } from "../../../../api/savedSearches/dto/elementFilter";
+import { filterFieldMetas } from "../../utils/filterFieldMeta";
 
 export default function AddFilterMenu({
 	onSelect,

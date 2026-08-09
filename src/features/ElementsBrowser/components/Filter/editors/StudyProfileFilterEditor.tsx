@@ -1,7 +1,7 @@
 import { MultiSelect, Select, Stack } from "@mantine/core";
-import { StudyProfileFilter } from "../../../../api/savedSearches/dto/elementFilter";
-import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
-import { FILTER_EDITOR_WIDTH } from "../../config/constants";
+import { StudyProfileFilter } from "../../../../../api/savedSearches/dto/elementFilter";
+import { StudyProfileDto } from "../../../../../api/study/dto/studyProfileDto";
+import { FILTER_EDITOR_WIDTH } from "../../../config/constants";
 
 const operatorOptions = [
 	{ value: "isAnyOf", label: "is any of" },

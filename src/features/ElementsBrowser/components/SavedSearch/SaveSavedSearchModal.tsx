@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Button, Group } from "@mantine/core";
-import AppModal from "../../../components/AppModal/AppModal";
-import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
+import AppModal from "../../../../components/AppModal/AppModal";
+import AutosizeTextInput from "../../../../components/AutosizeTextInput/AutosizeTextInput";
 
 interface SaveSavedSearchModalProps {
 	opened: boolean;

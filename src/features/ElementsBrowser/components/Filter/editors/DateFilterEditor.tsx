@@ -1,7 +1,7 @@
 import { NumberInput, Select, Stack } from "@mantine/core";
 import { DateInput, DatePickerInput } from "@mantine/dates";
-import { DateFilter } from "../../../../api/savedSearches/dto/elementFilter";
-import { FILTER_EDITOR_WIDTH } from "../../config/constants";
+import { DateFilter } from "../../../../../api/savedSearches/dto/elementFilter";
+import { FILTER_EDITOR_WIDTH } from "../../../config/constants";
 
 const operatorOptions = [
 	{ value: "today", label: "today" },

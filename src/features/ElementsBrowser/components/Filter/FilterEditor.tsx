@@ -1,6 +1,6 @@
-import { ElementFilter } from "../../../api/savedSearches/dto/elementFilter";
-import { BibliographicalSourceResponseDto } from "../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
-import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
+import { ElementFilter } from "../../../../api/savedSearches/dto/elementFilter";
+import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
+import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
 import NameFilterEditor from "./editors/NameFilterEditor";
 import TagsFilterEditor from "./editors/TagsFilterEditor";
 import DateFilterEditor from "./editors/DateFilterEditor";

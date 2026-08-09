@@ -1,7 +1,7 @@
 import { MultiSelect, Select, Stack } from "@mantine/core";
-import { BibliographicalSourceFilter } from "../../../../api/savedSearches/dto/elementFilter";
-import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
-import { FILTER_EDITOR_WIDTH } from "../../config/constants";
+import { BibliographicalSourceFilter } from "../../../../../api/savedSearches/dto/elementFilter";
+import { BibliographicalSourceResponseDto } from "../../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
+import { FILTER_EDITOR_WIDTH } from "../../../config/constants";
 
 const operatorOptions = [
 	{ value: "isAnyOf", label: "is any of" },

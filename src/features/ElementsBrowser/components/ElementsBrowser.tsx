@@ -4,20 +4,19 @@ import { Group, Paper, Stack } from "@mantine/core";
 import {
 	ElementFilter,
 	ElementFilterField,
-} from "../../api/savedSearches/dto/elementFilter";
-import { ElementsBrowserLocationState } from "../../types/elements/elementsBrowserLocationState";
-import { BibliographicalSourceResponseDto } from "../../api/bibliographicalSources/dto/bibliographicalSourceDto";
-import { listBibliographicalSources } from "../../api/bibliographicalSources/api/bibliographicalSourcesApi";
-import { StudyProfileDto } from "../../api/study/dto/studyProfileDto";
-import { listStudyProfiles } from "../../api/study/api/studyProfileApi";
-import { SavedSearchResponseDto } from "../../api/savedSearches/dto/savedSearchResponseDto";
-import { listSavedSearches } from "../../api/savedSearches/api/savedSearchesApi";
-import { createDefaultFilter } from "./utils/createDefaultFilter";
-import FilterChip from "./components/FilterChip";
-import AddFilterMenu from "./components/AddFilterMenu";
-import SavedSearchSelector from "./components/SavedSearchSelector";
+} from "../../../api/savedSearches/dto/elementFilter";
+import { ElementsBrowserLocationState } from "../../../types/elements/elementsBrowserLocationState";
+import { BibliographicalSourceResponseDto } from "../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
+import { listBibliographicalSources } from "../../../api/bibliographicalSources/api/bibliographicalSourcesApi";
+import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
+import { listStudyProfiles } from "../../../api/study/api/studyProfileApi";
+import { SavedSearchResponseDto } from "../../../api/savedSearches/dto/savedSearchResponseDto";
+import { listSavedSearches } from "../../../api/savedSearches/api/savedSearchesApi";
+import { createDefaultFilter } from "../utils/createDefaultFilter";
+import FilterChip from "./Filter/FilterChip";
+import AddFilterMenu from "./Filter/AddFilterMenu";
+import SavedSearchSelector from "./SavedSearch/SavedSearchSelector";
 
-// TODO: fix the component folder and such
 export default function ElementsBrowser() {
 	const location = useLocation();
 	const navigate = useNavigate();

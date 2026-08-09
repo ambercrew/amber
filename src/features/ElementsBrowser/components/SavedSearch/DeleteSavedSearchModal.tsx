@@ -1,5 +1,5 @@
 import { Text } from "@mantine/core";
-import ConfirmModal from "../../../components/AppModal/ConfirmModal";
+import ConfirmModal from "../../../../components/AppModal/ConfirmModal";
 
 interface DeleteSavedSearchModalProps {
 	opened: boolean;

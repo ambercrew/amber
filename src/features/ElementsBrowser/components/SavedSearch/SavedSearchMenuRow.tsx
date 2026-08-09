@@ -6,7 +6,7 @@ import {
 	PencilSimpleIcon,
 	TrashIcon,
 } from "@phosphor-icons/react";
-import { SavedSearchResponseDto } from "../../../api/savedSearches/dto/savedSearchResponseDto";
+import { SavedSearchResponseDto } from "../../../../api/savedSearches/dto/savedSearchResponseDto";
 
 interface SavedSearchMenuRowProps {
 	savedSearch: SavedSearchResponseDto;

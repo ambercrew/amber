@@ -5,8 +5,8 @@ import {
 	CaretDownIcon,
 	PlusIcon,
 } from "@phosphor-icons/react";
-import { ElementFilter } from "../../../api/savedSearches/dto/elementFilter";
-import { SavedSearchResponseDto } from "../../../api/savedSearches/dto/savedSearchResponseDto";
+import { ElementFilter } from "../../../../api/savedSearches/dto/elementFilter";
+import { SavedSearchResponseDto } from "../../../../api/savedSearches/dto/savedSearchResponseDto";
 import {
 	createSavedSearch,
 	deleteSavedSearch,
@@ -15,12 +15,12 @@ import {
 	listSavedSearches,
 	renameSavedSearch,
 	updateSavedSearchFilters,
-} from "../../../api/savedSearches/api/savedSearchesApi";
-import { isSavedSearchEdited } from "../utils/isSavedSearchEdited";
+} from "../../../../api/savedSearches/api/savedSearchesApi";
+import { isSavedSearchEdited } from "../../utils/isSavedSearchEdited";
 import {
 	fromSavedSearchFilterDtos,
 	toSavedSearchFilterDtos,
-} from "../utils/savedSearchFilterDto";
+} from "../../utils/savedSearchFilterDto";
 import SavedSearchMenuRow from "./SavedSearchMenuRow";
 import SaveSavedSearchModal from "./SaveSavedSearchModal";
 import RenameSavedSearchModal from "./RenameSavedSearchModal";

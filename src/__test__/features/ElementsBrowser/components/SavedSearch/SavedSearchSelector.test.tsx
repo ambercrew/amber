@@ -1,12 +1,12 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import SavedSearchSelector from "../../../../features/ElementsBrowser/components/SavedSearchSelector";
+import SavedSearchSelector from "../../../../../features/ElementsBrowser/components/SavedSearch/SavedSearchSelector";
 import {
 	ElementFilter,
 	TagsFilter,
-} from "../../../../api/savedSearches/dto/elementFilter";
-import { SavedSearchResponseDto } from "../../../../api/savedSearches/dto/savedSearchResponseDto";
-import { SavedSearchFilterDto } from "../../../../api/savedSearches/dto/savedSearchFilterDto";
+} from "../../../../../api/savedSearches/dto/elementFilter";
+import { SavedSearchResponseDto } from "../../../../../api/savedSearches/dto/savedSearchResponseDto";
+import { SavedSearchFilterDto } from "../../../../../api/savedSearches/dto/savedSearchFilterDto";
 import {
 	createSavedSearch,
 	deleteSavedSearch,
@@ -15,10 +15,10 @@ import {
 	listSavedSearches,
 	renameSavedSearch,
 	updateSavedSearchFilters,
-} from "../../../../api/savedSearches/api/savedSearchesApi";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+} from "../../../../../api/savedSearches/api/savedSearchesApi";
+import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
 
-vi.mock(import("../../../../api/savedSearches/api/savedSearchesApi"));
+vi.mock(import("../../../../../api/savedSearches/api/savedSearchesApi"));
 
 const TAGS_FILTER: TagsFilter = {
 	id: "1",

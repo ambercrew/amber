@@ -1,6 +1,6 @@
 import { Select, Stack, TextInput } from "@mantine/core";
-import { NameFilter } from "../../../../api/savedSearches/dto/elementFilter";
-import { FILTER_EDITOR_WIDTH } from "../../config/constants";
+import { NameFilter } from "../../../../../api/savedSearches/dto/elementFilter";
+import { FILTER_EDITOR_WIDTH } from "../../../config/constants";
 
 const operatorOptions = [
 	{ value: "contains", label: "contains" },

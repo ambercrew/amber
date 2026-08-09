@@ -1,7 +1,7 @@
 import { createBrowserRouter } from "react-router";
 import App from "./features/App/components/App";
 import ElementViewer from "./features/ElementViewer/ElementViewer";
-import ElementsBrowser from "./features/ElementsBrowser/ElementsBrowser";
+import ElementsBrowser from "./features/ElementsBrowser/components/ElementsBrowser";
 
 export const router = createBrowserRouter([
 	{
