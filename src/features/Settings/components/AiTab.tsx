@@ -15,7 +15,7 @@ import { buildUpdateSettingsRequest } from "../../../api/settings/dto/updateSett
 import {
 	AiProvider,
 	AiProviderSettings,
-} from "../../../api/settings/dto/updateSettingsRequestDto";
+} from "../../../api/settings/dto/settingsDto";
 
 function AiTab() {
 	const settings = useAppSelector(selectSettings);

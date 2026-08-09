@@ -1,8 +1,4 @@
-import {
-	AiProvider,
-	AiProviderSettings,
-	Theme,
-} from "./updateSettingsRequestDto";
+import { AiProvider, AiProviderSettings, Theme } from "./settingsDto";
 
 export default interface UpdateSettingsRequest {
 	baseDatabaseDirectory: string | null;

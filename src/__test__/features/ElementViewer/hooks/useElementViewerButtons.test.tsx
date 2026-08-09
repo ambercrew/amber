@@ -28,7 +28,7 @@ import { CREATE_HIGHLIGHT_COMMAND } from "../../../../components/Editor/plugins/
 import { useElementViewerButtons } from "../../../../features/ElementViewer/hooks/useElementViewerButtons";
 import { FloatingMenuButton } from "../../../../components/Editor/plugins/FloatingMenuPlugin";
 import { setupStore } from "../../../../stores/store";
-import UpdateSettingsRequestDto from "../../../../api/settings/dto/updateSettingsRequestDto";
+import SettingsDto from "../../../../api/settings/dto/settingsDto";
 
 const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
 
@@ -37,7 +37,7 @@ vi.mock(import("react-router"), async importOriginal => {
 	return { ...actual, useNavigate: () => mockNavigate };
 });
 
-const BASE_SETTINGS: UpdateSettingsRequestDto = {
+const BASE_SETTINGS: SettingsDto = {
 	baseDatabaseDirectory: "/home/user/amber",
 	theme: "Light",
 	zoomPercentage: 100,

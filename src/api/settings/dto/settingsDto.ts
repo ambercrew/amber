@@ -7,7 +7,7 @@ export interface AiProviderSettings {
 	apiKey?: string | null;
 }
 
-export default interface UpdateSettingsRequestDto {
+export default interface SettingsDto {
 	baseDatabaseDirectory: string;
 
 	theme: Theme;

@@ -2,7 +2,7 @@ import { loadUserState } from "../../../stores/user/userActions.ts";
 import { loadSettings } from "../../../stores/settings/settingsActions.ts";
 import { sync } from "../../../stores/sync/syncActions.ts";
 import { loadElementTree } from "../../../stores/elements/elementsActions.ts";
-import UpdateSettingsRequestDto from "../../../api/settings/dto/updateSettingsRequestDto.ts";
+import SettingsDto from "../../../api/settings/dto/settingsDto.ts";
 import { Mock } from "vitest";
 import { Procedure } from "@vitest/spy";
 import useAppDispatch from "../../../hooks/useAppDispatch.ts";
@@ -38,7 +38,7 @@ describe("appActions", () => {
 			if (cb === expectedInitiateSettings) {
 				return Promise.resolve({
 					autoSync: true,
-				} as Partial<UpdateSettingsRequestDto>);
+				} as Partial<SettingsDto>);
 			}
 		});
 
@@ -78,7 +78,7 @@ describe("appActions", () => {
 			if (cb === expectedInitiateSettings) {
 				return Promise.resolve({
 					autoSync: true,
-				} as Partial<UpdateSettingsRequestDto>);
+				} as Partial<SettingsDto>);
 			}
 		});
 
@@ -117,7 +117,7 @@ describe("appActions", () => {
 			if (cb === expectedInitiateSettings) {
 				return Promise.resolve({
 					autoSync: false,
-				} as Partial<UpdateSettingsRequestDto>);
+				} as Partial<SettingsDto>);
 			}
 		});
 

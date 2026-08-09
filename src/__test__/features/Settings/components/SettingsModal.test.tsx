@@ -1,9 +1,9 @@
 import { screen } from "@testing-library/react";
 import SettingsModal from "../../../../features/Settings/components/SettingsModal";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import UpdateSettingsRequestDto from "../../../../api/settings/dto/updateSettingsRequestDto";
+import SettingsDto from "../../../../api/settings/dto/settingsDto";
 
-const settings: UpdateSettingsRequestDto = {
+const settings: SettingsDto = {
 	baseDatabaseDirectory: "/home/user/amber",
 	theme: "Light",
 	zoomPercentage: 100,
