@@ -66,6 +66,7 @@ use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_re
 use crate::infrastructure::repositories::sqlite::sqlite_ai_repository::SqliteAiRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_bibliographical_source_repository::SqliteBibliographicalSourceRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_saved_search_repository::SqliteSavedSearchRepository;
+use crate::infrastructure::repositories::sqlite::sqlite_search_repository::SqliteSearchRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_study_profile_repository::SqliteStudyProfileRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_sync_repository::SqliteSyncRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_trash_repository::SqliteTrashRepository;
@@ -84,6 +85,9 @@ use crate::bibliographical_sources::services::bibliographical_source_service::Bi
 use crate::saved_searches::repositories::saved_search_repository::SavedSearchRepository;
 use crate::saved_searches::services::implementations::default_saved_search_service::DefaultSavedSearchService;
 use crate::saved_searches::services::saved_search_service::SavedSearchService;
+use crate::search::repositories::search_repository::SearchRepository;
+use crate::search::services::implementations::default_search_service::DefaultSearchService;
+use crate::search::services::search_service::SearchService;
 use crate::study::repositories::card_review_log_repository::CardReviewLogRepository;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_log_repository::LearningAssetReviewLogRepository;
@@ -309,6 +313,11 @@ pub async fn create_injector<R: tauri::Runtime>(
         SqliteSavedSearchRepository
     );
     register_scope!(injector, dyn SavedSearchService, DefaultSavedSearchService);
+
+    // Search
+
+    register_scope!(injector, dyn SearchRepository, SqliteSearchRepository);
+    register_scope!(injector, dyn SearchService, DefaultSearchService);
 
     // Settings
 

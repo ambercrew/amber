@@ -11,5 +11,6 @@ pub mod message_row;
 pub mod meta_row;
 pub mod saved_search_filter_row;
 pub mod saved_search_row;
+pub mod search_row;
 pub mod study_profile_row;
 pub mod tag_row;

@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -42,17 +43,25 @@ impl PriorityService for DefaultPriorityService {
     async fn get_priority_info(&self, id: ElementId) -> Result<PriorityInfo, PriorityError> {
         let total = self.meta_repository.count_all().await?;
         let ranked_ahead = self.meta_repository.count_with_lower_priority(id).await?;
-        let rank = ranked_ahead + 1;
-        let percentage = if total <= 1 {
-            0.0
-        } else {
-            (rank as f64) / (total as f64) * 100.0
-        };
-        Ok(PriorityInfo {
-            rank,
-            total,
-            percentage,
-        })
+        Ok(priority_info(ranked_ahead + 1, total))
+    }
+
+    async fn get_priority_info_batch(
+        &self,
+        ids: &[ElementId],
+    ) -> Result<HashMap<ElementId, PriorityInfo>, PriorityError> {
+        let ordered = self.meta_repository.get_all_ordered_by_priority().await?;
+        let total = ordered.len() as i64;
+        let wanted: HashSet<ElementId> = ids.iter().copied().collect();
+
+        let mut result = HashMap::with_capacity(wanted.len());
+        for (index, meta) in ordered.iter().enumerate() {
+            if !wanted.contains(&meta.element_id) {
+                continue;
+            }
+            result.insert(meta.element_id, priority_info(index as i64 + 1, total));
+        }
+        Ok(result)
     }
 
     async fn set_priority_by_rank(&self, id: ElementId, rank: i64) -> Result<(), PriorityError> {
@@ -230,6 +239,19 @@ impl DefaultPriorityService {
             priority = FractionalIndex::new_after(&priority);
         }
         Ok(())
+    }
+}
+
+fn priority_info(rank: i64, total: i64) -> PriorityInfo {
+    let percentage = if total <= 1 {
+        0.0
+    } else {
+        (rank as f64) / (total as f64) * 100.0
+    };
+    PriorityInfo {
+        rank,
+        total,
+        percentage,
     }
 }
 
@@ -428,6 +450,64 @@ mod tests {
         assert_eq!(3, info.rank);
         assert_eq!(3, info.total);
         assert_eq!(100.0, info.percentage);
+    }
+
+    #[tokio::test]
+    async fn get_priority_info_batch_multiple_ids_matches_individual_lookups() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+
+        let pos_a = FractionalIndex::default();
+        let pos_b = FractionalIndex::new_after(&pos_a);
+        let pos_c = FractionalIndex::new_after(&pos_b);
+        let a = make_folder(pos_a);
+        let b = make_folder(pos_b);
+        let c = make_folder(pos_c);
+        let a_id = a.meta.element_id;
+        let c_id = c.meta.element_id;
+        folder_repo.create(a).await.unwrap();
+        folder_repo.create(b).await.unwrap();
+        folder_repo.create(c).await.unwrap();
+
+        // Act
+
+        let batch = service
+            .get_priority_info_batch(&[a_id, c_id])
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(2, batch.len());
+        assert_eq!(service.get_priority_info(a_id).await.unwrap(), batch[&a_id]);
+        assert_eq!(service.get_priority_info(c_id).await.unwrap(), batch[&c_id]);
+    }
+
+    #[tokio::test]
+    async fn get_priority_info_batch_empty_ids_returns_empty_map() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+
+        folder_repo
+            .create(make_folder(FractionalIndex::default()))
+            .await
+            .unwrap();
+
+        // Act
+
+        let batch = service.get_priority_info_batch(&[]).await.unwrap();
+
+        // Assert
+
+        assert!(batch.is_empty());
     }
 
     #[tokio::test]

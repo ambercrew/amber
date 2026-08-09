@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use fractional_index::FractionalIndex;
 use thiserror::Error;
@@ -30,6 +32,13 @@ pub trait PriorityService: Send + Sync {
     ) -> Result<FractionalIndex, PriorityError>;
 
     async fn get_priority_info(&self, id: ElementId) -> Result<PriorityInfo, PriorityError>;
+
+    /// Priority info for a batch of elements, computed from a single pass over
+    /// the full priority-ordered queue instead of one query per element.
+    async fn get_priority_info_batch(
+        &self,
+        ids: &[ElementId],
+    ) -> Result<HashMap<ElementId, PriorityInfo>, PriorityError>;
 
     /// New priorities for a batch restored from the trash (old priorities,
     /// ascending), placed as a contiguous block near their old spot instead
