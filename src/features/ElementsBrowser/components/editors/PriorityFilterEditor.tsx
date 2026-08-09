@@ -17,6 +17,7 @@ export default function PriorityFilterEditor({
 			<RangeSlider
 				min={0}
 				max={100}
+				minRange={1}
 				value={[filter.min, filter.max]}
 				onChange={([min, max]) => onChange({ ...filter, min, max })}
 				label={value => `${value}%`}

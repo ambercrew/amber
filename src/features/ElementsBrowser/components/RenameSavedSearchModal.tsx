@@ -19,14 +19,14 @@ function RenameSavedSearchModal({
 	const [name, setName] = useState(initialName);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 
-	// TODO: not working
+	// The modal mounts already opened (see SavedSearchSelector), so Mantine's
+	// enter transition never fires and can't be used to focus the input.
+	// `data-autofocus` is what Mantine's FocusTrap looks for instead; without
+	// it, the trap sends focus to the close button, which also races a plain
+	// mount effect since the trap grabs focus twice (ref callback + its own
+	// mount effect). We still select the text ourselves once focused.
 	useEffect(() => {
-		// The menu that opens this modal moves focus away from the input
-		// with auto-focus property.
-		const id = setTimeout(() => {
-			inputRef.current?.focus();
-			inputRef.current?.select();
-		}, 0);
+		const id = setTimeout(() => inputRef.current?.select(), 0);
 		return () => clearTimeout(id);
 	}, []);
 
@@ -44,6 +44,7 @@ function RenameSavedSearchModal({
 			onExitTransitionEnd={() => setName(initialName)}>
 			<AutosizeTextInput
 				ref={inputRef}
+				data-autofocus
 				value={name}
 				onChange={e => setName(e.currentTarget.value)}
 				onKeyDown={e => {
