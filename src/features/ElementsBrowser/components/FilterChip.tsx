@@ -1,5 +1,5 @@
 import { Box, Group, Pill, Popover, Text } from "@mantine/core";
-import { ElementFilter } from "../../../types/elements/elementFilter";
+import { ElementFilter } from "../../../api/savedSearches/dto/elementFilter";
 import { BibliographicalSourceResponseDto } from "../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
 import { getFilterFieldMeta } from "../utils/filterFieldMeta";

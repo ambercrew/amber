@@ -1,5 +1,5 @@
 import { Select, Stack, TextInput } from "@mantine/core";
-import { NameFilter } from "../../../../types/elements/elementFilter";
+import { NameFilter } from "../../../../api/savedSearches/dto/elementFilter";
 import { FILTER_EDITOR_WIDTH } from "../../config/constants";
 
 const operatorOptions = [

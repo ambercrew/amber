@@ -1,5 +1,5 @@
 import { MultiSelect, Select, Stack } from "@mantine/core";
-import { ElementTypeFilter } from "../../../../types/elements/elementFilter";
+import { ElementTypeFilter } from "../../../../api/savedSearches/dto/elementFilter";
 import { ElementNodeType } from "../../../../types/elements/elementNodeType";
 import { elementTypeOptions } from "../../utils/elementTypeOptions";
 import { FILTER_EDITOR_WIDTH } from "../../config/constants";

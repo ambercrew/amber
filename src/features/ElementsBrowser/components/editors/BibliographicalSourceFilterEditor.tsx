@@ -1,5 +1,5 @@
 import { MultiSelect, Select, Stack } from "@mantine/core";
-import { BibliographicalSourceFilter } from "../../../../types/elements/elementFilter";
+import { BibliographicalSourceFilter } from "../../../../api/savedSearches/dto/elementFilter";
 import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { FILTER_EDITOR_WIDTH } from "../../config/constants";
 

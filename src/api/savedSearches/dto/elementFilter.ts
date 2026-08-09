@@ -1,4 +1,4 @@
-import { ElementNodeType } from "./elementNodeType";
+import { ElementNodeType } from "../../../types/elements/elementNodeType";
 
 export type SelectFilterOperator = "isAnyOf" | "isNoneOf";
 

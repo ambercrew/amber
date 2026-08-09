@@ -1,52 +1,57 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { Button, Group, Paper, Stack, TextInput } from "@mantine/core";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { Group, Paper, Stack } from "@mantine/core";
 import {
 	ElementFilter,
 	ElementFilterField,
-} from "../../types/elements/elementFilter";
+} from "../../api/savedSearches/dto/elementFilter";
 import { ElementsBrowserLocationState } from "../../types/elements/elementsBrowserLocationState";
 import { BibliographicalSourceResponseDto } from "../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { listBibliographicalSources } from "../../api/bibliographicalSources/api/bibliographicalSourcesApi";
 import { StudyProfileDto } from "../../api/study/dto/studyProfileDto";
 import { listStudyProfiles } from "../../api/study/api/studyProfileApi";
+import { SavedSearchResponseDto } from "../../api/savedSearches/dto/savedSearchResponseDto";
+import { listSavedSearches } from "../../api/savedSearches/api/savedSearchesApi";
 import { createDefaultFilter } from "./utils/createDefaultFilter";
 import FilterChip from "./components/FilterChip";
 import AddFilterMenu from "./components/AddFilterMenu";
+import SavedSearchSelector from "./components/SavedSearchSelector";
 
-// TODO: no search button, use debounce when changing
+// TODO: fix the component folder and such
 export default function ElementsBrowser() {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const locationState = location.state as ElementsBrowserLocationState | null;
 
-	const [search, setSearch] = useState(
-		locationState?.elementsBrowser?.search ?? "",
-	);
-	const [searchInput, setSearchInput] = useState(search);
 	const [filters, setFilters] = useState<ElementFilter[]>(
 		locationState?.elementsBrowser?.filters ?? [],
 	);
+	const [loadedSavedSearchId, setLoadedSavedSearchId] = useState<
+		string | null
+	>(locationState?.elementsBrowser?.loadedSavedSearchId ?? null);
 	const [justAddedId, setJustAddedId] = useState<string | null>(null);
 
 	const [sources, setSources] = useState<BibliographicalSourceResponseDto[]>(
 		[],
 	);
 	const [profiles, setProfiles] = useState<StudyProfileDto[]>([]);
+	const [savedSearches, setSavedSearches] = useState<
+		SavedSearchResponseDto[]
+	>([]);
 
 	useEffect(() => {
 		void listBibliographicalSources().then(setSources);
 		void listStudyProfiles().then(setProfiles);
+		void listSavedSearches().then(setSavedSearches);
 	}, []);
 
 	useEffect(() => {
 		void navigate(location.pathname, {
 			replace: true,
-			state: { elementsBrowser: { search, filters } },
+			state: { elementsBrowser: { filters, loadedSavedSearchId } },
 		});
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [search, filters]);
+	}, [filters, loadedSavedSearchId]);
 
 	function handleAddFilter(field: ElementFilterField) {
 		const filter = createDefaultFilter(field);
@@ -64,32 +69,17 @@ export default function ElementsBrowser() {
 		setFilters(current => current.filter(f => f.id !== id));
 	}
 
-	function commitSearch() {
-		setSearch(searchInput);
-	}
-
 	return (
 		<Paper withBorder radius="md" p="md" maw={900} mx="auto" mt="lg">
 			<Stack gap="sm">
-				<Group gap="sm" wrap="nowrap">
-					<TextInput
-						flex={1}
-						placeholder="Search"
-						leftSection={<MagnifyingGlassIcon size={16} />}
-						value={searchInput}
-						onChange={event =>
-							setSearchInput(event.currentTarget.value)
-						}
-						onKeyDown={event => {
-							if (event.key === "Enter") {
-								commitSearch();
-							}
-						}}
-					/>
-					<Button variant="default" onClick={commitSearch}>
-						Search
-					</Button>
-				</Group>
+				<SavedSearchSelector
+					filters={filters}
+					onFiltersChange={setFilters}
+					loadedSavedSearchId={loadedSavedSearchId}
+					onLoadedSavedSearchIdChange={setLoadedSavedSearchId}
+					savedSearches={savedSearches}
+					onSavedSearchesChange={setSavedSearches}
+				/>
 				<Group gap="xs" wrap="wrap">
 					{filters.map(filter => (
 						<FilterChip

@@ -1,8 +1,8 @@
-import { ElementFilter } from "./elementFilter";
+import { ElementFilter } from "../../api/savedSearches/dto/elementFilter";
 
 export interface ElementsBrowserState {
-	search: string;
 	filters: ElementFilter[];
+	loadedSavedSearchId: string | null;
 }
 
 export interface ElementsBrowserLocationState {

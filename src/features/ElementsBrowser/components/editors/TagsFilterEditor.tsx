@@ -1,5 +1,5 @@
 import { Select, Stack, TagsInput } from "@mantine/core";
-import { TagsFilter } from "../../../../types/elements/elementFilter";
+import { TagsFilter } from "../../../../api/savedSearches/dto/elementFilter";
 import { FILTER_EDITOR_WIDTH } from "../../config/constants";
 
 const operatorOptions = [

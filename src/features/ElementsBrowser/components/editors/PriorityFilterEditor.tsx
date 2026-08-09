@@ -1,5 +1,5 @@
 import { RangeSlider, Stack, Text } from "@mantine/core";
-import { PriorityFilter } from "../../../../types/elements/elementFilter";
+import { PriorityFilter } from "../../../../api/savedSearches/dto/elementFilter";
 import { FILTER_EDITOR_WIDTH } from "../../config/constants";
 
 export default function PriorityFilterEditor({

@@ -1,5 +1,5 @@
 import { MultiSelect, Select, Stack } from "@mantine/core";
-import { StudyProfileFilter } from "../../../../types/elements/elementFilter";
+import { StudyProfileFilter } from "../../../../api/savedSearches/dto/elementFilter";
 import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
 import { FILTER_EDITOR_WIDTH } from "../../config/constants";
 

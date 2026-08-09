@@ -1,7 +1,7 @@
 import {
 	DateFilter,
 	ElementFilter,
-} from "../../../types/elements/elementFilter";
+} from "../../../api/savedSearches/dto/elementFilter";
 import { BibliographicalSourceResponseDto } from "../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
 import { elementTypeOptions } from "./elementTypeOptions";

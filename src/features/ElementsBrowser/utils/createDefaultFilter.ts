@@ -1,7 +1,7 @@
 import {
 	ElementFilter,
 	ElementFilterField,
-} from "../../../types/elements/elementFilter";
+} from "../../../api/savedSearches/dto/elementFilter";
 
 export function createDefaultFilter(field: ElementFilterField): ElementFilter {
 	const id = crypto.randomUUID();

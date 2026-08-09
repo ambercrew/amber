@@ -1,0 +1,5 @@
+pub mod saved_search_create_request_dto;
+pub mod saved_search_filter_dto;
+pub mod saved_search_rename_request_dto;
+pub mod saved_search_response_dto;
+pub mod saved_search_update_filters_request_dto;

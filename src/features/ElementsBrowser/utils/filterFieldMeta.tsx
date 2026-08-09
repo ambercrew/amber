@@ -8,7 +8,7 @@ import {
 	TrendUpIcon,
 	GraduationCapIcon,
 } from "@phosphor-icons/react";
-import { ElementFilterField } from "../../../types/elements/elementFilter";
+import { ElementFilterField } from "../../../api/savedSearches/dto/elementFilter";
 
 export interface FilterFieldMeta {
 	field: ElementFilterField;
