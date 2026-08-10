@@ -14,7 +14,8 @@ export default function AddFilterMenu({
 				<Button
 					variant="default"
 					radius="xl"
-					leftSection={<PlusIcon size={14} />}>
+					leftSection={<PlusIcon size={14} />}
+					style={{ borderStyle: "dashed" }}>
 					Filter
 				</Button>
 			</Menu.Target>
