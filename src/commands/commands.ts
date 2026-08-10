@@ -28,7 +28,7 @@ import { startStudySession } from "../stores/study/studyActions";
 import { sessionStopped } from "../stores/study/studyReducer";
 import { selectStudyStatus } from "../stores/study/studySelectors";
 import { saveSettings } from "../stores/settings/settingsActions";
-import { buildUpdateSettingsRequest } from "../api/settings/dto/updateSettingsRequest";
+import { buildUpdateSettingsRequest } from "../api/settings/dto/updateSettingsRequestDto";
 import { isCurrentlyDark } from "./commandUtils";
 import { selectCurrentElement } from "../stores/elements/elementsSelectors";
 import { READ_POINT_MANUAL_SET_REQUESTED } from "../types/events/readPointManualSetRequestedEvent";
