@@ -1,4 +1,4 @@
-import { Alert, NavLink, Stack } from "@mantine/core";
+import { Alert, Divider, NavLink, Stack } from "@mantine/core";
 import {
 	HouseIcon,
 	ListMagnifyingGlassIcon,
@@ -53,6 +53,9 @@ function NavigatorPanel() {
 					onClick={() => void navigate(paths.browser())}
 				/>
 			</Stack>
+
+			<Divider />
+
 			<Stack gap={4} px="sm">
 				<PanelHeader
 					title="Elements"
