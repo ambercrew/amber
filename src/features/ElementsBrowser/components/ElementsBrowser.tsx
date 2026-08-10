@@ -16,6 +16,7 @@ import { listSavedSearches } from "../../../api/savedSearches/api/savedSearchesA
 import { searchElements } from "../../../api/search/api/searchApi";
 import { SearchElementResultDto } from "../../../api/search/dto/searchElementResultDto";
 import useApi from "../../../hooks/useApi";
+import { SEARCH_DEBOUNCE_MS } from "../config/constants";
 import { createDefaultFilter } from "../utils/createDefaultFilter";
 import FilterChip from "./Filter/FilterChip";
 import AddFilterMenu from "./Filter/AddFilterMenu";
@@ -44,7 +45,7 @@ export default function ElementsBrowser() {
 	>([]);
 	const [results, setResults] = useState<SearchElementResultDto[]>([]);
 	const { isSendingRequest, callApi } = useApi();
-	const [debouncedFilters] = useDebouncedValue(filters, 400);
+	const [debouncedFilters] = useDebouncedValue(filters, SEARCH_DEBOUNCE_MS);
 
 	useEffect(() => {
 		void listBibliographicalSources().then(setSources);
