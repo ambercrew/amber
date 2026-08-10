@@ -1,4 +1,4 @@
-import { Alert, Divider, NavLink, Stack } from "@mantine/core";
+import { Alert, Divider, NavLink, Stack, Tooltip } from "@mantine/core";
 import {
 	HouseIcon,
 	ListMagnifyingGlassIcon,
@@ -38,20 +38,30 @@ function NavigatorPanel() {
 				/>
 			)}
 			<Stack gap={0}>
-				<NavLink
-					label="Home"
-					leftSection={<HouseIcon size={NAV_ICON_SIZE} />}
-					active={location.pathname === paths.root()}
-					onClick={() => void navigate(paths.root())}
-				/>
-				<NavLink
-					label="Browser"
-					leftSection={
-						<ListMagnifyingGlassIcon size={NAV_ICON_SIZE} />
-					}
-					active={location.pathname === paths.browser()}
-					onClick={() => void navigate(paths.browser())}
-				/>
+				<Tooltip
+					label="Open your root folder"
+					position="right"
+					openDelay={300}>
+					<NavLink
+						label="Home"
+						leftSection={<HouseIcon size={NAV_ICON_SIZE} />}
+						active={location.pathname === paths.root()}
+						onClick={() => void navigate(paths.root())}
+					/>
+				</Tooltip>
+				<Tooltip
+					label="Search and filter every element in your collection. Save the queries you use often, and act on the results in bulk."
+					position="right"
+					openDelay={300}>
+					<NavLink
+						label="Browser"
+						leftSection={
+							<ListMagnifyingGlassIcon size={NAV_ICON_SIZE} />
+						}
+						active={location.pathname === paths.browser()}
+						onClick={() => void navigate(paths.browser())}
+					/>
+				</Tooltip>
 			</Stack>
 
 			<Divider />

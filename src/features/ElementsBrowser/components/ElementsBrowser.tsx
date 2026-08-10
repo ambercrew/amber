@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useDebouncedValue } from "@mantine/hooks";
-import { Group, Loader, Paper, Stack } from "@mantine/core";
+import { Group, Loader, Paper, Stack, Text, Title } from "@mantine/core";
 import {
 	ElementFilter,
 	ElementFilterField,
@@ -89,6 +89,14 @@ export default function ElementsBrowser() {
 	return (
 		<Paper withBorder radius="md" p="md" maw={900} mx="auto" mt="lg">
 			<Stack gap="sm">
+				<Stack gap={2}>
+					<Title order={2}>Browser</Title>
+					<Text c="dimmed" size="sm">
+						Search and filter every element in your collection. Save
+						the queries you use often, and act on the results in
+						bulk.
+					</Text>
+				</Stack>
 				<SavedSearchSelector
 					filters={filters}
 					onFiltersChange={setFilters}
