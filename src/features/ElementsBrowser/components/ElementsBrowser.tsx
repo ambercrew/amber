@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { Group, Paper, Stack } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
+import { Group, Loader, Paper, Stack } from "@mantine/core";
 import {
 	ElementFilter,
 	ElementFilterField,
@@ -12,10 +13,14 @@ import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
 import { listStudyProfiles } from "../../../api/study/api/studyProfileApi";
 import { SavedSearchResponseDto } from "../../../api/savedSearches/dto/savedSearchResponseDto";
 import { listSavedSearches } from "../../../api/savedSearches/api/savedSearchesApi";
+import { searchElements } from "../../../api/search/api/searchApi";
+import { SearchElementResultDto } from "../../../api/search/dto/searchElementResultDto";
+import useApi from "../../../hooks/useApi";
 import { createDefaultFilter } from "../utils/createDefaultFilter";
 import FilterChip from "./Filter/FilterChip";
 import AddFilterMenu from "./Filter/AddFilterMenu";
 import SavedSearchSelector from "./SavedSearch/SavedSearchSelector";
+import SearchResultsTable from "./SearchResultsTable";
 
 export default function ElementsBrowser() {
 	const location = useLocation();
@@ -37,12 +42,24 @@ export default function ElementsBrowser() {
 	const [savedSearches, setSavedSearches] = useState<
 		SavedSearchResponseDto[]
 	>([]);
+	const [results, setResults] = useState<SearchElementResultDto[]>([]);
+	const { isSendingRequest, callApi } = useApi();
+	const [debouncedFilters] = useDebouncedValue(filters, 400);
 
 	useEffect(() => {
 		void listBibliographicalSources().then(setSources);
 		void listStudyProfiles().then(setProfiles);
 		void listSavedSearches().then(setSavedSearches);
 	}, []);
+
+	useEffect(() => {
+		void callApi(() => searchElements({ filters: debouncedFilters })).then(
+			searchResults => {
+				if (searchResults) setResults(searchResults);
+			},
+		);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [debouncedFilters]);
 
 	useEffect(() => {
 		void navigate(location.pathname, {
@@ -93,6 +110,13 @@ export default function ElementsBrowser() {
 					))}
 					<AddFilterMenu onSelect={handleAddFilter} />
 				</Group>
+				{isSendingRequest ? (
+					<Group justify="center" py="md">
+						<Loader size="sm" />
+					</Group>
+				) : (
+					<SearchResultsTable results={results} />
+				)}
 			</Stack>
 		</Paper>
 	);
