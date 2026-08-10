@@ -19,7 +19,6 @@ export default interface UpdateSettingsRequestDto {
  * (all `null`), overriding only the fields provided. Use this so callers only
  * specify the settings they actually want to change.
  */
-// TODO: should have dto in the name
 export function buildUpdateSettingsRequest(
 	overrides: Partial<UpdateSettingsRequestDto>,
 ): UpdateSettingsRequestDto {
