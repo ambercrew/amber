@@ -43,13 +43,28 @@ export default function FilterChip({
 						"aria-hidden": false,
 						"aria-label": `Remove ${meta.label} filter`,
 					}}
+					styles={{
+						label: {
+							display: "flex",
+							alignItems: "center",
+						},
+					}}
 					style={{
 						cursor: "pointer",
 						background: "var(--mantine-color-blue-light)",
 						color: "var(--mantine-color-blue-light-color)",
 					}}>
-					<Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-						<Box style={{ flexShrink: 0, display: "flex" }}>
+					<Group
+						gap={6}
+						wrap="nowrap"
+						align="center"
+						style={{ minWidth: 0 }}>
+						<Box
+							style={{
+								flexShrink: 0,
+								display: "flex",
+								alignItems: "center",
+							}}>
 							{meta.icon(16)}
 						</Box>
 						<Text fw={600} style={{ flexShrink: 0 }}>

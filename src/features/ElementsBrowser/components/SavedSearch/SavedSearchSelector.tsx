@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Badge, Button, Group, Menu, Text } from "@mantine/core";
+import { Badge, Button, Group, Menu, Text, Tooltip } from "@mantine/core";
 import {
 	BookmarkSimpleIcon,
 	CaretDownIcon,
@@ -141,22 +141,27 @@ export default function SavedSearchSelector({
 					withinPortal
 					closeOnItemClick={false}>
 					<Menu.Target>
-						<Button
-							variant="default"
-							leftSection={<BookmarkSimpleIcon size={16} />}
-							rightSection={<CaretDownIcon size={14} />}>
-							<Group gap={6} wrap="nowrap">
-								<Text truncate maw={200}>
-									{loadedSavedSearch?.name ??
-										"Untitled search"}
-								</Text>
-								{edited && (
-									<Badge variant="light" color="blue">
-										Edited
-									</Badge>
-								)}
-							</Group>
-						</Button>
+						<Tooltip
+							label={
+								loadedSavedSearch?.name ?? "Untitled search"
+							}>
+							<Button
+								variant="default"
+								leftSection={<BookmarkSimpleIcon size={16} />}
+								rightSection={<CaretDownIcon size={14} />}>
+								<Group gap={6} wrap="nowrap">
+									<Text truncate maw={200}>
+										{loadedSavedSearch?.name ??
+											"Untitled search"}
+									</Text>
+									{edited && (
+										<Badge variant="light" color="blue">
+											Edited
+										</Badge>
+									)}
+								</Group>
+							</Button>
+						</Tooltip>
 					</Menu.Target>
 					<Menu.Dropdown onClick={event => event.stopPropagation()}>
 						<Menu.Label>Saved searches</Menu.Label>
