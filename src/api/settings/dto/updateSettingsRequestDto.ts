@@ -1,6 +1,6 @@
 import { AiProvider, AiProviderSettings, Theme } from "./settingsDto";
 
-export default interface UpdateSettingsRequest {
+export default interface UpdateSettingsRequestDto {
 	baseDatabaseDirectory: string | null;
 
 	theme: Theme | null;
@@ -15,14 +15,14 @@ export default interface UpdateSettingsRequest {
 }
 
 /**
- * Builds an {@link UpdateSettingsRequest} that leaves every field unchanged
+ * Builds an {@link UpdateSettingsRequestDto} that leaves every field unchanged
  * (all `null`), overriding only the fields provided. Use this so callers only
  * specify the settings they actually want to change.
  */
 // TODO: should have dto in the name
 export function buildUpdateSettingsRequest(
-	overrides: Partial<UpdateSettingsRequest>,
-): UpdateSettingsRequest {
+	overrides: Partial<UpdateSettingsRequestDto>,
+): UpdateSettingsRequestDto {
 	return {
 		baseDatabaseDirectory: null,
 		theme: null,

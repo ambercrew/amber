@@ -8,7 +8,7 @@ import { selectSettings } from "../../../stores/settings/settingsSelector";
 import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
 import { changeDatabaseDirectory } from "../../../stores/app/appActions";
 import { saveSettings } from "../../../stores/settings/settingsActions";
-import { buildUpdateSettingsRequest } from "../../../api/settings/dto/updateSettingsRequest";
+import { buildUpdateSettingsRequest } from "../../../api/settings/dto/updateSettingsRequestDto";
 
 const RETENTION_MIN_DAYS = 1;
 const RETENTION_MAX_DAYS = 365;

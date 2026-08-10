@@ -1,6 +1,6 @@
 import { NavigateFunction } from "react-router";
 import { loadSettings, saveSettings } from "../settings/settingsActions";
-import { buildUpdateSettingsRequest } from "../../api/settings/dto/updateSettingsRequest";
+import { buildUpdateSettingsRequest } from "../../api/settings/dto/updateSettingsRequestDto";
 import { AppDispatch, RootState } from "../store";
 import { sync } from "../sync/syncActions";
 import { loadUserState } from "../user/userActions";
