@@ -26,7 +26,6 @@ import SavedSearchSelector from "./SavedSearch/SavedSearchSelector";
 import SearchResultsTable from "./SearchResultsTable";
 import BulkActionsBar from "./BulkActions/BulkActionsBar";
 
-// TODO: add unit tests to bulk operations
 // TODO: mark as finished should just say for extracts/learning assets
 // TODO: reset is wrong, it is only applicaable to cards
 export default function ElementsBrowser() {
