@@ -106,6 +106,19 @@ impl CardReviewRepository for SqliteCardReviewRepository {
 
         Ok(due)
     }
+
+    async fn delete_by_card_ids(&self, card_ids: Vec<Uuid>) -> Result<(), RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        for card_id in card_ids {
+            sqlx::query!("DELETE FROM card_reviews WHERE card_id = $1", card_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -300,5 +313,34 @@ mod tests {
         assert!(due.contains(&new_card_id));
         assert!(due.contains(&overdue_card_id));
         assert!(!due.contains(&future_card_id));
+    }
+
+    #[tokio::test]
+    async fn delete_by_card_ids_existing_review_removes_it() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let repo = scope.resolve::<dyn CardReviewRepository>().await;
+        let card_id = Uuid::new_v4();
+        card_repo
+            .create(Card {
+                meta: make_card_meta(card_id),
+                front: String::new(),
+                back: String::new(),
+            })
+            .await
+            .unwrap();
+        repo.upsert(&make_review(card_id)).await.unwrap();
+
+        // Act
+
+        repo.delete_by_card_ids(vec![card_id]).await.unwrap();
+        let actual = repo.get_by_card_id(card_id).await.unwrap();
+
+        // Assert
+
+        assert!(actual.is_none());
     }
 }

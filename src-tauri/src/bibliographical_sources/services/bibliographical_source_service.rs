@@ -62,6 +62,13 @@ pub trait BibliographicalSourceService: Send + Sync {
         element_id: ElementId,
         bibliographical_source_id: Option<Uuid>,
     ) -> Result<(), BibliographicalSourceServiceError>;
+
+    /// Same as `assign_bibliographical_source`, applied to every element in `element_ids`.
+    async fn assign_bibliographical_source_many(
+        &self,
+        element_ids: Vec<ElementId>,
+        bibliographical_source_id: Option<Uuid>,
+    ) -> Result<(), BibliographicalSourceServiceError>;
 }
 
 #[derive(Debug, Error)]

@@ -43,3 +43,13 @@ export function assignBibliographicalSource(
 		bibliographicalSourceId,
 	});
 }
+
+export function assignBibliographicalSourceBulk(
+	elementIds: ElementId[],
+	bibliographicalSourceId: string | null,
+): Promise<void> {
+	return invoke("assign_bibliographical_source_bulk", {
+		elementIds,
+		bibliographicalSourceId,
+	});
+}

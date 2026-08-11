@@ -30,12 +30,22 @@ pub trait LearningAssetSchedulingService: Send + Sync {
         element_id: ElementId,
     ) -> Result<LearningAssetReview, LearningAssetSchedulingError>;
 
+    /// Marks each of `element_ids` finished. See `finish`.
+    async fn finish_many(
+        &self,
+        element_ids: Vec<ElementId>,
+    ) -> Result<(), LearningAssetSchedulingError>;
+
     /// Clears `finished_at` and resets `due` to today so the element
     /// resurfaces immediately rather than being retroactively overdue.
     async fn unfinish(
         &self,
         element_id: ElementId,
     ) -> Result<LearningAssetReview, LearningAssetSchedulingError>;
+
+    /// Deletes the review state for `element_ids`, reverting them to "never reviewed".
+    /// Review history (`LearningAssetReviewLog`) is left untouched.
+    async fn reset(&self, element_ids: Vec<ElementId>) -> Result<(), LearningAssetSchedulingError>;
 }
 
 #[derive(Debug, Error)]

@@ -42,6 +42,13 @@ export function assignStudyProfile(
 	return invoke("assign_study_profile", { elementId, profileId });
 }
 
+export function assignStudyProfileBulk(
+	elementIds: ElementId[],
+	profileId: string | null,
+): Promise<void> {
+	return invoke("assign_study_profile_bulk", { elementIds, profileId });
+}
+
 export function getEffectiveStudyProfile(
 	elementId: ElementId,
 ): Promise<EffectiveProfileDto> {

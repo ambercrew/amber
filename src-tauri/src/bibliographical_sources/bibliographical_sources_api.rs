@@ -116,3 +116,19 @@ pub async fn assign_bibliographical_source(
     scope.save_changes().await?;
     Ok(())
 }
+
+#[tauri::command]
+pub async fn assign_bibliographical_source_bulk(
+    injector: State<'_, Arc<Injector>>,
+    element_ids: Vec<ElementId>,
+    bibliographical_source_id: Option<Uuid>,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    scope
+        .resolve::<dyn BibliographicalSourceService>()
+        .await
+        .assign_bibliographical_source_many(element_ids, bibliographical_source_id)
+        .await?;
+    scope.save_changes().await?;
+    Ok(())
+}

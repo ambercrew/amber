@@ -38,10 +38,7 @@ function NavigatorPanel() {
 				/>
 			)}
 			<Stack gap={0}>
-				<Tooltip
-					label="Open your root folder"
-					position="right"
-					openDelay={300}>
+				<Tooltip label="Open your root folder" openDelay={300}>
 					<NavLink
 						label="Home"
 						leftSection={<HouseIcon size={NAV_ICON_SIZE} />}
@@ -51,7 +48,6 @@ function NavigatorPanel() {
 				</Tooltip>
 				<Tooltip
 					label="Search and filter every element in your collection. Save the queries you use often, and act on the results in bulk."
-					position="right"
 					openDelay={300}>
 					<NavLink
 						label="Browser"

@@ -22,4 +22,7 @@ pub trait LearningAssetReviewRepository: Send + Sync {
         &self,
         as_of: DateTime<Utc>,
     ) -> Result<Vec<ElementIdWithPriority>, RepositoryError>;
+
+    /// Deletes the review rows for `element_ids`, so those elements revert to "never reviewed".
+    async fn delete_by_element_ids(&self, element_ids: Vec<Uuid>) -> Result<(), RepositoryError>;
 }

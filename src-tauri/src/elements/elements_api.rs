@@ -294,6 +294,38 @@ pub async fn update_element_tags(
 }
 
 #[tauri::command]
+pub async fn add_tag_bulk(
+    injector: State<'_, Arc<Injector>>,
+    element_ids: Vec<ElementId>,
+    tags: Vec<String>,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+    for element_id in element_ids {
+        meta_repository.add_tags(element_id, tags.clone()).await?;
+    }
+    scope.save_changes().await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn remove_tag_bulk(
+    injector: State<'_, Arc<Injector>>,
+    element_ids: Vec<ElementId>,
+    tags: Vec<String>,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+    for element_id in element_ids {
+        meta_repository
+            .remove_tags(element_id, tags.clone())
+            .await?;
+    }
+    scope.save_changes().await?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn clear_derived_from(
     injector: State<'_, Arc<Injector>>,
     element_id: ElementId,

@@ -116,6 +116,22 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
             })
             .collect())
     }
+
+    async fn delete_by_element_ids(&self, element_ids: Vec<Uuid>) -> Result<(), RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        for element_id in element_ids {
+            sqlx::query!(
+                "DELETE FROM learning_asset_reviews WHERE element_id = $1",
+                element_id
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -297,5 +313,42 @@ mod tests {
         assert!(due.contains(&new_learning_asset_id));
         assert!(due.contains(&overdue_extract_id));
         assert!(!due.contains(&finished_learning_asset_id));
+    }
+
+    #[tokio::test]
+    async fn delete_by_element_ids_existing_review_removes_it() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let learning_asset_repo = scope.resolve::<dyn LearningAssetRepository>().await;
+        let repo = scope.resolve::<dyn LearningAssetReviewRepository>().await;
+        let learning_asset_id = ElementId::LearningAsset(Uuid::new_v4());
+        learning_asset_repo
+            .create(
+                LearningAsset {
+                    interval_multiplier: 1.2,
+                    meta: make_meta(learning_asset_id),
+                    read_point: ReadPoint::default(),
+                },
+                Vec::new(),
+            )
+            .await
+            .unwrap();
+        repo.upsert(&make_review(learning_asset_id)).await.unwrap();
+
+        // Act
+
+        repo.delete_by_element_ids(vec![learning_asset_id.id()])
+            .await
+            .unwrap();
+        let actual = repo
+            .get_by_element_id(learning_asset_id.id())
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(actual.is_none());
     }
 }

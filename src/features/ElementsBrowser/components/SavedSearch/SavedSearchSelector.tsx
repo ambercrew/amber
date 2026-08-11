@@ -4,6 +4,7 @@ import {
 	BookmarkSimpleIcon,
 	CaretDownIcon,
 	PlusIcon,
+	XIcon,
 } from "@phosphor-icons/react";
 import { ElementFilter } from "../../../../api/savedSearches/dto/elementFilter";
 import { SavedSearchResponseDto } from "../../../../api/savedSearches/dto/savedSearchResponseDto";
@@ -103,6 +104,12 @@ export default function SavedSearchSelector({
 		if (loadedFilters) onFiltersChange(loadedFilters);
 	}
 
+	function handleClear() {
+		onLoadedSavedSearchIdChange(null);
+		setLoadedFilters(null);
+		setMenuOpened(false);
+	}
+
 	async function handleRename(
 		savedSearch: SavedSearchResponseDto,
 		name: string,
@@ -189,6 +196,13 @@ export default function SavedSearchSelector({
 							}}>
 							Save current filters
 						</Menu.Item>
+						{loadedSavedSearchId !== null && (
+							<Menu.Item
+								leftSection={<XIcon size={14} />}
+								onClick={handleClear}>
+								Unload saved search
+							</Menu.Item>
+						)}
 					</Menu.Dropdown>
 				</Menu>
 

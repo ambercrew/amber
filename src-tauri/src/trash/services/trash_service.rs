@@ -20,6 +20,9 @@ pub trait TrashService: Send + Sync {
     /// doesn't bring them back with it.
     async fn trash_element(&self, id: ElementId) -> Result<(), TrashServiceError>;
 
+    /// Same as `trash_element`, applied to every element in `ids`.
+    async fn trash_many(&self, ids: Vec<ElementId>) -> Result<(), TrashServiceError>;
+
     /// Restores a trashed element and its subtree. An element whose ancestry
     /// is missing or still trashed comes back at the root instead.
     async fn restore_element(&self, id: ElementId) -> Result<(), TrashServiceError>;

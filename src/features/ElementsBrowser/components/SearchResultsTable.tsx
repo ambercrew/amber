@@ -1,9 +1,19 @@
-import { Anchor, Badge, Box, Group, Table, Text } from "@mantine/core";
+import {
+	Anchor,
+	Badge,
+	Box,
+	Checkbox,
+	Group,
+	Table,
+	Text,
+} from "@mantine/core";
 import { Link } from "react-router";
 import { SearchElementResultDto } from "../../../api/search/dto/searchElementResultDto";
+import { ElementId } from "../../../types/elements/elementId";
 import { paths } from "../../../paths";
 import ElementNodeIcon from "../../App/components/ElementNodeIcon";
 import { elementTypeOptions } from "../utils/elementTypeOptions";
+import { elementKey } from "../utils/elementKey";
 
 function elementTypeLabel(type: SearchElementResultDto["type"]): string {
 	return (
@@ -17,10 +27,14 @@ function formatDateTime(value: string | null): string {
 
 interface SearchResultsTableProps {
 	results: SearchElementResultDto[];
+	selectedIds: ElementId[];
+	onSelectionChange: (ids: ElementId[]) => void;
 }
 
 export default function SearchResultsTable({
 	results,
+	selectedIds,
+	onSelectionChange,
 }: SearchResultsTableProps) {
 	if (results.length === 0) {
 		return (
@@ -30,11 +44,45 @@ export default function SearchResultsTable({
 		);
 	}
 
+	const selectedKeys = new Set(selectedIds.map(elementKey));
+	const allSelected =
+		results.length > 0 &&
+		results.every(r => selectedKeys.has(elementKey(r)));
+	const someSelected = results.some(r => selectedKeys.has(elementKey(r)));
+
+	function toggleAll() {
+		if (allSelected) {
+			onSelectionChange([]);
+		} else {
+			onSelectionChange(results.map(r => ({ type: r.type, id: r.id })));
+		}
+	}
+
+	function toggleOne(result: SearchElementResultDto) {
+		const key = elementKey(result);
+		if (selectedKeys.has(key)) {
+			onSelectionChange(selectedIds.filter(id => elementKey(id) !== key));
+		} else {
+			onSelectionChange([
+				...selectedIds,
+				{ type: result.type, id: result.id },
+			]);
+		}
+	}
+
 	return (
 		<Table.ScrollContainer minWidth={550}>
 			<Table striped highlightOnHover verticalSpacing="xs">
 				<Table.Thead>
 					<Table.Tr>
+						<Table.Th>
+							<Checkbox
+								aria-label="Select all results"
+								checked={allSelected}
+								indeterminate={someSelected && !allSelected}
+								onChange={toggleAll}
+							/>
+						</Table.Th>
 						<Table.Th>Name</Table.Th>
 						<Table.Th>Type</Table.Th>
 						<Table.Th>Priority</Table.Th>
@@ -44,10 +92,19 @@ export default function SearchResultsTable({
 				</Table.Thead>
 				<Table.Tbody>
 					{results.map(result => (
-						<Table.Tr key={result.id}>
+						<Table.Tr key={elementKey(result)}>
+							<Table.Td>
+								<Checkbox
+									aria-label={`Select ${result.name}`}
+									checked={selectedKeys.has(
+										elementKey(result),
+									)}
+									onChange={() => toggleOne(result)}
+								/>
+							</Table.Td>
 							<Table.Td>
 								<Group gap="xs" wrap="nowrap">
-									<Box flex="0 0 auto">
+									<Box flex="0 0 auto" display="flex">
 										<ElementNodeIcon
 											type={result.type}
 											size={16}

@@ -142,6 +142,50 @@ impl MetaRepository for SqliteMetaRepository {
         Ok(())
     }
 
+    async fn add_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError> {
+        let uuid = id.id();
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        for tag_name in tags {
+            sqlx::query!("INSERT OR IGNORE INTO tags (name) VALUES ($1)", tag_name)
+                .execute(&mut *tx)
+                .await?;
+
+            sqlx::query!(
+                r#"INSERT OR IGNORE INTO element_tags (element_id, tag_id, sort_index)
+                VALUES ($1, $2, COALESCE(
+                    (SELECT MAX(sort_index) + 1 FROM element_tags WHERE element_id = $1),
+                    0
+                ))"#,
+                uuid,
+                tag_name,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn remove_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError> {
+        let uuid = id.id();
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        for tag_name in tags {
+            sqlx::query!(
+                "DELETE FROM element_tags WHERE element_id = $1 AND tag_id = $2",
+                uuid,
+                tag_name,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        Ok(())
+    }
+
     async fn rename(&self, id: ElementId, new_name: String) -> Result<(), RepositoryError> {
         let uuid = id.id();
         let mut tx = self.tx.lock().await;
@@ -569,5 +613,98 @@ impl MetaRepository for SqliteMetaRepository {
         .fetch_one(&mut *tx)
         .await?;
         Ok(row.count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+    use injector::{injector::Injector, register_scope};
+
+    use crate::test_utils::create_test_injector;
+
+    use super::*;
+
+    async fn initialize_test_injector() -> Injector {
+        let mut injector = create_test_injector().await;
+        register_scope!(injector, dyn MetaRepository, SqliteMetaRepository);
+        injector
+    }
+
+    fn make_meta(id: ElementId) -> Meta {
+        Meta {
+            element_id: id,
+            name: "test".into(),
+            parent: None,
+            position: FractionalIndex::default(),
+            priority: FractionalIndex::default(),
+            study_profile_id: None,
+            bibliographical_source_id: None,
+            derived_from: None,
+            created_at: Utc::now(),
+            modified_at: Utc::now(),
+        }
+    }
+
+    #[tokio::test]
+    async fn add_tags_element_with_existing_tags_merges_new_ones_in() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let id = ElementId::Folder(Uuid::new_v4());
+        repo.create_meta(&make_meta(id)).await.unwrap();
+        repo.update_tags(id, vec!["philosophy".into()])
+            .await
+            .unwrap();
+
+        // Act
+
+        repo.add_tags(id, vec!["history".into(), "philosophy".into()])
+            .await
+            .unwrap();
+        let tags: Vec<String> = repo
+            .get_tags(id)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|t| t.name)
+            .collect();
+
+        // Assert
+
+        assert_eq!(vec!["philosophy".to_string(), "history".to_string()], tags);
+    }
+
+    #[tokio::test]
+    async fn remove_tags_existing_tag_removes_only_that_tag() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let id = ElementId::Folder(Uuid::new_v4());
+        repo.create_meta(&make_meta(id)).await.unwrap();
+        repo.update_tags(id, vec!["philosophy".into(), "history".into()])
+            .await
+            .unwrap();
+
+        // Act
+
+        repo.remove_tags(id, vec!["philosophy".into()])
+            .await
+            .unwrap();
+        let tags: Vec<String> = repo
+            .get_tags(id)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|t| t.name)
+            .collect();
+
+        // Assert
+
+        assert_eq!(vec!["history".to_string()], tags);
     }
 }

@@ -90,6 +90,13 @@ impl CardGradingService for DefaultCardGradingService {
             easy: now + interval_to_duration(next_states.easy.interval),
         })
     }
+
+    async fn reset(&self, card_ids: Vec<Uuid>) -> Result<(), GradeCardError> {
+        self.card_review_repository
+            .delete_by_card_ids(card_ids)
+            .await?;
+        Ok(())
+    }
 }
 
 impl DefaultCardGradingService {
@@ -291,5 +298,32 @@ mod tests {
         assert_eq!(CardState::Relearning, review.state);
         assert_eq!(1, review.lapses);
         assert_eq!(2, review.reps);
+    }
+
+    #[tokio::test]
+    async fn reset_previously_graded_card_reverts_to_never_reviewed() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_id = create_test_card(&scope).await;
+        let service = scope.resolve::<dyn CardGradingService>().await;
+        service
+            .grade_card(card_id, Rating::Good, None)
+            .await
+            .unwrap();
+
+        // Act
+
+        service.reset(vec![card_id]).await.unwrap();
+        let card_review_repository = scope.resolve::<dyn CardReviewRepository>().await;
+        let actual = card_review_repository
+            .get_by_card_id(card_id)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(actual.is_none());
     }
 }

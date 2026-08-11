@@ -25,6 +25,21 @@ pub async fn trash_element(
 }
 
 #[tauri::command]
+pub async fn trash_elements_bulk(
+    injector: State<'_, Arc<Injector>>,
+    element_ids: Vec<ElementId>,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    scope
+        .resolve::<dyn TrashService>()
+        .await
+        .trash_many(element_ids)
+        .await?;
+    scope.save_changes().await?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn restore_element(
     injector: State<'_, Arc<Injector>>,
     element_id: ElementId,
