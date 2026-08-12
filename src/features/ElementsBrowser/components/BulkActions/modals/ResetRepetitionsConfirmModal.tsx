@@ -36,9 +36,10 @@ export default function ResetRepetitionsConfirmModal({
 			onClose={onClose}>
 			<Text>
 				The scheduling progress for the {elementIds.length} selected
-				element{elementIds.length === 1 ? "" : "s"} will be discarded,
-				and they will behave as never studied. Their review history is
-				kept.
+				card{elementIds.length === 1 ? "" : "s"} will be discarded, and
+				they will behave as never studied. Only cards are affected;
+				other selected element types are ignored. Their review history
+				is kept.
 			</Text>
 		</ConfirmModal>
 	);

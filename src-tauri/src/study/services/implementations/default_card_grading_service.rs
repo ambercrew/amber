@@ -92,9 +92,14 @@ impl CardGradingService for DefaultCardGradingService {
     }
 
     async fn reset(&self, card_ids: Vec<Uuid>) -> Result<(), GradeCardError> {
-        self.card_review_repository
-            .delete_by_card_ids(card_ids)
-            .await?;
+        for card_id in card_ids {
+            let profile = self
+                .profile_resolution_service
+                .resolve_profile(Some(ElementId::Card(card_id)))
+                .await?;
+            let review = CardReview::new_for_profile(card_id, &profile);
+            self.card_review_repository.upsert(&review).await?;
+        }
         Ok(())
     }
 }
@@ -301,7 +306,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reset_previously_graded_card_reverts_to_never_reviewed() {
+    async fn reset_previously_graded_card_reverts_to_new_card_defaults() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -320,10 +325,16 @@ mod tests {
         let actual = card_review_repository
             .get_by_card_id(card_id)
             .await
+            .unwrap()
             .unwrap();
 
         // Assert
 
-        assert!(actual.is_none());
+        assert_eq!(CardState::New, actual.state);
+        assert_eq!(0.0, actual.stability);
+        assert_eq!(0.0, actual.difficulty);
+        assert_eq!(0, actual.reps);
+        assert_eq!(0, actual.lapses);
+        assert!(actual.last_reviewed.is_none());
     }
 }

@@ -43,9 +43,14 @@ pub trait LearningAssetSchedulingService: Send + Sync {
         element_id: ElementId,
     ) -> Result<LearningAssetReview, LearningAssetSchedulingError>;
 
-    /// Deletes the review state for `element_ids`, reverting them to "never reviewed".
-    /// Review history (`LearningAssetReviewLog`) is left untouched.
-    async fn reset(&self, element_ids: Vec<ElementId>) -> Result<(), LearningAssetSchedulingError>;
+    /// Unfinishes each of `element_ids`. See `unfinish`. Elements that were
+    /// never reviewed are silently skipped rather than failing the whole
+    /// batch, since "never reviewed" and "not finished" are equivalent from
+    /// the caller's point of view.
+    async fn unfinish_many(
+        &self,
+        element_ids: Vec<ElementId>,
+    ) -> Result<(), LearningAssetSchedulingError>;
 }
 
 #[derive(Debug, Error)]

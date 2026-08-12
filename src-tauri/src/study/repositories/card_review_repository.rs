@@ -19,7 +19,4 @@ pub trait CardReviewRepository: Send + Sync {
         &self,
         as_of: DateTime<Utc>,
     ) -> Result<Vec<ElementIdWithPriority>, RepositoryError>;
-
-    /// Deletes the review rows for `card_ids`, so those cards revert to "never reviewed".
-    async fn delete_by_card_ids(&self, card_ids: Vec<Uuid>) -> Result<(), RepositoryError>;
 }

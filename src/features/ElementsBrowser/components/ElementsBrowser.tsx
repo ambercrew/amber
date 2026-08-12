@@ -26,7 +26,6 @@ import SavedSearchSelector from "./SavedSearch/SavedSearchSelector";
 import SearchResultsTable from "./SearchResultsTable";
 import BulkActionsBar from "./BulkActions/BulkActionsBar";
 
-// TODO: reset is wrong, it is only applicaable to cards
 export default function ElementsBrowser() {
 	const location = useLocation();
 	const navigate = useNavigate();

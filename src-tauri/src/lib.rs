@@ -190,6 +190,7 @@ pub async fn run() -> Result<(), String> {
             finish_learning_asset,
             unfinish_learning_asset,
             finish_learning_assets_bulk,
+            unfinish_learning_assets_bulk,
             reset_repetitions_bulk,
             get_fuzz_factor,
             set_fuzz_factor,

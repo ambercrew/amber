@@ -62,6 +62,12 @@ export function finishLearningAssetsBulk(
 	return invoke("finish_learning_assets_bulk", { elementIds });
 }
 
+export function unfinishLearningAssetsBulk(
+	elementIds: ElementId[],
+): Promise<void> {
+	return invoke("unfinish_learning_assets_bulk", { elementIds });
+}
+
 export function resetRepetitionsBulk(elementIds: ElementId[]): Promise<void> {
 	return invoke("reset_repetitions_bulk", { elementIds });
 }

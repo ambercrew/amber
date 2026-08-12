@@ -8,7 +8,7 @@ import { renderWithProviders } from "../../../../../test-utils/renderWithProvide
 
 vi.mock(import("../../../../../../api/study/api/studyApi"));
 
-const ELEMENT_IDS: ElementId[] = [{ type: "learningAsset", id: "asset-1" }];
+const ELEMENT_IDS: ElementId[] = [{ type: "card", id: "card-1" }];
 
 const callApi: BulkCallApi = cb => cb().then(() => undefined);
 
@@ -45,7 +45,7 @@ describe("ResetRepetitionsConfirmModal", () => {
 			screen.getByRole("heading", { name: "Reset repetitions" }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText(/scheduling progress for the 1 selected element/),
+			screen.getByText(/scheduling progress for the 1 selected card/),
 		).toBeInTheDocument();
 	});
 

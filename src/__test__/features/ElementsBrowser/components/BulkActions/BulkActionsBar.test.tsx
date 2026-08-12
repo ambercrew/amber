@@ -1,7 +1,10 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BulkActionsBar from "../../../../../features/ElementsBrowser/components/BulkActions/BulkActionsBar";
-import { finishLearningAssetsBulk } from "../../../../../api/study/api/studyApi";
+import {
+	finishLearningAssetsBulk,
+	unfinishLearningAssetsBulk,
+} from "../../../../../api/study/api/studyApi";
 import { StudyProfileDto } from "../../../../../api/study/dto/studyProfileDto";
 import { BibliographicalSourceResponseDto } from "../../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { SearchElementResultDto } from "../../../../../api/search/dto/searchElementResultDto";
@@ -78,6 +81,7 @@ async function openActionsMenu(user: ReturnType<typeof userEvent.setup>) {
 describe("BulkActionsBar", () => {
 	beforeEach(() => {
 		vi.mocked(finishLearningAssetsBulk).mockResolvedValue(undefined);
+		vi.mocked(unfinishLearningAssetsBulk).mockResolvedValue(undefined);
 	});
 
 	it("Should disable the Actions button when no elements are selected", () => {
@@ -114,12 +118,15 @@ describe("BulkActionsBar", () => {
 
 		await openActionsMenu(user);
 		await user.click(await screen.findByText("Reschedule"));
+		await user.click(await screen.findByText("Cards"));
 		await user.click(await screen.findByText("Reset repetitions"));
 
 		// Assert
 
 		expect(
-			await screen.findByRole("heading", { name: "Reset repetitions" }),
+			await screen.findByRole("heading", {
+				name: "Reset repetitions",
+			}),
 		).toBeInTheDocument();
 	});
 
@@ -226,16 +233,37 @@ describe("BulkActionsBar", () => {
 
 		await openActionsMenu(user);
 		await user.click(await screen.findByText("Reschedule"));
-		await user.click(
-			await screen.findByText(
-				"Mark learning assets/extracts as finished",
-			),
-		);
+		await user.click(await screen.findByText("Learning assets/extracts"));
+		await user.click(await screen.findByText("Mark as finished"));
 
 		// Assert
 
 		await waitFor(() =>
 			expect(finishLearningAssetsBulk).toHaveBeenCalledWith([ELEMENT_ID]),
+		);
+		await waitFor(() => expect(onClearSelection).toHaveBeenCalled());
+		expect(onActionComplete).toHaveBeenCalled();
+	});
+
+	it("Should unfinish elements and clear the selection when Unfinish is clicked", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		const { onClearSelection, onActionComplete } = render();
+
+		// Act
+
+		await openActionsMenu(user);
+		await user.click(await screen.findByText("Reschedule"));
+		await user.click(await screen.findByText("Learning assets/extracts"));
+		await user.click(await screen.findByText("Unfinish"));
+
+		// Assert
+
+		await waitFor(() =>
+			expect(unfinishLearningAssetsBulk).toHaveBeenCalledWith([
+				ELEMENT_ID,
+			]),
 		);
 		await waitFor(() => expect(onClearSelection).toHaveBeenCalled());
 		expect(onActionComplete).toHaveBeenCalled();

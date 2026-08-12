@@ -38,7 +38,6 @@ use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::study::utils::day_boundary::start_of_today_utc;
-use crate::study::value_objects::card_state::CardState;
 
 #[derive(ScopeInjectable)]
 pub struct DefaultElementCreationService {
@@ -282,16 +281,7 @@ impl DefaultElementCreationService {
             .profile_resolution_service
             .resolve_profile(Some(element_id))
             .await?;
-        let review = CardReview {
-            card_id,
-            due: due_from_today(profile.initial_interval_days),
-            stability: 0.0,
-            difficulty: 0.0,
-            reps: 0,
-            lapses: 0,
-            state: CardState::New,
-            last_reviewed: None,
-        };
+        let review = CardReview::new_for_profile(card_id, &profile);
         self.card_review_repository.upsert(&review).await?;
         Ok(())
     }
@@ -324,6 +314,7 @@ mod tests {
         study::entities::study_profile::StudyProfile,
         study::repositories::study_profile_repository::StudyProfileRepository,
         study::services::implementations::default_profile_resolution_service::DefaultProfileResolutionService,
+        study::value_objects::card_state::CardState,
         test_utils::create_test_injector,
     };
 

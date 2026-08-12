@@ -1,11 +1,14 @@
 import { Button, Group, Menu, Text } from "@mantine/core";
 import {
 	ArrowCounterClockwiseIcon,
+	ArrowUUpLeftIcon,
 	BookOpenIcon,
 	CalendarIcon,
+	CardsIcon,
 	CaretDownIcon,
 	CaretRightIcon,
 	CheckCircleIcon,
+	FileTextIcon,
 	GraduationCapIcon,
 	MinusIcon,
 	PlusIcon,
@@ -14,7 +17,10 @@ import {
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { notifications } from "@mantine/notifications";
-import { finishLearningAssetsBulk } from "../../../../api/study/api/studyApi";
+import {
+	finishLearningAssetsBulk,
+	unfinishLearningAssetsBulk,
+} from "../../../../api/study/api/studyApi";
 import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
 import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { SearchElementResultDto } from "../../../../api/search/dto/searchElementResultDto";
@@ -77,6 +83,13 @@ export default function BulkActionsBar({
 		});
 	}
 
+	function handleUnfinish() {
+		void bulkCallApi(async () => {
+			await unfinishLearningAssetsBulk(selectedIds);
+			handleSuccess("Marked as unfinished");
+		});
+	}
+
 	return (
 		<>
 			<Group gap="xs" wrap="wrap" align="center">
@@ -113,18 +126,69 @@ export default function BulkActionsBar({
 								</Menu.Item>
 							</Menu.Target>
 							<Menu.Dropdown>
-								<Menu.Item
-									leftSection={
-										<ArrowCounterClockwiseIcon size={16} />
-									}
-									onClick={() => setOpenModal("reset")}>
-									Reset repetitions
-								</Menu.Item>
-								<Menu.Item
-									leftSection={<CheckCircleIcon size={16} />}
-									onClick={handleMarkAsFinished}>
-									Mark learning assets/extracts as finished
-								</Menu.Item>
+								<Menu
+									trigger="hover"
+									position="right-start"
+									shadow="md"
+									withinPortal>
+									<Menu.Target>
+										<Menu.Item
+											leftSection={
+												<CardsIcon size={16} />
+											}
+											rightSection={
+												<CaretRightIcon size={14} />
+											}>
+											Cards
+										</Menu.Item>
+									</Menu.Target>
+									<Menu.Dropdown>
+										<Menu.Item
+											leftSection={
+												<ArrowCounterClockwiseIcon
+													size={16}
+												/>
+											}
+											onClick={() =>
+												setOpenModal("reset")
+											}>
+											Reset repetitions
+										</Menu.Item>
+									</Menu.Dropdown>
+								</Menu>
+								<Menu
+									trigger="hover"
+									position="right-start"
+									shadow="md"
+									withinPortal>
+									<Menu.Target>
+										<Menu.Item
+											leftSection={
+												<FileTextIcon size={16} />
+											}
+											rightSection={
+												<CaretRightIcon size={14} />
+											}>
+											Learning assets/extracts
+										</Menu.Item>
+									</Menu.Target>
+									<Menu.Dropdown>
+										<Menu.Item
+											leftSection={
+												<CheckCircleIcon size={16} />
+											}
+											onClick={handleMarkAsFinished}>
+											Mark as finished
+										</Menu.Item>
+										<Menu.Item
+											leftSection={
+												<ArrowUUpLeftIcon size={16} />
+											}
+											onClick={handleUnfinish}>
+											Unfinish
+										</Menu.Item>
+									</Menu.Dropdown>
+								</Menu>
 								<Menu.Item
 									leftSection={
 										<GraduationCapIcon size={16} />
