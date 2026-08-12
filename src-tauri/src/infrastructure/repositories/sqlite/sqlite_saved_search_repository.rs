@@ -167,7 +167,7 @@ mod tests {
     use injector::{injector::Injector, register_scope};
 
     use crate::saved_searches::entities::saved_search_filter::{
-        ElementFilter, NameFilterOperator, TagsFilterOperator,
+        ElementFilter, StringFilterOperator, TagsFilterOperator,
     };
     use crate::test_utils::create_test_injector;
 
@@ -246,7 +246,7 @@ mod tests {
                 index: 0,
                 filter: ElementFilter::Name {
                     id: Uuid::new_v4(),
-                    operator: NameFilterOperator::Contains,
+                    operator: StringFilterOperator::Contains,
                     value: "x".into(),
                 },
             },
@@ -287,7 +287,7 @@ mod tests {
                 index: 0,
                 filter: ElementFilter::Name {
                     id: Uuid::new_v4(),
-                    operator: NameFilterOperator::Contains,
+                    operator: StringFilterOperator::Contains,
                     value: "x".into(),
                 },
             }],

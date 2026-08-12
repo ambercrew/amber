@@ -5,10 +5,15 @@ export type SelectFilterOperator = "isAnyOf" | "isNoneOf";
 export type DateFilterOperator =
 	"today" | "withinDays" | "before" | "after" | "between";
 
+export type StringFilterOperator =
+	"contains" | "equals" | "startsWith" | "endsWith";
+
+export type RangeFilterOperator = "between";
+
 export interface NameFilter {
 	id: string;
 	field: "name";
-	operator: "contains" | "equals" | "startsWith" | "endsWith";
+	operator: StringFilterOperator;
 	value: string;
 }
 
@@ -45,7 +50,7 @@ export interface ElementTypeFilter {
 export interface PriorityFilter {
 	id: string;
 	field: "priority";
-	operator: "between";
+	operator: RangeFilterOperator;
 	min: number;
 	max: number;
 }

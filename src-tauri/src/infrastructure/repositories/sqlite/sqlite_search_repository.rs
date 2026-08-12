@@ -168,16 +168,16 @@ fn push_filter_clause(query_builder: &mut QueryBuilder<Sqlite>, filter: &Element
             operator, value, ..
         } => {
             let pattern = match operator {
-                crate::saved_searches::entities::saved_search_filter::NameFilterOperator::Contains => {
+                crate::saved_searches::entities::saved_search_filter::StringFilterOperator::Contains => {
                     format!("%{}%", escape_like(value))
                 }
-                crate::saved_searches::entities::saved_search_filter::NameFilterOperator::Equals => {
+                crate::saved_searches::entities::saved_search_filter::StringFilterOperator::Equals => {
                     escape_like(value)
                 }
-                crate::saved_searches::entities::saved_search_filter::NameFilterOperator::StartsWith => {
+                crate::saved_searches::entities::saved_search_filter::StringFilterOperator::StartsWith => {
                     format!("{}%", escape_like(value))
                 }
-                crate::saved_searches::entities::saved_search_filter::NameFilterOperator::EndsWith => {
+                crate::saved_searches::entities::saved_search_filter::StringFilterOperator::EndsWith => {
                     format!("%{}", escape_like(value))
                 }
             };
@@ -438,7 +438,7 @@ mod tests {
     use crate::infrastructure::repositories::sqlite::sqlite_study_profile_repository::SqliteStudyProfileRepository;
     use crate::infrastructure::repositories::sqlite::sqlite_trash_repository::SqliteTrashRepository;
     use crate::saved_searches::entities::saved_search_filter::{
-        DateFilterOperator, ElementNodeType, NameFilterOperator, SelectFilterOperator,
+        DateFilterOperator, ElementNodeType, SelectFilterOperator, StringFilterOperator,
         TagsFilterOperator,
     };
     use crate::study::entities::card_review::CardReview;
@@ -595,7 +595,7 @@ mod tests {
 
         let filters = vec![ElementFilter::Name {
             id: Uuid::new_v4(),
-            operator: NameFilterOperator::Contains,
+            operator: StringFilterOperator::Contains,
             value: "philo".into(),
         }];
 
@@ -712,7 +712,8 @@ mod tests {
         // rank 1 -> 33.3%, rank 2 -> 66.6%, rank 3 -> 100%
         let filters = vec![ElementFilter::Priority {
             id: Uuid::new_v4(),
-            operator: crate::saved_searches::entities::saved_search_filter::PriorityFilterOperator::Between,
+            operator:
+                crate::saved_searches::entities::saved_search_filter::RangeFilterOperator::Between,
             min: 50,
             max: 80,
         }];
@@ -747,7 +748,7 @@ mod tests {
 
         let filters = vec![ElementFilter::Name {
             id: Uuid::new_v4(),
-            operator: NameFilterOperator::Equals,
+            operator: StringFilterOperator::Equals,
             value: "physics".into(),
         }];
 
@@ -781,7 +782,7 @@ mod tests {
 
         let filters = vec![ElementFilter::Name {
             id: Uuid::new_v4(),
-            operator: NameFilterOperator::StartsWith,
+            operator: StringFilterOperator::StartsWith,
             value: "Bio".into(),
         }];
 
@@ -815,7 +816,7 @@ mod tests {
 
         let filters = vec![ElementFilter::Name {
             id: Uuid::new_v4(),
-            operator: NameFilterOperator::EndsWith,
+            operator: StringFilterOperator::EndsWith,
             value: "log".into(),
         }];
 
@@ -849,7 +850,7 @@ mod tests {
 
         let filters = vec![ElementFilter::Name {
             id: Uuid::new_v4(),
-            operator: NameFilterOperator::Contains,
+            operator: StringFilterOperator::Contains,
             value: "%_".into(),
         }];
 
@@ -1478,7 +1479,7 @@ mod tests {
         let filters = vec![
             ElementFilter::Name {
                 id: Uuid::new_v4(),
-                operator: NameFilterOperator::Contains,
+                operator: StringFilterOperator::Contains,
                 value: "Philosophy".into(),
             },
             ElementFilter::Tags {
@@ -1514,7 +1515,7 @@ mod tests {
 
         let filters = vec![ElementFilter::Name {
             id: Uuid::new_v4(),
-            operator: NameFilterOperator::Equals,
+            operator: StringFilterOperator::Equals,
             value: "nonexistent".into(),
         }];
 

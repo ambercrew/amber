@@ -16,7 +16,7 @@ pub struct SavedSearchFilter {
 pub enum ElementFilter {
     Name {
         id: Uuid,
-        operator: NameFilterOperator,
+        operator: StringFilterOperator,
         value: String,
     },
     Tags {
@@ -50,7 +50,7 @@ pub enum ElementFilter {
     },
     Priority {
         id: Uuid,
-        operator: PriorityFilterOperator,
+        operator: RangeFilterOperator,
         min: i64,
         max: i64,
     },
@@ -63,9 +63,7 @@ pub enum ElementFilter {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-// TODO: change it to be StringFilterOperator (remember to update also front-end and query builder
-// to work generally with that operator)
-pub enum NameFilterOperator {
+pub enum StringFilterOperator {
     Contains,
     Equals,
     StartsWith,
@@ -100,9 +98,7 @@ pub enum SelectFilterOperator {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-// TODO: change it to be RangeFilterOperator (remember to update also front-end and query builder
-// to work generally with that operator)
-pub enum PriorityFilterOperator {
+pub enum RangeFilterOperator {
     Between,
 }
 
