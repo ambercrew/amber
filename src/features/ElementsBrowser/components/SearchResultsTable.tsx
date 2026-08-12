@@ -7,6 +7,7 @@ import {
 	Table,
 	Text,
 } from "@mantine/core";
+import { useRef } from "react";
 import { Link } from "react-router";
 import { SearchElementResultDto } from "../../../api/search/dto/searchElementResultDto";
 import { ElementId } from "../../../types/elements/elementId";
@@ -36,6 +37,9 @@ export default function SearchResultsTable({
 	selectedIds,
 	onSelectionChange,
 }: SearchResultsTableProps) {
+	const shiftKeyRef = useRef(false);
+	const lastClickedIndexRef = useRef<number | null>(null);
+
 	if (results.length === 0) {
 		return (
 			<Text c="dimmed" size="sm" ta="center" py="md">
@@ -58,9 +62,27 @@ export default function SearchResultsTable({
 		}
 	}
 
-	function toggleOne(result: SearchElementResultDto) {
+	function toggleOne(result: SearchElementResultDto, index: number) {
 		const key = elementKey(result);
-		if (selectedKeys.has(key)) {
+		const isSelected = selectedKeys.has(key);
+
+		if (shiftKeyRef.current && lastClickedIndexRef.current !== null) {
+			const [start, end] = [lastClickedIndexRef.current, index].sort(
+				(a, b) => a - b,
+			);
+			const rangeKeys = new Set(
+				results.slice(start, end + 1).map(elementKey),
+			);
+			const merged = new Map(selectedIds.map(id => [elementKey(id), id]));
+			if (isSelected) {
+				rangeKeys.forEach(rangeKey => merged.delete(rangeKey));
+			} else {
+				results.slice(start, end + 1).forEach(r => {
+					merged.set(elementKey(r), { type: r.type, id: r.id });
+				});
+			}
+			onSelectionChange([...merged.values()]);
+		} else if (isSelected) {
 			onSelectionChange(selectedIds.filter(id => elementKey(id) !== key));
 		} else {
 			onSelectionChange([
@@ -68,6 +90,8 @@ export default function SearchResultsTable({
 				{ type: result.type, id: result.id },
 			]);
 		}
+
+		lastClickedIndexRef.current = index;
 	}
 
 	return (
@@ -91,7 +115,7 @@ export default function SearchResultsTable({
 					</Table.Tr>
 				</Table.Thead>
 				<Table.Tbody>
-					{results.map(result => (
+					{results.map((result, index) => (
 						<Table.Tr key={elementKey(result)}>
 							<Table.Td>
 								<Checkbox
@@ -99,7 +123,10 @@ export default function SearchResultsTable({
 									checked={selectedKeys.has(
 										elementKey(result),
 									)}
-									onChange={() => toggleOne(result)}
+									onClick={e => {
+										shiftKeyRef.current = e.shiftKey;
+									}}
+									onChange={() => toggleOne(result, index)}
 								/>
 							</Table.Td>
 							<Table.Td>

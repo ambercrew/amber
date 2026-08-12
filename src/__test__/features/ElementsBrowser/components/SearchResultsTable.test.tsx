@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import SearchResultsTable from "../../../../features/ElementsBrowser/components/SearchResultsTable";
 import { SearchElementResultDto } from "../../../../api/search/dto/searchElementResultDto";
@@ -26,6 +26,15 @@ const EXTRACT_RESULT: SearchElementResultDto = {
 	id: "extract-1",
 	name: "Extract one",
 	priority: { rank: 2, total: 10, percentage: 25.5 },
+	due: null,
+	tags: [],
+};
+
+const FOLDER_RESULT: SearchElementResultDto = {
+	type: "folder",
+	id: "folder-1",
+	name: "Folder one",
+	priority: { rank: 3, total: 10, percentage: 10 },
 	due: null,
 	tags: [],
 };
@@ -200,6 +209,30 @@ describe("SearchResultsTable", () => {
 
 		expect(onSelectionChange).toHaveBeenCalledWith([
 			{ type: EXTRACT_RESULT.type, id: EXTRACT_RESULT.id },
+		]);
+	});
+
+	it("Should select every row between the last clicked row and a shift-clicked row", () => {
+		// Arrange
+
+		const { onSelectionChange } = render({
+			results: [CARD_RESULT, EXTRACT_RESULT, FOLDER_RESULT],
+			selectedIds: [],
+		});
+
+		// Act
+
+		fireEvent.click(screen.getByLabelText(`Select ${CARD_RESULT.name}`));
+		fireEvent.click(screen.getByLabelText(`Select ${FOLDER_RESULT.name}`), {
+			shiftKey: true,
+		});
+
+		// Assert
+
+		expect(onSelectionChange).toHaveBeenLastCalledWith([
+			{ type: CARD_RESULT.type, id: CARD_RESULT.id },
+			{ type: EXTRACT_RESULT.type, id: EXTRACT_RESULT.id },
+			{ type: FOLDER_RESULT.type, id: FOLDER_RESULT.id },
 		]);
 	});
 
