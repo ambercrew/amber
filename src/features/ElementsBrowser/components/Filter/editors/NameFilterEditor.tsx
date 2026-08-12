@@ -16,6 +16,7 @@ export default function NameFilterEditor({
 	filter: NameFilter;
 	onChange: (filter: NameFilter) => void;
 }) {
+	// TODO: some of the components here are duplicated
 	return (
 		<Stack gap="xs" w={FILTER_EDITOR_WIDTH}>
 			<Select

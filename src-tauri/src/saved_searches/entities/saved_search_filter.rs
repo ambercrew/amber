@@ -63,6 +63,8 @@ pub enum ElementFilter {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+// TODO: change it to be StringFilterOperator (remember to update also front-end and query builder
+// to work generally with that operator)
 pub enum NameFilterOperator {
     Contains,
     Equals,
@@ -98,6 +100,8 @@ pub enum SelectFilterOperator {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+// TODO: change it to be RangeFilterOperator (remember to update also front-end and query builder
+// to work generally with that operator)
 pub enum PriorityFilterOperator {
     Between,
 }

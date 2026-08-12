@@ -57,6 +57,7 @@ export default function BulkActionsBar({
 	onActionComplete,
 }: BulkActionsBarProps) {
 	const [openModal, setOpenModal] = useState<OpenModal>(null);
+	// TODO: show error messages
 	const { callApi } = useApi();
 	const dispatch = useAppDispatch();
 

@@ -30,6 +30,7 @@ export default function AddTagModal({
 		});
 	}
 
+	// TODO: in this and other use confirm modal
 	return (
 		<AppModal opened={opened} onClose={onClose} title="Add tag">
 			<TagsInput

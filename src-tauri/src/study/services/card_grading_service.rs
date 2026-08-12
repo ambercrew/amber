@@ -22,11 +22,7 @@ pub trait CardGradingService: Send + Sync {
     /// produce, without persisting a review.
     async fn preview_card(&self, card_id: Uuid) -> Result<CardDuePreview, GradeCardError>;
 
-    /// Resets each of `card_ids` back to its just-created state: `state = New`,
-    /// zeroed `stability`/`difficulty`/`reps`/`lapses`, no `last_reviewed`, and
-    /// `due` recomputed from the card's resolved profile — the same defaults
-    /// `ElementCreationService` gives a brand-new card. Review history
-    /// (`CardReviewLog`) is left untouched.
+    // Resets the cards review as if it was newly created.
     async fn reset(&self, card_ids: Vec<Uuid>) -> Result<(), GradeCardError>;
 }
 
