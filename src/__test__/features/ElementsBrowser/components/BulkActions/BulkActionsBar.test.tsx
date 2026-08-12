@@ -226,7 +226,11 @@ describe("BulkActionsBar", () => {
 
 		await openActionsMenu(user);
 		await user.click(await screen.findByText("Reschedule"));
-		await user.click(await screen.findByText("Mark as finished"));
+		await user.click(
+			await screen.findByText(
+				"Mark learning assets/extracts as finished",
+			),
+		);
 
 		// Assert
 

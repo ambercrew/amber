@@ -123,7 +123,7 @@ export default function BulkActionsBar({
 								<Menu.Item
 									leftSection={<CheckCircleIcon size={16} />}
 									onClick={handleMarkAsFinished}>
-									Mark as finished
+									Mark learning assets/extracts as finished
 								</Menu.Item>
 								<Menu.Item
 									leftSection={
