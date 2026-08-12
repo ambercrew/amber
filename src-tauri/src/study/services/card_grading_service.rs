@@ -21,6 +21,9 @@ pub trait CardGradingService: Send + Sync {
     /// Computes the due date that grading `card_id` with each rating would
     /// produce, without persisting a review.
     async fn preview_card(&self, card_id: Uuid) -> Result<CardDuePreview, GradeCardError>;
+
+    // Resets the cards review as if it was newly created.
+    async fn reset(&self, card_ids: Vec<Uuid>) -> Result<(), GradeCardError>;
 }
 
 pub struct CardDuePreview {

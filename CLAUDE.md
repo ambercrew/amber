@@ -76,6 +76,10 @@ async fn some_command(injector: State<'_, Arc<Injector>>, ...) -> Result<Dto, Ap
 }
 ```
 
+### Bulk Operations
+
+Bulk-operation commands (e.g. those driven by `src/features/ElementsBrowser`'s results action bar — reschedule, tags, set source, delete, etc.) always take an explicit list of element ids from the frontend, never the saved search/filter query that produced them. The frontend resolves the query to concrete `ElementId`s (from the already-fetched search results) before invoking the bulk command; the backend has no knowledge of `ElementFilter`/search state and only ever receives ids to act on.
+
 ### Event Manager (`common/event_manager.rs`)
 
 The `EventManager` trait (implemented by `TauriEventManager`, `common/services/implementations/tauri_event_manager.rs`) lets services queue frontend-bound events during a request scope without emitting them immediately. Services call `event_manager.push(name, body)` (e.g. `ELEMENT_CREATED_EVENT` in `default_element_creation_service.rs`); identical `AppEvent`s are deduplicated and buffered rather than sent right away. The buffered events are only flushed — via `emit_all()`, which emits each one through `AppHandle::emit` — from inside `SqliteTransactionManager::save_changes` (`infrastructure/managers/sqlite/sqlite_transaction_manager.rs`), right after the DB transaction commits, and reached through the same `UnitOfWorkExt::save_changes` call shown above. This ties event emission to the Unit-of-Work commit so the frontend never observes an event for a change that didn't actually persist (e.g. because the transaction was rolled back or an earlier step in the scope failed).

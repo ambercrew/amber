@@ -9,6 +9,8 @@ mod elements;
 mod import;
 mod infrastructure;
 mod local_configurations;
+mod saved_searches;
+mod search;
 mod secrets;
 mod settings;
 mod study;
@@ -29,6 +31,8 @@ use bibliographical_sources::bibliographical_sources_api::*;
 use common::common_api::*;
 use elements::elements_api::*;
 use import::import_api::*;
+use saved_searches::saved_search_api::*;
+use search::search_api::*;
 use settings::settings_api::*;
 use study::study_api::*;
 use study::study_profile_api::*;
@@ -151,6 +155,8 @@ pub async fn run() -> Result<(), String> {
             element_exists,
             move_element,
             update_element_tags,
+            add_tag_bulk,
+            remove_tag_bulk,
             clear_derived_from,
             set_element_priority_by_rank,
             set_element_priority_by_percentage,
@@ -168,6 +174,7 @@ pub async fn run() -> Result<(), String> {
             update_interval_multiplier,
             // Trash
             trash_element,
+            trash_elements_bulk,
             restore_element,
             get_trash,
             delete_element_permanently,
@@ -182,6 +189,9 @@ pub async fn run() -> Result<(), String> {
             preview_next_learning_asset,
             finish_learning_asset,
             unfinish_learning_asset,
+            finish_learning_assets_bulk,
+            unfinish_learning_assets_bulk,
+            reset_repetitions_bulk,
             get_fuzz_factor,
             set_fuzz_factor,
             // Study profiles
@@ -192,6 +202,7 @@ pub async fn run() -> Result<(), String> {
             clone_study_profile,
             set_default_study_profile,
             assign_study_profile,
+            assign_study_profile_bulk,
             get_effective_study_profile,
             // Bibliographical sources
             list_bibliographical_sources,
@@ -200,6 +211,17 @@ pub async fn run() -> Result<(), String> {
             update_bibliographical_source,
             delete_bibliographical_source,
             assign_bibliographical_source,
+            assign_bibliographical_source_bulk,
+            // Saved searches
+            list_saved_searches,
+            get_saved_search_filters,
+            create_saved_search,
+            rename_saved_search,
+            update_saved_search_filters,
+            duplicate_saved_search,
+            delete_saved_search,
+            // Search
+            search_elements,
             // Import
             fetch_page,
             fetch_image,

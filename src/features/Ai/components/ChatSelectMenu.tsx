@@ -1,5 +1,4 @@
-import { Group, Select, Text } from "@mantine/core";
-import { CheckIcon, PlusIcon } from "@phosphor-icons/react";
+import { Select } from "@mantine/core";
 import ChatDto from "../../../api/aiIntegration/dto/chatDto";
 
 const NEW_CHAT_VALUE = "__new_chat__";
@@ -30,22 +29,7 @@ function ChatSelectMenu({
 				else onSelect(value);
 			}}
 			allowDeselect={false}
-			renderOption={({ option, checked }) => (
-				<Group flex="1" gap="xs" wrap="nowrap">
-					{option.value !== NEW_CHAT_VALUE && (
-						<CheckIcon
-							size={14}
-							style={{
-								visibility: checked ? "visible" : "hidden",
-							}}
-						/>
-					)}
-					{option.value === NEW_CHAT_VALUE && <PlusIcon size={14} />}
-					<Text size="sm" style={{ flex: 1 }}>
-						{option.label}
-					</Text>
-				</Group>
-			)}
+			withAlignedLabels
 			style={{ flex: 1, minWidth: 0 }}
 		/>
 	);

@@ -353,9 +353,7 @@ describe("ElementTree sorting", () => {
 		const items = screen
 			.getAllByRole("treeitem")
 			.map(li =>
-				li
-					.querySelector(".mantine-Highlight-root")
-					?.getAttribute("aria-label"),
+				li.querySelector("p[aria-label]")?.getAttribute("aria-label"),
 			)
 			.filter(Boolean);
 
@@ -406,9 +404,7 @@ describe("ElementTree sorting", () => {
 		const items = screen
 			.getAllByRole("treeitem")
 			.map(li =>
-				li
-					.querySelector(".mantine-Highlight-root")
-					?.getAttribute("aria-label"),
+				li.querySelector("p[aria-label]")?.getAttribute("aria-label"),
 			)
 			.filter(Boolean);
 

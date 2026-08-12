@@ -1,6 +1,6 @@
-import { TreeViewIcon, QueueIcon, TrashIcon } from "@phosphor-icons/react";
+import { CompassIcon, QueueIcon, TrashIcon } from "@phosphor-icons/react";
 import CollapsibleSidebar from "../../../components/CollapsibleSidebar/CollapsibleSidebar";
-import ElementTreePanel from "./ElementTreePanel";
+import NavigatorPanel from "./NavigatorPanel";
 import PriorityQueuePanel from "./PriorityQueuePanel";
 import TrashPanel from "./TrashPanel";
 
@@ -16,9 +16,10 @@ function Sidebar({ onCollapse }: SidebarProps) {
 			tabs={[
 				{
 					value: "tree",
-					title: "Element Tree - used for managing your learning materials",
-					icon: <TreeViewIcon size={16} />,
-					panel: <ElementTreePanel />,
+					title: "Navigator — browse and organize your learning materials",
+					icon: <CompassIcon size={16} />,
+					panel: <NavigatorPanel />,
+					padded: false,
 				},
 				{
 					value: "priority-queue",

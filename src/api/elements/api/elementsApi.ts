@@ -113,6 +113,20 @@ export function updateElementTags(
 	return invoke("update_element_tags", { elementId, tags });
 }
 
+export function addTagBulk(
+	elementIds: ElementId[],
+	tags: string[],
+): Promise<void> {
+	return invoke("add_tag_bulk", { elementIds, tags });
+}
+
+export function removeTagBulk(
+	elementIds: ElementId[],
+	tags: string[],
+): Promise<void> {
+	return invoke("remove_tag_bulk", { elementIds, tags });
+}
+
 export function updateIntervalMultiplier(
 	elementId: ElementId,
 	intervalMultiplier: number,

@@ -106,6 +106,16 @@ impl LearningAssetSchedulingService for DefaultLearningAssetSchedulingService {
         Ok(review)
     }
 
+    async fn finish_many(
+        &self,
+        element_ids: Vec<ElementId>,
+    ) -> Result<(), LearningAssetSchedulingError> {
+        for element_id in element_ids {
+            self.finish(element_id).await?;
+        }
+        Ok(())
+    }
+
     async fn unfinish(
         &self,
         element_id: ElementId,
@@ -127,6 +137,19 @@ impl LearningAssetSchedulingService for DefaultLearningAssetSchedulingService {
             .await?;
 
         Ok(review)
+    }
+
+    async fn unfinish_many(
+        &self,
+        element_ids: Vec<ElementId>,
+    ) -> Result<(), LearningAssetSchedulingError> {
+        for element_id in element_ids {
+            match self.unfinish(element_id).await {
+                Ok(_) | Err(LearningAssetSchedulingError::NeverReviewed) => {}
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(())
     }
 }
 
@@ -417,5 +440,93 @@ mod tests {
             result,
             Err(LearningAssetSchedulingError::NeverReviewed)
         ));
+    }
+
+    #[tokio::test]
+    async fn finish_many_multiple_elements_marks_all_finished() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let first_id = create_test_learning_asset(&scope).await;
+        let second_id = create_test_learning_asset(&scope).await;
+        let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
+
+        // Act
+
+        service
+            .finish_many(vec![first_id, second_id])
+            .await
+            .unwrap();
+        let review_repository = scope.resolve::<dyn LearningAssetReviewRepository>().await;
+        let first = review_repository
+            .get_by_element_id(first_id.id())
+            .await
+            .unwrap()
+            .unwrap();
+        let second = review_repository
+            .get_by_element_id(second_id.id())
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Assert
+
+        assert!(first.finished_at.is_some());
+        assert!(second.finished_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn unfinish_many_multiple_finished_elements_unfinishes_all() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let first_id = create_test_learning_asset(&scope).await;
+        let second_id = create_test_learning_asset(&scope).await;
+        let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
+        service.finish(first_id).await.unwrap();
+        service.finish(second_id).await.unwrap();
+
+        // Act
+
+        service
+            .unfinish_many(vec![first_id, second_id])
+            .await
+            .unwrap();
+        let review_repository = scope.resolve::<dyn LearningAssetReviewRepository>().await;
+        let first = review_repository
+            .get_by_element_id(first_id.id())
+            .await
+            .unwrap()
+            .unwrap();
+        let second = review_repository
+            .get_by_element_id(second_id.id())
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Assert
+
+        assert!(first.finished_at.is_none());
+        assert!(second.finished_at.is_none());
+    }
+
+    #[tokio::test]
+    async fn unfinish_many_never_reviewed_element_skips_it_without_error() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let never_reviewed_id = create_test_learning_asset(&scope).await;
+        let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
+
+        // Act
+
+        let result = service.unfinish_many(vec![never_reviewed_id]).await;
+
+        // Assert
+
+        assert!(result.is_ok());
     }
 }

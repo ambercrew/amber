@@ -10,6 +10,10 @@ export function trashElement(elementId: ElementId): Promise<void> {
 	return invoke("trash_element", { elementId });
 }
 
+export function trashElementsBulk(elementIds: ElementId[]): Promise<void> {
+	return invoke("trash_elements_bulk", { elementIds });
+}
+
 export function restoreElement(elementId: ElementId): Promise<void> {
 	return invoke("restore_element", { elementId });
 }

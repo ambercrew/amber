@@ -16,6 +16,12 @@ pub trait MetaRepository: Send + Sync {
     async fn delete(&self, id: ElementId) -> Result<(), RepositoryError>;
     async fn get_tags(&self, id: ElementId) -> Result<Vec<Tag>, RepositoryError>;
     async fn update_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError>;
+
+    /// Adds `tags` to the element's existing tags, ignoring ones already present.
+    async fn add_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError>;
+
+    /// Removes `tags` from the element's existing tags, ignoring ones not present.
+    async fn remove_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError>;
     async fn rename(&self, id: ElementId, new_name: String) -> Result<(), RepositoryError>;
     async fn exists(&self, id: ElementId) -> Result<bool, RepositoryError>;
 

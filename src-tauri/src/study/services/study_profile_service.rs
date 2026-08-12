@@ -49,6 +49,13 @@ pub trait StudyProfileService: Send + Sync {
         element_id: ElementId,
         profile_id: Option<Uuid>,
     ) -> Result<(), RepositoryError>;
+
+    /// Same as `assign_profile`, applied to every element in `element_ids`.
+    async fn assign_profile_many(
+        &self,
+        element_ids: Vec<ElementId>,
+        profile_id: Option<Uuid>,
+    ) -> Result<(), RepositoryError>;
 }
 
 #[derive(Debug, Error)]

@@ -9,6 +9,8 @@ interface ConfirmModalProps {
 	confirmLabel: string;
 	/** Mantine color for the confirm button — "red" for destructive actions. */
 	confirmColor?: string;
+	/** Disables the confirm button, e.g. while the form is incomplete. */
+	confirmDisabled?: boolean;
 	/** What is about to happen, shown above the buttons. */
 	children: ReactNode;
 	onConfirm: () => void;
@@ -26,6 +28,7 @@ function ConfirmModal({
 	title,
 	confirmLabel,
 	confirmColor,
+	confirmDisabled,
 	children,
 	onConfirm,
 	onClose,
@@ -42,7 +45,10 @@ function ConfirmModal({
 				<Button variant="default" onClick={onClose}>
 					Cancel
 				</Button>
-				<Button color={confirmColor} onClick={handleConfirm}>
+				<Button
+					color={confirmColor}
+					disabled={confirmDisabled}
+					onClick={handleConfirm}>
 					{confirmLabel}
 				</Button>
 			</Group>

@@ -122,6 +122,19 @@ impl BibliographicalSourceService for DefaultBibliographicalSourceService {
             .await?;
         Ok(())
     }
+
+    async fn assign_bibliographical_source_many(
+        &self,
+        element_ids: Vec<ElementId>,
+        bibliographical_source_id: Option<Uuid>,
+    ) -> Result<(), BibliographicalSourceServiceError> {
+        for element_id in element_ids {
+            self.meta_repository
+                .set_bibliographical_source(element_id, bibliographical_source_id)
+                .await?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -294,5 +307,35 @@ mod tests {
 
         let meta = meta_repository.get_by_id(element_id.id()).await.unwrap();
         assert_eq!(None, meta.bibliographical_source_id);
+    }
+
+    #[tokio::test]
+    async fn assign_source_many_multiple_elements_sets_source_on_each() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+        let service = scope.resolve::<dyn BibliographicalSourceService>().await;
+        let first_id = make_element(&meta_repository, None).await;
+        let second_id = make_element(&meta_repository, None).await;
+        let source = service
+            .create_or_reuse_bibliographical_source(make_fields(None))
+            .await
+            .unwrap();
+
+        // Act
+
+        service
+            .assign_bibliographical_source_many(vec![first_id, second_id], Some(source.id))
+            .await
+            .unwrap();
+
+        // Assert
+
+        let first_meta = meta_repository.get_by_id(first_id.id()).await.unwrap();
+        let second_meta = meta_repository.get_by_id(second_id.id()).await.unwrap();
+        assert_eq!(Some(source.id), first_meta.bibliographical_source_id);
+        assert_eq!(Some(source.id), second_meta.bibliographical_source_id);
     }
 }

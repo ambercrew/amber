@@ -93,7 +93,7 @@ function ElementTree({ tree }: ElementTreeProps) {
 	}
 
 	return (
-		<Stack>
+		<Stack gap="xs">
 			<TextInput
 				placeholder="Search..."
 				leftSection={<MagnifyingGlassIcon size={16} />}

@@ -119,6 +119,22 @@ pub async fn assign_study_profile(
 }
 
 #[tauri::command]
+pub async fn assign_study_profile_bulk(
+    injector: State<'_, Arc<Injector>>,
+    element_ids: Vec<ElementId>,
+    profile_id: Option<Uuid>,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    scope
+        .resolve::<dyn StudyProfileService>()
+        .await
+        .assign_profile_many(element_ids, profile_id)
+        .await?;
+    scope.save_changes().await?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn get_effective_study_profile(
     injector: State<'_, Arc<Injector>>,
     element_id: ElementId,

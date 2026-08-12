@@ -108,6 +108,19 @@ impl StudyProfileService for DefaultStudyProfileService {
             .set_study_profile(element_id, profile_id)
             .await
     }
+
+    async fn assign_profile_many(
+        &self,
+        element_ids: Vec<ElementId>,
+        profile_id: Option<Uuid>,
+    ) -> Result<(), RepositoryError> {
+        for element_id in element_ids {
+            self.meta_repository
+                .set_study_profile(element_id, profile_id)
+                .await?;
+        }
+        Ok(())
+    }
 }
 
 fn validate_fsrs_params(
@@ -371,5 +384,50 @@ mod tests {
 
         let meta = meta_repo.get_by_id(folder_id.id()).await.unwrap();
         assert_eq!(Some(profile.id), meta.study_profile_id);
+    }
+
+    #[tokio::test]
+    async fn assign_profile_many_multiple_elements_sets_profile_on_each() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let meta_repo = scope.resolve::<dyn MetaRepository>().await;
+        let service = scope.resolve::<dyn StudyProfileService>().await;
+        let profile = service.create_profile(make_fields("Custom")).await.unwrap();
+
+        let make_folder = |id: ElementId| Meta {
+            element_id: id,
+            name: "test".into(),
+            parent: None,
+            position: FractionalIndex::default(),
+            priority: FractionalIndex::default(),
+            study_profile_id: None,
+            bibliographical_source_id: None,
+            derived_from: None,
+            created_at: Utc::now(),
+            modified_at: Utc::now(),
+        };
+        let first_id = ElementId::Folder(Uuid::new_v4());
+        let second_id = ElementId::Folder(Uuid::new_v4());
+        meta_repo.create_meta(&make_folder(first_id)).await.unwrap();
+        meta_repo
+            .create_meta(&make_folder(second_id))
+            .await
+            .unwrap();
+
+        // Act
+
+        service
+            .assign_profile_many(vec![first_id, second_id], Some(profile.id))
+            .await
+            .unwrap();
+
+        // Assert
+
+        let first_meta = meta_repo.get_by_id(first_id.id()).await.unwrap();
+        let second_meta = meta_repo.get_by_id(second_id.id()).await.unwrap();
+        assert_eq!(Some(profile.id), first_meta.study_profile_id);
+        assert_eq!(Some(profile.id), second_meta.study_profile_id);
     }
 }

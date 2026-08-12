@@ -27,6 +27,13 @@ impl TrashService for DefaultTrashService {
         Ok(())
     }
 
+    async fn trash_many(&self, ids: Vec<ElementId>) -> Result<(), TrashServiceError> {
+        for id in ids {
+            self.trash_repository.trash(id, Utc::now()).await?;
+        }
+        Ok(())
+    }
+
     async fn restore_element(&self, id: ElementId) -> Result<(), TrashServiceError> {
         let restored_ids = self.trash_repository.restore(id).await?;
         self.reassign_priorities(restored_ids).await?;
@@ -709,6 +716,32 @@ mod tests {
 
         assert_eq!(0, actual);
         assert_eq!(1, service.list_trash().await.unwrap().len());
+    }
+
+    #[tokio::test]
+    async fn trash_many_two_folders_moves_both_to_trash() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn TrashService>().await;
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+
+        let first = make_folder("First", None);
+        let second = make_folder("Second", None);
+        let first_id = first.meta.element_id;
+        let second_id = second.meta.element_id;
+        folder_repository.create(first).await.unwrap();
+        folder_repository.create(second).await.unwrap();
+
+        // Act
+
+        service.trash_many(vec![first_id, second_id]).await.unwrap();
+
+        // Assert
+
+        let trashed = service.list_trash().await.unwrap();
+        assert_eq!(2, trashed.len());
     }
 
     #[tokio::test]

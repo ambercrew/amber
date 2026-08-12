@@ -197,3 +197,65 @@ pub async fn unfinish_learning_asset(
     scope.save_changes().await?;
     Ok(result.into())
 }
+
+#[tauri::command]
+pub async fn finish_learning_assets_bulk(
+    injector: State<'_, Arc<Injector>>,
+    element_ids: Vec<ElementId>,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    let element_ids = element_ids
+        .into_iter()
+        .filter(|id| matches!(id, ElementId::LearningAsset(_) | ElementId::Extract(_)))
+        .collect();
+    scope
+        .resolve::<dyn LearningAssetSchedulingService>()
+        .await
+        .finish_many(element_ids)
+        .await?;
+    scope.save_changes().await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn unfinish_learning_assets_bulk(
+    injector: State<'_, Arc<Injector>>,
+    element_ids: Vec<ElementId>,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    let element_ids = element_ids
+        .into_iter()
+        .filter(|id| matches!(id, ElementId::LearningAsset(_) | ElementId::Extract(_)))
+        .collect();
+    scope
+        .resolve::<dyn LearningAssetSchedulingService>()
+        .await
+        .unfinish_many(element_ids)
+        .await?;
+    scope.save_changes().await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn reset_repetitions_bulk(
+    injector: State<'_, Arc<Injector>>,
+    element_ids: Vec<ElementId>,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+
+    let card_ids = element_ids
+        .into_iter()
+        .filter_map(|id| match id {
+            ElementId::Card(uuid) => Some(uuid),
+            _ => None,
+        })
+        .collect();
+    scope
+        .resolve::<dyn CardGradingService>()
+        .await
+        .reset(card_ids)
+        .await?;
+
+    scope.save_changes().await?;
+    Ok(())
+}

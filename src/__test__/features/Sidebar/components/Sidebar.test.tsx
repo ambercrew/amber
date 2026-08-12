@@ -4,8 +4,8 @@ import Sidebar from "../../../../features/Sidebar/components/Sidebar";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
 vi.mock(
-	import("../../../../features/Sidebar/components/ElementTreePanel"),
-	() => ({ default: () => <div>ElementTreePanel</div> }),
+	import("../../../../features/Sidebar/components/NavigatorPanel"),
+	() => ({ default: () => <div>NavigatorPanel</div> }),
 );
 vi.mock(
 	import("../../../../features/Sidebar/components/PriorityQueuePanel"),
@@ -24,18 +24,18 @@ describe("Sidebar", () => {
 		);
 	}
 
-	it("Should show ElementTreePanel when tree tab is active", () => {
+	it("Should show NavigatorPanel when navigator tab is active", () => {
 		// Arrange
 
 		render();
 
 		// Act
 
-		fireEvent.click(screen.getByRole("tab", { name: /element tree/i }));
+		fireEvent.click(screen.getByRole("tab", { name: /navigator/i }));
 
 		// Assert
 
-		expect(screen.getByText("ElementTreePanel")).toBeVisible();
+		expect(screen.getByText("NavigatorPanel")).toBeVisible();
 		expect(screen.queryByText("PriorityQueuePanel")).not.toBeVisible();
 	});
 
@@ -51,7 +51,7 @@ describe("Sidebar", () => {
 		// Assert
 
 		expect(screen.getByText("PriorityQueuePanel")).toBeVisible();
-		expect(screen.queryByText("ElementTreePanel")).not.toBeVisible();
+		expect(screen.queryByText("NavigatorPanel")).not.toBeVisible();
 	});
 
 	it("Should show TrashPanel when trash tab is active", () => {
@@ -66,10 +66,10 @@ describe("Sidebar", () => {
 		// Assert
 
 		expect(screen.getByText("TrashPanel")).toBeVisible();
-		expect(screen.queryByText("ElementTreePanel")).not.toBeVisible();
+		expect(screen.queryByText("NavigatorPanel")).not.toBeVisible();
 	});
 
-	it("Should show ElementTreePanel by default", () => {
+	it("Should show NavigatorPanel by default", () => {
 		// Arrange
 
 		// Act
@@ -78,7 +78,7 @@ describe("Sidebar", () => {
 
 		// Assert
 
-		expect(screen.getByText("ElementTreePanel")).toBeVisible();
+		expect(screen.getByText("NavigatorPanel")).toBeVisible();
 		expect(screen.queryByText("PriorityQueuePanel")).not.toBeVisible();
 	});
 });

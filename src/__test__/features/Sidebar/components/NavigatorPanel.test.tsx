@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import ElementTreePanel from "../../../../features/Sidebar/components/ElementTreePanel";
+import NavigatorPanel from "../../../../features/Sidebar/components/NavigatorPanel";
 import { createFolderAction } from "../../../../stores/elements/elementsActions";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
@@ -10,13 +10,13 @@ vi.mock(
 	() => ({ default: () => <></> }),
 );
 
-describe("ElementTreePanel — new root folder button", () => {
+describe("NavigatorPanel — new root folder button", () => {
 	it("Should dispatch createFolderAction with parentFolderId null when clicked", async () => {
 		// Arrange
 
 		vi.mocked(createFolderAction).mockReturnValue(() => Promise.resolve());
 		const user = userEvent.setup();
-		renderWithProviders(<ElementTreePanel />);
+		renderWithProviders(<NavigatorPanel />);
 
 		// Act
 
@@ -37,7 +37,7 @@ describe("ElementTreePanel — new root folder button", () => {
 
 		vi.mocked(createFolderAction).mockReturnValue(() => Promise.resolve());
 		const user = userEvent.setup();
-		renderWithProviders(<ElementTreePanel />);
+		renderWithProviders(<NavigatorPanel />);
 
 		// Act
 
