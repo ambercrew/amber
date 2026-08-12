@@ -1,7 +1,8 @@
-import { NumberInput, Select, Stack } from "@mantine/core";
+import { NumberInput, Stack } from "@mantine/core";
 import { DateInput, DatePickerInput } from "@mantine/dates";
 import { DateFilter } from "../../../../../api/savedSearches/dto/elementFilter";
 import { FILTER_EDITOR_WIDTH } from "../../../config/constants";
+import FilterOperatorSelect from "./FilterOperatorSelect";
 
 const operatorOptions = [
 	{ value: "today", label: "today" },
@@ -20,17 +21,13 @@ export default function DateFilterEditor({
 }) {
 	return (
 		<Stack gap="xs" w={FILTER_EDITOR_WIDTH}>
-			<Select
-				data={operatorOptions}
+			<FilterOperatorSelect
+				options={operatorOptions}
 				value={filter.operator}
-				allowDeselect={false}
-				withAlignedLabels
-				comboboxProps={{ withinPortal: false }}
-				onChange={value =>
-					value &&
+				onChange={operator =>
 					onChange({
 						...filter,
-						operator: value as DateFilter["operator"],
+						operator: operator as DateFilter["operator"],
 					})
 				}
 			/>

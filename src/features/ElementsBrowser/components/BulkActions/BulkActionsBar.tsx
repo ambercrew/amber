@@ -15,7 +15,7 @@ import {
 	TagIcon,
 	TrashIcon,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { notifications } from "@mantine/notifications";
 import {
 	finishLearningAssetsBulk,
@@ -57,14 +57,19 @@ export default function BulkActionsBar({
 	onActionComplete,
 }: BulkActionsBarProps) {
 	const [openModal, setOpenModal] = useState<OpenModal>(null);
-	// TODO: show error messages
-	const { callApi } = useApi();
+	const { callApi, errorMessage, clearErrorMessage } = useApi();
 	const dispatch = useAppDispatch();
 
 	const hasSelection = selectedIds.length > 0;
 
 	const bulkCallApi: BulkCallApi = cb =>
 		callApi(cb, () => dispatch(loadElementTree()));
+
+	useEffect(() => {
+		if (!errorMessage) return;
+		notifications.show({ message: errorMessage, color: "red" });
+		clearErrorMessage();
+	}, [errorMessage, clearErrorMessage]);
 
 	function closeModal() {
 		setOpenModal(null);

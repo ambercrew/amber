@@ -1,7 +1,8 @@
-import { MultiSelect, Select, Stack } from "@mantine/core";
+import { MultiSelect, Stack } from "@mantine/core";
 import { StudyProfileFilter } from "../../../../../api/savedSearches/dto/elementFilter";
 import { StudyProfileDto } from "../../../../../api/study/dto/studyProfileDto";
 import { FILTER_EDITOR_WIDTH } from "../../../config/constants";
+import FilterOperatorSelect from "./FilterOperatorSelect";
 
 const operatorOptions = [
 	{ value: "isAnyOf", label: "is any of" },
@@ -19,17 +20,13 @@ export default function StudyProfileFilterEditor({
 }) {
 	return (
 		<Stack gap="xs" w={FILTER_EDITOR_WIDTH}>
-			<Select
-				data={operatorOptions}
+			<FilterOperatorSelect
+				options={operatorOptions}
 				value={filter.operator}
-				allowDeselect={false}
-				withAlignedLabels
-				comboboxProps={{ withinPortal: false }}
-				onChange={value =>
-					value &&
+				onChange={operator =>
 					onChange({
 						...filter,
-						operator: value as StudyProfileFilter["operator"],
+						operator: operator as StudyProfileFilter["operator"],
 					})
 				}
 			/>

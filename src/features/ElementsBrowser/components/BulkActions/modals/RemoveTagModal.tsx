@@ -1,6 +1,6 @@
-import { Button, Group, MultiSelect } from "@mantine/core";
+import { MultiSelect } from "@mantine/core";
 import { useMemo, useState } from "react";
-import AppModal from "../../../../../components/AppModal/AppModal";
+import ConfirmModal from "../../../../../components/AppModal/ConfirmModal";
 import { removeTagBulk } from "../../../../../api/elements/api/elementsApi";
 import { SearchElementResultDto } from "../../../../../api/search/dto/searchElementResultDto";
 import { ElementId } from "../../../../../types/elements/elementId";
@@ -34,7 +34,6 @@ export default function RemoveTagModal({
 	}, [selectedResults]);
 
 	function handleSave() {
-		if (tags.length === 0) return;
 		void callApi(async () => {
 			await removeTagBulk(elementIds, tags);
 			onSuccess();
@@ -42,7 +41,13 @@ export default function RemoveTagModal({
 	}
 
 	return (
-		<AppModal opened={opened} onClose={onClose} title="Remove tag">
+		<ConfirmModal
+			opened={opened}
+			title="Remove tag"
+			confirmLabel="Save"
+			confirmDisabled={tags.length === 0}
+			onConfirm={handleSave}
+			onClose={onClose}>
 			<MultiSelect
 				placeholder="Select tags to remove"
 				data={availableTags}
@@ -51,14 +56,6 @@ export default function RemoveTagModal({
 				searchable
 				nothingFoundMessage="No tags among the selected elements"
 			/>
-			<Group justify="flex-end" gap="xs" mt="sm">
-				<Button variant="default" onClick={onClose}>
-					Cancel
-				</Button>
-				<Button disabled={tags.length === 0} onClick={handleSave}>
-					Save
-				</Button>
-			</Group>
-		</AppModal>
+		</ConfirmModal>
 	);
 }

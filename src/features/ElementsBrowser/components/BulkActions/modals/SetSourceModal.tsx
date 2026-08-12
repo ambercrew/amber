@@ -1,6 +1,6 @@
-import { Button, Group, Select } from "@mantine/core";
+import { Select } from "@mantine/core";
 import { useState } from "react";
-import AppModal from "../../../../../components/AppModal/AppModal";
+import ConfirmModal from "../../../../../components/AppModal/ConfirmModal";
 import { assignBibliographicalSourceBulk } from "../../../../../api/bibliographicalSources/api/bibliographicalSourcesApi";
 import { BibliographicalSourceResponseDto } from "../../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { ElementId } from "../../../../../types/elements/elementId";
@@ -36,7 +36,12 @@ export default function SetSourceModal({
 	}
 
 	return (
-		<AppModal opened={opened} onClose={onClose} title="Set source">
+		<ConfirmModal
+			opened={opened}
+			title="Set source"
+			confirmLabel="Save"
+			onConfirm={handleSave}
+			onClose={onClose}>
 			<Select
 				value={value}
 				onChange={next => setValue(next ?? NONE_VALUE)}
@@ -48,12 +53,6 @@ export default function SetSourceModal({
 					})),
 				]}
 			/>
-			<Group justify="flex-end" gap="xs" mt="sm">
-				<Button variant="default" onClick={onClose}>
-					Cancel
-				</Button>
-				<Button onClick={handleSave}>Save</Button>
-			</Group>
-		</AppModal>
+		</ConfirmModal>
 	);
 }

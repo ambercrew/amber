@@ -1,6 +1,7 @@
-import { Select, Stack, TagsInput } from "@mantine/core";
+import { Stack, TagsInput } from "@mantine/core";
 import { TagsFilter } from "../../../../../api/savedSearches/dto/elementFilter";
 import { FILTER_EDITOR_WIDTH } from "../../../config/constants";
+import FilterOperatorSelect from "./FilterOperatorSelect";
 
 const operatorOptions = [
 	{ value: "isAnyOf", label: "is any of" },
@@ -17,17 +18,13 @@ export default function TagsFilterEditor({
 }) {
 	return (
 		<Stack gap="xs" w={FILTER_EDITOR_WIDTH}>
-			<Select
-				data={operatorOptions}
+			<FilterOperatorSelect
+				options={operatorOptions}
 				value={filter.operator}
-				allowDeselect={false}
-				withAlignedLabels
-				comboboxProps={{ withinPortal: false }}
-				onChange={value =>
-					value &&
+				onChange={operator =>
 					onChange({
 						...filter,
-						operator: value as TagsFilter["operator"],
+						operator: operator as TagsFilter["operator"],
 					})
 				}
 			/>

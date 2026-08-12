@@ -1,7 +1,8 @@
-import { MultiSelect, Select, Stack } from "@mantine/core";
+import { MultiSelect, Stack } from "@mantine/core";
 import { BibliographicalSourceFilter } from "../../../../../api/savedSearches/dto/elementFilter";
 import { BibliographicalSourceResponseDto } from "../../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { FILTER_EDITOR_WIDTH } from "../../../config/constants";
+import FilterOperatorSelect from "./FilterOperatorSelect";
 
 const operatorOptions = [
 	{ value: "isAnyOf", label: "is any of" },
@@ -19,18 +20,14 @@ export default function BibliographicalSourceFilterEditor({
 }) {
 	return (
 		<Stack gap="xs" w={FILTER_EDITOR_WIDTH}>
-			<Select
-				data={operatorOptions}
+			<FilterOperatorSelect
+				options={operatorOptions}
 				value={filter.operator}
-				allowDeselect={false}
-				withAlignedLabels
-				comboboxProps={{ withinPortal: false }}
-				onChange={value =>
-					value &&
+				onChange={operator =>
 					onChange({
 						...filter,
 						operator:
-							value as BibliographicalSourceFilter["operator"],
+							operator as BibliographicalSourceFilter["operator"],
 					})
 				}
 			/>

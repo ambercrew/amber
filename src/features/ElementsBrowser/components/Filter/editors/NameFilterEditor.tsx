@@ -1,6 +1,7 @@
-import { Select, Stack, TextInput } from "@mantine/core";
+import { Stack, TextInput } from "@mantine/core";
 import { NameFilter } from "../../../../../api/savedSearches/dto/elementFilter";
 import { FILTER_EDITOR_WIDTH } from "../../../config/constants";
+import FilterOperatorSelect from "./FilterOperatorSelect";
 
 const operatorOptions = [
 	{ value: "contains", label: "contains" },
@@ -16,20 +17,15 @@ export default function NameFilterEditor({
 	filter: NameFilter;
 	onChange: (filter: NameFilter) => void;
 }) {
-	// TODO: some of the components here are duplicated
 	return (
 		<Stack gap="xs" w={FILTER_EDITOR_WIDTH}>
-			<Select
-				data={operatorOptions}
+			<FilterOperatorSelect
+				options={operatorOptions}
 				value={filter.operator}
-				allowDeselect={false}
-				withAlignedLabels
-				comboboxProps={{ withinPortal: false }}
-				onChange={value =>
-					value &&
+				onChange={operator =>
 					onChange({
 						...filter,
-						operator: value as NameFilter["operator"],
+						operator: operator as NameFilter["operator"],
 					})
 				}
 			/>
