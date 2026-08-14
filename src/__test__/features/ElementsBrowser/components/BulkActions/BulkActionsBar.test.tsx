@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BulkActionsBar from "../../../../../features/ElementsBrowser/components/BulkActions/BulkActionsBar";
 import {
@@ -78,6 +78,10 @@ async function openActionsMenu(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(screen.getByRole("button", { name: "Actions" }));
 }
 
+async function openSubmenu(name: string) {
+	await userEvent.click(await screen.findByText(name));
+}
+
 describe("BulkActionsBar", () => {
 	beforeEach(() => {
 		vi.mocked(finishLearningAssetsBulk).mockResolvedValue(undefined);
@@ -117,9 +121,9 @@ describe("BulkActionsBar", () => {
 		// Act
 
 		await openActionsMenu(user);
-		await user.click(await screen.findByText("Reschedule"));
-		await user.click(await screen.findByText("Cards"));
-		await user.click(await screen.findByText("Reset repetitions"));
+		await openSubmenu("Reschedule");
+		await openSubmenu("Cards");
+		fireEvent.click(await screen.findByText("Reset repetitions"));
 
 		// Assert
 
@@ -139,8 +143,8 @@ describe("BulkActionsBar", () => {
 		// Act
 
 		await openActionsMenu(user);
-		await user.click(await screen.findByText("Reschedule"));
-		await user.click(await screen.findByText("Set study profile"));
+		await openSubmenu("Reschedule");
+		fireEvent.click(await screen.findByText("Set study profile"));
 
 		// Assert
 
@@ -158,8 +162,8 @@ describe("BulkActionsBar", () => {
 		// Act
 
 		await openActionsMenu(user);
-		await user.click(await screen.findByText("Tags"));
-		await user.click(await screen.findByText("Add tag"));
+		await openSubmenu("Tags");
+		fireEvent.click(await screen.findByText("Add tag"));
 
 		// Assert
 
@@ -177,8 +181,8 @@ describe("BulkActionsBar", () => {
 		// Act
 
 		await openActionsMenu(user);
-		await user.click(await screen.findByText("Tags"));
-		await user.click(await screen.findByText("Remove tag"));
+		await openSubmenu("Tags");
+		fireEvent.click(await screen.findByText("Remove tag"));
 
 		// Assert
 
@@ -232,9 +236,9 @@ describe("BulkActionsBar", () => {
 		// Act
 
 		await openActionsMenu(user);
-		await user.click(await screen.findByText("Reschedule"));
-		await user.click(await screen.findByText("Learning assets/extracts"));
-		await user.click(await screen.findByText("Mark as finished"));
+		await openSubmenu("Reschedule");
+		await openSubmenu("Learning assets/extracts");
+		fireEvent.click(await screen.findByText("Mark as finished"));
 
 		// Assert
 
@@ -254,9 +258,9 @@ describe("BulkActionsBar", () => {
 		// Act
 
 		await openActionsMenu(user);
-		await user.click(await screen.findByText("Reschedule"));
-		await user.click(await screen.findByText("Learning assets/extracts"));
-		await user.click(await screen.findByText("Unfinish"));
+		await openSubmenu("Reschedule");
+		await openSubmenu("Learning assets/extracts");
+		fireEvent.click(await screen.findByText("Unfinish"));
 
 		// Assert
 
