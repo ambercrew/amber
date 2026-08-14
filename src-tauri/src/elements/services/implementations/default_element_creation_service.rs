@@ -64,9 +64,11 @@ impl ElementCreationService for DefaultElementCreationService {
         let (derived_from, bibliographical_source_id) =
             self.resolve_origin(parent, dto.meta.origin).await?;
 
+        let element_id = ElementId::Folder(Uuid::new_v4());
+
         let folder = Folder {
             meta: Meta {
-                element_id: ElementId::Folder(Uuid::new_v4()),
+                element_id,
                 name: dto.meta.name,
                 parent,
                 position,
@@ -79,6 +81,7 @@ impl ElementCreationService for DefaultElementCreationService {
             },
         };
         self.folder_repository.create(folder).await?;
+        self.copy_parent_tags(parent, element_id).await?;
         self.emit_element_created(parent).await;
         Ok(())
     }
@@ -129,6 +132,7 @@ impl ElementCreationService for DefaultElementCreationService {
             .await?;
         self.ensure_learning_asset_review(element_id, profile)
             .await?;
+        self.copy_parent_tags(parent, element_id).await?;
         self.emit_element_created(parent).await;
         Ok(())
     }
@@ -171,6 +175,7 @@ impl ElementCreationService for DefaultElementCreationService {
         // Extracts are reviewed like learning_assets.
         self.ensure_learning_asset_review(element_id, profile)
             .await?;
+        self.copy_parent_tags(parent, element_id).await?;
         self.emit_element_created(parent).await;
         Ok(())
     }
@@ -202,6 +207,7 @@ impl ElementCreationService for DefaultElementCreationService {
         };
         self.card_repository.create(card).await?;
         self.ensure_card_review(dto.id, element_id).await?;
+        self.copy_parent_tags(parent, element_id).await?;
         self.emit_element_created(parent).await;
         Ok(())
     }
@@ -234,6 +240,23 @@ impl DefaultElementCreationService {
                 None => Ok((None, None)),
             },
         }
+    }
+
+    async fn copy_parent_tags(
+        &self,
+        parent: Option<ElementId>,
+        element_id: ElementId,
+    ) -> Result<(), ElementCreationError> {
+        let Some(parent_id) = parent else {
+            return Ok(());
+        };
+        let tags = self.meta_repository.get_tags(parent_id).await?;
+        if tags.is_empty() {
+            return Ok(());
+        }
+        let tag_names = tags.into_iter().map(|tag| tag.name).collect();
+        self.meta_repository.add_tags(element_id, tag_names).await?;
+        Ok(())
     }
 
     async fn ensure_learning_asset_review(
@@ -294,6 +317,7 @@ fn due_from_today(initial_interval_days: f32) -> DateTime<Utc> {
 
 #[cfg(test)]
 mod tests {
+    use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
 
     use crate::{
@@ -328,6 +352,7 @@ mod tests {
 
     async fn initialize_test_injector() -> Injector {
         let mut injector = create_test_injector().await;
+        injector.register_singleton::<dyn EventManager>(permissive_event_manager());
         register_scope!(injector, dyn FolderRepository, SqliteFolderRepository);
         register_scope!(
             injector,
@@ -363,7 +388,52 @@ mod tests {
             dyn ProfileResolutionService,
             DefaultProfileResolutionService
         );
+        register_scope!(
+            injector,
+            dyn ElementCreationService,
+            DefaultElementCreationService
+        );
         injector
+    }
+
+    async fn create_service(
+        scope: &injector::injector_scope::InjectorScope<'_>,
+    ) -> Arc<dyn ElementCreationService> {
+        scope.resolve::<dyn ElementCreationService>().await
+    }
+
+    async fn create_tagged_parent_folder(
+        scope: &injector::injector_scope::InjectorScope<'_>,
+        tags: Vec<String>,
+    ) -> ElementId {
+        let element_id = ElementId::Folder(Uuid::new_v4());
+        let folder = Folder {
+            meta: Meta {
+                element_id,
+                name: "parent".into(),
+                parent: None,
+                position: FractionalIndex::default(),
+                priority: FractionalIndex::default(),
+                study_profile_id: None,
+                bibliographical_source_id: None,
+                derived_from: None,
+                created_at: Utc::now(),
+                modified_at: Utc::now(),
+            },
+        };
+        scope
+            .resolve::<dyn FolderRepository>()
+            .await
+            .create(folder)
+            .await
+            .unwrap();
+        scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .update_tags(element_id, tags)
+            .await
+            .unwrap();
+        element_id
     }
 
     fn dto_meta(parent: Option<ElementId>) -> crate::elements::dto::create_meta_dto::CreateMetaDto {
@@ -405,21 +475,7 @@ mod tests {
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
         create_test_profile(&scope, 3.0).await;
-        let service = DefaultElementCreationService {
-            folder_repository: scope.resolve::<dyn FolderRepository>().await,
-            learning_asset_repository: scope.resolve::<dyn LearningAssetRepository>().await,
-            extract_repository: scope.resolve::<dyn ExtractRepository>().await,
-            card_repository: scope.resolve::<dyn CardRepository>().await,
-            index_service: scope.resolve::<dyn ElementIndexService>().await,
-            priority_service: scope.resolve::<dyn PriorityService>().await,
-            learning_asset_review_repository: scope
-                .resolve::<dyn LearningAssetReviewRepository>()
-                .await,
-            card_review_repository: scope.resolve::<dyn CardReviewRepository>().await,
-            profile_resolution_service: scope.resolve::<dyn ProfileResolutionService>().await,
-            meta_repository: scope.resolve::<dyn MetaRepository>().await,
-            event_manager: permissive_event_manager(),
-        };
+        let service = create_service(&scope).await;
         let dto = CreateLearningAssetDto {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
@@ -450,21 +506,7 @@ mod tests {
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
         create_test_profile(&scope, 2.0).await;
-        let service = DefaultElementCreationService {
-            folder_repository: scope.resolve::<dyn FolderRepository>().await,
-            learning_asset_repository: scope.resolve::<dyn LearningAssetRepository>().await,
-            extract_repository: scope.resolve::<dyn ExtractRepository>().await,
-            card_repository: scope.resolve::<dyn CardRepository>().await,
-            index_service: scope.resolve::<dyn ElementIndexService>().await,
-            priority_service: scope.resolve::<dyn PriorityService>().await,
-            learning_asset_review_repository: scope
-                .resolve::<dyn LearningAssetReviewRepository>()
-                .await,
-            card_review_repository: scope.resolve::<dyn CardReviewRepository>().await,
-            profile_resolution_service: scope.resolve::<dyn ProfileResolutionService>().await,
-            meta_repository: scope.resolve::<dyn MetaRepository>().await,
-            event_manager: permissive_event_manager(),
-        };
+        let service = create_service(&scope).await;
         let dto = CreateCardDto {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
@@ -497,21 +539,7 @@ mod tests {
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
         create_test_profile(&scope, 1.0).await;
-        let service = DefaultElementCreationService {
-            folder_repository: scope.resolve::<dyn FolderRepository>().await,
-            learning_asset_repository: scope.resolve::<dyn LearningAssetRepository>().await,
-            extract_repository: scope.resolve::<dyn ExtractRepository>().await,
-            card_repository: scope.resolve::<dyn CardRepository>().await,
-            index_service: scope.resolve::<dyn ElementIndexService>().await,
-            priority_service: scope.resolve::<dyn PriorityService>().await,
-            learning_asset_review_repository: scope
-                .resolve::<dyn LearningAssetReviewRepository>()
-                .await,
-            card_review_repository: scope.resolve::<dyn CardReviewRepository>().await,
-            profile_resolution_service: scope.resolve::<dyn ProfileResolutionService>().await,
-            meta_repository: scope.resolve::<dyn MetaRepository>().await,
-            event_manager: permissive_event_manager(),
-        };
+        let service = create_service(&scope).await;
         let dto = CreateExtractDto {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
@@ -562,21 +590,7 @@ mod tests {
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
         create_test_profile_with_interval_multiplier(&scope, 1.5).await;
-        let service = DefaultElementCreationService {
-            folder_repository: scope.resolve::<dyn FolderRepository>().await,
-            learning_asset_repository: scope.resolve::<dyn LearningAssetRepository>().await,
-            extract_repository: scope.resolve::<dyn ExtractRepository>().await,
-            card_repository: scope.resolve::<dyn CardRepository>().await,
-            index_service: scope.resolve::<dyn ElementIndexService>().await,
-            priority_service: scope.resolve::<dyn PriorityService>().await,
-            learning_asset_review_repository: scope
-                .resolve::<dyn LearningAssetReviewRepository>()
-                .await,
-            card_review_repository: scope.resolve::<dyn CardReviewRepository>().await,
-            profile_resolution_service: scope.resolve::<dyn ProfileResolutionService>().await,
-            meta_repository: scope.resolve::<dyn MetaRepository>().await,
-            event_manager: permissive_event_manager(),
-        };
+        let service = create_service(&scope).await;
         let dto = CreateLearningAssetDto {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
@@ -606,21 +620,7 @@ mod tests {
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
         create_test_profile_with_interval_multiplier(&scope, 1.5).await;
-        let service = DefaultElementCreationService {
-            folder_repository: scope.resolve::<dyn FolderRepository>().await,
-            learning_asset_repository: scope.resolve::<dyn LearningAssetRepository>().await,
-            extract_repository: scope.resolve::<dyn ExtractRepository>().await,
-            card_repository: scope.resolve::<dyn CardRepository>().await,
-            index_service: scope.resolve::<dyn ElementIndexService>().await,
-            priority_service: scope.resolve::<dyn PriorityService>().await,
-            learning_asset_review_repository: scope
-                .resolve::<dyn LearningAssetReviewRepository>()
-                .await,
-            card_review_repository: scope.resolve::<dyn CardReviewRepository>().await,
-            profile_resolution_service: scope.resolve::<dyn ProfileResolutionService>().await,
-            meta_repository: scope.resolve::<dyn MetaRepository>().await,
-            event_manager: permissive_event_manager(),
-        };
+        let service = create_service(&scope).await;
         let dto = CreateExtractDto {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
@@ -641,5 +641,153 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(1.5, extract.interval_multiplier);
+    }
+
+    #[tokio::test]
+    async fn create_folder_parent_has_tags_copies_tags_to_folder() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let parent_id = create_tagged_parent_folder(&scope, vec!["a".into(), "b".into()]).await;
+        let service = create_service(&scope).await;
+        let dto = CreateFolderDto {
+            meta: dto_meta(Some(parent_id)),
+        };
+
+        // Act
+
+        service.create_folder(dto).await.unwrap();
+
+        // Assert
+
+        let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+        let child = meta_repository
+            .get_children_ordered(Some(parent_id))
+            .await
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let tags = meta_repository.get_tags(child.element_id).await.unwrap();
+        let tag_names: Vec<String> = tags.into_iter().map(|tag| tag.name).collect();
+        assert_eq!(vec!["a".to_string(), "b".to_string()], tag_names);
+    }
+
+    #[tokio::test]
+    async fn create_learning_asset_parent_has_tags_copies_tags_to_learning_asset() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile(&scope, 1.0).await;
+        let parent_id = create_tagged_parent_folder(&scope, vec!["a".into(), "b".into()]).await;
+        let service = create_service(&scope).await;
+        let dto = CreateLearningAssetDto {
+            id: Uuid::new_v4(),
+            meta: dto_meta(Some(parent_id)),
+            splits: Vec::new(),
+        };
+        let element_id = ElementId::LearningAsset(dto.id);
+
+        // Act
+
+        service.create_learning_asset(dto).await.unwrap();
+
+        // Assert
+
+        let tags = scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .get_tags(element_id)
+            .await
+            .unwrap();
+        let tag_names: Vec<String> = tags.into_iter().map(|tag| tag.name).collect();
+        assert_eq!(vec!["a".to_string(), "b".to_string()], tag_names);
+    }
+
+    #[tokio::test]
+    async fn create_extract_parent_has_tags_copies_tags_to_extract() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile(&scope, 1.0).await;
+        let parent_id = create_tagged_parent_folder(&scope, vec!["a".into(), "b".into()]).await;
+        let service = create_service(&scope).await;
+        let dto = CreateExtractDto {
+            id: Uuid::new_v4(),
+            meta: dto_meta(Some(parent_id)),
+            content: String::new(),
+        };
+        let element_id = ElementId::Extract(dto.id);
+
+        // Act
+
+        service.create_extract(dto).await.unwrap();
+
+        // Assert
+
+        let tags = scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .get_tags(element_id)
+            .await
+            .unwrap();
+        let tag_names: Vec<String> = tags.into_iter().map(|tag| tag.name).collect();
+        assert_eq!(vec!["a".to_string(), "b".to_string()], tag_names);
+    }
+
+    #[tokio::test]
+    async fn create_card_parent_has_tags_copies_tags_to_card() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile(&scope, 1.0).await;
+        let parent_id = create_tagged_parent_folder(&scope, vec!["a".into(), "b".into()]).await;
+        let service = create_service(&scope).await;
+        let dto = CreateCardDto {
+            id: Uuid::new_v4(),
+            meta: dto_meta(Some(parent_id)),
+            front: String::new(),
+            back: String::new(),
+        };
+        let element_id = ElementId::Card(dto.id);
+
+        // Act
+
+        service.create_card(dto).await.unwrap();
+
+        // Assert
+
+        let tags = scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .get_tags(element_id)
+            .await
+            .unwrap();
+        let tag_names: Vec<String> = tags.into_iter().map(|tag| tag.name).collect();
+        assert_eq!(vec!["a".to_string(), "b".to_string()], tag_names);
+    }
+
+    #[tokio::test]
+    async fn create_folder_no_parent_does_not_error() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = create_service(&scope).await;
+        let dto = CreateFolderDto {
+            meta: dto_meta(None),
+        };
+
+        // Act
+
+        let result = service.create_folder(dto).await;
+
+        // Assert
+
+        assert!(result.is_ok());
     }
 }
