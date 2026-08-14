@@ -2,6 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 #[tokio::main]
-async fn main() -> Result<(), String> {
-    amber_app_lib::run().await
+async fn main() {
+    amber_app_lib::run().await;
 }

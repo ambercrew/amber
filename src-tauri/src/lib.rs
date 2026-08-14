@@ -61,7 +61,7 @@ type AppRuntime = tauri::Cef;
 type AppRuntime = tauri::Wry;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub async fn run() -> Result<(), String> {
+pub async fn run() {
     let mut tauri_builder = tauri::Builder::<AppRuntime>::default()
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -242,6 +242,4 @@ pub async fn run() -> Result<(), String> {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-
-    Ok(())
 }
