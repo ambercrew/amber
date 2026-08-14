@@ -6,7 +6,6 @@ import {
 	CalendarIcon,
 	CardsIcon,
 	CaretDownIcon,
-	CaretRightIcon,
 	CheckCircleIcon,
 	FileTextIcon,
 	GraduationCapIcon,
@@ -119,36 +118,24 @@ export default function BulkActionsBar({
 						</Button>
 					</Menu.Target>
 					<Menu.Dropdown>
-						<Menu
-							trigger="hover"
-							position="right-start"
-							shadow="md"
-							withinPortal>
-							<Menu.Target>
-								<Menu.Item
-									leftSection={<CalendarIcon size={16} />}
-									rightSection={<CaretRightIcon size={14} />}>
+						<Menu.Sub position="right-start" shadow="md">
+							<Menu.Sub.Target>
+								<Menu.Sub.Item
+									leftSection={<CalendarIcon size={16} />}>
 									Reschedule
-								</Menu.Item>
-							</Menu.Target>
-							<Menu.Dropdown>
-								<Menu
-									trigger="hover"
-									position="right-start"
-									shadow="md"
-									withinPortal>
-									<Menu.Target>
-										<Menu.Item
+								</Menu.Sub.Item>
+							</Menu.Sub.Target>
+							<Menu.Sub.Dropdown>
+								<Menu.Sub position="right-start" shadow="md">
+									<Menu.Sub.Target>
+										<Menu.Sub.Item
 											leftSection={
 												<CardsIcon size={16} />
-											}
-											rightSection={
-												<CaretRightIcon size={14} />
 											}>
 											Cards
-										</Menu.Item>
-									</Menu.Target>
-									<Menu.Dropdown>
+										</Menu.Sub.Item>
+									</Menu.Sub.Target>
+									<Menu.Sub.Dropdown>
 										<Menu.Item
 											leftSection={
 												<ArrowCounterClockwiseIcon
@@ -160,25 +147,18 @@ export default function BulkActionsBar({
 											}>
 											Reset repetitions
 										</Menu.Item>
-									</Menu.Dropdown>
-								</Menu>
-								<Menu
-									trigger="hover"
-									position="right-start"
-									shadow="md"
-									withinPortal>
-									<Menu.Target>
-										<Menu.Item
+									</Menu.Sub.Dropdown>
+								</Menu.Sub>
+								<Menu.Sub position="right-start" shadow="md">
+									<Menu.Sub.Target>
+										<Menu.Sub.Item
 											leftSection={
 												<FileTextIcon size={16} />
-											}
-											rightSection={
-												<CaretRightIcon size={14} />
 											}>
 											Learning assets/extracts
-										</Menu.Item>
-									</Menu.Target>
-									<Menu.Dropdown>
+										</Menu.Sub.Item>
+									</Menu.Sub.Target>
+									<Menu.Sub.Dropdown>
 										<Menu.Item
 											leftSection={
 												<CheckCircleIcon size={16} />
@@ -193,8 +173,8 @@ export default function BulkActionsBar({
 											onClick={handleUnfinish}>
 											Unfinish
 										</Menu.Item>
-									</Menu.Dropdown>
-								</Menu>
+									</Menu.Sub.Dropdown>
+								</Menu.Sub>
 								<Menu.Item
 									leftSection={
 										<GraduationCapIcon size={16} />
@@ -202,21 +182,16 @@ export default function BulkActionsBar({
 									onClick={() => setOpenModal("profile")}>
 									Set study profile
 								</Menu.Item>
-							</Menu.Dropdown>
-						</Menu>
-						<Menu
-							trigger="hover"
-							position="right-start"
-							shadow="md"
-							withinPortal>
-							<Menu.Target>
-								<Menu.Item
-									leftSection={<TagIcon size={16} />}
-									rightSection={<CaretRightIcon size={14} />}>
+							</Menu.Sub.Dropdown>
+						</Menu.Sub>
+						<Menu.Sub position="right-start" shadow="md">
+							<Menu.Sub.Target>
+								<Menu.Sub.Item
+									leftSection={<TagIcon size={16} />}>
 									Tags
-								</Menu.Item>
-							</Menu.Target>
-							<Menu.Dropdown>
+								</Menu.Sub.Item>
+							</Menu.Sub.Target>
+							<Menu.Sub.Dropdown>
 								<Menu.Item
 									leftSection={<PlusIcon size={16} />}
 									onClick={() => setOpenModal("addTag")}>
@@ -227,8 +202,8 @@ export default function BulkActionsBar({
 									onClick={() => setOpenModal("removeTag")}>
 									Remove tag
 								</Menu.Item>
-							</Menu.Dropdown>
-						</Menu>
+							</Menu.Sub.Dropdown>
+						</Menu.Sub>
 						<Menu.Divider />
 						<Menu.Item
 							leftSection={<BookOpenIcon size={16} />}
