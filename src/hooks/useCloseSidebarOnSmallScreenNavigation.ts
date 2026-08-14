@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router";
-import { useElementParams } from "./useElementParams";
 import { useIsSmallScreen } from "./useIsSmallScreen";
 
 /**
@@ -12,7 +11,6 @@ export function useCloseSidebarOnSmallScreenNavigation(
 ) {
 	const location = useLocation();
 	const isSmallScreen = useIsSmallScreen();
-	const isElementRoute = useElementParams() !== null;
 	const closeSidebarsRef = useRef(closeSidebars);
 
 	useEffect(() => {
@@ -20,7 +18,7 @@ export function useCloseSidebarOnSmallScreenNavigation(
 	});
 
 	useEffect(() => {
-		if (!isSmallScreen || !isElementRoute) return;
+		if (!isSmallScreen) return;
 		closeSidebarsRef.current();
-	}, [location.key, isSmallScreen, isElementRoute]);
+	}, [location.key, isSmallScreen]);
 }

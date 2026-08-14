@@ -57,21 +57,6 @@ describe("useCloseSidebarOnSmallScreenNavigation", () => {
 		expect(closeSidebar).not.toHaveBeenCalled();
 	});
 
-	it("Should not close the sidebar when no element is open", () => {
-		// Arrange
-
-		vi.mocked(useElementParams).mockReturnValue(null);
-		const closeSidebar = vi.fn();
-
-		// Act
-
-		render(closeSidebar);
-
-		// Assert
-
-		expect(closeSidebar).not.toHaveBeenCalled();
-	});
-
 	it("Should close the sidebar again when another element is opened", () => {
 		// Arrange
 
