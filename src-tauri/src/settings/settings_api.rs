@@ -4,7 +4,10 @@ use crate::{
     common::api_error::ApiError,
     settings::{
         dto::{settings_dto::SettingsDto, update_settings_request_dto::UpdateSettingsRequestDto},
-        services::{settings_dto_provider::SettingsDtoProvider, settings_updater::SettingsUpdater},
+        services::{
+            settings_dto_provider::SettingsDtoProvider, settings_updater::SettingsUpdater,
+            system_fonts_provider::SystemFontsProvider,
+        },
     },
 };
 use injector::injector::Injector;
@@ -35,4 +38,17 @@ pub async fn update_settings(
         .await?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn list_system_fonts(
+    injector: State<'_, Arc<Injector>>,
+) -> Result<Vec<String>, ApiError> {
+    let scope = injector.start_scope();
+    let fonts = scope
+        .resolve::<dyn SystemFontsProvider>()
+        .await
+        .list_system_fonts()
+        .await;
+    Ok(fonts)
 }

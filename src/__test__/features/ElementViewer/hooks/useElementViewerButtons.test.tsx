@@ -40,6 +40,9 @@ vi.mock(import("react-router"), async importOriginal => {
 const BASE_SETTINGS: SettingsDto = {
 	baseDatabaseDirectory: "/home/user/amber",
 	theme: "Light",
+	font: { type: "systemDefault" },
+	fontHeadings: { type: "systemDefault" },
+	fontMonospace: { type: "systemDefault" },
 	zoomPercentage: 100,
 	autoSync: true,
 	trashRetentionDays: 30,

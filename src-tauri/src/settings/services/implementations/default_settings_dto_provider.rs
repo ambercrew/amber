@@ -31,6 +31,9 @@ impl SettingsDtoProvider for DefaultSettingsDtoProvider {
         SettingsDto {
             base_database_directory: settings.base_database_directory_as_string(),
             theme: settings.theme,
+            font: settings.font,
+            font_headings: settings.font_headings,
+            font_monospace: settings.font_monospace,
             zoom_percentage: settings.zoom_percentage,
             auto_sync: settings.auto_sync,
             trash_retention_days: settings.trash_retention_days,

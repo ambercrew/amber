@@ -1,4 +1,5 @@
 export type Theme = "FollowSystem" | "Light" | "Dark";
+export type Font = { type: "systemDefault" } | { type: "named"; value: string };
 export type AiProvider = "ollama" | "openAI";
 
 export interface AiProviderSettings {
@@ -11,6 +12,9 @@ export default interface SettingsDto {
 	baseDatabaseDirectory: string;
 
 	theme: Theme;
+	font: Font;
+	fontHeadings: Font;
+	fontMonospace: Font;
 	zoomPercentage: number;
 	autoSync: boolean;
 	trashRetentionDays: number;

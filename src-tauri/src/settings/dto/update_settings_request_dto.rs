@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::settings::value_objects::{
-    ai_provider::AiProvider, ai_provider_settings::AiProviderSettings,
+    ai_provider::AiProvider, ai_provider_settings::AiProviderSettings, font::Font,
     settings_profile::SettingsProfile, theme::Theme,
 };
 
@@ -14,6 +14,9 @@ pub struct UpdateSettingsRequestDto {
     pub profile: Option<SettingsProfile>,
 
     pub theme: Option<Theme>,
+    pub font: Option<Font>,
+    pub font_headings: Option<Font>,
+    pub font_monospace: Option<Font>,
     pub zoom_percentage: Option<f64>,
     pub auto_sync: Option<bool>,
     pub trash_retention_days: Option<u32>,

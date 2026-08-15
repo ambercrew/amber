@@ -145,6 +145,7 @@ pub async fn run() {
             // Settings
             get_settings,
             update_settings,
+            list_system_fonts,
             // Auth
             is_signed_in,
             resend_email_verification_code,

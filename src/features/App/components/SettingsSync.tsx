@@ -8,6 +8,7 @@ import SettingsDto, { Theme } from "../../../api/settings/dto/settingsDto";
 import { sync } from "../../../stores/sync/syncActions";
 import { defaultCloseRequestedEventManager } from "../../../managers/closeRequestedEventManager";
 import { tryGetCurrentWebView, isMobile } from "../../../utils/tauriUtils";
+import { applyFontVariable } from "./fontCssUtils";
 
 const SETTINGS_CLOSE_REQUESTED_HANDLER_NAME = "Settings handler";
 
@@ -32,6 +33,16 @@ async function applySettings(
 		document.body.classList.add("no-transition");
 
 		setColorScheme(THEME_TO_COLOR_SCHEME[settings.theme]);
+
+		applyFontVariable("--mantine-font-family", settings.font);
+		applyFontVariable(
+			"--mantine-font-family-headings",
+			settings.fontHeadings,
+		);
+		applyFontVariable(
+			"--mantine-font-family-monospace",
+			settings.fontMonospace,
+		);
 
 		if (settings.theme === "FollowSystem") {
 			// Making the window follow the operating system so that the next check is correct.

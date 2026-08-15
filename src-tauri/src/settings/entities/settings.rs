@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::settings::value_objects::{
     ai_provider::AiProvider, ai_provider_settings::AiProviderSettings,
-    database_location::DatabaseLocation, settings_profile::SettingsProfile, theme::Theme,
+    database_location::DatabaseLocation, font::Font, settings_profile::SettingsProfile,
+    theme::Theme,
 };
 use crate::trash::services::trash_service::DEFAULT_TRASH_RETENTION_DAYS;
 
@@ -20,6 +21,12 @@ pub struct Settings {
     pub(in crate::settings) profile: SettingsProfile,
 
     pub theme: Theme,
+    #[serde(default)]
+    pub font: Font,
+    #[serde(default)]
+    pub font_headings: Font,
+    #[serde(default)]
+    pub font_monospace: Font,
     pub zoom_percentage: f64,
     pub auto_sync: bool,
 
@@ -53,6 +60,9 @@ impl Default for Settings {
             base_database_directory: PathBuf::default(),
             profile: SettingsProfile::default(),
             theme: Theme::default(),
+            font: Font::default(),
+            font_headings: Font::default(),
+            font_monospace: Font::default(),
             zoom_percentage: f64::default(),
             auto_sync: bool::default(),
             trash_retention_days: DEFAULT_TRASH_RETENTION_DAYS,
@@ -70,6 +80,9 @@ impl Settings {
             base_database_directory: base_database_location,
             profile,
             theme: Theme::FollowSystem,
+            font: Font::SystemDefault,
+            font_headings: Font::SystemDefault,
+            font_monospace: Font::SystemDefault,
             zoom_percentage: 100f64,
             auto_sync: true,
             trash_retention_days: DEFAULT_TRASH_RETENTION_DAYS,
