@@ -60,6 +60,7 @@ schemars = "1.2.2"
 text-splitter = "0.32.0"
 sqlite-vec = "0.1.9"
 tokio-rusqlite = "0.6.0"
+fontdb = "0.23.0"
 
 # No default runtime feature on purpose: every platform states its runtime
 # explicitly via its own tauri.<platform>.conf.json ("build.features"),

@@ -13,3 +13,7 @@ export function updateSettings(
 		newSettings: updateSettingsRequest,
 	});
 }
+
+export function listSystemFonts(): Promise<string[]> {
+	return invoke("list_system_fonts");
+}

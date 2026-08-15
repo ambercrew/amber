@@ -26,6 +26,7 @@ function CommandPalette() {
 				}}
 				onSpotlightClose={() => setOpened(false)}
 				shortcut={SPOTLIGHT_SHORTCUT}
+				overlayProps={{ blur: 0 }}
 				nothingFound="No matching commands"
 				searchProps={{
 					leftSection: <MagnifyingGlassIcon size={18} />,

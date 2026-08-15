@@ -1,9 +1,12 @@
-import { AiProvider, AiProviderSettings, Theme } from "./settingsDto";
+import { AiProvider, AiProviderSettings, Font, Theme } from "./settingsDto";
 
 export default interface UpdateSettingsRequestDto {
 	baseDatabaseDirectory: string | null;
 
 	theme: Theme | null;
+	font: Font | null;
+	fontHeadings: Font | null;
+	fontMonospace: Font | null;
 	zoomPercentage: number | null;
 	autoSync: boolean | null;
 	trashRetentionDays: number | null;
@@ -25,6 +28,9 @@ export function buildUpdateSettingsRequest(
 	return {
 		baseDatabaseDirectory: null,
 		theme: null,
+		font: null,
+		fontHeadings: null,
+		fontMonospace: null,
 		zoomPercentage: null,
 		autoSync: null,
 		trashRetentionDays: null,

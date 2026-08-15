@@ -111,9 +111,11 @@ use crate::{
         implementations::{
             default_settings_dto_provider::DefaultSettingsDtoProvider,
             default_settings_updater::DefaultSettingsUpdater,
+            default_system_fonts_provider::DefaultSystemFontsProvider,
         },
         settings_dto_provider::SettingsDtoProvider,
         settings_updater::SettingsUpdater,
+        system_fonts_provider::SystemFontsProvider,
     },
     trash::{
         repositories::trash_repository::TrashRepository,
@@ -315,6 +317,11 @@ pub async fn create_injector<R: tauri::Runtime>(
     );
     register_scope!(injector, dyn SettingsUpdater, DefaultSettingsUpdater);
     register_scope!(injector, dyn SettingsRepository, DiskSettingsRepository);
+    register_scope!(
+        injector,
+        dyn SystemFontsProvider,
+        DefaultSystemFontsProvider
+    );
 
     // Backup
 

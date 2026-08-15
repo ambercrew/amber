@@ -46,6 +46,15 @@ impl SettingsUpdater for DefaultSettingsUpdater {
         if let Some(theme) = new_settings.theme {
             settings.theme = theme;
         }
+        if let Some(font) = new_settings.font {
+            settings.font = font;
+        }
+        if let Some(font_headings) = new_settings.font_headings {
+            settings.font_headings = font_headings;
+        }
+        if let Some(font_monospace) = new_settings.font_monospace {
+            settings.font_monospace = font_monospace;
+        }
         if let Some(zoom_percentage) = new_settings.zoom_percentage {
             settings.zoom_percentage = zoom_percentage;
         }

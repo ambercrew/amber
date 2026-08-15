@@ -6,6 +6,9 @@ import SettingsDto from "../../../../api/settings/dto/settingsDto";
 const settings: SettingsDto = {
 	baseDatabaseDirectory: "/home/user/amber",
 	theme: "Light",
+	font: { type: "systemDefault" },
+	fontHeadings: { type: "systemDefault" },
+	fontMonospace: { type: "systemDefault" },
 	zoomPercentage: 100,
 	autoSync: true,
 	trashRetentionDays: 30,
