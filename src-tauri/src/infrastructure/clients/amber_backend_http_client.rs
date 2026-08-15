@@ -6,15 +6,14 @@ use std::{
 
 use crate::backend::{
     backend_dto::{
-        ProblemDetails, SignInDto, SignUpDto, SyncEntityDto, SyncedEntitiesPageDto,
-        UpdatePasswordDto, UpdateUserInformationDto, UserInformationDto, VerifyEmailDto,
+        ProblemDetails, SignInDto, SignUpDto, UpdatePasswordDto, UpdateUserInformationDto,
+        UserInformationDto, VerifyEmailDto,
     },
     clients::amber_backend_client::{AmberBackendClient, AmberBackendClientError},
     dto::sign_up_request_dto::SignUpRequestDto,
 };
 use crate::secrets::repositories::secrets_repository::SecretsRepository;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use reqwest_cookie_store::CookieStoreMutex;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{RetryError, RetryTransientMiddleware, policies::ExponentialBackoff};
@@ -240,48 +239,6 @@ impl AmberBackendClient for AmberBackendHttpClient {
             .reqwest_client
             .patch(self.backend_url.join("/api/v1/user").unwrap())
             .json(&dto)
-            .send()
-            .await;
-
-        ensure_success_response(response).await?;
-
-        Ok(())
-    }
-
-    async fn get_synced_entities_after_ordered_by_created_at(
-        &self,
-        date: DateTime<Utc>,
-        page: u32,
-    ) -> Result<SyncedEntitiesPageDto, AmberBackendClientError> {
-        log::info!("Getting synced entity after {date} and for the page {page}...");
-
-        let response = self
-            .reqwest_client
-            .get(self.backend_url.join("/api/v1/sync").unwrap())
-            .query(&[("date", date.to_rfc3339()), ("page", page.to_string())])
-            .send()
-            .await;
-
-        let response = ensure_success_response(response).await?;
-        match response.json::<SyncedEntitiesPageDto>().await {
-            Ok(result) => Ok(result),
-            Err(err) => Err(AmberBackendClientError::Deserialization(Box::new(err))),
-        }
-    }
-
-    async fn send_synced_entities(
-        &self,
-        entities: &[SyncEntityDto],
-    ) -> Result<(), AmberBackendClientError> {
-        log::info!(
-            "Sending synced entities, a total of {} entities",
-            entities.len()
-        );
-
-        let response = self
-            .reqwest_client
-            .post(self.backend_url.join("/api/v1/sync").unwrap())
-            .json(&entities)
             .send()
             .await;
 

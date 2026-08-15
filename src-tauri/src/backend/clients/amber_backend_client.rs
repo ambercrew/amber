@@ -1,12 +1,11 @@
-use crate::backend::{backend_dto::SyncEntityDto, dto::sign_up_request_dto::SignUpRequestDto};
+use crate::backend::dto::sign_up_request_dto::SignUpRequestDto;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 #[cfg(test)]
 use mockall::automock;
 use thiserror::Error;
 
 use crate::SourceError;
-use crate::backend::backend_dto::{SyncedEntitiesPageDto, UpdatePasswordDto, UserInformationDto};
+use crate::backend::backend_dto::{UpdatePasswordDto, UserInformationDto};
 
 #[derive(Error, Debug)]
 pub enum AmberBackendClientError {
@@ -74,17 +73,6 @@ pub trait AmberBackendClient: Send + Sync {
         &self,
         first_name: Option<String>,
         last_name: Option<String>,
-    ) -> Result<(), AmberBackendClientError>;
-
-    async fn get_synced_entities_after_ordered_by_created_at(
-        &self,
-        date: DateTime<Utc>,
-        page: u32,
-    ) -> Result<SyncedEntitiesPageDto, AmberBackendClientError>;
-
-    async fn send_synced_entities(
-        &self,
-        entities: &[SyncEntityDto],
     ) -> Result<(), AmberBackendClientError>;
 
     async fn delete_user(&self) -> Result<(), AmberBackendClientError>;

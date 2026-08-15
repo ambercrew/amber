@@ -14,7 +14,6 @@ mod search;
 mod secrets;
 mod settings;
 mod study;
-mod sync;
 #[cfg(test)]
 mod test_utils;
 mod trash;
@@ -37,8 +36,6 @@ use settings::settings_api::*;
 use study::study_api::*;
 use study::study_profile_api::*;
 use trash::trash_api::*;
-
-pub use sync::sync_api::sync;
 
 #[cfg(desktop)]
 use tauri_plugin_window_state::StateFlags;
@@ -157,8 +154,6 @@ pub async fn run() {
             delete_user,
             get_user_information,
             update_user_information,
-            // Sync
-            sync,
             // Elements
             get_element_tree,
             get_element_by_id,

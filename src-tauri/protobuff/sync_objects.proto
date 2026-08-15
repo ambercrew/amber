@@ -4,7 +4,3 @@ import "google/protobuf/timestamp.proto";
 
 package generated_code;
 
-message DeletedEntity {
-  string entity_name = 1;
-  google.protobuf.Timestamp deleted_date = 2;
-}
