@@ -71,6 +71,18 @@ pub async fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init());
 
+    // CEF's sandbox and zygote helpers require setuid root helper binaries that
+    // aren't set up in most Linux dev/AppImage environments, so CEF fails to
+    // start unless these are disabled. Bake them in instead of requiring
+    // `--no-sandbox --no-zygote` to be passed manually on every launch.
+    #[cfg(all(feature = "cef", target_os = "linux"))]
+    {
+        tauri_builder = tauri_builder.command_line_args::<_, String>([
+            ("--no-sandbox".to_string(), None),
+            ("--no-zygote".to_string(), None),
+        ]);
+    }
+
     #[cfg(desktop)]
     {
         tauri_builder = tauri_builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
