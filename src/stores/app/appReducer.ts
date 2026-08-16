@@ -1,4 +1,6 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { PayloadAction, createSlice } from "@reduxjs/toolkit";
+
+export type AuthModalTab = "sign-in" | "sign-up";
 
 export interface AppState {
 	startedInitialStateLoading: boolean;
@@ -8,6 +10,7 @@ export interface AppState {
 	priorityModalOpened: boolean;
 	studySessionSettingsModalOpened: boolean;
 	authModalOpened: boolean;
+	authModalInitialTab: AuthModalTab;
 }
 
 const initialState: AppState = {
@@ -18,6 +21,7 @@ const initialState: AppState = {
 	priorityModalOpened: false,
 	studySessionSettingsModalOpened: false,
 	authModalOpened: false,
+	authModalInitialTab: "sign-in",
 };
 
 const appSlice = createSlice({
@@ -57,8 +61,12 @@ const appSlice = createSlice({
 		closeStudySessionSettingsModal: state => {
 			state.studySessionSettingsModalOpened = false;
 		},
-		openAuthModal: state => {
+		openAuthModal: (
+			state,
+			action: PayloadAction<AuthModalTab | undefined>,
+		) => {
 			state.authModalOpened = true;
+			state.authModalInitialTab = action.payload ?? "sign-in";
 		},
 		closeAuthModal: state => {
 			state.authModalOpened = false;

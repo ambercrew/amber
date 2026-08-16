@@ -29,6 +29,7 @@ function renderOpenedModal() {
 				priorityModalOpened: false,
 				studySessionSettingsModalOpened: false,
 				authModalOpened: false,
+				authModalInitialTab: "sign-in",
 			},
 		},
 	});

@@ -16,7 +16,10 @@ import useApi from "../../../hooks/useApi";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { closeAuthModal } from "../../../stores/app/appReducer";
-import { selectIsAuthModalOpened } from "../../../stores/app/appSelectors";
+import {
+	selectAuthModalInitialTab,
+	selectIsAuthModalOpened,
+} from "../../../stores/app/appSelectors";
 import { signIn, signUp } from "../../../stores/user/userActions";
 
 interface SignInFormValues {
@@ -253,6 +256,7 @@ function SignUpTab({ onSuccess }: { onSuccess: () => void }) {
 
 function AuthModal() {
 	const opened = useAppSelector(selectIsAuthModalOpened);
+	const initialTab = useAppSelector(selectAuthModalInitialTab);
 	const dispatch = useAppDispatch();
 
 	function handleClose() {
@@ -266,7 +270,9 @@ function AuthModal() {
 			title="Account"
 			fullScreenOnSmallScreen
 			size="sm">
-			<Tabs defaultValue="sign-in">
+			{/* Remounted (and thus reset to `initialTab`) each time the modal
+			 * opens, since `opened` flips false in between opens. */}
+			<Tabs key={`${opened}-${initialTab}`} defaultValue={initialTab}>
 				<Tabs.List grow>
 					<Tabs.Tab value="sign-in">Sign in</Tabs.Tab>
 					<Tabs.Tab value="sign-up">Sign up</Tabs.Tab>

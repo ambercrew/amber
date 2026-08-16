@@ -20,3 +20,6 @@ export const selectIsStudySessionSettingsModalOpened = (state: RootState) =>
 
 export const selectIsAuthModalOpened = (state: RootState) =>
 	state.app.authModalOpened;
+
+export const selectAuthModalInitialTab = (state: RootState) =>
+	state.app.authModalInitialTab;

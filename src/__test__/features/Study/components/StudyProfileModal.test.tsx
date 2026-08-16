@@ -85,6 +85,7 @@ describe("StudyProfileModal", () => {
 					priorityModalOpened: false,
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
+					authModalInitialTab: "sign-in",
 				},
 			},
 		});
@@ -109,6 +110,7 @@ describe("StudyProfileModal", () => {
 					priorityModalOpened: false,
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
+					authModalInitialTab: "sign-in",
 				},
 			},
 		});
@@ -143,6 +145,7 @@ describe("StudyProfileModal", () => {
 					priorityModalOpened: false,
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
+					authModalInitialTab: "sign-in",
 				},
 				elements: elementsStateFor(cardElement("1")),
 			},
@@ -183,6 +186,7 @@ describe("StudyProfileModal", () => {
 					priorityModalOpened: false,
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
+					authModalInitialTab: "sign-in",
 				},
 				elements: elementsStateFor(null),
 			},
@@ -212,6 +216,7 @@ describe("StudyProfileModal", () => {
 					priorityModalOpened: false,
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
+					authModalInitialTab: "sign-in",
 				},
 			},
 		});
@@ -247,6 +252,7 @@ describe("StudyProfileModal", () => {
 					priorityModalOpened: false,
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
+					authModalInitialTab: "sign-in",
 				},
 			},
 		});
@@ -282,6 +288,7 @@ describe("StudyProfileModal", () => {
 					priorityModalOpened: false,
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
+					authModalInitialTab: "sign-in",
 				},
 			},
 		});
@@ -316,6 +323,7 @@ describe("StudyProfileModal", () => {
 					priorityModalOpened: false,
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
+					authModalInitialTab: "sign-in",
 				},
 			},
 		});
@@ -348,6 +356,7 @@ describe("StudyProfileModal", () => {
 					priorityModalOpened: false,
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
+					authModalInitialTab: "sign-in",
 				},
 			},
 		});

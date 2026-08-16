@@ -30,6 +30,7 @@ function renderModal(opened: boolean) {
 				priorityModalOpened: false,
 				studySessionSettingsModalOpened: false,
 				authModalOpened: false,
+				authModalInitialTab: "sign-in",
 			},
 			settings: { settings },
 		},
