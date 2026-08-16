@@ -49,6 +49,12 @@ impl PendingBuffer {
         let mut rows = self.rows.lock().await;
         std::mem::take(&mut *rows)
     }
+
+    /// Whether any row is still waiting on more columns before it can be
+    /// materialized.
+    pub(super) async fn is_empty(&self) -> bool {
+        self.rows.lock().await.is_empty()
+    }
 }
 
 /// Registers a fresh, empty `PendingBuffer` per DI scope, so it's shared by

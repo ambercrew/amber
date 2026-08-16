@@ -5,6 +5,7 @@ use injector_derive::ScopeInjectable;
 
 use crate::backend::clients::amber_backend_client::AmberBackendClient;
 use crate::database::database_connection_manager::DatabaseConnectionManager;
+use crate::database::transaction_manager::TransactionManager;
 use crate::generated_code::ChangeBatch;
 use crate::sync::engine::SyncEngine;
 use crate::sync::errors::SyncError;
@@ -16,6 +17,7 @@ pub struct DefaultSyncEngine {
     store: Arc<dyn SyncStore>,
     backend_client: Arc<dyn AmberBackendClient>,
     connection_manager: Arc<dyn DatabaseConnectionManager>,
+    transaction_manager: Arc<dyn TransactionManager>,
 }
 
 #[async_trait]
@@ -43,22 +45,41 @@ impl DefaultSyncEngine {
     async fn sync_inner(&self) -> Result<(), SyncError> {
         // Pulled before pushing so the server doesn't have to echo back the
         // changes we're about to send it in the same cycle.
-        let since_server_seq = self.store.get_last_pulled_server_seq().await?;
-        let pull_response = self.backend_client.pull_changes(since_server_seq).await?;
-        let has_more = pull_response.has_more;
-        let next_server_seq = pull_response.next_server_seq;
-        let remote_batch = ChangeBatch {
-            cells: pull_response.cells,
-        };
-        if !remote_batch.cells.is_empty() {
-            self.store.apply_remote(remote_batch, !has_more).await?;
-        }
-        self.store
-            .set_last_pulled_server_seq(next_server_seq)
-            .await?;
+        let mut since_server_seq = self.store.get_last_pulled_server_seq().await?;
+        loop {
+            let pull_response = self.backend_client.pull_changes(since_server_seq).await?;
+            let has_more = pull_response.has_more;
+            let next_server_seq = pull_response.next_server_seq;
+            let remote_batch = ChangeBatch {
+                cells: pull_response.cells,
+            };
+            if !remote_batch.cells.is_empty() {
+                self.store.apply_remote(remote_batch, !has_more).await?;
+            }
+            since_server_seq = Some(next_server_seq);
 
-        // TODO: see if we can stop the sync midwise (like saving transactions by also applying
-        // pending)
+            // A row's columns can still be split across the *next* page (see
+            // `SyncStore::apply_remote`), so only persist the cursor and commit
+            // once nothing is left half-materialized — otherwise a crash before
+            // the next page arrives would strand those columns: the cursor
+            // would already be past them and the server wouldn't resend them.
+            if !self.store.has_pending_changes().await {
+                self.store
+                    .set_last_pulled_server_seq(next_server_seq)
+                    .await?;
+                self.transaction_manager.save_changes().await?;
+                // `save_changes` commits into a fresh transaction, which resets
+                // SQLite's per-transaction deferred-FK-check pragma — re-arm it
+                // so the next page can still land rows out of FK order.
+                self.connection_manager
+                    .disable_foreign_key_constraint_for_current_transaction()
+                    .await?;
+            }
+
+            if !has_more {
+                break;
+            }
+        }
 
         let batch = self.store.changes_since_last_push().await?;
         let up_to_hlc = batch

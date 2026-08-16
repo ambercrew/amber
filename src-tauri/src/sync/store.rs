@@ -44,4 +44,9 @@ pub trait SyncStore: Send + Sync {
     /// and the caller's transaction rollback discards every write from this
     /// call.
     async fn apply_remote(&self, batch: ChangeBatch, is_last_page: bool) -> Result<(), SyncError>;
+
+    /// Whether a page applied so far left any row's columns buffered and not
+    /// yet materialized. `false` means the changes applied up to this point
+    /// are self-contained and safe to commit.
+    async fn has_pending_changes(&self) -> bool;
 }
