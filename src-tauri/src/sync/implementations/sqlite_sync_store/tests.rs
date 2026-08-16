@@ -2,10 +2,10 @@ use sqlx::Row;
 
 use crate::generated_code::{CellChange, ChangeBatch};
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
-use crate::sync::engine::SyncEngine;
 use crate::sync::errors::SyncError;
 use crate::sync::hlc::{DeviceId, Hlc};
 use crate::sync::sql_functions;
+use crate::sync::store::SyncStore;
 use crate::sync::utils::merge;
 use crate::sync::value_objects::granularity::Granularity;
 use crate::test_utils::create_test_injector;
@@ -160,7 +160,7 @@ async fn register_table_missing_table_returns_table_not_found() {
 
     let injector = create_test_injector().await;
     let scope = injector.start_scope();
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
 
     // Act
 
@@ -188,7 +188,7 @@ async fn register_table_integer_primary_key_returns_invalid_primary_key() {
             .await
             .unwrap();
     }
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
 
     // Act
 
@@ -214,7 +214,7 @@ async fn register_table_composite_text_primary_key_succeeds() {
             .await
             .unwrap();
     }
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
 
     // Act
 
@@ -242,7 +242,7 @@ async fn register_table_composite_primary_key_with_non_text_column_returns_inval
             .await
             .unwrap();
     }
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
 
     // Act
 
@@ -263,7 +263,7 @@ async fn register_table_same_granularity_twice_succeeds() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -286,7 +286,7 @@ async fn register_table_conflicting_granularity_returns_granularity_mismatch() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -311,7 +311,7 @@ async fn column_mode_insert_writes_cell_per_column() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -337,7 +337,7 @@ async fn column_mode_update_writes_only_changed_columns() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -366,7 +366,7 @@ async fn column_mode_repeated_edits_coalesce_to_one_row() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -394,7 +394,7 @@ async fn column_mode_delete_writes_tombstone() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -421,7 +421,7 @@ async fn row_mode_insert_writes_single_row_cell() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Row)
         .await
@@ -452,7 +452,7 @@ async fn changes_since_last_push_excludes_foreign_device_and_already_pushed_cell
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -506,7 +506,7 @@ async fn mark_pushed_advances_cursor() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -536,7 +536,7 @@ async fn changes_since_last_push_column_mode_reports_one_cell_per_column_with_co
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -569,7 +569,7 @@ async fn changes_since_last_push_column_mode_update_reports_only_changed_column(
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -607,7 +607,7 @@ async fn changes_since_last_push_column_mode_delete_reports_tombstone_cell() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -645,7 +645,7 @@ async fn changes_since_last_push_row_mode_reports_single_row_cell_with_full_json
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Row)
         .await
@@ -678,7 +678,7 @@ async fn changes_since_last_push_row_mode_update_reports_full_row_snapshot_again
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Row)
         .await
@@ -719,7 +719,7 @@ async fn changes_since_last_push_row_mode_delete_reports_tombstone_cell() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Row)
         .await
@@ -755,7 +755,7 @@ async fn pull_cursor_roundtrip() {
 
     let injector = create_test_injector().await;
     let scope = injector.start_scope();
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     assert_eq!(None, engine.get_last_pulled_server_seq().await.unwrap());
 
     // Act
@@ -777,7 +777,7 @@ async fn apply_remote_newer_cell_updates_base_table() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -815,7 +815,7 @@ async fn apply_remote_older_cell_is_discarded_base_unchanged() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -847,7 +847,7 @@ async fn apply_remote_column_cell_for_missing_row_creates_skeleton() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -884,7 +884,7 @@ async fn apply_remote_tombstone_deletes_base_row_and_persists() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -924,7 +924,7 @@ async fn apply_remote_stale_update_after_tombstone_is_discarded() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -973,7 +973,7 @@ async fn apply_remote_higher_hlc_update_after_delete_stays_deleted() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -1022,7 +1022,7 @@ async fn apply_remote_row_mode_upserts_whole_row_from_json() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Row)
         .await
@@ -1057,7 +1057,7 @@ async fn apply_remote_shape_mismatch_returns_error() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -1093,7 +1093,7 @@ async fn apply_remote_shape_mismatch_rejects_whole_batch_fail_fast() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -1140,7 +1140,7 @@ async fn apply_remote_malformed_row_payload_returns_invalid_row_payload_error() 
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Row)
         .await
@@ -1176,7 +1176,7 @@ async fn apply_remote_does_not_retrigger_local_sync_cells() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -1216,7 +1216,7 @@ async fn apply_remote_advances_local_clock_past_remote_hlc() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await
@@ -1291,7 +1291,7 @@ async fn column_mode_composite_primary_key_insert_encodes_row_id_as_json_array_i
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_composite_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("composite_notes", Granularity::Column)
         .await
@@ -1322,7 +1322,7 @@ async fn apply_remote_composite_primary_key_updates_matching_row() {
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_composite_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("composite_notes", Granularity::Column)
         .await
@@ -1410,7 +1410,7 @@ async fn apply_remote_new_row_not_null_column_arrives_with_other_cells_in_same_b
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_required_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("required_notes", Granularity::Column)
         .await
@@ -1448,7 +1448,7 @@ async fn apply_remote_page_buffers_new_row_until_last_page_then_materializes_it(
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_required_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("required_notes", Granularity::Column)
         .await
@@ -1509,7 +1509,7 @@ async fn apply_remote_page_delete_on_later_page_drops_pending_columns_for_that_r
     let scope = injector.start_scope();
     let tx = scope.resolve::<DbTransaction>().await;
     create_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncEngine>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
     engine
         .register_table("notes", Granularity::Column)
         .await

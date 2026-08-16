@@ -14,3 +14,10 @@ message CellChange {
 message ChangeBatch {
   repeated CellChange cells = 1;
 }
+
+message PullResponse {
+  repeated CellChange cells = 1;
+  int64 next_server_seq = 2;
+  bool has_more = 3;
+}
+

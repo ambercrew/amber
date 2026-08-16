@@ -9,13 +9,14 @@ use crate::{
     database::database_connection_manager::{
         DatabaseConnectionManager, DatabaseConnectionManagerError,
     },
-    infrastructure::value_objects::db_pool::DbPool,
+    infrastructure::value_objects::{db_pool::DbPool, db_transaction::DbTransaction},
     settings::value_objects::database_location::DatabaseLocation,
 };
 
 #[derive(ScopeInjectable)]
 pub struct SqliteDatabaseConnectionManager {
     pool: Arc<DbPool>,
+    tx: Arc<DbTransaction>,
 }
 
 #[async_trait]
@@ -71,5 +72,35 @@ impl DatabaseConnectionManager for SqliteDatabaseConnectionManager {
             Ok(_) => Ok(()),
             Err(err) => Err(DatabaseConnectionManagerError::Unknown(Box::new(err))),
         }
+    }
+
+    async fn disable_foreign_key_constraint_for_current_transaction(
+        &self,
+    ) -> Result<(), sqlx::Error> {
+        log::info!("Disabling foreign key constraint");
+
+        let mut tx = self.tx.lock().await;
+        sqlx::query("PRAGMA defer_foreign_keys = ON")
+            .execute(tx.as_mut())
+            .await?;
+
+        log::info!("Foreign key constraint has been disabled");
+
+        Ok(())
+    }
+
+    async fn enable_foreign_key_constraint_for_current_transaction(
+        &self,
+    ) -> Result<(), sqlx::Error> {
+        log::info!("Enabling foreign key constraint");
+
+        let mut tx = self.tx.lock().await;
+        sqlx::query("PRAGMA defer_foreign_keys = OFF")
+            .execute(tx.as_mut())
+            .await?;
+
+        log::info!("Foreign key constraint has been enabled");
+
+        Ok(())
     }
 }

@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::backend::clients::amber_backend_client::AmberBackendClientError;
+
 #[derive(Debug, Error)]
 pub enum SyncError {
     #[error("Table '{0}' does not exist")]
@@ -41,4 +43,7 @@ pub enum SyncError {
 
     #[error("Database error")]
     Database(#[from] sqlx::Error),
+
+    #[error("Sync request to the backend failed")]
+    Backend(#[from] AmberBackendClientError),
 }

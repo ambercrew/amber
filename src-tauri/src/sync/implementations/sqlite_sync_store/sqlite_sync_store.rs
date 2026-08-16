@@ -7,19 +7,19 @@ use super::pending_buffer::PendingBuffer;
 use super::{apply, push_pull, register};
 use crate::generated_code::ChangeBatch;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
-use crate::sync::engine::SyncEngine;
 use crate::sync::errors::SyncError;
 use crate::sync::hlc::Hlc;
+use crate::sync::store::SyncStore;
 use crate::sync::value_objects::granularity::Granularity;
 
 #[derive(ScopeInjectable)]
-pub struct SqliteSyncEngine {
+pub struct SqliteSyncStore {
     tx: Arc<DbTransaction>,
     pending: Arc<PendingBuffer>,
 }
 
 #[async_trait]
-impl SyncEngine for SqliteSyncEngine {
+impl SyncStore for SqliteSyncStore {
     async fn register_table(&self, table: &str, granularity: Granularity) -> Result<(), SyncError> {
         let mut guard = self.tx.lock().await;
         register::register_table(guard.as_mut(), table, granularity).await
@@ -45,7 +45,6 @@ impl SyncEngine for SqliteSyncEngine {
         push_pull::set_last_pulled_server_seq(guard.as_mut(), seq).await
     }
 
-    // TODO: turning of foregin keys
     async fn apply_remote(&self, batch: ChangeBatch, is_last_page: bool) -> Result<(), SyncError> {
         let mut guard = self.tx.lock().await;
         apply::apply_remote(guard.as_mut(), batch, is_last_page, &self.pending).await

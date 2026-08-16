@@ -76,6 +76,7 @@ use crate::secrets::repositories::secrets_repository::SecretsRepository;
 use crate::settings::entities::settings::Settings;
 use crate::settings::repositories::settings_repository::SettingsRepository;
 use crate::sync::engine::SyncEngine;
+use crate::sync::store::SyncStore;
 #[cfg(not(test))]
 use crate::settings::value_objects::settings_profile::SettingsProfile;
 use crate::bibliographical_sources::repositories::bibliographical_source_repository::BibliographicalSourceRepository;
@@ -172,7 +173,7 @@ pub async fn create_injector<R: tauri::Runtime>(
     let db_pool = DbPool::new(sqlite_pool, settings.database_location().clone());
     injector.register_singleton(Arc::new(db_pool));
     register_scoped_tx(&mut injector);
-    crate::sync::implementations::sqlite_sync_engine::register_scoped_pending_buffer(&mut injector);
+    crate::sync::implementations::sqlite_sync_store::register_scoped_pending_buffer(&mut injector);
 
     // Secret repository
 
@@ -205,8 +206,13 @@ pub async fn create_injector<R: tauri::Runtime>(
 
     register_scope!(
         injector,
+        dyn SyncStore,
+        crate::sync::implementations::sqlite_sync_store::SqliteSyncStore
+    );
+    register_scope!(
+        injector,
         dyn SyncEngine,
-        crate::sync::implementations::sqlite_sync_engine::SqliteSyncEngine
+        crate::sync::implementations::default_sync_engine::DefaultSyncEngine
     );
 
     // Elements

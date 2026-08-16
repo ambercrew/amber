@@ -12,6 +12,7 @@ use crate::backend::{
     clients::amber_backend_client::{AmberBackendClient, AmberBackendClientError},
     dto::sign_up_request_dto::SignUpRequestDto,
 };
+use crate::generated_code::ChangeBatch;
 use crate::secrets::repositories::secrets_repository::SecretsRepository;
 use async_trait::async_trait;
 use reqwest_cookie_store::CookieStoreMutex;
@@ -280,6 +281,19 @@ impl AmberBackendClient for AmberBackendHttpClient {
         self.persist_cookies().await?;
 
         Ok(())
+    }
+
+    // TODO: no backend sync endpoint exists yet.
+    async fn push_changes(&self, _batch: ChangeBatch) -> Result<(), AmberBackendClientError> {
+        unimplemented!("the backend has no sync endpoint yet")
+    }
+
+    // TODO: no backend sync endpoint exists yet.
+    async fn pull_changes(
+        &self,
+        _since_server_seq: Option<i64>,
+    ) -> Result<ChangeBatch, AmberBackendClientError> {
+        unimplemented!("the backend has no sync endpoint yet")
     }
 }
 

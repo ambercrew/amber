@@ -10,17 +10,23 @@ use crate::{
     common::event_manager::EventManager,
     common::services::implementations::tauri_event_manager::TauriEventManager,
     common::utils::{create_injector::register_scoped_tx, create_sqlite_pool::create_sqlite_pool},
-    database::transaction_manager::TransactionManager,
+    database::{
+        database_connection_manager::DatabaseConnectionManager,
+        transaction_manager::TransactionManager,
+    },
     infrastructure::{
-        managers::sqlite::sqlite_transaction_manager::SqliteTransactionManager,
+        managers::sqlite::{
+            sqlite_database_connection_manager::SqliteDatabaseConnectionManager,
+            sqlite_transaction_manager::SqliteTransactionManager,
+        },
         repositories::disk::disk_secrets_repository::DiskSecretsRepository,
         value_objects::{app_data_directory::AppDataDirectory, db_pool::DbPool},
     },
     secrets::repositories::secrets_repository::SecretsRepository,
     settings::value_objects::database_location::DatabaseLocation,
-    sync::engine::SyncEngine,
-    sync::implementations::sqlite_sync_engine::SqliteSyncEngine,
-    sync::implementations::sqlite_sync_engine::register_scoped_pending_buffer,
+    sync::implementations::sqlite_sync_store::SqliteSyncStore,
+    sync::implementations::sqlite_sync_store::register_scoped_pending_buffer,
+    sync::store::SyncStore,
 };
 
 pub async fn create_temp_directory() -> PathBuf {
@@ -52,7 +58,12 @@ pub async fn create_test_injector() -> Injector {
     );
 
     register_scope!(injector, dyn TransactionManager, SqliteTransactionManager);
-    register_scope!(injector, dyn SyncEngine, SqliteSyncEngine);
+    register_scope!(
+        injector,
+        dyn DatabaseConnectionManager,
+        SqliteDatabaseConnectionManager
+    );
+    register_scope!(injector, dyn SyncStore, SqliteSyncStore);
 
     let secrets_repository = DiskSecretsRepository::new(&app_data_directory);
     injector.register_singleton::<dyn SecretsRepository>(Arc::new(secrets_repository));
