@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
 
+use super::pending_buffer::PendingBuffer;
 use super::{apply, push_pull, register};
 use crate::generated_code::ChangeBatch;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
@@ -14,6 +15,7 @@ use crate::sync::value_objects::granularity::Granularity;
 #[derive(ScopeInjectable)]
 pub struct SqliteSyncEngine {
     tx: Arc<DbTransaction>,
+    pending: Arc<PendingBuffer>,
 }
 
 #[async_trait]
@@ -43,8 +45,9 @@ impl SyncEngine for SqliteSyncEngine {
         push_pull::set_last_pulled_server_seq(guard.as_mut(), seq).await
     }
 
-    async fn apply_remote(&self, batch: ChangeBatch) -> Result<(), SyncError> {
+    // TODO: turning of foregin keys
+    async fn apply_remote(&self, batch: ChangeBatch, is_last_page: bool) -> Result<(), SyncError> {
         let mut guard = self.tx.lock().await;
-        apply::apply_remote(guard.as_mut(), batch).await
+        apply::apply_remote(guard.as_mut(), batch, is_last_page, &self.pending).await
     }
 }

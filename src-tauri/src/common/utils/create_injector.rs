@@ -172,6 +172,7 @@ pub async fn create_injector<R: tauri::Runtime>(
     let db_pool = DbPool::new(sqlite_pool, settings.database_location().clone());
     injector.register_singleton(Arc::new(db_pool));
     register_scoped_tx(&mut injector);
+    crate::sync::implementations::sqlite_sync_engine::register_scoped_pending_buffer(&mut injector);
 
     // Secret repository
 

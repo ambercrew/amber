@@ -11,12 +11,25 @@ use crate::sync::utils::merge::{self, MergeAction};
 use crate::sync::value_objects::granularity::Granularity;
 
 use super::column_info::{read_table_info, text_primary_key_columns};
-use super::models::ColumnInfo;
+use super::models::{ColumnInfo, PendingCell, RowKey};
+use super::pending_buffer::PendingBuffer;
 use super::trigger_sql::quote_ident;
 
+/// Applies one page of a remote change batch. Column-mode `SetColumn` cells
+/// are buffered in `pending` (kept on the calling `SyncEngine` instance
+/// across pages) instead of being written to the base table immediately, so
+/// that a brand-new row's columns — which the source's own insert trigger
+/// writes together but which pagination on the wire can still split across
+/// pages — accumulate before the row is materialized. For a caller with only
+/// one page, pass `is_last_page = true` on that single call. Pass
+/// `is_last_page = true` on the final page of a multi-page pull to flush
+/// whatever remains buffered; a row that's still missing a `NOT NULL` column
+/// at that point surfaces as a constraint error from the flush itself.
 pub(super) async fn apply_remote(
     tx: &mut SqliteConnection,
     batch: ChangeBatch,
+    is_last_page: bool,
+    pending: &PendingBuffer,
 ) -> Result<(), SyncError> {
     // `sync_applying` is a regular table created by the sync tables migration
     // (see its comment there for why it can't be a TEMP table). Cleanup runs
@@ -26,13 +39,29 @@ pub(super) async fn apply_remote(
         .execute(&mut *tx)
         .await?;
 
-    let result = apply_remote_inner(&mut *tx, &batch).await;
+    let result = apply_remote_page_inner(&mut *tx, &batch, is_last_page, pending).await;
 
     sqlx::query("DELETE FROM sync_applying")
         .execute(&mut *tx)
         .await?;
 
     result
+}
+
+async fn apply_remote_page_inner(
+    tx: &mut SqliteConnection,
+    batch: &ChangeBatch,
+    is_last_page: bool,
+    pending: &PendingBuffer,
+) -> Result<(), SyncError> {
+    apply_remote_inner(tx, batch, pending).await?;
+
+    if is_last_page {
+        let mut column_cache = HashMap::new();
+        flush_pending(tx, pending, &mut column_cache).await?;
+    }
+
+    Ok(())
 }
 
 async fn load_registry(
@@ -55,6 +84,7 @@ async fn load_registry(
 async fn apply_remote_inner(
     tx: &mut SqliteConnection,
     batch: &ChangeBatch,
+    pending: &PendingBuffer,
 ) -> Result<(), SyncError> {
     let registry = load_registry(tx).await?;
     let mut column_cache: HashMap<String, Vec<ColumnInfo>> = HashMap::new();
@@ -106,8 +136,155 @@ async fn apply_remote_inner(
             granularity,
         )?;
 
-        apply_action(tx, &cell.tbl, &cell.row_id, action, &mut column_cache).await?;
+        match action {
+            MergeAction::SetColumn { col, value } => {
+                pending.push(&cell.tbl, &cell.row_id, col, value).await;
+            }
+            MergeAction::DeleteRow => {
+                // A delete makes any buffered-but-not-yet-materialized column
+                // update for this row moot; drop it instead of trying to
+                // upsert a row that's about to be deleted anyway.
+                pending.remove(&cell.tbl, &cell.row_id).await;
+                apply_action(
+                    tx,
+                    &cell.tbl,
+                    &cell.row_id,
+                    MergeAction::DeleteRow,
+                    &mut column_cache,
+                )
+                .await?;
+            }
+            other => {
+                apply_action(tx, &cell.tbl, &cell.row_id, other, &mut column_cache).await?;
+            }
+        }
     }
+
+    Ok(())
+}
+
+/// Flushes every row currently buffered in `pending` as a single upsert per
+/// row, then clears the buffer.
+async fn flush_pending(
+    tx: &mut SqliteConnection,
+    pending: &PendingBuffer,
+    column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
+) -> Result<(), SyncError> {
+    let rows = pending.take_all().await;
+    for (key, cells) in rows {
+        apply_row_upsert_columns(tx, &key, cells, column_cache).await?;
+    }
+
+    Ok(())
+}
+
+/// Writes every buffered column value for one row in a single
+/// `INSERT ... ON CONFLICT DO UPDATE`, so a brand-new row is materialized
+/// with all of its known columns at once instead of via an empty skeleton
+/// insert followed by per-column updates (which would trip a `NOT NULL`
+/// column that has no `DEFAULT`).
+async fn apply_row_upsert_columns(
+    tx: &mut SqliteConnection,
+    key: &RowKey,
+    cells: Vec<PendingCell>,
+    column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
+) -> Result<(), SyncError> {
+    if cells.is_empty() {
+        return Ok(());
+    }
+
+    let table = key.tbl.as_str();
+
+    // Later cells for the same column win (matches the per-cell HLC race
+    // already resolved before buffering).
+    let mut values: HashMap<String, Option<Vec<u8>>> = HashMap::new();
+    for cell in cells {
+        values.insert(cell.col, cell.value);
+    }
+
+    let columns = get_or_load_columns(tx, table, column_cache).await?;
+    let pk_columns = text_primary_key_columns(table, &columns)?;
+    let pk_values = parse_row_id(table, &key.row_id, pk_columns.len())?;
+
+    upsert_row(tx, table, &pk_columns, &pk_values, &columns, values).await
+}
+
+/// Writes one row via `INSERT ... ON CONFLICT DO UPDATE`, given its known
+/// non-primary-key column values as raw bytes. Shared by both granularities:
+/// column-mode (`apply_row_upsert_columns`, values already raw bytes) and
+/// row-mode (`apply_row_upsert`, values converted from a JSON payload). Each
+/// value is `CAST` back to its destination column's affinity — see the
+/// comment on `column_affinity` — since both callers hand it opaque bytes
+/// rather than typed values. `values` may be empty (a payload that only
+/// carries primary key fields), in which case the insert is a no-op on
+/// conflict.
+async fn upsert_row(
+    tx: &mut SqliteConnection,
+    table: &str,
+    pk_columns: &[&ColumnInfo],
+    pk_values: &[String],
+    columns: &[ColumnInfo],
+    values: HashMap<String, Option<Vec<u8>>>,
+) -> Result<(), SyncError> {
+    let mut cols: Vec<String> = values.keys().cloned().collect();
+    cols.sort();
+
+    let mut col_exprs = Vec::with_capacity(cols.len());
+    let mut update_clause = Vec::with_capacity(cols.len());
+    let mut idx = pk_values.len() + 1;
+    for col in &cols {
+        let column_info =
+            columns
+                .iter()
+                .find(|c| &c.name == col)
+                .ok_or_else(|| SyncError::UnknownColumn {
+                    table: table.to_string(),
+                    col: col.clone(),
+                })?;
+        let affinity = column_affinity(&column_info.col_type);
+        let quoted = quote_ident(col);
+        col_exprs.push(if affinity == "BLOB" {
+            format!("?{idx}")
+        } else {
+            format!("CAST(?{idx} AS {affinity})")
+        });
+        update_clause.push(format!("{quoted} = excluded.{quoted}"));
+        idx += 1;
+    }
+
+    let pk_idents: Vec<String> = pk_columns.iter().map(|c| quote_ident(&c.name)).collect();
+    let pk_placeholders: Vec<String> = (1..=pk_values.len()).map(|i| format!("?{i}")).collect();
+    let col_idents: Vec<String> = cols.iter().map(|c| quote_ident(c)).collect();
+
+    let sql = if col_exprs.is_empty() {
+        format!(
+            "INSERT INTO {}({}) VALUES ({}) ON CONFLICT({}) DO NOTHING",
+            quote_ident(table),
+            pk_idents.join(","),
+            pk_placeholders.join(","),
+            pk_idents.join(",")
+        )
+    } else {
+        format!(
+            "INSERT INTO {}({},{}) VALUES ({},{}) ON CONFLICT({}) DO UPDATE SET {}",
+            quote_ident(table),
+            pk_idents.join(","),
+            col_idents.join(","),
+            pk_placeholders.join(","),
+            col_exprs.join(","),
+            pk_idents.join(","),
+            update_clause.join(",")
+        )
+    };
+
+    let mut query = sqlx::query(sqlx::AssertSqlSafe(sql));
+    for value in pk_values {
+        query = query.bind(value);
+    }
+    for col in &cols {
+        query = query.bind(values.get(col).cloned().flatten());
+    }
+    query.execute(&mut *tx).await?;
 
     Ok(())
 }
@@ -208,74 +385,14 @@ async fn apply_action(
 
             Ok(())
         }
-        // TODO: continue review in here
-        MergeAction::SetColumn { col, value } => {
-            let Some(column_info) = columns.iter().find(|c| c.name == col) else {
-                return Err(SyncError::UnknownColumn {
-                    table: table.to_string(),
-                    col,
-                });
-            };
-            // Cells are carried as opaque bytes (BLOB storage class); SQLite's
-            // BLOB affinity leaves a value's storage class untouched on write, so
-            // without an explicit CAST a TEXT/NUMERIC-affinity destination column
-            // would end up storing BLOB instead of its usual type, and a later
-            // typed read (e.g. as `String`) would fail to decode it.
-            let affinity = column_affinity(&column_info.col_type);
-
-            let pk_idents: Vec<String> = pk_columns.iter().map(|c| quote_ident(&c.name)).collect();
-            let pk_placeholders: Vec<String> =
-                (1..=pk_columns.len()).map(|i| format!("?{i}")).collect();
-            let skeleton_sql = format!(
-                "INSERT INTO {}({}) VALUES ({}) ON CONFLICT({}) DO NOTHING",
-                quote_ident(table),
-                pk_idents.join(","),
-                pk_placeholders.join(","),
-                pk_idents.join(",")
-            );
-            let mut query = sqlx::query(sqlx::AssertSqlSafe(skeleton_sql));
-            for value in &pk_values {
-                query = query.bind(value);
-            }
-            query.execute(&mut *tx).await?;
-
-            let where_clause: String = pk_columns
-                .iter()
-                .enumerate()
-                .map(|(i, c)| format!("{} = ?{}", quote_ident(&c.name), i + 2))
-                .collect::<Vec<_>>()
-                .join(" AND ");
-            let update_sql = if affinity == "BLOB" {
-                format!(
-                    "UPDATE {} SET {} = ?1 WHERE {}",
-                    quote_ident(table),
-                    quote_ident(&col),
-                    where_clause
-                )
-            } else {
-                format!(
-                    "UPDATE {} SET {} = CAST(?1 AS {}) WHERE {}",
-                    quote_ident(table),
-                    quote_ident(&col),
-                    affinity,
-                    where_clause
-                )
-            };
-            let mut query = sqlx::query(sqlx::AssertSqlSafe(update_sql)).bind(value);
-            for value in &pk_values {
-                query = query.bind(value);
-            }
-            query.execute(&mut *tx).await?;
-
-            Ok(())
+        MergeAction::SetColumn { .. } => {
+            unreachable!(
+                "SetColumn is routed into the pending buffer by apply_remote_inner and \
+                 materialized via apply_row_upsert_columns, never passed to apply_action"
+            )
         }
         MergeAction::UpsertRow { value } => {
-            let pk_column_names: Vec<String> = text_primary_key_columns(table, &columns)?
-                .iter()
-                .map(|c| c.name.clone())
-                .collect();
-
-            apply_row_upsert(tx, table, &pk_column_names, &columns, row_id, &value).await
+            apply_row_upsert(tx, table, &pk_columns, &pk_values, &columns, &value).await
         }
     }
 }
@@ -283,9 +400,9 @@ async fn apply_action(
 async fn apply_row_upsert(
     tx: &mut SqliteConnection,
     table: &str,
-    pk_columns: &[String],
+    pk_columns: &[&ColumnInfo],
+    pk_values: &[String],
     columns: &[ColumnInfo],
-    row_id: &str,
     value: &[u8],
 ) -> Result<(), SyncError> {
     let text = std::str::from_utf8(value).map_err(|_| SyncError::InvalidRowPayload {
@@ -304,98 +421,40 @@ async fn apply_row_upsert(
             reason: "payload was not a JSON object".to_string(),
         })?;
 
-    let pk_values_from_row_id = parse_row_id(table, row_id, pk_columns.len())?;
-    // TODO: is this needed? if not remove it
-    for (pk_column, expected_value) in pk_columns.iter().zip(&pk_values_from_row_id) {
-        let actual_value = obj.get(pk_column).and_then(|v| v.as_str()).ok_or_else(|| {
-            SyncError::InvalidRowPayload {
-                table: table.to_string(),
-                reason: format!("payload missing primary key '{pk_column}'"),
-            }
-        })?;
-        if actual_value != expected_value {
-            return Err(SyncError::InvalidRowPayload {
-                table: table.to_string(),
-                reason: format!(
-                    "payload primary key '{pk_column}' value '{actual_value}' does not match row id value '{expected_value}'"
-                ),
-            });
+    // The primary key is taken from `pk_values` (already decoded from
+    // `row_id`), not re-read from the payload — `row_id` is what the merge
+    // conflict was resolved against, so it's the source of truth here.
+    let mut values: HashMap<String, Option<Vec<u8>>> = HashMap::new();
+    for (key, json_value) in obj {
+        if pk_columns.iter().any(|c| &c.name == key) {
+            continue;
+        }
+        if columns.iter().any(|c| &c.name == key) {
+            values.insert(key.clone(), json_scalar_to_bytes(table, json_value)?);
         }
     }
 
-    let column_names: Vec<&str> = columns.iter().map(|c| c.name.as_str()).collect();
-    let mut keys: Vec<String> = obj
-        .keys()
-        .filter(|k| column_names.contains(&k.as_str()))
-        .cloned()
-        .collect();
-    for pk_column in pk_columns {
-        if !keys.iter().any(|k| k == pk_column) {
-            keys.push(pk_column.clone());
+    upsert_row(tx, table, pk_columns, pk_values, columns, values).await
+}
+
+/// Converts a JSON scalar from a row-mode payload into the same raw-bytes
+/// representation column-mode cells already carry (SQLite's own textual
+/// conversion of a native value read as a blob — see `column_affinity`),
+/// so both paths can share `upsert_row`'s `CAST`-based binding.
+fn json_scalar_to_bytes(
+    table: &str,
+    value: &serde_json::Value,
+) -> Result<Option<Vec<u8>>, SyncError> {
+    match value {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::Bool(b) => Ok(Some(if *b { b"1".to_vec() } else { b"0".to_vec() })),
+        serde_json::Value::Number(n) => Ok(Some(n.to_string().into_bytes())),
+        serde_json::Value::String(s) => Ok(Some(s.clone().into_bytes())),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+            Err(SyncError::InvalidRowPayload {
+                table: table.to_string(),
+                reason: "nested JSON values are not supported".to_string(),
+            })
         }
     }
-    keys.sort();
-    keys.dedup();
-
-    let quoted_columns: Vec<String> = keys.iter().map(|k| quote_ident(k)).collect();
-    let placeholders: Vec<String> = (1..=keys.len()).map(|i| format!("?{i}")).collect();
-    let update_clause: Vec<String> = keys
-        .iter()
-        .filter(|k| !pk_columns.iter().any(|pk| pk == *k))
-        .map(|k| format!("{} = excluded.{}", quote_ident(k), quote_ident(k)))
-        .collect();
-    let conflict_columns: Vec<String> = pk_columns.iter().map(|c| quote_ident(c)).collect();
-
-    let sql = if update_clause.is_empty() {
-        format!(
-            "INSERT INTO {}({}) VALUES ({}) ON CONFLICT({}) DO NOTHING",
-            quote_ident(table),
-            quoted_columns.join(","),
-            placeholders.join(","),
-            conflict_columns.join(",")
-        )
-    } else {
-        format!(
-            "INSERT INTO {}({}) VALUES ({}) ON CONFLICT({}) DO UPDATE SET {}",
-            quote_ident(table),
-            quoted_columns.join(","),
-            placeholders.join(","),
-            conflict_columns.join(","),
-            update_clause.join(",")
-        )
-    };
-
-    let mut query = sqlx::query(sqlx::AssertSqlSafe(sql));
-    for key in &keys {
-        let value = obj
-            .get(key.as_str())
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
-        query = match value {
-            serde_json::Value::Null => query.bind(None::<String>),
-            serde_json::Value::Bool(b) => query.bind(b),
-            serde_json::Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    query.bind(i)
-                } else if let Some(f) = n.as_f64() {
-                    query.bind(f)
-                } else {
-                    return Err(SyncError::InvalidRowPayload {
-                        table: table.to_string(),
-                        reason: "unsupported numeric value".to_string(),
-                    });
-                }
-            }
-            serde_json::Value::String(s) => query.bind(s),
-            serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
-                return Err(SyncError::InvalidRowPayload {
-                    table: table.to_string(),
-                    reason: "nested JSON values are not supported".to_string(),
-                });
-            }
-        };
-    }
-    query.execute(&mut *tx).await?;
-
-    Ok(())
 }

@@ -20,6 +20,7 @@ use crate::{
     settings::value_objects::database_location::DatabaseLocation,
     sync::engine::SyncEngine,
     sync::implementations::sqlite_sync_engine::SqliteSyncEngine,
+    sync::implementations::sqlite_sync_engine::register_scoped_pending_buffer,
 };
 
 pub async fn create_temp_directory() -> PathBuf {
@@ -40,6 +41,7 @@ pub async fn create_test_injector() -> Injector {
     let db_pool = DbPool::new(sqlite_pool, database_location);
     injector.register_singleton(Arc::new(db_pool));
     register_scoped_tx(&mut injector);
+    register_scoped_pending_buffer(&mut injector);
 
     let app_handle = tauri::test::mock_app().handle().clone();
     injector.register_singleton(Arc::new(app_handle));

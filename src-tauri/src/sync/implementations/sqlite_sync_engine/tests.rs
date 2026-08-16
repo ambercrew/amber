@@ -473,15 +473,18 @@ async fn changes_since_last_push_excludes_foreign_device_and_already_pushed_cell
 
     insert_note(&tx, "2", "Title2", "Body2").await;
     engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell(
-                "3",
-                "title",
-                Some(b"Foreign".to_vec()),
-                far_future_ms(),
-                0,
-            )],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell(
+                    "3",
+                    "title",
+                    Some(b"Foreign".to_vec()),
+                    far_future_ms(),
+                    0,
+                )],
+            },
+            true,
+        )
         .await
         .unwrap();
 
@@ -784,15 +787,18 @@ async fn apply_remote_newer_cell_updates_base_table() {
     // Act
 
     engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell(
-                "1",
-                "title",
-                Some(b"Remote".to_vec()),
-                far_future_ms(),
-                0,
-            )],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell(
+                    "1",
+                    "title",
+                    Some(b"Remote".to_vec()),
+                    far_future_ms(),
+                    0,
+                )],
+            },
+            true,
+        )
         .await
         .unwrap();
 
@@ -819,9 +825,12 @@ async fn apply_remote_older_cell_is_discarded_base_unchanged() {
     // Act
 
     engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell("1", "title", Some(b"Ancient".to_vec()), 1, 0)],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", "title", Some(b"Ancient".to_vec()), 1, 0)],
+            },
+            true,
+        )
         .await
         .unwrap();
 
@@ -847,15 +856,18 @@ async fn apply_remote_column_cell_for_missing_row_creates_skeleton() {
     // Act
 
     engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell(
-                "42",
-                "title",
-                Some(b"Hi".to_vec()),
-                far_future_ms(),
-                0,
-            )],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell(
+                    "42",
+                    "title",
+                    Some(b"Hi".to_vec()),
+                    far_future_ms(),
+                    0,
+                )],
+            },
+            true,
+        )
         .await
         .unwrap();
 
@@ -883,9 +895,12 @@ async fn apply_remote_tombstone_deletes_base_row_and_persists() {
     // Act
 
     engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell("1", merge::DELETED_COL, None, far, 0)],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", merge::DELETED_COL, None, far, 0)],
+            },
+            true,
+        )
         .await
         .unwrap();
 
@@ -918,24 +933,30 @@ async fn apply_remote_stale_update_after_tombstone_is_discarded() {
     let far = far_future_ms();
 
     engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell("1", merge::DELETED_COL, None, far, 0)],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", merge::DELETED_COL, None, far, 0)],
+            },
+            true,
+        )
         .await
         .unwrap();
 
     // Act
 
     engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell(
-                "1",
-                "title",
-                Some(b"TooLate".to_vec()),
-                far - 1,
-                0,
-            )],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell(
+                    "1",
+                    "title",
+                    Some(b"TooLate".to_vec()),
+                    far - 1,
+                    0,
+                )],
+            },
+            true,
+        )
         .await
         .unwrap();
 
@@ -961,24 +982,30 @@ async fn apply_remote_higher_hlc_update_after_delete_stays_deleted() {
     let far = far_future_ms();
 
     engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell("1", merge::DELETED_COL, None, far, 0)],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", merge::DELETED_COL, None, far, 0)],
+            },
+            true,
+        )
         .await
         .unwrap();
 
     // Act
 
     engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell(
-                "1",
-                "title",
-                Some(b"Resurrected".to_vec()),
-                far,
-                1,
-            )],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell(
+                    "1",
+                    "title",
+                    Some(b"Resurrected".to_vec()),
+                    far,
+                    1,
+                )],
+            },
+            true,
+        )
         .await
         .unwrap();
 
@@ -1013,7 +1040,7 @@ async fn apply_remote_row_mode_upserts_whole_row_from_json() {
     // Act
 
     engine
-        .apply_remote(ChangeBatch { cells: vec![cell] })
+        .apply_remote(ChangeBatch { cells: vec![cell] }, true)
         .await
         .unwrap();
 
@@ -1039,15 +1066,18 @@ async fn apply_remote_shape_mismatch_returns_error() {
     // Act
 
     let actual = engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell(
-                "1",
-                merge::ROW_COL,
-                Some(b"{}".to_vec()),
-                far_future_ms(),
-                0,
-            )],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell(
+                    "1",
+                    merge::ROW_COL,
+                    Some(b"{}".to_vec()),
+                    far_future_ms(),
+                    0,
+                )],
+            },
+            true,
+        )
         .await;
 
     // Assert
@@ -1072,28 +1102,34 @@ async fn apply_remote_shape_mismatch_rejects_whole_batch_fail_fast() {
     // Act
 
     let actual = engine
-        .apply_remote(ChangeBatch {
-            cells: vec![
-                remote_cell("1", "title", Some(b"Remote".to_vec()), far_future_ms(), 0),
-                remote_cell(
-                    "2",
-                    merge::ROW_COL,
-                    Some(b"{}".to_vec()),
-                    far_future_ms(),
-                    1,
-                ),
-            ],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![
+                    remote_cell("1", "title", Some(b"Remote".to_vec()), far_future_ms(), 0),
+                    remote_cell(
+                        "2",
+                        merge::ROW_COL,
+                        Some(b"{}".to_vec()),
+                        far_future_ms(),
+                        1,
+                    ),
+                ],
+            },
+            true,
+        )
         .await;
 
     // Assert
 
     assert!(matches!(actual, Err(SyncError::CellShapeMismatch { .. })));
-    // The first (valid) cell was processed before the second cell's shape
-    // error aborted the batch — atomicity across the whole call is the
+    // Column-mode `SetColumn` cells are buffered and only materialized into
+    // the base table by the batch-level flush at the end of `apply_remote`;
+    // the second cell's shape error aborts before that flush runs, so the
+    // first (valid) cell's `sync_cells` bookkeeping won, but its effect never
+    // reached the base table. Atomicity across the whole call is still the
     // caller's job (rolling back the surrounding transaction), per the
     // `apply_remote` contract.
-    assert_eq!(Some("Remote".to_string()), get_note_title(&tx, "1").await);
+    assert_eq!(None, get_note_title(&tx, "1").await);
 }
 
 #[tokio::test]
@@ -1113,15 +1149,18 @@ async fn apply_remote_malformed_row_payload_returns_invalid_row_payload_error() 
     // Act
 
     let actual = engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell(
-                "1",
-                merge::ROW_COL,
-                Some(b"not json".to_vec()),
-                far_future_ms(),
-                0,
-            )],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell(
+                    "1",
+                    merge::ROW_COL,
+                    Some(b"not json".to_vec()),
+                    far_future_ms(),
+                    0,
+                )],
+            },
+            true,
+        )
         .await;
 
     // Assert
@@ -1146,15 +1185,18 @@ async fn apply_remote_does_not_retrigger_local_sync_cells() {
     // Act
 
     engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell(
-                "1",
-                "title",
-                Some(b"Remote".to_vec()),
-                far_future_ms(),
-                0,
-            )],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell(
+                    "1",
+                    "title",
+                    Some(b"Remote".to_vec()),
+                    far_future_ms(),
+                    0,
+                )],
+            },
+            true,
+        )
         .await
         .unwrap();
 
@@ -1185,9 +1227,12 @@ async fn apply_remote_advances_local_clock_past_remote_hlc() {
     // Act
 
     engine
-        .apply_remote(ChangeBatch {
-            cells: vec![remote_cell("1", "title", Some(b"Remote".to_vec()), far, 42)],
-        })
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", "title", Some(b"Remote".to_vec()), far, 42)],
+            },
+            true,
+        )
         .await
         .unwrap();
 
@@ -1298,7 +1343,7 @@ async fn apply_remote_composite_primary_key_updates_matching_row() {
     // Act
 
     engine
-        .apply_remote(ChangeBatch { cells: vec![cell] })
+        .apply_remote(ChangeBatch { cells: vec![cell] }, true)
         .await
         .unwrap();
 
@@ -1312,4 +1357,187 @@ async fn apply_remote_composite_primary_key_updates_matching_row() {
         Some("OtherWorkspaceLocal".to_string()),
         get_composite_note_title(&tx, "ws2", "1").await
     );
+}
+
+// --- column-mode row materialization (NOT NULL grouping / pending buffer) ---
+
+async fn create_required_notes_table(tx: &DbTransaction) {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query(
+        "CREATE TABLE required_notes (id TEXT PRIMARY KEY, title TEXT NOT NULL, body TEXT)",
+    )
+    .execute(&mut *conn)
+    .await
+    .unwrap();
+}
+
+async fn get_required_note(tx: &DbTransaction, id: &str) -> Option<(String, Option<String>)> {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query("SELECT title, body FROM required_notes WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(&mut *conn)
+        .await
+        .unwrap()
+        .map(|row| (row.try_get("title").unwrap(), row.try_get("body").unwrap()))
+}
+
+fn remote_cell_for(
+    tbl: &str,
+    id: &str,
+    col: &str,
+    value: Option<Vec<u8>>,
+    physical_ms: u64,
+    counter: u32,
+) -> CellChange {
+    let hlc = Hlc::new(physical_ms, counter, DeviceId::from_name("remote-device"));
+    CellChange {
+        tbl: tbl.to_string(),
+        row_id: single_row_id(id),
+        col: col.to_string(),
+        value,
+        hlc: hlc.format(),
+        device_id: "remote-device".to_string(),
+    }
+}
+
+#[tokio::test]
+async fn apply_remote_new_row_not_null_column_arrives_with_other_cells_in_same_batch_succeeds() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_required_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncEngine>().await;
+    engine
+        .register_table("required_notes", Granularity::Column)
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    let actual = engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![
+                    remote_cell_for("required_notes", "1", "title", Some(b"Hi".to_vec()), ms, 0),
+                    remote_cell_for("required_notes", "1", "body", Some(b"Body".to_vec()), ms, 1),
+                ],
+            },
+            true,
+        )
+        .await;
+
+    // Assert
+
+    assert!(actual.is_ok(), "{actual:?}");
+    assert_eq!(
+        Some(("Hi".to_string(), Some("Body".to_string()))),
+        get_required_note(&tx, "1").await
+    );
+}
+
+#[tokio::test]
+async fn apply_remote_page_buffers_new_row_until_last_page_then_materializes_it() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_required_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncEngine>().await;
+    engine
+        .register_table("required_notes", Granularity::Column)
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell_for(
+                    "required_notes",
+                    "1",
+                    "title",
+                    Some(b"Hi".to_vec()),
+                    ms,
+                    0,
+                )],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+    let after_first_page = get_required_note(&tx, "1").await;
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell_for(
+                    "required_notes",
+                    "1",
+                    "body",
+                    Some(b"Body".to_vec()),
+                    ms,
+                    1,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(None, after_first_page);
+    assert_eq!(
+        Some(("Hi".to_string(), Some("Body".to_string()))),
+        get_required_note(&tx, "1").await
+    );
+}
+
+#[tokio::test]
+async fn apply_remote_page_delete_on_later_page_drops_pending_columns_for_that_row() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncEngine>().await;
+    engine
+        .register_table("notes", Granularity::Column)
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", "title", Some(b"Hi".to_vec()), ms, 0)],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", merge::DELETED_COL, None, ms, 1)],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert!(!note_exists(&tx, "1").await);
 }
