@@ -49,13 +49,16 @@ function describeError(error: UrlImportError | FileImportError): {
 				sourceUrl: error.sourceUrl,
 			};
 		case "unsupported-file":
-			return { message: "Only PDF and EPUB files are supported." };
+			return {
+				message: "Only PDF, EPUB, and Markdown files are supported.",
+			};
 		case "no-text-layer":
 			return { message: "This PDF has no selectable text." };
 		case "no-content":
-			return { message: "This EPUB has no readable content." };
+			return { message: "This file has no readable content." };
 		case "pdf-failed":
 		case "epub-failed":
+		case "markdown-failed":
 			return { message: error.message };
 	}
 }
@@ -206,7 +209,11 @@ function ImportModal() {
 			closeOnClickOutside={!isImporting}
 			closeOnEscape={!isImporting}>
 			<Dropzone
-				accept={[...PDF_MIME_TYPE, "application/epub+zip"]}
+				accept={[
+					...PDF_MIME_TYPE,
+					"application/epub+zip",
+					"text/markdown",
+				]}
 				activateOnClick={false}
 				disabled={isImporting}
 				openRef={openRef}
@@ -214,7 +221,8 @@ function ImportModal() {
 				onReject={() =>
 					setPhase({
 						kind: "error",
-						message: "Only PDF and EPUB files are supported.",
+						message:
+							"Only PDF, EPUB, and Markdown files are supported.",
 					})
 				}
 				p={0}
@@ -331,7 +339,8 @@ function ImportModal() {
 								)}
 							{!pendingFiles && (
 								<Text size="sm" c="dimmed">
-									or drop a PDF or EPUB anywhere here —{" "}
+									or drop a PDF, EPUB, or Markdown file
+									anywhere here —{" "}
 									<Anchor
 										size="sm"
 										component="button"
