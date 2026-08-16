@@ -1,4 +1,5 @@
 import { extractPdf, PdfProgress } from "../pdf/extract";
+import { extractEpub } from "../epub/extract";
 import { normalize } from "../normalize";
 import { createImportedLearningAsset } from "../createImportedLearningAsset";
 import { createBibliographicalSourceAction } from "../../../stores/bibliographicalSources/bibliographicalSourcesActions";
@@ -7,9 +8,11 @@ import { ImportContext } from "../importContext";
 export type FileImportError =
 	| { kind: "unsupported-file" }
 	| { kind: "no-text-layer" }
-	| { kind: "pdf-failed"; message: string };
+	| { kind: "no-content" }
+	| { kind: "pdf-failed"; message: string }
+	| { kind: "epub-failed"; message: string };
 
-const TITLE_SUFFIX_PATTERN = /\.(docx?|pdf|pptx?|xlsx?)$/i;
+const TITLE_SUFFIX_PATTERN = /\.(docx?|pdf|pptx?|xlsx?|epub)$/i;
 
 export async function runFileImport(
 	files: File[],
@@ -19,14 +22,18 @@ export async function runFileImport(
 ): Promise<FileImportError | null> {
 	for (const file of files) {
 		const bytes = await file.arrayBuffer();
-		if (!hasPdfMagic(bytes)) return { kind: "unsupported-file" };
+		const isPdf = hasPdfMagic(bytes);
+		const isEpub = !isPdf && hasEpubMagic(bytes);
+		if (!isPdf && !isEpub) return { kind: "unsupported-file" };
 
 		try {
-			const extraction = await extractPdf(bytes, onProgress);
+			const extraction = isPdf
+				? await extractPdf(bytes, onProgress)
+				: await extractEpub(bytes);
 			const content = await normalize(extraction.html, { baseUrl: null });
 			const title =
 				plausibleTitle(extraction.title) ??
-				file.name.replace(/\.pdf$/i, "");
+				file.name.replace(TITLE_SUFFIX_PATTERN, "");
 
 			const bibliographicalSource = await ctx.dispatch(
 				createBibliographicalSourceAction({
@@ -48,8 +55,11 @@ export async function runFileImport(
 			if (err instanceof Error && err.message === "no-text-layer") {
 				return { kind: "no-text-layer" };
 			}
+			if (err instanceof Error && err.message === "no-content") {
+				return { kind: "no-content" };
+			}
 			return {
-				kind: "pdf-failed",
+				kind: isPdf ? "pdf-failed" : "epub-failed",
 				message: err instanceof Error ? err.message : String(err),
 			};
 		}
@@ -61,6 +71,17 @@ export async function runFileImport(
 function hasPdfMagic(bytes: ArrayBuffer): boolean {
 	const head = new Uint8Array(bytes.slice(0, 5));
 	return String.fromCharCode(...head) === "%PDF-";
+}
+
+function hasEpubMagic(bytes: ArrayBuffer): boolean {
+	const head = new Uint8Array(bytes.slice(0, 4));
+	return (
+		head.length === 4 &&
+		head[0] === 0x50 &&
+		head[1] === 0x4b &&
+		head[2] === 0x03 &&
+		head[3] === 0x04
+	);
 }
 
 function plausibleTitle(title: string | null): string | null {

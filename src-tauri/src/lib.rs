@@ -239,6 +239,7 @@ pub async fn run() {
             fetch_page,
             fetch_image,
             extract_pdf,
+            extract_epub,
             // App Info
             is_store_installed,
             // AI

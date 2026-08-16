@@ -1,4 +1,5 @@
 import { extractPdf as invokeExtractPdf } from "../../../api/import/api/importApi";
+import { bytesToBase64 } from "../bytesToBase64";
 
 export interface PdfExtraction {
 	title: string | null;
@@ -11,18 +12,6 @@ export interface PdfExtraction {
 export interface PdfProgress {
 	done: number;
 	total: number;
-}
-
-const BASE64_CHUNK_SIZE = 0x8000;
-
-function bytesToBase64(bytes: Uint8Array): string {
-	let binary = "";
-	for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
-		binary += String.fromCharCode(
-			...bytes.subarray(i, i + BASE64_CHUNK_SIZE),
-		);
-	}
-	return btoa(binary);
 }
 
 export async function extractPdf(
