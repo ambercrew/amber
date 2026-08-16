@@ -1,5 +1,6 @@
 import { extractPdf, PdfProgress } from "../pdf/extract";
 import { extractEpub } from "../epub/extract";
+import { extractMarkdown } from "../markdown/extract";
 import { normalize } from "../normalize";
 import { createImportedLearningAsset } from "../createImportedLearningAsset";
 import { createBibliographicalSourceAction } from "../../../stores/bibliographicalSources/bibliographicalSourcesActions";
@@ -10,9 +11,10 @@ export type FileImportError =
 	| { kind: "no-text-layer" }
 	| { kind: "no-content" }
 	| { kind: "pdf-failed"; message: string }
-	| { kind: "epub-failed"; message: string };
+	| { kind: "epub-failed"; message: string }
+	| { kind: "markdown-failed"; message: string };
 
-const TITLE_SUFFIX_PATTERN = /\.(docx?|pdf|pptx?|xlsx?|epub)$/i;
+const TITLE_SUFFIX_PATTERN = /\.(docx?|pdf|pptx?|xlsx?|epub|md|markdown)$/i;
 
 export async function runFileImport(
 	files: File[],
@@ -24,12 +26,16 @@ export async function runFileImport(
 		const bytes = await file.arrayBuffer();
 		const isPdf = hasPdfMagic(bytes);
 		const isEpub = !isPdf && hasEpubMagic(bytes);
-		if (!isPdf && !isEpub) return { kind: "unsupported-file" };
+		const isMarkdown = !isPdf && !isEpub && hasMarkdownExtension(file.name);
+		if (!isPdf && !isEpub && !isMarkdown)
+			return { kind: "unsupported-file" };
 
 		try {
 			const extraction = isPdf
 				? await extractPdf(bytes, onProgress)
-				: await extractEpub(bytes);
+				: isEpub
+					? await extractEpub(bytes)
+					: extractMarkdown(new TextDecoder().decode(bytes));
 			const content = await normalize(extraction.html, { baseUrl: null });
 			const title =
 				plausibleTitle(extraction.title) ??
@@ -59,7 +65,11 @@ export async function runFileImport(
 				return { kind: "no-content" };
 			}
 			return {
-				kind: isPdf ? "pdf-failed" : "epub-failed",
+				kind: isPdf
+					? "pdf-failed"
+					: isEpub
+						? "epub-failed"
+						: "markdown-failed",
 				message: err instanceof Error ? err.message : String(err),
 			};
 		}
@@ -82,6 +92,10 @@ function hasEpubMagic(bytes: ArrayBuffer): boolean {
 		head[2] === 0x03 &&
 		head[3] === 0x04
 	);
+}
+
+function hasMarkdownExtension(name: string): boolean {
+	return /\.(md|markdown)$/i.test(name);
 }
 
 function plausibleTitle(title: string | null): string | null {
