@@ -50,8 +50,8 @@ impl SyncStore for SqliteSyncStore {
         apply::apply_remote(guard.as_mut(), batch, is_last_page, &self.pending).await
     }
 
-    async fn has_pending_changes(&self) -> bool {
-        // TODO: try to apply pending change and if it fails return false
-        !self.pending.is_empty().await
+    async fn has_pending_changes(&self) -> Result<bool, SyncError> {
+        let mut guard = self.tx.lock().await;
+        apply::try_flush_pending(guard.as_mut(), &self.pending).await
     }
 }

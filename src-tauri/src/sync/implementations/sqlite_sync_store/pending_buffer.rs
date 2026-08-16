@@ -55,6 +55,13 @@ impl PendingBuffer {
     pub(super) async fn is_empty(&self) -> bool {
         self.rows.lock().await.is_empty()
     }
+
+    /// Clones everything currently buffered without draining it, so a caller
+    /// can attempt to materialize rows and leave whichever ones still fail
+    /// buffered for a later page (see `apply::try_flush_pending`).
+    pub(super) async fn snapshot(&self) -> HashMap<RowKey, Vec<PendingCell>> {
+        self.rows.lock().await.clone()
+    }
 }
 
 /// Registers a fresh, empty `PendingBuffer` per DI scope, so it's shared by

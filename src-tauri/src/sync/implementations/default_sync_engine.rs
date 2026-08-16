@@ -63,7 +63,7 @@ impl DefaultSyncEngine {
             // once nothing is left half-materialized — otherwise a crash before
             // the next page arrives would strand those columns: the cursor
             // would already be past them and the server wouldn't resend them.
-            if !self.store.has_pending_changes().await {
+            if !self.store.has_pending_changes().await? {
                 self.store
                     .set_last_pulled_server_seq(next_server_seq)
                     .await?;
@@ -110,7 +110,7 @@ mod tests {
     use crate::sync::sql_functions;
     use crate::sync::utils::merge;
     use crate::sync::value_objects::granularity::Granularity;
-    use crate::test_utils::create_test_injector;
+    use crate::test_utils::create_file_backed_test_injector;
 
     use super::*;
 
@@ -178,7 +178,7 @@ mod tests {
     }
 
     async fn initialize_test_injector(backend_client: MockAmberBackendClient) -> Injector {
-        let mut injector = create_test_injector().await;
+        let mut injector = create_file_backed_test_injector().await;
         injector.register_singleton::<dyn AmberBackendClient>(Arc::new(backend_client));
         register_scope!(injector, DefaultSyncEngine);
         injector

@@ -45,8 +45,11 @@ pub trait SyncStore: Send + Sync {
     /// call.
     async fn apply_remote(&self, batch: ChangeBatch, is_last_page: bool) -> Result<(), SyncError>;
 
-    /// Whether a page applied so far left any row's columns buffered and not
-    /// yet materialized. `false` means the changes applied up to this point
-    /// are self-contained and safe to commit.
-    async fn has_pending_changes(&self) -> bool;
+    /// Attempts to materialize any row still buffered from a page applied so
+    /// far (a row can already have every `NOT NULL` column it needs even
+    /// though the page it arrived on wasn't marked as the last one). Returns
+    /// whether any row is still buffered afterwards; `false` means the
+    /// changes applied up to this point are self-contained and safe to
+    /// commit.
+    async fn has_pending_changes(&self) -> Result<bool, SyncError>;
 }

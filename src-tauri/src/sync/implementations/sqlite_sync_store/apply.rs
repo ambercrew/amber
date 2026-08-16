@@ -163,6 +163,46 @@ async fn apply_remote_inner(
     Ok(())
 }
 
+/// Best-effort attempt to materialize whatever is currently buffered in
+/// `pending`, without waiting for a page explicitly marked as the last one.
+/// Each row is upserted inside its own `SAVEPOINT`: a row whose required
+/// (`NOT NULL`) columns have all arrived is written and removed from the
+/// buffer immediately, while a row still missing a column has its attempt
+/// rolled back and stays buffered for a later page. Returns whether any row
+/// is still buffered afterwards.
+pub(super) async fn try_flush_pending(
+    tx: &mut SqliteConnection,
+    pending: &PendingBuffer,
+) -> Result<bool, SyncError> {
+    let rows = pending.snapshot().await;
+    let mut column_cache = HashMap::new();
+
+    for (key, cells) in rows {
+        sqlx::query("SAVEPOINT try_flush_pending")
+            .execute(&mut *tx)
+            .await?;
+
+        match apply_row_upsert_columns(tx, &key, cells, &mut column_cache).await {
+            Ok(()) => {
+                sqlx::query("RELEASE SAVEPOINT try_flush_pending")
+                    .execute(&mut *tx)
+                    .await?;
+                pending.remove(&key.tbl, &key.row_id).await;
+            }
+            Err(_) => {
+                sqlx::query("ROLLBACK TO SAVEPOINT try_flush_pending")
+                    .execute(&mut *tx)
+                    .await?;
+                sqlx::query("RELEASE SAVEPOINT try_flush_pending")
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        }
+    }
+
+    Ok(!pending.is_empty().await)
+}
+
 /// Flushes every row currently buffered in `pending` as a single upsert per
 /// row, then clears the buffer.
 async fn flush_pending(
