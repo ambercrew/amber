@@ -1,9 +1,10 @@
-import { AppShell } from "@mantine/core";
+import { AppShell, Box, Group } from "@mantine/core";
 import { CompassIcon, QueueIcon, TrashIcon } from "@phosphor-icons/react";
 import CollapsibleSidebar from "../../../components/CollapsibleSidebar/CollapsibleSidebar";
 import AccountMenu from "./AccountMenu";
 import NavigatorPanel from "./NavigatorPanel";
 import PriorityQueuePanel from "./PriorityQueuePanel";
+import SyncButton from "./SyncButton";
 import TrashPanel from "./TrashPanel";
 
 interface SidebarProps {
@@ -41,7 +42,12 @@ function Sidebar({ onCollapse }: SidebarProps) {
 				]}
 			/>
 			<AppShell.Section p="xs">
-				<AccountMenu />
+				<Group gap="xs" wrap="nowrap">
+					<Box flex={1} miw={0}>
+						<AccountMenu />
+					</Box>
+					<SyncButton />
+				</Group>
 			</AppShell.Section>
 		</>
 	);

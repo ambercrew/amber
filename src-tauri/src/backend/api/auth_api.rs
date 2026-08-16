@@ -8,6 +8,7 @@ use crate::{
         services::authenticator::Authenticator,
     },
     common::api_error::ApiError,
+    infrastructure::extensions::unit_of_work::UnitOfWorkExt,
 };
 use injector::injector::Injector;
 use tauri::State;
@@ -24,6 +25,7 @@ pub async fn sign_in(
         .await
         .sign_in(username, password)
         .await?;
+    scope.save_changes().await?;
     Ok(dto)
 }
 
@@ -38,6 +40,7 @@ pub async fn sign_up(
         .await
         .sign_up(request)
         .await?;
+    scope.save_changes().await?;
     Ok(dto)
 }
 
@@ -49,6 +52,7 @@ pub async fn sign_out(injector: State<'_, Arc<Injector>>) -> Result<(), ApiError
         .await
         .sign_out()
         .await?;
+    scope.save_changes().await?;
     Ok(())
 }
 

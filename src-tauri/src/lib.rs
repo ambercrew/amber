@@ -36,6 +36,7 @@ use search::search_api::*;
 use settings::settings_api::*;
 use study::study_api::*;
 use study::study_profile_api::*;
+use sync::sync_api::*;
 use trash::trash_api::*;
 
 #[cfg(desktop)]
@@ -247,6 +248,8 @@ pub async fn run() {
             get_chat_messages_ordered,
             rename_ai_chat,
             upload_document,
+            // Sync
+            sync,
             // Common
             resolve_frontend_request,
         ])

@@ -26,10 +26,10 @@ pub enum AmberBackendClientError {
     Connect,
     #[error("The request timed out, please try again!")]
     Timeout,
-    #[error("Cannot save authentication cookies")]
-    CannotSaveAuthenticationCookies(#[source] SourceError),
-    #[error("Cannot load stored cookies")]
-    CannotLoadStoredCookies,
+    #[error("Cannot save authentication token")]
+    CannotSaveAuthenticationToken(#[source] SourceError),
+    #[error("Cannot load stored authentication token")]
+    CannotLoadStoredAuthenticationToken,
     #[error("{0}")]
     InsufficientStorage(String),
 }

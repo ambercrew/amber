@@ -123,6 +123,7 @@ function SignInTab({ onSuccess }: { onSuccess: () => void }) {
 				</Button>
 				<Divider label="or" labelPosition="center" />
 				<Button
+					type="button"
 					variant="default"
 					leftSection={<GoogleLogoIcon />}
 					fullWidth>
@@ -244,6 +245,7 @@ function SignUpTab({ onSuccess }: { onSuccess: () => void }) {
 				</Button>
 				<Divider label="or" labelPosition="center" />
 				<Button
+					type="button"
 					variant="default"
 					leftSection={<GoogleLogoIcon />}
 					fullWidth>

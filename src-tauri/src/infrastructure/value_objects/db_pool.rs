@@ -28,9 +28,21 @@ impl DbPool {
         let mut pool = self.pool.lock().await;
         let mut location = self.location.lock().await;
 
-        pool.close().await;
-
-        *pool = new_pool;
+        // Swap in the new pool immediately rather than awaiting `close()` on
+        // the old one here: the calling scope may itself already hold a
+        // checked-out, uncommitted connection from the old pool (e.g. a
+        // profile switch during sign-in, resolved as part of the same DI
+        // scope that also opened a `DbTransaction`). `close()` doesn't
+        // return until every checked-out connection is returned, but that
+        // connection is only released by this scope's own `save_changes()`,
+        // which runs after this call — awaiting it inline would deadlock.
+        // Closing in the background lets it finish once that connection is
+        // eventually returned.
+        let old_pool = std::mem::replace(&mut *pool, new_pool);
         *location = new_location;
+
+        tokio::spawn(async move {
+            old_pool.close().await;
+        });
     }
 }

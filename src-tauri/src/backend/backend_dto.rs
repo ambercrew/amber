@@ -27,6 +27,13 @@ pub struct UserInformationDto {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct SignInResponseDto {
+    pub user: UserInformationDto,
+    pub token: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct SignUpDto {
     pub username: String,
     pub password: String,
