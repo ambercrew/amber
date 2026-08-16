@@ -15,10 +15,16 @@ use crate::backend::{
 use crate::generated_code::{ChangeBatch, PullResponse};
 use crate::secrets::repositories::secrets_repository::SecretsRepository;
 use async_trait::async_trait;
+use prost::Message;
 use reqwest_cookie_store::CookieStoreMutex;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{RetryError, RetryTransientMiddleware, policies::ExponentialBackoff};
-use tauri_plugin_http::reqwest::{Response, StatusCode, Url};
+use tauri_plugin_http::reqwest::{
+    Response, StatusCode, Url,
+    header::{CONTENT_TYPE, HeaderValue},
+};
+
+const PROTOBUF_CONTENT_TYPE: &str = "application/x-protobuf";
 
 const COOKIES_SECRET_KEY: &str = "backend-cookies";
 
@@ -283,17 +289,47 @@ impl AmberBackendClient for AmberBackendHttpClient {
         Ok(())
     }
 
-    // TODO: no backend sync endpoint exists yet.
-    async fn push_changes(&self, _batch: ChangeBatch) -> Result<(), AmberBackendClientError> {
-        unimplemented!("the backend has no sync endpoint yet")
+    async fn push_changes(&self, batch: ChangeBatch) -> Result<(), AmberBackendClientError> {
+        log::info!("Pushing {} local change(s)...", batch.cells.len());
+
+        let response = self
+            .reqwest_client
+            .post(self.backend_url.join("/api/v1/sync/push").unwrap())
+            .header(
+                CONTENT_TYPE,
+                HeaderValue::from_static(PROTOBUF_CONTENT_TYPE),
+            )
+            .body(batch.encode_to_vec())
+            .send()
+            .await;
+
+        ensure_success_response(response).await?;
+
+        Ok(())
     }
 
-    // TODO: no backend sync endpoint exists yet.
     async fn pull_changes(
         &self,
-        _since_server_seq: Option<i64>,
+        since_server_seq: Option<i64>,
     ) -> Result<PullResponse, AmberBackendClientError> {
-        unimplemented!("the backend has no sync endpoint yet")
+        let since_server_seq = since_server_seq.unwrap_or(0);
+        log::info!("Pulling changes since server seq {since_server_seq}...");
+
+        let response = self
+            .reqwest_client
+            .get(self.backend_url.join("/api/v1/sync/pull").unwrap())
+            .query(&[("sinceServerSeq", since_server_seq)])
+            .send()
+            .await;
+
+        let response = ensure_success_response(response).await?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|err| AmberBackendClientError::Unknown(Box::new(err)))?;
+
+        PullResponse::decode(bytes)
+            .map_err(|err| AmberBackendClientError::Deserialization(Box::new(err)))
     }
 }
 
@@ -374,6 +410,12 @@ async fn ensure_success_response(
         StatusCode::UNAUTHORIZED => Err(AmberBackendClientError::Unauthorized),
         StatusCode::BAD_REQUEST => match response.json::<ProblemDetails>().await {
             Ok(problem_details) => Err(AmberBackendClientError::BadRequest(problem_details.detail)),
+            Err(err) => Err(AmberBackendClientError::Deserialization(Box::new(err))),
+        },
+        StatusCode::INSUFFICIENT_STORAGE => match response.json::<ProblemDetails>().await {
+            Ok(problem_details) => Err(AmberBackendClientError::InsufficientStorage(
+                problem_details.detail,
+            )),
             Err(err) => Err(AmberBackendClientError::Deserialization(Box::new(err))),
         },
         _ => Err(AmberBackendClientError::UnexpectedResponse),

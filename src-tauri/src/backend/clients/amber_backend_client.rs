@@ -30,12 +30,15 @@ pub enum AmberBackendClientError {
     CannotSaveAuthenticationCookies(#[source] SourceError),
     #[error("Cannot load stored cookies")]
     CannotLoadStoredCookies,
+    #[error("{0}")]
+    InsufficientStorage(String),
 }
 
 impl PartialEq for AmberBackendClientError {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::BadRequest(a), Self::BadRequest(b)) => a == b,
+            (Self::InsufficientStorage(a), Self::InsufficientStorage(b)) => a == b,
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }
     }
