@@ -29,6 +29,7 @@ function renderModal(opened: boolean) {
 				settingsModalOpened: opened,
 				priorityModalOpened: false,
 				studySessionSettingsModalOpened: false,
+				authModalOpened: false,
 			},
 			settings: { settings },
 		},

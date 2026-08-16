@@ -78,6 +78,7 @@ function appStateFor(priorityModalOpened: boolean): AppState {
 		settingsModalOpened: false,
 		priorityModalOpened,
 		studySessionSettingsModalOpened: false,
+		authModalOpened: false,
 	};
 }
 

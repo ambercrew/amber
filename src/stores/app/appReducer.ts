@@ -7,6 +7,7 @@ export interface AppState {
 	settingsModalOpened: boolean;
 	priorityModalOpened: boolean;
 	studySessionSettingsModalOpened: boolean;
+	authModalOpened: boolean;
 }
 
 const initialState: AppState = {
@@ -16,6 +17,7 @@ const initialState: AppState = {
 	settingsModalOpened: false,
 	priorityModalOpened: false,
 	studySessionSettingsModalOpened: false,
+	authModalOpened: false,
 };
 
 const appSlice = createSlice({
@@ -55,6 +57,12 @@ const appSlice = createSlice({
 		closeStudySessionSettingsModal: state => {
 			state.studySessionSettingsModalOpened = false;
 		},
+		openAuthModal: state => {
+			state.authModalOpened = true;
+		},
+		closeAuthModal: state => {
+			state.authModalOpened = false;
+		},
 	},
 });
 
@@ -72,4 +80,6 @@ export const {
 	closePriorityModal,
 	openStudySessionSettingsModal,
 	closeStudySessionSettingsModal,
+	openAuthModal,
+	closeAuthModal,
 } = appSlice.actions;
