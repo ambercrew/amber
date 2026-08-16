@@ -14,6 +14,7 @@ mod search;
 mod secrets;
 mod settings;
 mod study;
+mod sync;
 #[cfg(test)]
 mod test_utils;
 mod trash;

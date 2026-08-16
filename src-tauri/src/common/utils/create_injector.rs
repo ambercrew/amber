@@ -75,6 +75,7 @@ use crate::local_configurations::repositories::local_configuration_repository::L
 use crate::secrets::repositories::secrets_repository::SecretsRepository;
 use crate::settings::entities::settings::Settings;
 use crate::settings::repositories::settings_repository::SettingsRepository;
+use crate::sync::engine::SyncEngine;
 #[cfg(not(test))]
 use crate::settings::value_objects::settings_profile::SettingsProfile;
 use crate::bibliographical_sources::repositories::bibliographical_source_repository::BibliographicalSourceRepository;
@@ -197,6 +198,14 @@ pub async fn create_injector<R: tauri::Runtime>(
         injector,
         dyn LocalConfigurationRepository,
         SqliteLocalConfigurationRepository
+    );
+
+    // Sync
+
+    register_scope!(
+        injector,
+        dyn SyncEngine,
+        crate::sync::implementations::sqlite_sync_engine::SqliteSyncEngine
     );
 
     // Elements

@@ -1,6 +1,16 @@
 syntax = "proto3";
 
-import "google/protobuf/timestamp.proto";
-
 package generated_code;
 
+message CellChange {
+  string tbl = 1;
+  string row_id = 2;
+  string col = 3;
+  optional bytes value = 4;
+  string hlc = 5;
+  string device_id = 6;
+}
+
+message ChangeBatch {
+  repeated CellChange cells = 1;
+}

@@ -18,6 +18,8 @@ use crate::{
     },
     secrets::repositories::secrets_repository::SecretsRepository,
     settings::value_objects::database_location::DatabaseLocation,
+    sync::engine::SyncEngine,
+    sync::implementations::sqlite_sync_engine::SqliteSyncEngine,
 };
 
 pub async fn create_temp_directory() -> PathBuf {
@@ -48,6 +50,7 @@ pub async fn create_test_injector() -> Injector {
     );
 
     register_scope!(injector, dyn TransactionManager, SqliteTransactionManager);
+    register_scope!(injector, dyn SyncEngine, SqliteSyncEngine);
 
     let secrets_repository = DiskSecretsRepository::new(&app_data_directory);
     injector.register_singleton::<dyn SecretsRepository>(Arc::new(secrets_repository));
