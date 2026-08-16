@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { FetchedPageDto } from "../dto/fetchedPageDto";
 import { FetchedImageDto } from "../dto/fetchedImageDto";
 import { PdfExtractionDto } from "../dto/pdfExtractionDto";
+import { EpubExtractionDto } from "../dto/epubExtractionDto";
 
 export function fetchPage(url: string): Promise<FetchedPageDto> {
 	return invoke("fetch_page", { url });
@@ -47,4 +48,8 @@ export async function extractPdf(
 	} finally {
 		unlisten?.();
 	}
+}
+
+export function extractEpub(bytesBase64: string): Promise<EpubExtractionDto> {
+	return invoke("extract_epub", { bytesBase64 });
 }

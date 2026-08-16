@@ -41,3 +41,13 @@ pub struct PdfImportProgressEvent {
     pub done: usize,
     pub total: usize,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpubExtractionDto {
+    pub title: Option<String>,
+    pub authors: Option<String>,
+    pub publication_date: Option<String>,
+    pub html: String,
+    pub chapter_count: usize,
+}

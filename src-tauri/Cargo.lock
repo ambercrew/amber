@@ -24,6 +24,7 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-types",
+ "quick-xml 0.41.0",
  "rand 0.10.2",
  "regex",
  "reqwest-middleware",
@@ -54,6 +55,7 @@ dependencies = [
  "tokio-rusqlite",
  "tokio-stream",
  "uuid",
+ "zip 8.6.0",
 ]
 
 [[package]]

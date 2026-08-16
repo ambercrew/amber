@@ -61,6 +61,8 @@ text-splitter = "0.32.0"
 sqlite-vec = "0.1.9"
 tokio-rusqlite = "0.6.0"
 fontdb = "0.23.0"
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+quick-xml = "0.41.0"
 
 # No default runtime feature on purpose: every platform states its runtime
 # explicitly via its own tauri.<platform>.conf.json ("build.features"),

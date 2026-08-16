@@ -12,7 +12,10 @@ use tauri_plugin_http::reqwest::{
 
 use crate::common::api_error::ApiError;
 
-use super::dto::{FetchedImageDto, FetchedPageDto, PdfExtractionDto, PdfImportProgressEvent};
+use super::dto::{
+    EpubExtractionDto, FetchedImageDto, FetchedPageDto, PdfExtractionDto, PdfImportProgressEvent,
+};
+use super::epub::extract_epub_html;
 
 const MAX_PAGE_BYTES: usize = 20 * 1024 * 1024;
 const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024;
@@ -161,6 +164,15 @@ fn extract_pdf_html(
     })
 }
 
+#[tauri::command]
+pub async fn extract_epub(bytes_base64: String) -> Result<EpubExtractionDto, ApiError> {
+    let bytes = general_purpose::STANDARD.decode(&bytes_base64)?;
+
+    tauri::async_runtime::spawn_blocking(move || extract_epub_html(bytes))
+        .await
+        .map_err(|e| ApiError::new(e.to_string()))?
+}
+
 fn build_client(timeout: Duration) -> Result<reqwest::Client, ApiError> {
     reqwest::Client::builder()
         .timeout(timeout)
@@ -178,7 +190,7 @@ async fn read_capped(response: reqwest::Response, cap: usize) -> Result<Vec<u8>,
     Ok(bytes.to_vec())
 }
 
-fn sniff_image_mime(bytes: &[u8]) -> Option<String> {
+pub(super) fn sniff_image_mime(bytes: &[u8]) -> Option<String> {
     if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
         Some("image/png".to_string())
     } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {

@@ -49,10 +49,13 @@ function describeError(error: UrlImportError | FileImportError): {
 				sourceUrl: error.sourceUrl,
 			};
 		case "unsupported-file":
-			return { message: "Only PDF files are supported." };
+			return { message: "Only PDF and EPUB files are supported." };
 		case "no-text-layer":
 			return { message: "This PDF has no selectable text." };
+		case "no-content":
+			return { message: "This EPUB has no readable content." };
 		case "pdf-failed":
+		case "epub-failed":
 			return { message: error.message };
 	}
 }
@@ -125,11 +128,11 @@ function ImportModal() {
 
 	async function startFileImport(files: File[]) {
 		cancelledRef.current = false;
-		setPhase({ kind: "importing", label: "Extracting PDF…" });
+		setPhase({ kind: "importing", label: "Extracting…" });
 
 		const error = await runFileImport(files, context(), progress => {
 			if (cancelledRef.current) return;
-			setPhase({ kind: "importing", label: "Extracting PDF…", progress });
+			setPhase({ kind: "importing", label: "Extracting…", progress });
 		});
 		if (cancelledRef.current) return;
 
@@ -203,7 +206,7 @@ function ImportModal() {
 			closeOnClickOutside={!isImporting}
 			closeOnEscape={!isImporting}>
 			<Dropzone
-				accept={PDF_MIME_TYPE}
+				accept={[...PDF_MIME_TYPE, "application/epub+zip"]}
 				activateOnClick={false}
 				disabled={isImporting}
 				openRef={openRef}
@@ -211,7 +214,7 @@ function ImportModal() {
 				onReject={() =>
 					setPhase({
 						kind: "error",
-						message: "Only PDF files are supported.",
+						message: "Only PDF and EPUB files are supported.",
 					})
 				}
 				p={0}
@@ -328,7 +331,7 @@ function ImportModal() {
 								)}
 							{!pendingFiles && (
 								<Text size="sm" c="dimmed">
-									or drop a PDF anywhere here —{" "}
+									or drop a PDF or EPUB anywhere here —{" "}
 									<Anchor
 										size="sm"
 										component="button"
