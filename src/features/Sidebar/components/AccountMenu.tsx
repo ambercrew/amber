@@ -18,7 +18,6 @@ import {
 	selectUserInformation,
 } from "../../../stores/user/userSelectors";
 
-// TODO: when signed in show user full name
 function AccountMenu() {
 	const isSignedIn = useAppSelector(selectIsSignedIn);
 	const userInformation = useAppSelector(selectUserInformation);
@@ -37,7 +36,7 @@ function AccountMenu() {
 					<Group gap={4} wrap="nowrap" miw={0}>
 						<Text truncate="end">
 							{isSignedIn && userInformation
-								? userInformation.username
+								? `${userInformation.firstName} ${userInformation.lastName}`
 								: "Sign in"}
 						</Text>
 						<CaretDownIcon size={12} />
