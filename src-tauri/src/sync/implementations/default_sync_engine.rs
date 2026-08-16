@@ -5,6 +5,7 @@ use injector_derive::ScopeInjectable;
 
 use crate::backend::clients::amber_backend_client::AmberBackendClient;
 use crate::database::database_connection_manager::DatabaseConnectionManager;
+use crate::generated_code::ChangeBatch;
 use crate::sync::engine::SyncEngine;
 use crate::sync::errors::SyncError;
 use crate::sync::hlc::Hlc;
@@ -43,12 +44,21 @@ impl DefaultSyncEngine {
         // Pulled before pushing so the server doesn't have to echo back the
         // changes we're about to send it in the same cycle.
         let since_server_seq = self.store.get_last_pulled_server_seq().await?;
-        let remote_batch = self.backend_client.pull_changes(since_server_seq).await?;
+        let pull_response = self.backend_client.pull_changes(since_server_seq).await?;
+        let has_more = pull_response.has_more;
+        let next_server_seq = pull_response.next_server_seq;
+        let remote_batch = ChangeBatch {
+            cells: pull_response.cells,
+        };
         if !remote_batch.cells.is_empty() {
-            self.store.apply_remote(remote_batch, true).await?;
+            self.store.apply_remote(remote_batch, !has_more).await?;
         }
-        // TODO: advance the pull cursor via `set_last_pulled_server_seq` once
-        // the backend response carries a server seq (ChangeBatch doesn't yet).
+        self.store
+            .set_last_pulled_server_seq(next_server_seq)
+            .await?;
+
+        // TODO: see if we can stop the sync midwise (like saving transactions by also applying
+        // pending)
 
         let batch = self.store.changes_since_last_push().await?;
         let up_to_hlc = batch
@@ -73,7 +83,7 @@ mod tests {
     use sqlx::Row;
 
     use crate::backend::clients::amber_backend_client::MockAmberBackendClient;
-    use crate::generated_code::{CellChange, ChangeBatch};
+    use crate::generated_code::{CellChange, PullResponse};
     use crate::infrastructure::value_objects::db_transaction::DbTransaction;
     use crate::sync::hlc::DeviceId;
     use crate::sync::sql_functions;
@@ -158,9 +168,13 @@ mod tests {
         // Arrange
 
         let mut backend_client = MockAmberBackendClient::new();
-        backend_client
-            .expect_pull_changes()
-            .returning(|_| Ok(ChangeBatch { cells: vec![] }));
+        backend_client.expect_pull_changes().returning(|_| {
+            Ok(PullResponse {
+                cells: vec![],
+                next_server_seq: 0,
+                has_more: false,
+            })
+        });
         backend_client.expect_push_changes().never();
 
         let injector = initialize_test_injector(backend_client).await;
@@ -182,7 +196,13 @@ mod tests {
             .expect_pull_changes()
             .times(1)
             .in_sequence(&mut sequence)
-            .returning(|_| Ok(ChangeBatch { cells: vec![] }));
+            .returning(|_| {
+                Ok(PullResponse {
+                    cells: vec![],
+                    next_server_seq: 0,
+                    has_more: false,
+                })
+            });
         backend_client
             .expect_push_changes()
             .times(1)
@@ -219,7 +239,11 @@ mod tests {
         // rather than before the injector exists.
         backend_client.expect_pull_changes().returning(move |_| {
             let cell = remote_cell("1", merge::ROW_COL, value.clone(), far_future_ms(), 0);
-            Ok(ChangeBatch { cells: vec![cell] })
+            Ok(PullResponse {
+                cells: vec![cell],
+                next_server_seq: 1,
+                has_more: false,
+            })
         });
         backend_client.expect_push_changes().never();
 

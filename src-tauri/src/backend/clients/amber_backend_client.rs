@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::SourceError;
 use crate::backend::backend_dto::{UpdatePasswordDto, UserInformationDto};
-use crate::generated_code::ChangeBatch;
+use crate::generated_code::{ChangeBatch, PullResponse};
 
 #[derive(Error, Debug)]
 pub enum AmberBackendClientError {
@@ -87,5 +87,5 @@ pub trait AmberBackendClient: Send + Sync {
     async fn pull_changes(
         &self,
         since_server_seq: Option<i64>,
-    ) -> Result<ChangeBatch, AmberBackendClientError>;
+    ) -> Result<PullResponse, AmberBackendClientError>;
 }
