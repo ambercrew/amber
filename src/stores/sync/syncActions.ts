@@ -1,3 +1,4 @@
+import { notifications } from "@mantine/notifications";
 import { AppDispatch, RootState } from "../store";
 import { sync as syncApi } from "../../api/sync/api/syncApi";
 import errorToString from "../../utils/errorToString";
@@ -26,8 +27,7 @@ export function sync() {
 		} catch (e) {
 			// eslint-disable-next-line no-console
 			console.error(e);
-			// eslint-disable-next-line no-alert
-			alert(errorToString(e));
+			notifications.show({ message: errorToString(e), color: "red" });
 		} finally {
 			await defaultGlobalSyncEventManager.notifyListeners(
 				ListenerType.PreSyncComplete,
