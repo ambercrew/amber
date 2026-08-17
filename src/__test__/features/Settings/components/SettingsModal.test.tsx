@@ -35,6 +35,7 @@ function renderModal(opened: boolean) {
 				authModalOpened: false,
 				authModalInitialTab: "sign-in",
 				verifyEmailModalOpened: false,
+				manageAccountModalOpened: false,
 			},
 			settings: { settings },
 		},

@@ -6,8 +6,13 @@ import {
 	signOut as signOutApi,
 	verifyUserEmail as verifyUserEmailApi,
 	resendEmailVerificationCode as resendEmailVerificationCodeApi,
+	updatePassword as updatePasswordApi,
 } from "../../api/backend/api/authApi";
-import { getUserInformation } from "../../api/backend/api/userApi";
+import {
+	getUserInformation,
+	updateUserInformation as updateUserInformationApi,
+	deleteUser as deleteUserApi,
+} from "../../api/backend/api/userApi";
 import { reloadApplicationState } from "../app/appActions";
 import { AppDispatch } from "../store";
 import { setLoggedOf, setUserInformation } from "./userReducer";
@@ -64,5 +69,27 @@ export function verifyEmail(verificationCode: string) {
 export function resendEmailVerificationCode() {
 	return async function (): Promise<void> {
 		await resendEmailVerificationCodeApi();
+	};
+}
+
+export function updateUserInformation(firstName: string, lastName: string) {
+	return async function (dispatch: AppDispatch): Promise<void> {
+		await updateUserInformationApi(firstName, lastName);
+		const userInformation = await getUserInformation();
+		dispatch(setUserInformation(userInformation));
+	};
+}
+
+export function updateUserPassword(oldPassword: string, newPassword: string) {
+	return async function (): Promise<void> {
+		await updatePasswordApi(oldPassword, newPassword);
+	};
+}
+
+export function deleteAccount(navigate: NavigateFunction) {
+	return async function (dispatch: AppDispatch): Promise<void> {
+		await deleteUserApi();
+		dispatch(setLoggedOf());
+		await dispatch(reloadApplicationState(navigate));
 	};
 }

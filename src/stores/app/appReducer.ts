@@ -12,6 +12,7 @@ export interface AppState {
 	authModalOpened: boolean;
 	authModalInitialTab: AuthModalTab;
 	verifyEmailModalOpened: boolean;
+	manageAccountModalOpened: boolean;
 }
 
 const initialState: AppState = {
@@ -24,6 +25,7 @@ const initialState: AppState = {
 	authModalOpened: false,
 	authModalInitialTab: "sign-in",
 	verifyEmailModalOpened: false,
+	manageAccountModalOpened: false,
 };
 
 const appSlice = createSlice({
@@ -79,6 +81,12 @@ const appSlice = createSlice({
 		closeVerifyEmailModal: state => {
 			state.verifyEmailModalOpened = false;
 		},
+		openManageAccountModal: state => {
+			state.manageAccountModalOpened = true;
+		},
+		closeManageAccountModal: state => {
+			state.manageAccountModalOpened = false;
+		},
 	},
 });
 
@@ -100,4 +108,6 @@ export const {
 	closeAuthModal,
 	openVerifyEmailModal,
 	closeVerifyEmailModal,
+	openManageAccountModal,
+	closeManageAccountModal,
 } = appSlice.actions;

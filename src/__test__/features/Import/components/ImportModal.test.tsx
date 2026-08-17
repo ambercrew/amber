@@ -31,6 +31,7 @@ function renderOpenedModal() {
 				authModalOpened: false,
 				authModalInitialTab: "sign-in",
 				verifyEmailModalOpened: false,
+				manageAccountModalOpened: false,
 			},
 		},
 	});

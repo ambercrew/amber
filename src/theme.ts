@@ -11,7 +11,7 @@ import {
 import { generateColors } from "@mantine/colors-generator";
 import { Dropzone } from "@mantine/dropzone";
 
-const green = generateColors("#0a8158");
+const green = generateColors("#076647");
 const blue = generateColors("#1478c0");
 const orange = generateColors("#c2560a");
 const red = generateColors("#dd2137");

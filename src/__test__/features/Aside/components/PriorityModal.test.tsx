@@ -81,6 +81,7 @@ function appStateFor(priorityModalOpened: boolean): AppState {
 		authModalOpened: false,
 		authModalInitialTab: "sign-in",
 		verifyEmailModalOpened: false,
+		manageAccountModalOpened: false,
 	};
 }
 

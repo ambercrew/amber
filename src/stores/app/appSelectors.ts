@@ -26,3 +26,6 @@ export const selectAuthModalInitialTab = (state: RootState) =>
 
 export const selectIsVerifyEmailModalOpened = (state: RootState) =>
 	state.app.verifyEmailModalOpened;
+
+export const selectIsManageAccountModalOpened = (state: RootState) =>
+	state.app.manageAccountModalOpened;

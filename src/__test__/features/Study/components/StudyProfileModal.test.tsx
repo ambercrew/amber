@@ -87,6 +87,7 @@ describe("StudyProfileModal", () => {
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
+					manageAccountModalOpened: false,
 				},
 			},
 		});
@@ -113,6 +114,7 @@ describe("StudyProfileModal", () => {
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
+					manageAccountModalOpened: false,
 				},
 			},
 		});
@@ -149,6 +151,7 @@ describe("StudyProfileModal", () => {
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
+					manageAccountModalOpened: false,
 				},
 				elements: elementsStateFor(cardElement("1")),
 			},
@@ -191,6 +194,7 @@ describe("StudyProfileModal", () => {
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
+					manageAccountModalOpened: false,
 				},
 				elements: elementsStateFor(null),
 			},
@@ -222,6 +226,7 @@ describe("StudyProfileModal", () => {
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
+					manageAccountModalOpened: false,
 				},
 			},
 		});
@@ -259,6 +264,7 @@ describe("StudyProfileModal", () => {
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
+					manageAccountModalOpened: false,
 				},
 			},
 		});
@@ -296,6 +302,7 @@ describe("StudyProfileModal", () => {
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
+					manageAccountModalOpened: false,
 				},
 			},
 		});
@@ -332,6 +339,7 @@ describe("StudyProfileModal", () => {
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
+					manageAccountModalOpened: false,
 				},
 			},
 		});
@@ -366,6 +374,7 @@ describe("StudyProfileModal", () => {
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
+					manageAccountModalOpened: false,
 				},
 			},
 		});

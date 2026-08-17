@@ -44,6 +44,7 @@ function VerifyEmailModal() {
 	const [verificationCode, setVerificationCode] = useState("");
 	const [resent, setResent] = useState(false);
 
+	// TODO: add unit test
 	useEffect(() => {
 		if (isSignedIn && isEmailVerified === false) {
 			dispatch(openVerifyEmailModal());
