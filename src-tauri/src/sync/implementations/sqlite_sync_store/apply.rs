@@ -10,7 +10,7 @@ use crate::sync::sql_functions;
 use crate::sync::utils::merge::{self, MergeAction};
 use crate::sync::value_objects::granularity::Granularity;
 
-use super::column_info::{read_table_info, text_primary_key_columns};
+use super::column_info::{column_affinity, primary_key_columns, read_table_info};
 use super::models::{ColumnInfo, PendingCell, RowKey};
 use super::pending_buffer::PendingBuffer;
 use super::trigger_sql::quote_ident;
@@ -243,7 +243,7 @@ async fn apply_row_upsert_columns(
     }
 
     let columns = get_or_load_columns(tx, table, column_cache).await?;
-    let pk_columns = text_primary_key_columns(table, &columns)?;
+    let pk_columns = primary_key_columns(table, &columns)?;
     let pk_values = parse_row_id(table, &key.row_id, pk_columns.len())?;
 
     upsert_row(tx, table, &pk_columns, &pk_values, &columns, values).await
@@ -329,24 +329,6 @@ async fn upsert_row(
     Ok(())
 }
 
-/// SQLite's column affinity rules (https://www.sqlite.org/datatype3.html#determination_of_column_affinity),
-/// used to `CAST` an opaque cell value back into its destination column's usual
-/// storage class before writing it.
-fn column_affinity(declared_type: &str) -> &'static str {
-    let upper = declared_type.to_uppercase();
-    if upper.contains("INT") {
-        "INTEGER"
-    } else if upper.contains("CHAR") || upper.contains("CLOB") || upper.contains("TEXT") {
-        "TEXT"
-    } else if upper.contains("BLOB") || upper.is_empty() {
-        "BLOB"
-    } else if upper.contains("REAL") || upper.contains("FLOA") || upper.contains("DOUB") {
-        "REAL"
-    } else {
-        "NUMERIC"
-    }
-}
-
 async fn get_or_load_columns(
     tx: &mut SqliteConnection,
     table: &str,
@@ -366,7 +348,11 @@ async fn get_or_load_columns(
 }
 
 /// Decodes a `row_id` (see `trigger_sql::row_id_expr`) into its primary key
-/// values, in the same key-column order it was encoded with.
+/// values, in the same key-column order it was encoded with. Each value is
+/// carried through as text — a JSON string as-is, a JSON number via its
+/// canonical text form — and later bound as a query parameter, where
+/// SQLite's own affinity conversion (see `column_affinity`) restores it to
+/// the destination column's actual storage class.
 fn parse_row_id(table: &str, row_id: &str, expected_len: usize) -> Result<Vec<String>, SyncError> {
     let values: Vec<serde_json::Value> =
         serde_json::from_str(row_id).map_err(|err| SyncError::InvalidRowPayload {
@@ -386,13 +372,15 @@ fn parse_row_id(table: &str, row_id: &str, expected_len: usize) -> Result<Vec<St
 
     values
         .into_iter()
-        .map(|v| {
-            v.as_str()
-                .map(str::to_string)
-                .ok_or_else(|| SyncError::InvalidRowPayload {
-                    table: table.to_string(),
-                    reason: "row_id contained a non-string primary key value".to_string(),
-                })
+        .map(|v| match v {
+            serde_json::Value::String(s) => Ok(s),
+            serde_json::Value::Number(n) => Ok(n.to_string()),
+            _ => Err(SyncError::InvalidRowPayload {
+                table: table.to_string(),
+                reason:
+                    "row_id contained a primary key value that was neither a string nor a number"
+                        .to_string(),
+            }),
         })
         .collect()
 }
@@ -405,7 +393,7 @@ async fn apply_action(
     column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
 ) -> Result<(), SyncError> {
     let columns = get_or_load_columns(tx, table, column_cache).await?;
-    let pk_columns = text_primary_key_columns(table, &columns)?;
+    let pk_columns = primary_key_columns(table, &columns)?;
     let pk_values = parse_row_id(table, row_id, pk_columns.len())?;
     match action {
         MergeAction::Discard => Ok(()),

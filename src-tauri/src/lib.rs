@@ -46,6 +46,7 @@ use tokio::runtime::Handle;
 use crate::backup::background::spawn_backup_task;
 use crate::common::utils::create_injector::create_injector;
 use crate::infrastructure::value_objects::app_data_directory::AppDataDirectory;
+use crate::sync::bootstrap::register_sync_tables;
 use crate::trash::background::spawn_trash_purge_task;
 
 pub use common::types::SourceError;
@@ -123,6 +124,11 @@ pub async fn run() {
             }));
 
             app.manage(injector.clone());
+
+            tokio::task::block_in_place(|| {
+                Handle::current().block_on(register_sync_tables(&injector))
+            })
+            .expect("Failed to register sync tables");
 
             #[cfg(all(dev, desktop))]
             {

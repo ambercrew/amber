@@ -174,7 +174,7 @@ async fn register_table_missing_table_returns_table_not_found() {
 }
 
 #[tokio::test]
-async fn register_table_integer_primary_key_returns_invalid_primary_key() {
+async fn register_table_integer_primary_key_succeeds() {
     // Arrange
 
     let injector = create_test_injector().await;
@@ -193,6 +193,32 @@ async fn register_table_integer_primary_key_returns_invalid_primary_key() {
     // Act
 
     let actual = engine.register_table("int_pk", Granularity::Column).await;
+
+    // Assert
+
+    assert!(actual.is_ok(), "{actual:?}");
+}
+
+#[tokio::test]
+async fn register_table_blob_primary_key_returns_invalid_primary_key() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    {
+        let mut guard = tx.lock().await;
+        let conn = guard.as_mut();
+        sqlx::query("CREATE TABLE blob_pk (id BLOB PRIMARY KEY, name TEXT)")
+            .execute(&mut *conn)
+            .await
+            .unwrap();
+    }
+    let engine = scope.resolve::<dyn SyncStore>().await;
+
+    // Act
+
+    let actual = engine.register_table("blob_pk", Granularity::Column).await;
 
     // Assert
 
@@ -228,7 +254,7 @@ async fn register_table_composite_text_primary_key_succeeds() {
 }
 
 #[tokio::test]
-async fn register_table_composite_primary_key_with_non_text_column_returns_invalid_primary_key() {
+async fn register_table_composite_mixed_text_and_integer_primary_key_succeeds() {
     // Arrange
 
     let injector = create_test_injector().await;
@@ -237,7 +263,35 @@ async fn register_table_composite_primary_key_with_non_text_column_returns_inval
     {
         let mut guard = tx.lock().await;
         let conn = guard.as_mut();
-        sqlx::query("CREATE TABLE composite (a TEXT, b INTEGER, PRIMARY KEY (a, b))")
+        sqlx::query("CREATE TABLE composite (a TEXT, b INTEGER, note TEXT, PRIMARY KEY (a, b))")
+            .execute(&mut *conn)
+            .await
+            .unwrap();
+    }
+    let engine = scope.resolve::<dyn SyncStore>().await;
+
+    // Act
+
+    let actual = engine
+        .register_table("composite", Granularity::Column)
+        .await;
+
+    // Assert
+
+    assert!(actual.is_ok(), "{actual:?}");
+}
+
+#[tokio::test]
+async fn register_table_composite_primary_key_with_blob_column_returns_invalid_primary_key() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    {
+        let mut guard = tx.lock().await;
+        let conn = guard.as_mut();
+        sqlx::query("CREATE TABLE composite (a TEXT, b BLOB, PRIMARY KEY (a, b))")
             .execute(&mut *conn)
             .await
             .unwrap();
@@ -1356,6 +1410,116 @@ async fn apply_remote_composite_primary_key_updates_matching_row() {
     assert_eq!(
         Some("OtherWorkspaceLocal".to_string()),
         get_composite_note_title(&tx, "ws2", "1").await
+    );
+}
+
+async fn create_int_component_table(tx: &DbTransaction) {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query(
+        "CREATE TABLE splits (parent_id TEXT, seq INTEGER, content TEXT, PRIMARY KEY (parent_id, seq))",
+    )
+    .execute(&mut *conn)
+    .await
+    .unwrap();
+}
+
+async fn insert_split(tx: &DbTransaction, parent_id: &str, seq: i64, content: &str) {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query("INSERT INTO splits(parent_id, seq, content) VALUES (?1, ?2, ?3)")
+        .bind(parent_id)
+        .bind(seq)
+        .bind(content)
+        .execute(&mut *conn)
+        .await
+        .unwrap();
+}
+
+async fn get_split_content(tx: &DbTransaction, parent_id: &str, seq: i64) -> Option<String> {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query_scalar("SELECT content FROM splits WHERE parent_id = ?1 AND seq = ?2")
+        .bind(parent_id)
+        .bind(seq)
+        .fetch_optional(&mut *conn)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn column_mode_integer_primary_key_component_insert_encodes_row_id_with_json_number() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_int_component_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("splits", Granularity::Column)
+        .await
+        .unwrap();
+
+    // Act
+
+    insert_split(&tx, "asset1", 2, "chunk two").await;
+
+    // Assert
+
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    let row_id: String = sqlx::query_scalar(
+        "SELECT row_id FROM sync_cells WHERE tbl = 'splits' AND col = 'content'",
+    )
+    .fetch_one(&mut *conn)
+    .await
+    .unwrap();
+    assert_eq!("[\"asset1\",2]", row_id);
+}
+
+#[tokio::test]
+async fn apply_remote_integer_primary_key_component_updates_matching_row() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_int_component_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("splits", Granularity::Column)
+        .await
+        .unwrap();
+    insert_split(&tx, "asset1", 2, "Local").await;
+    insert_split(&tx, "asset1", 3, "OtherSeqLocal").await;
+
+    let hlc = Hlc::new(far_future_ms(), 0, DeviceId::from_name("remote-device"));
+    let cell = CellChange {
+        tbl: "splits".to_string(),
+        row_id: "[\"asset1\",2]".to_string(),
+        col: "content".to_string(),
+        value: Some(b"Remote".to_vec()),
+        hlc: hlc.format(),
+        device_id: "remote-device".to_string(),
+    };
+
+    // Act
+
+    engine
+        .apply_remote(ChangeBatch { cells: vec![cell] }, true)
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(
+        Some("Remote".to_string()),
+        get_split_content(&tx, "asset1", 2).await
+    );
+    assert_eq!(
+        Some("OtherSeqLocal".to_string()),
+        get_split_content(&tx, "asset1", 3).await
     );
 }
 

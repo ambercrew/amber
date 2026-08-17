@@ -1,6 +1,6 @@
 use sqlx::SqliteConnection;
 
-use super::column_info::{read_table_info, text_primary_key_columns};
+use super::column_info::{primary_key_columns, read_table_info};
 use super::models::TableSchema;
 use super::trigger_sql;
 use crate::sync::errors::SyncError;
@@ -16,7 +16,7 @@ pub(super) async fn register_table(
         return Err(SyncError::TableNotFound(table.to_string()));
     }
 
-    let pk_columns: Vec<String> = text_primary_key_columns(table, &columns)?
+    let pk_columns: Vec<String> = primary_key_columns(table, &columns)?
         .iter()
         .map(|c| c.name.clone())
         .collect();

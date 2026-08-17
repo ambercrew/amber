@@ -26,12 +26,33 @@ pub(super) async fn read_table_info(
     Ok(columns)
 }
 
+/// SQLite's column affinity rules (https://www.sqlite.org/datatype3.html#determination_of_column_affinity),
+/// used both to `CAST` an opaque cell value back into its destination
+/// column's usual storage class before writing it, and to decide which
+/// primary key column types `row_id` can round-trip.
+pub(super) fn column_affinity(declared_type: &str) -> &'static str {
+    let upper = declared_type.to_uppercase();
+    if upper.contains("INT") {
+        "INTEGER"
+    } else if upper.contains("CHAR") || upper.contains("CLOB") || upper.contains("TEXT") {
+        "TEXT"
+    } else if upper.contains("BLOB") || upper.is_empty() {
+        "BLOB"
+    } else if upper.contains("REAL") || upper.contains("FLOA") || upper.contains("DOUB") {
+        "REAL"
+    } else {
+        "NUMERIC"
+    }
+}
+
 /// Returns this table's primary key columns, ordered by their position within
 /// the key (so callers can encode/decode `row_id` consistently). Errors if the
-/// table has no primary key or any key column isn't TEXT — `row_id` is always
-/// carried as text (see `trigger_sql::row_id_expr`), so a non-TEXT key column
-/// would silently lose type information on the round trip through `sync_cells`.
-pub(super) fn text_primary_key_columns<'a>(
+/// table has no primary key or any key column has BLOB affinity — `row_id`
+/// encodes each key column into a JSON array (see `trigger_sql::row_id_expr`),
+/// and TEXT/INTEGER/REAL/NUMERIC values all round-trip losslessly through
+/// JSON and SQLite's own affinity conversions on insert and comparison, but a
+/// BLOB value has no lossless JSON representation.
+pub(super) fn primary_key_columns<'a>(
     table: &str,
     columns: &'a [ColumnInfo],
 ) -> Result<Vec<&'a ColumnInfo>, SyncError> {
@@ -47,12 +68,12 @@ pub(super) fn text_primary_key_columns<'a>(
 
     if let Some(bad_column) = pk_columns
         .iter()
-        .find(|c| !c.col_type.eq_ignore_ascii_case("TEXT"))
+        .find(|c| column_affinity(&c.col_type) == "BLOB")
     {
         return Err(SyncError::InvalidPrimaryKey {
             table: table.to_string(),
             details: format!(
-                "primary key column '{}' must be TEXT, found '{}'",
+                "primary key column '{}' must not have BLOB affinity, found '{}'",
                 bad_column.name, bad_column.col_type
             ),
         });
