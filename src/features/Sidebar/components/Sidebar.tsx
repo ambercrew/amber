@@ -6,6 +6,7 @@ import NavigatorPanel from "./NavigatorPanel";
 import PriorityQueuePanel from "./PriorityQueuePanel";
 import SyncButton from "./SyncButton";
 import TrashPanel from "./TrashPanel";
+import VerifyEmailBanner from "./VerifyEmailBanner";
 
 interface SidebarProps {
 	onCollapse: () => void;
@@ -41,6 +42,7 @@ function Sidebar({ onCollapse }: SidebarProps) {
 					},
 				]}
 			/>
+			<VerifyEmailBanner />
 			<AppShell.Section p="xs">
 				<Group gap="xs" wrap="nowrap">
 					<Box flex={1} miw={0}>

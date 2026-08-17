@@ -11,6 +11,7 @@ export interface AppState {
 	studySessionSettingsModalOpened: boolean;
 	authModalOpened: boolean;
 	authModalInitialTab: AuthModalTab;
+	verifyEmailModalOpened: boolean;
 }
 
 const initialState: AppState = {
@@ -22,6 +23,7 @@ const initialState: AppState = {
 	studySessionSettingsModalOpened: false,
 	authModalOpened: false,
 	authModalInitialTab: "sign-in",
+	verifyEmailModalOpened: false,
 };
 
 const appSlice = createSlice({
@@ -71,6 +73,12 @@ const appSlice = createSlice({
 		closeAuthModal: state => {
 			state.authModalOpened = false;
 		},
+		openVerifyEmailModal: state => {
+			state.verifyEmailModalOpened = true;
+		},
+		closeVerifyEmailModal: state => {
+			state.verifyEmailModalOpened = false;
+		},
 	},
 });
 
@@ -90,4 +98,6 @@ export const {
 	closeStudySessionSettingsModal,
 	openAuthModal,
 	closeAuthModal,
+	openVerifyEmailModal,
+	closeVerifyEmailModal,
 } = appSlice.actions;

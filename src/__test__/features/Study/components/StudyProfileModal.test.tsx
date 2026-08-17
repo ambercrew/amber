@@ -86,6 +86,7 @@ describe("StudyProfileModal", () => {
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
+					verifyEmailModalOpened: false,
 				},
 			},
 		});
@@ -111,6 +112,7 @@ describe("StudyProfileModal", () => {
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
+					verifyEmailModalOpened: false,
 				},
 			},
 		});
@@ -146,6 +148,7 @@ describe("StudyProfileModal", () => {
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
+					verifyEmailModalOpened: false,
 				},
 				elements: elementsStateFor(cardElement("1")),
 			},
@@ -187,6 +190,7 @@ describe("StudyProfileModal", () => {
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
+					verifyEmailModalOpened: false,
 				},
 				elements: elementsStateFor(null),
 			},
@@ -217,6 +221,7 @@ describe("StudyProfileModal", () => {
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
+					verifyEmailModalOpened: false,
 				},
 			},
 		});
@@ -253,6 +258,7 @@ describe("StudyProfileModal", () => {
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
+					verifyEmailModalOpened: false,
 				},
 			},
 		});
@@ -289,6 +295,7 @@ describe("StudyProfileModal", () => {
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
+					verifyEmailModalOpened: false,
 				},
 			},
 		});
@@ -324,6 +331,7 @@ describe("StudyProfileModal", () => {
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
+					verifyEmailModalOpened: false,
 				},
 			},
 		});
@@ -357,6 +365,7 @@ describe("StudyProfileModal", () => {
 					studySessionSettingsModalOpened: false,
 					authModalOpened: false,
 					authModalInitialTab: "sign-in",
+					verifyEmailModalOpened: false,
 				},
 			},
 		});

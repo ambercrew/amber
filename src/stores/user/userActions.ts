@@ -4,6 +4,8 @@ import {
 	signIn as signInApi,
 	signUp as signUpApi,
 	signOut as signOutApi,
+	verifyUserEmail as verifyUserEmailApi,
+	resendEmailVerificationCode as resendEmailVerificationCodeApi,
 } from "../../api/backend/api/authApi";
 import { getUserInformation } from "../../api/backend/api/userApi";
 import { reloadApplicationState } from "../app/appActions";
@@ -48,5 +50,19 @@ export function signOut(navigate: NavigateFunction) {
 		await signOutApi();
 		dispatch(setLoggedOf());
 		await dispatch(reloadApplicationState(navigate));
+	};
+}
+
+export function verifyEmail(verificationCode: string) {
+	return async function (dispatch: AppDispatch): Promise<void> {
+		await verifyUserEmailApi(verificationCode);
+		const userInformation = await getUserInformation();
+		dispatch(setUserInformation(userInformation));
+	};
+}
+
+export function resendEmailVerificationCode() {
+	return async function (): Promise<void> {
+		await resendEmailVerificationCodeApi();
 	};
 }

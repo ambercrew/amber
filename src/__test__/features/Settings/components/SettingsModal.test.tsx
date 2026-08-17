@@ -34,6 +34,7 @@ function renderModal(opened: boolean) {
 				studySessionSettingsModalOpened: false,
 				authModalOpened: false,
 				authModalInitialTab: "sign-in",
+				verifyEmailModalOpened: false,
 			},
 			settings: { settings },
 		},
