@@ -32,6 +32,7 @@ import StudySessionSettingsModal from "../../Study/components/StudySessionSettin
 import AuthModal from "../../Auth/components/AuthModal.tsx";
 import VerifyEmailModal from "../../Auth/components/VerifyEmailModal.tsx";
 import ManageAccountModal from "../../Auth/components/ManageAccountModal.tsx";
+import SyncingModal from "../../Sidebar/components/SyncingModal.tsx";
 import AppHeader from "./AppHeader.tsx";
 import TrashedElementBanner, {
 	TRASHED_ELEMENT_BANNER_HEIGHT,
@@ -182,6 +183,7 @@ function App() {
 			<AuthModal />
 			<VerifyEmailModal />
 			<ManageAccountModal />
+			<SyncingModal />
 			<Notifications />
 			<SafeAreaTopBackdrop />
 
