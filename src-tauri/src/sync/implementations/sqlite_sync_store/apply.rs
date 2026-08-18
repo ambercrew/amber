@@ -12,6 +12,7 @@ use crate::sync::value_objects::granularity::Granularity;
 
 use super::applying_guard::{clear_applying, mark_applying};
 use super::column_info::{column_affinity, primary_key_columns, read_table_info};
+use super::fk_repair;
 use super::models::{ColumnInfo, PendingCell, RowKey};
 use super::pending_buffer::PendingBuffer;
 use super::trigger_sql::{parse_row_id, quote_ident};
@@ -38,7 +39,17 @@ pub(super) async fn apply_remote(
 
     clear_applying(tx).await?;
 
-    result
+    result?;
+
+    // Runs with the sync_applying guard lifted (triggers active), so any
+    // repair is recorded as a local change and pushed to the server. Deferred
+    // to the last page since an FK "violation" earlier in the pull may just
+    // be a reference whose target arrives on a later page.
+    if is_last_page {
+        fk_repair::repair_foreign_keys(&mut *tx).await?;
+    }
+
+    Ok(())
 }
 
 /// Best-effort attempt to materialize whatever is currently buffered in

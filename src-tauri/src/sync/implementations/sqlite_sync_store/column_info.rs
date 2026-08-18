@@ -16,10 +16,12 @@ pub(super) async fn read_table_info(
     let mut columns = Vec::with_capacity(rows.len());
     for row in rows {
         let pk: i64 = row.try_get("pk")?;
+        let notnull: i64 = row.try_get("notnull")?;
         columns.push(ColumnInfo {
             name: row.try_get("name")?,
             col_type: row.try_get("type")?,
             pk_position: (pk != 0).then_some(pk as u32),
+            notnull: notnull != 0,
         });
     }
 

@@ -4,12 +4,13 @@ use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
 
 use super::pending_buffer::PendingBuffer;
-use super::{apply, push_pull, register};
+use super::{apply, fk_repair, push_pull, register};
 use crate::generated_code::ChangeBatch;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 use crate::sync::errors::SyncError;
 use crate::sync::hlc::Hlc;
 use crate::sync::store::SyncStore;
+use crate::sync::value_objects::fk_constraint::FkConstraint;
 use crate::sync::value_objects::granularity::Granularity;
 
 #[derive(ScopeInjectable)]
@@ -20,9 +21,14 @@ pub struct SqliteSyncStore {
 
 #[async_trait]
 impl SyncStore for SqliteSyncStore {
-    async fn register_table(&self, table: &str, granularity: Granularity) -> Result<(), SyncError> {
+    async fn register_table(
+        &self,
+        table: &str,
+        granularity: Granularity,
+        fk_constraints: &[FkConstraint],
+    ) -> Result<(), SyncError> {
         let mut guard = self.tx.lock().await;
-        register::register_table(guard.as_mut(), table, granularity).await
+        register::register_table(guard.as_mut(), table, granularity, fk_constraints).await
     }
 
     async fn changes_since_last_push(&self) -> Result<ChangeBatch, SyncError> {
@@ -53,5 +59,10 @@ impl SyncStore for SqliteSyncStore {
     async fn has_pending_changes(&self) -> Result<bool, SyncError> {
         let mut guard = self.tx.lock().await;
         apply::try_flush_pending(guard.as_mut(), &self.pending).await
+    }
+
+    async fn has_unresolved_foreign_keys(&self) -> Result<bool, SyncError> {
+        let mut guard = self.tx.lock().await;
+        fk_repair::has_unresolved_foreign_keys(guard.as_mut()).await
     }
 }

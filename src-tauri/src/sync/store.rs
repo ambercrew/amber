@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use crate::generated_code::ChangeBatch;
 use crate::sync::errors::SyncError;
 use crate::sync::hlc::Hlc;
+use crate::sync::value_objects::fk_constraint::FkConstraint;
 use crate::sync::value_objects::granularity::Granularity;
 
 /// Local SQLite-backed mechanics behind sync: registering tables for change
@@ -15,7 +16,19 @@ pub trait SyncStore: Send + Sync {
     /// its sync triggers. Idempotent when called again with the same granularity;
     /// errors if the table doesn't exist, has no single TEXT primary key, or was
     /// already registered with a different granularity.
-    async fn register_table(&self, table: &str, granularity: Granularity) -> Result<(), SyncError>;
+    ///
+    /// `fk_constraints` declares, per foreign-key-bearing column, what to do
+    /// with a row whose reference turns out to be dangling once a full sync
+    /// pass confirms it (see `FkPolicy` and `apply_remote`'s `is_last_page`
+    /// repair pass). Persisted so it's available to a later sync running in a
+    /// different scope. Errors if a constraint names a column that doesn't
+    /// exist on `table`, or pairs `FkPolicy::SetNull` with a `NOT NULL` column.
+    async fn register_table(
+        &self,
+        table: &str,
+        granularity: Granularity,
+        fk_constraints: &[FkConstraint],
+    ) -> Result<(), SyncError>;
 
     /// This device's local cell changes not yet pushed to the server.
     async fn changes_since_last_push(&self) -> Result<ChangeBatch, SyncError>;
@@ -52,4 +65,13 @@ pub trait SyncStore: Send + Sync {
     /// changes applied up to this point are self-contained and safe to
     /// commit.
     async fn has_pending_changes(&self) -> Result<bool, SyncError>;
+
+    /// Whether any synced-table row currently violates a declared or
+    /// configured foreign key (see `register_table`'s `fk_constraints`)
+    /// within the current transaction. A dangling reference here can still
+    /// resolve itself once a page carrying the missing parent row arrives
+    /// (`apply_remote`'s FK repair pass runs on `is_last_page`), so callers
+    /// use this alongside `has_pending_changes` to decide whether progress
+    /// made so far is safe to commit.
+    async fn has_unresolved_foreign_keys(&self) -> Result<bool, SyncError>;
 }

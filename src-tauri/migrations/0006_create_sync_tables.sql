@@ -49,7 +49,6 @@ DROP INDEX IF EXISTS deleted_entities_deleted_date_index;
 
 DROP TABLE IF EXISTS deleted_entities;
 
-
 -- sqlx-sqlite's `Encode<Sqlite> for Uuid` always writes a raw 16-byte BLOB,
 -- regardless of a column's declared TEXT affinity (SQLite only converts
 -- *numeric* input under TEXT affinity, not BLOB input). Every id/fk column
@@ -280,3 +279,17 @@ UPDATE saved_search_filters SET saved_search_id =
     lower(hex(substr(saved_search_id,9,2))) || '-' ||
     lower(hex(substr(saved_search_id,11,6)))
 WHERE typeof(saved_search_id) = 'blob';
+
+-- Per-synced-table foreign-key repair policies, keyed by (table, column).
+-- `register_table` (re)writes these rows on every app start; sync consults
+-- them once a full pull has completed to resolve rows whose FK reference is
+-- confirmed dangling (see `fk_repair`).
+CREATE TABLE IF NOT EXISTS sync_fk_policies (
+    tbl           TEXT NOT NULL,
+    col           TEXT NOT NULL,
+    ref_tbl       TEXT NOT NULL,
+    ref_col       TEXT NOT NULL,
+    policy        TEXT NOT NULL,
+    default_value TEXT,
+    PRIMARY KEY (tbl, col)
+) WITHOUT ROWID;

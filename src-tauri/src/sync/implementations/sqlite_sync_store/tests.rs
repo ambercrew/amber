@@ -7,6 +7,8 @@ use crate::sync::hlc::{DeviceId, Hlc};
 use crate::sync::sql_functions;
 use crate::sync::store::SyncStore;
 use crate::sync::utils::merge;
+use crate::sync::value_objects::fk_constraint::FkConstraint;
+use crate::sync::value_objects::fk_policy::FkPolicy;
 use crate::sync::value_objects::granularity::Granularity;
 use crate::test_utils::create_test_injector;
 
@@ -165,7 +167,7 @@ async fn register_table_missing_table_returns_table_not_found() {
     // Act
 
     let actual = engine
-        .register_table("does_not_exist", Granularity::Column)
+        .register_table("does_not_exist", Granularity::Column, &[])
         .await;
 
     // Assert
@@ -192,7 +194,9 @@ async fn register_table_integer_primary_key_succeeds() {
 
     // Act
 
-    let actual = engine.register_table("int_pk", Granularity::Column).await;
+    let actual = engine
+        .register_table("int_pk", Granularity::Column, &[])
+        .await;
 
     // Assert
 
@@ -218,7 +222,9 @@ async fn register_table_blob_primary_key_returns_invalid_primary_key() {
 
     // Act
 
-    let actual = engine.register_table("blob_pk", Granularity::Column).await;
+    let actual = engine
+        .register_table("blob_pk", Granularity::Column, &[])
+        .await;
 
     // Assert
 
@@ -245,7 +251,7 @@ async fn register_table_composite_text_primary_key_succeeds() {
     // Act
 
     let actual = engine
-        .register_table("composite", Granularity::Column)
+        .register_table("composite", Granularity::Column, &[])
         .await;
 
     // Assert
@@ -273,7 +279,7 @@ async fn register_table_composite_mixed_text_and_integer_primary_key_succeeds() 
     // Act
 
     let actual = engine
-        .register_table("composite", Granularity::Column)
+        .register_table("composite", Granularity::Column, &[])
         .await;
 
     // Assert
@@ -301,7 +307,7 @@ async fn register_table_composite_primary_key_with_blob_column_returns_invalid_p
     // Act
 
     let actual = engine
-        .register_table("composite", Granularity::Column)
+        .register_table("composite", Granularity::Column, &[])
         .await;
 
     // Assert
@@ -319,13 +325,15 @@ async fn register_table_same_granularity_twice_succeeds() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
 
     // Act
 
-    let actual = engine.register_table("notes", Granularity::Column).await;
+    let actual = engine
+        .register_table("notes", Granularity::Column, &[])
+        .await;
 
     // Assert
 
@@ -342,13 +350,13 @@ async fn register_table_conflicting_granularity_returns_granularity_mismatch() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
 
     // Act
 
-    let actual = engine.register_table("notes", Granularity::Row).await;
+    let actual = engine.register_table("notes", Granularity::Row, &[]).await;
 
     // Assert
 
@@ -367,7 +375,7 @@ async fn column_mode_insert_writes_cell_per_column() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
 
@@ -393,7 +401,7 @@ async fn column_mode_update_writes_only_changed_columns() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Title", "Body").await;
@@ -422,7 +430,7 @@ async fn column_mode_repeated_edits_coalesce_to_one_row() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Title", "Body").await;
@@ -450,7 +458,7 @@ async fn column_mode_delete_writes_tombstone() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Title", "Body").await;
@@ -477,7 +485,7 @@ async fn row_mode_insert_writes_single_row_cell() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Row)
+        .register_table("notes", Granularity::Row, &[])
         .await
         .unwrap();
 
@@ -508,7 +516,7 @@ async fn changes_since_last_push_excludes_foreign_device_and_already_pushed_cell
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Title", "Body").await;
@@ -562,7 +570,7 @@ async fn mark_pushed_advances_cursor() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Title", "Body").await;
@@ -592,7 +600,7 @@ async fn changes_since_last_push_column_mode_reports_one_cell_per_column_with_co
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
 
@@ -625,7 +633,7 @@ async fn changes_since_last_push_column_mode_update_reports_only_changed_column(
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Title", "Body").await;
@@ -663,7 +671,7 @@ async fn changes_since_last_push_column_mode_delete_reports_tombstone_cell() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Title", "Body").await;
@@ -701,7 +709,7 @@ async fn changes_since_last_push_row_mode_reports_single_row_cell_with_full_json
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Row)
+        .register_table("notes", Granularity::Row, &[])
         .await
         .unwrap();
 
@@ -734,7 +742,7 @@ async fn changes_since_last_push_row_mode_update_reports_full_row_snapshot_again
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Row)
+        .register_table("notes", Granularity::Row, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Title", "Body").await;
@@ -775,7 +783,7 @@ async fn changes_since_last_push_row_mode_delete_reports_tombstone_cell() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Row)
+        .register_table("notes", Granularity::Row, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Title", "Body").await;
@@ -833,7 +841,7 @@ async fn apply_remote_newer_cell_updates_base_table() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Local", "Body").await;
@@ -871,7 +879,7 @@ async fn apply_remote_older_cell_is_discarded_base_unchanged() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Local", "Body").await;
@@ -903,7 +911,7 @@ async fn apply_remote_column_cell_for_missing_row_creates_skeleton() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
 
@@ -940,7 +948,7 @@ async fn apply_remote_tombstone_deletes_base_row_and_persists() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Local", "Body").await;
@@ -980,7 +988,7 @@ async fn apply_remote_stale_update_after_tombstone_is_discarded() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Local", "Body").await;
@@ -1029,7 +1037,7 @@ async fn apply_remote_higher_hlc_update_after_delete_stays_deleted() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_note(&tx, "1", "Local", "Body").await;
@@ -1078,7 +1086,7 @@ async fn apply_remote_row_mode_upserts_whole_row_from_json() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Row)
+        .register_table("notes", Granularity::Row, &[])
         .await
         .unwrap();
 
@@ -1113,7 +1121,7 @@ async fn apply_remote_shape_mismatch_returns_error() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
 
@@ -1149,7 +1157,7 @@ async fn apply_remote_shape_mismatch_rejects_whole_batch_fail_fast() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
 
@@ -1196,7 +1204,7 @@ async fn apply_remote_malformed_row_payload_returns_invalid_row_payload_error() 
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Row)
+        .register_table("notes", Granularity::Row, &[])
         .await
         .unwrap();
 
@@ -1232,7 +1240,7 @@ async fn apply_remote_does_not_retrigger_local_sync_cells() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
 
@@ -1272,7 +1280,7 @@ async fn apply_remote_advances_local_clock_past_remote_hlc() {
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     let far = far_future_ms();
@@ -1347,7 +1355,7 @@ async fn column_mode_composite_primary_key_insert_encodes_row_id_as_json_array_i
     create_composite_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("composite_notes", Granularity::Column)
+        .register_table("composite_notes", Granularity::Column, &[])
         .await
         .unwrap();
 
@@ -1378,7 +1386,7 @@ async fn apply_remote_composite_primary_key_updates_matching_row() {
     create_composite_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("composite_notes", Granularity::Column)
+        .register_table("composite_notes", Granularity::Column, &[])
         .await
         .unwrap();
     insert_composite_note(&tx, "ws1", "1", "Local").await;
@@ -1457,7 +1465,7 @@ async fn column_mode_integer_primary_key_component_insert_encodes_row_id_with_js
     create_int_component_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("splits", Granularity::Column)
+        .register_table("splits", Granularity::Column, &[])
         .await
         .unwrap();
 
@@ -1488,7 +1496,7 @@ async fn apply_remote_integer_primary_key_component_updates_matching_row() {
     create_int_component_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("splits", Granularity::Column)
+        .register_table("splits", Granularity::Column, &[])
         .await
         .unwrap();
     insert_split(&tx, "asset1", 2, "Local").await;
@@ -1576,7 +1584,7 @@ async fn apply_remote_new_row_not_null_column_arrives_with_other_cells_in_same_b
     create_required_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("required_notes", Granularity::Column)
+        .register_table("required_notes", Granularity::Column, &[])
         .await
         .unwrap();
     let ms = far_future_ms();
@@ -1614,7 +1622,7 @@ async fn apply_remote_page_buffers_new_row_until_last_page_then_materializes_it(
     create_required_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("required_notes", Granularity::Column)
+        .register_table("required_notes", Granularity::Column, &[])
         .await
         .unwrap();
     let ms = far_future_ms();
@@ -1675,7 +1683,7 @@ async fn apply_remote_page_delete_on_later_page_drops_pending_columns_for_that_r
     create_notes_table(&tx).await;
     let engine = scope.resolve::<dyn SyncStore>().await;
     engine
-        .register_table("notes", Granularity::Column)
+        .register_table("notes", Granularity::Column, &[])
         .await
         .unwrap();
     let ms = far_future_ms();
@@ -1704,4 +1712,777 @@ async fn apply_remote_page_delete_on_later_page_drops_pending_columns_for_that_r
     // Assert
 
     assert!(!note_exists(&tx, "1").await);
+}
+
+// --- FK repair ---
+
+async fn create_parents_table(tx: &DbTransaction) {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query("CREATE TABLE parents (id TEXT PRIMARY KEY, name TEXT)")
+        .execute(&mut *conn)
+        .await
+        .unwrap();
+}
+
+async fn insert_parent(tx: &DbTransaction, id: &str) {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query("INSERT INTO parents(id, name) VALUES (?1, 'Parent')")
+        .bind(id)
+        .execute(&mut *conn)
+        .await
+        .unwrap();
+}
+
+/// No SQL `FOREIGN KEY` to `parents` — an implicit reference, only ever
+/// enforced through a configured `FkConstraint` (see the FK relationships in
+/// `bootstrap.rs` that have no SQL-level constraint, e.g. `meta.parent_id`).
+async fn create_children_table(tx: &DbTransaction) {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query("CREATE TABLE children (id TEXT PRIMARY KEY, parent_id TEXT)")
+        .execute(&mut *conn)
+        .await
+        .unwrap();
+}
+
+async fn create_children_notnull_table(tx: &DbTransaction) {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query("CREATE TABLE children_notnull (id TEXT PRIMARY KEY, parent_id TEXT NOT NULL)")
+        .execute(&mut *conn)
+        .await
+        .unwrap();
+}
+
+/// A real SQL `FOREIGN KEY` to `parents`, used for the fallback discard pass
+/// on a column with no configured `FkConstraint` (see `fk_repair::repair_foreign_keys`'s
+/// `discard_unconfigured_violations`).
+async fn create_children_fk_table(tx: &DbTransaction) {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query(
+        "CREATE TABLE children_fk (id TEXT PRIMARY KEY, parent_id TEXT, \
+         FOREIGN KEY (parent_id) REFERENCES parents(id))",
+    )
+    .execute(&mut *conn)
+    .await
+    .unwrap();
+}
+
+/// Implicit reference to `children.id`, so discarding an orphaned child can
+/// cascade into discarding a grandchild on a later fixpoint iteration.
+async fn create_grandchildren_table(tx: &DbTransaction) {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query("CREATE TABLE grandchildren (id TEXT PRIMARY KEY, child_id TEXT)")
+        .execute(&mut *conn)
+        .await
+        .unwrap();
+}
+
+/// Statement-time FK enforcement would otherwise reject an insert of a row
+/// referencing a not-yet-pulled (or permanently missing) parent — the same
+/// deferral `DefaultSyncEngine::sync` arms for a real sync cycle (see
+/// `disable_foreign_key_constraint_for_current_transaction`).
+async fn defer_foreign_keys(tx: &DbTransaction) {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query("PRAGMA defer_foreign_keys = ON")
+        .execute(&mut *conn)
+        .await
+        .unwrap();
+}
+
+async fn child_parent_id(tx: &DbTransaction, table: &str, id: &str) -> Option<Option<String>> {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    let sql = format!("SELECT parent_id FROM {table} WHERE id = ?1");
+    sqlx::query(sqlx::AssertSqlSafe(sql))
+        .bind(id)
+        .fetch_optional(&mut *conn)
+        .await
+        .unwrap()
+        .map(|row| row.try_get("parent_id").unwrap())
+}
+
+async fn child_exists(tx: &DbTransaction, table: &str, id: &str) -> bool {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    let sql = format!("SELECT 1 FROM {table} WHERE id = ?1");
+    sqlx::query(sqlx::AssertSqlSafe(sql))
+        .bind(id)
+        .fetch_optional(&mut *conn)
+        .await
+        .unwrap()
+        .is_some()
+}
+
+fn row_cell(
+    tbl: &str,
+    id: &str,
+    payload: serde_json::Value,
+    physical_ms: u64,
+    counter: u32,
+) -> CellChange {
+    remote_cell_for(
+        tbl,
+        id,
+        merge::ROW_COL,
+        Some(serde_json::to_vec(&payload).unwrap()),
+        physical_ms,
+        counter,
+    )
+}
+
+#[tokio::test]
+async fn register_table_set_null_policy_on_not_null_column_returns_error() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_children_notnull_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+
+    // Act
+
+    let actual = engine
+        .register_table(
+            "children_notnull",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::SetNull,
+            )],
+        )
+        .await;
+
+    // Assert
+
+    assert!(matches!(actual, Err(SyncError::InvalidFkPolicy { .. })));
+}
+
+#[tokio::test]
+async fn register_table_unknown_fk_column_returns_error() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_children_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+
+    // Act
+
+    let actual = engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "bogus_column",
+                "parents",
+                "id",
+                FkPolicy::SetNull,
+            )],
+        )
+        .await;
+
+    // Assert
+
+    assert!(matches!(actual, Err(SyncError::UnknownColumn { .. })));
+}
+
+#[tokio::test]
+async fn register_table_reregistration_replaces_fk_policies() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_children_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::SetNull,
+            )],
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    let policies: Vec<String> = sqlx::query_scalar(
+        "SELECT policy FROM sync_fk_policies WHERE tbl = 'children' AND col = 'parent_id'",
+    )
+    .fetch_all(&mut *conn)
+    .await
+    .unwrap();
+    assert_eq!(vec!["discard_row".to_string()], policies);
+}
+
+#[tokio::test]
+async fn apply_remote_last_page_missing_parent_set_null_policy_nulls_fk_column() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::SetNull,
+            )],
+        )
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "children",
+                    "c1",
+                    serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
+                    ms,
+                    0,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(Some(None), child_parent_id(&tx, "children", "c1").await);
+}
+
+#[tokio::test]
+async fn apply_remote_last_page_missing_parent_set_default_policy_writes_default_value() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_table(&tx).await;
+    insert_parent(&tx, "fallback-parent").await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::SetDefault("fallback-parent".to_string()),
+            )],
+        )
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "children",
+                    "c1",
+                    serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
+                    ms,
+                    0,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(
+        Some(Some("fallback-parent".to_string())),
+        child_parent_id(&tx, "children", "c1").await
+    );
+}
+
+#[tokio::test]
+async fn apply_remote_last_page_missing_parent_discard_policy_deletes_row() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        )
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "children",
+                    "c1",
+                    serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
+                    ms,
+                    0,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert!(!child_exists(&tx, "children", "c1").await);
+}
+
+#[tokio::test]
+async fn apply_remote_parent_on_later_page_does_not_repair_child() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("parents", Granularity::Row, &[])
+        .await
+        .unwrap();
+    engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        )
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "children",
+                    "c1",
+                    serde_json::json!({"id": "c1", "parent_id": "p1"}),
+                    ms,
+                    0,
+                )],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "parents",
+                    "p1",
+                    serde_json::json!({"id": "p1", "name": "Parent"}),
+                    ms,
+                    1,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(
+        Some(Some("p1".to_string())),
+        child_parent_id(&tx, "children", "c1").await
+    );
+}
+
+#[tokio::test]
+async fn apply_remote_last_page_unconfigured_declared_fk_violation_discards_row() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_fk_table(&tx).await;
+    defer_foreign_keys(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("children_fk", Granularity::Row, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "children_fk",
+                    "c1",
+                    serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
+                    ms,
+                    0,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert!(!child_exists(&tx, "children_fk", "c1").await);
+}
+
+#[tokio::test]
+async fn apply_remote_last_page_discarded_parent_cascades_repair_to_grandchild() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_table(&tx).await;
+    create_grandchildren_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        )
+        .await
+        .unwrap();
+    engine
+        .register_table(
+            "grandchildren",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "child_id",
+                "children",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        )
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![
+                    row_cell(
+                        "children",
+                        "c1",
+                        serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
+                        ms,
+                        0,
+                    ),
+                    row_cell(
+                        "grandchildren",
+                        "g1",
+                        serde_json::json!({"id": "g1", "child_id": "c1"}),
+                        ms,
+                        1,
+                    ),
+                ],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert!(!child_exists(&tx, "children", "c1").await);
+    assert!(!child_exists(&tx, "grandchildren", "g1").await);
+}
+
+#[tokio::test]
+async fn apply_remote_last_page_repair_records_local_tombstone_in_sync_cells() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        )
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "children",
+                    "c1",
+                    serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
+                    ms,
+                    0,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    let (_, _, device_id) = get_cell(&tx, "children", "c1", merge::DELETED_COL)
+        .await
+        .unwrap();
+    assert_ne!("remote-device", device_id);
+}
+
+#[tokio::test]
+async fn has_unresolved_foreign_keys_orphan_child_via_configured_policy_returns_true() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        )
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "children",
+                    "c1",
+                    serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
+                    ms,
+                    0,
+                )],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    let actual = engine.has_unresolved_foreign_keys().await.unwrap();
+
+    // Assert
+
+    assert!(actual);
+}
+
+#[tokio::test]
+async fn has_unresolved_foreign_keys_orphan_child_via_declared_fk_without_policy_returns_true() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_fk_table(&tx).await;
+    defer_foreign_keys(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("children_fk", Granularity::Row, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "children_fk",
+                    "c1",
+                    serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
+                    ms,
+                    0,
+                )],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    let actual = engine.has_unresolved_foreign_keys().await.unwrap();
+
+    // Assert
+
+    assert!(actual);
+}
+
+#[tokio::test]
+async fn has_unresolved_foreign_keys_all_references_satisfied_returns_false() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("parents", Granularity::Row, &[])
+        .await
+        .unwrap();
+    engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        )
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "parents",
+                    "p1",
+                    serde_json::json!({"id": "p1", "name": "Parent"}),
+                    ms,
+                    0,
+                )],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "children",
+                    "c1",
+                    serde_json::json!({"id": "c1", "parent_id": "p1"}),
+                    ms,
+                    1,
+                )],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    let actual = engine.has_unresolved_foreign_keys().await.unwrap();
+
+    // Assert
+
+    assert!(!actual);
 }

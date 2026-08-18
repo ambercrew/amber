@@ -63,7 +63,14 @@ impl DefaultSyncEngine {
             // once nothing is left half-materialized — otherwise a crash before
             // the next page arrives would strand those columns: the cursor
             // would already be past them and the server wouldn't resend them.
-            if !self.store.has_pending_changes().await? {
+            // Likewise, a child row pulled ahead of its parent still looks
+            // like an FK violation until the parent's page lands — committing
+            // now would trip the deferred FK check at COMMIT, so wait for
+            // `has_unresolved_foreign_keys` to clear too (FK repair itself
+            // only runs on the last page, once any real violation is final).
+            if !self.store.has_pending_changes().await?
+                && !self.store.has_unresolved_foreign_keys().await?
+            {
                 self.store
                     .set_last_pulled_server_seq(next_server_seq)
                     .await?;
@@ -102,12 +109,16 @@ mod tests {
     use mockall::Sequence;
     use sqlx::Row;
 
+    use std::sync::Mutex;
+
     use crate::backend::clients::amber_backend_client::MockAmberBackendClient;
     use crate::generated_code::{CellChange, PullResponse};
     use crate::infrastructure::value_objects::db_transaction::DbTransaction;
     use crate::sync::hlc::DeviceId;
     use crate::sync::sql_functions;
     use crate::sync::utils::merge;
+    use crate::sync::value_objects::fk_constraint::FkConstraint;
+    use crate::sync::value_objects::fk_policy::FkPolicy;
     use crate::sync::value_objects::granularity::Granularity;
     use crate::test_utils::create_file_backed_test_injector;
 
@@ -235,7 +246,7 @@ mod tests {
         create_notes_table(&tx).await;
         let store = scope.resolve::<dyn SyncStore>().await;
         store
-            .register_table("notes", Granularity::Row)
+            .register_table("notes", Granularity::Row, &[])
             .await
             .unwrap();
         insert_note(&tx, "1", "Local", "Body").await;
@@ -273,7 +284,7 @@ mod tests {
         create_notes_table(&tx).await;
         let store = scope.resolve::<dyn SyncStore>().await;
         store
-            .register_table("notes", Granularity::Row)
+            .register_table("notes", Granularity::Row, &[])
             .await
             .unwrap();
         let engine = scope.resolve::<DefaultSyncEngine>().await;
@@ -285,5 +296,208 @@ mod tests {
         // Assert
 
         assert_eq!(Some("Remote".to_string()), get_note_title(&tx, "1").await);
+    }
+
+    async fn create_parents_table(tx: &DbTransaction) {
+        let mut guard = tx.lock().await;
+        let conn = guard.as_mut();
+        sqlx::query("CREATE TABLE parents (id TEXT PRIMARY KEY, name TEXT)")
+            .execute(&mut *conn)
+            .await
+            .unwrap();
+    }
+
+    async fn create_children_table(tx: &DbTransaction) {
+        let mut guard = tx.lock().await;
+        let conn = guard.as_mut();
+        sqlx::query("CREATE TABLE children (id TEXT PRIMARY KEY, parent_id TEXT)")
+            .execute(&mut *conn)
+            .await
+            .unwrap();
+    }
+
+    async fn child_parent_id(tx: &DbTransaction, id: &str) -> Option<Option<String>> {
+        let mut guard = tx.lock().await;
+        let conn = guard.as_mut();
+        sqlx::query("SELECT parent_id FROM children WHERE id = ?1")
+            .bind(id)
+            .fetch_optional(&mut *conn)
+            .await
+            .unwrap()
+            .map(|row| row.try_get("parent_id").unwrap())
+    }
+
+    async fn child_exists(tx: &DbTransaction, id: &str) -> bool {
+        let mut guard = tx.lock().await;
+        let conn = guard.as_mut();
+        sqlx::query("SELECT 1 FROM children WHERE id = ?1")
+            .bind(id)
+            .fetch_optional(&mut *conn)
+            .await
+            .unwrap()
+            .is_some()
+    }
+
+    fn row_cell(
+        tbl: &str,
+        id: &str,
+        payload: serde_json::Value,
+        physical_ms: u64,
+        counter: u32,
+    ) -> CellChange {
+        let hlc = Hlc::new(physical_ms, counter, DeviceId::from_name("remote-device"));
+        CellChange {
+            tbl: tbl.to_string(),
+            row_id: single_row_id(id),
+            col: merge::ROW_COL.to_string(),
+            value: Some(serde_json::to_vec(&payload).unwrap()),
+            hlc: hlc.format(),
+            device_id: "remote-device".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn sync_child_page_before_parent_page_commits_only_after_parent_arrives() {
+        // Arrange
+
+        let mut sequence = Sequence::new();
+        let mut backend_client = MockAmberBackendClient::new();
+        backend_client
+            .expect_pull_changes()
+            .times(1)
+            .in_sequence(&mut sequence)
+            .returning(|_| {
+                Ok(PullResponse {
+                    cells: vec![row_cell(
+                        "children",
+                        "c1",
+                        serde_json::json!({"id": "c1", "parent_id": "p1"}),
+                        far_future_ms(),
+                        0,
+                    )],
+                    next_server_seq: 1,
+                    has_more: true,
+                })
+            });
+        backend_client
+            .expect_pull_changes()
+            .times(1)
+            .in_sequence(&mut sequence)
+            .returning(|_| {
+                Ok(PullResponse {
+                    cells: vec![row_cell(
+                        "parents",
+                        "p1",
+                        serde_json::json!({"id": "p1", "name": "Parent"}),
+                        far_future_ms(),
+                        1,
+                    )],
+                    next_server_seq: 2,
+                    has_more: false,
+                })
+            });
+        backend_client.expect_push_changes().never();
+
+        let injector = initialize_test_injector(backend_client).await;
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        create_parents_table(&tx).await;
+        create_children_table(&tx).await;
+        let store = scope.resolve::<dyn SyncStore>().await;
+        store
+            .register_table("parents", Granularity::Row, &[])
+            .await
+            .unwrap();
+        store
+            .register_table(
+                "children",
+                Granularity::Row,
+                &[FkConstraint::new(
+                    "parent_id",
+                    "parents",
+                    "id",
+                    FkPolicy::DiscardRow,
+                )],
+            )
+            .await
+            .unwrap();
+        let engine = scope.resolve::<DefaultSyncEngine>().await;
+
+        // Act
+
+        engine.sync().await.unwrap();
+
+        // Assert
+
+        assert_eq!(
+            Some(Some("p1".to_string())),
+            child_parent_id(&tx, "c1").await
+        );
+    }
+
+    #[tokio::test]
+    async fn sync_pulled_child_of_locally_deleted_parent_repairs_and_pushes_repair() {
+        // Arrange
+
+        let mut backend_client = MockAmberBackendClient::new();
+        backend_client.expect_pull_changes().returning(|_| {
+            Ok(PullResponse {
+                cells: vec![row_cell(
+                    "children",
+                    "c1",
+                    serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
+                    far_future_ms(),
+                    0,
+                )],
+                next_server_seq: 1,
+                has_more: false,
+            })
+        });
+        let pushed_batch: Arc<Mutex<Option<ChangeBatch>>> = Arc::new(Mutex::new(None));
+        let pushed_batch_clone = pushed_batch.clone();
+        backend_client
+            .expect_push_changes()
+            .times(1)
+            .returning(move |batch| {
+                *pushed_batch_clone.lock().unwrap() = Some(batch);
+                Ok(())
+            });
+
+        let injector = initialize_test_injector(backend_client).await;
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        create_parents_table(&tx).await;
+        create_children_table(&tx).await;
+        let store = scope.resolve::<dyn SyncStore>().await;
+        store
+            .register_table(
+                "children",
+                Granularity::Row,
+                &[FkConstraint::new(
+                    "parent_id",
+                    "parents",
+                    "id",
+                    FkPolicy::DiscardRow,
+                )],
+            )
+            .await
+            .unwrap();
+        let engine = scope.resolve::<DefaultSyncEngine>().await;
+
+        // Act
+
+        engine.sync().await.unwrap();
+
+        // Assert
+
+        assert!(!child_exists(&tx, "c1").await);
+        let pushed = pushed_batch.lock().unwrap().clone().unwrap();
+        assert!(
+            pushed
+                .cells
+                .iter()
+                .any(|cell| cell.tbl == "children" && cell.col == merge::DELETED_COL),
+            "{pushed:?}"
+        );
     }
 }

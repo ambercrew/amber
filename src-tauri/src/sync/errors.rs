@@ -42,6 +42,19 @@ pub enum SyncError {
     #[error("Unknown column '{col}' in table '{table}'")]
     UnknownColumn { table: String, col: String },
 
+    #[error("Invalid FK policy for '{table}.{col}': {reason}")]
+    InvalidFkPolicy {
+        table: String,
+        col: String,
+        reason: String,
+    },
+
+    #[error("Invalid FK policy value: {0}")]
+    InvalidFkPolicyValue(String),
+
+    #[error("Foreign key repair did not converge for the synced tables")]
+    FkRepairDidNotConverge,
+
     #[error("Database error")]
     Database(#[from] sqlx::Error),
 

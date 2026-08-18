@@ -8,6 +8,9 @@ pub struct ColumnInfo {
     /// within the (possibly composite) primary key — needed to encode/decode
     /// `row_id` in a stable column order.
     pub pk_position: Option<u32>,
+    /// Whether the column is `NOT NULL` — used to reject an `FkPolicy::SetNull`
+    /// registered against it (see `register::register_table`).
+    pub notnull: bool,
 }
 
 impl ColumnInfo {

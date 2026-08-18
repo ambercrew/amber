@@ -1,6 +1,7 @@
 mod apply;
 mod applying_guard;
 mod column_info;
+mod fk_repair;
 mod models;
 mod pending_buffer;
 mod push_pull;
