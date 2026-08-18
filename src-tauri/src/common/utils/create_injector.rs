@@ -211,6 +211,7 @@ pub async fn create_injector<R: tauri::Runtime>(
         dyn SyncStore,
         crate::sync::implementations::sqlite_sync_store::SqliteSyncStore
     );
+    injector.register_singleton(Arc::new(crate::sync::sync_lock::SyncLock::default()));
     register_scope!(
         injector,
         dyn SyncEngine,

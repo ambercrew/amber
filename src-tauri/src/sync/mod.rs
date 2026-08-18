@@ -6,5 +6,6 @@ pub mod implementations;
 pub mod sql_functions;
 pub mod store;
 pub mod sync_api;
+pub mod sync_lock;
 pub mod utils;
 pub mod value_objects;

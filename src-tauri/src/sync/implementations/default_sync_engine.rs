@@ -11,6 +11,7 @@ use crate::sync::engine::SyncEngine;
 use crate::sync::errors::SyncError;
 use crate::sync::hlc::Hlc;
 use crate::sync::store::SyncStore;
+use crate::sync::sync_lock::SyncLock;
 
 #[derive(ScopeInjectable)]
 pub struct DefaultSyncEngine {
@@ -18,11 +19,20 @@ pub struct DefaultSyncEngine {
     backend_client: Arc<dyn AmberBackendClient>,
     connection_manager: Arc<dyn DatabaseConnectionManager>,
     transaction_manager: Arc<dyn TransactionManager>,
+    sync_lock: Arc<SyncLock>,
 }
 
 #[async_trait]
 impl SyncEngine for DefaultSyncEngine {
     async fn sync(&self) -> Result<(), SyncError> {
+        // Serializes whole sync cycles: two overlapping syncs (e.g. a manual
+        // sync racing an auto-sync-on-close) would otherwise each run their
+        // own independent pull/push cycle and could push out of causal order
+        // (e.g. a child element before its parent folder), tripping FK
+        // repair into deleting the "orphaned" child and propagating that
+        // delete to other devices.
+        let _guard = self.sync_lock.0.lock().await;
+
         let result = self.sync_inner().await;
 
         self.connection_manager

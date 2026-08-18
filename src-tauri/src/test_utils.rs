@@ -84,6 +84,7 @@ async fn create_test_injector_with_sqlite_url(sqlite_url: &str) -> Injector {
         SqliteDatabaseConnectionManager
     );
     register_scope!(injector, dyn SyncStore, SqliteSyncStore);
+    injector.register_singleton(Arc::new(crate::sync::sync_lock::SyncLock::default()));
 
     let secrets_repository = DiskSecretsRepository::new(&app_data_directory);
     injector.register_singleton::<dyn SecretsRepository>(Arc::new(secrets_repository));
