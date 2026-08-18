@@ -23,7 +23,7 @@ pub fn column_mode_triggers(schema: &TableSchema) -> Vec<String> {
         .map(|col| {
             let quoted_col = quote_ident(col);
             format!(
-                "  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('{table}', {row_id_new}, '{col}', NEW.{quoted_col}, hlc_now(), device_id())
+                "  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('{table}', {row_id_new}, '{col}', CAST(NEW.{quoted_col} AS BLOB), hlc_now(), device_id())
   {UPSERT_CONFLICT_CLAUSE};
 "
             )
@@ -45,7 +45,7 @@ BEGIN
             let quoted_col = quote_ident(col);
             format!(
                 "  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)
-  SELECT '{table}', {row_id_new}, '{col}', NEW.{quoted_col}, hlc_now(), device_id()
+  SELECT '{table}', {row_id_new}, '{col}', CAST(NEW.{quoted_col} AS BLOB), hlc_now(), device_id()
   WHERE NEW.{quoted_col} IS NOT OLD.{quoted_col}
   {UPSERT_CONFLICT_CLAUSE};
 "
@@ -239,12 +239,12 @@ mod tests {
         // Assert
 
         assert_eq!(
-            "CREATE TRIGGER sync_notes_ai AFTER INSERT ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(NEW.\"id\"), 'title', NEW.\"title\", hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(NEW.\"id\"), 'body', NEW.\"body\", hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
+            "CREATE TRIGGER sync_notes_ai AFTER INSERT ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(NEW.\"id\"), 'title', CAST(NEW.\"title\" AS BLOB), hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(NEW.\"id\"), 'body', CAST(NEW.\"body\" AS BLOB), hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
             actual[0]
         );
 
         assert_eq!(
-            "CREATE TRIGGER sync_notes_au AFTER UPDATE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)\n  SELECT 'notes', json_array(NEW.\"id\"), 'title', NEW.\"title\", hlc_now(), device_id()\n  WHERE NEW.\"title\" IS NOT OLD.\"title\"\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)\n  SELECT 'notes', json_array(NEW.\"id\"), 'body', NEW.\"body\", hlc_now(), device_id()\n  WHERE NEW.\"body\" IS NOT OLD.\"body\"\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
+            "CREATE TRIGGER sync_notes_au AFTER UPDATE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)\n  SELECT 'notes', json_array(NEW.\"id\"), 'title', CAST(NEW.\"title\" AS BLOB), hlc_now(), device_id()\n  WHERE NEW.\"title\" IS NOT OLD.\"title\"\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)\n  SELECT 'notes', json_array(NEW.\"id\"), 'body', CAST(NEW.\"body\" AS BLOB), hlc_now(), device_id()\n  WHERE NEW.\"body\" IS NOT OLD.\"body\"\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
             actual[1]
         );
 
