@@ -267,6 +267,54 @@ mod tests {
         engine.sync().await.unwrap();
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn sync_overlapping_calls_never_run_pull_push_cycles_concurrently() {
+        // Arrange
+
+        let concurrent_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let max_observed_concurrency = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+        let mut backend_client = MockAmberBackendClient::new();
+        backend_client.expect_pull_changes().returning({
+            let concurrent_calls = concurrent_calls.clone();
+            let max_observed_concurrency = max_observed_concurrency.clone();
+            move |_| {
+                let now = concurrent_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                max_observed_concurrency.fetch_max(now, std::sync::atomic::Ordering::SeqCst);
+                std::thread::sleep(std::time::Duration::from_millis(20));
+                concurrent_calls.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+
+                Ok(PullResponse {
+                    cells: vec![],
+                    next_server_seq: 0,
+                    has_more: false,
+                })
+            }
+        });
+        backend_client.expect_push_changes().returning(|_| Ok(()));
+
+        let injector = initialize_test_injector(backend_client).await;
+
+        let scope_a = injector.start_scope();
+        let engine_a = scope_a.resolve::<DefaultSyncEngine>().await;
+        let scope_b = injector.start_scope();
+        let engine_b = scope_b.resolve::<DefaultSyncEngine>().await;
+
+        // Act
+
+        let (result_a, result_b) = tokio::join!(engine_a.sync(), engine_b.sync());
+
+        // Assert
+
+        result_a.unwrap();
+        result_b.unwrap();
+        assert_eq!(
+            1,
+            max_observed_concurrency.load(std::sync::atomic::Ordering::SeqCst),
+            "two overlapping sync() calls must never run their pull/push cycles concurrently"
+        );
+    }
+
     #[tokio::test]
     async fn sync_applies_pulled_remote_changes_to_local_store() {
         // Arrange

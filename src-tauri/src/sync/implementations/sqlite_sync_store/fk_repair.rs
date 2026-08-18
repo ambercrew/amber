@@ -228,6 +228,16 @@ async fn declared_foreign_keys(
     Ok(fks)
 }
 
+/// Alias for the referenced table inside a [`violation_predicate`] subquery.
+/// Required even though most FKs don't need it: without it, a
+/// self-referential FK (e.g. `meta.parent_id -> meta.element_id`) would have
+/// the subquery's unaliased `FROM {table}` shadow the outer row's table name,
+/// so `{table}.{col}` inside the subquery would resolve to the subquery's own
+/// scan instead of correlating to the outer row — making the `NOT EXISTS`
+/// spuriously true for almost any non-null value, even when the referenced
+/// row genuinely exists.
+const VIOLATION_PREDICATE_REF_ALIAS: &str = "__fk_ref";
+
 /// The `NOT EXISTS` predicate for one FK relationship: true for a row in
 /// `table` whose `column` is set but has no matching row in
 /// `referenced_table.referenced_column`.
@@ -238,11 +248,12 @@ fn violation_predicate(
     referenced_column: &str,
 ) -> String {
     format!(
-        "{table}.{col} IS NOT NULL AND NOT EXISTS (SELECT 1 FROM {ref_tbl} WHERE {ref_tbl}.{ref_col} = {table}.{col})",
+        "{table}.{col} IS NOT NULL AND NOT EXISTS (SELECT 1 FROM {ref_tbl} AS {alias} WHERE {alias}.{ref_col} = {table}.{col})",
         table = quote_ident(table),
         col = quote_ident(column),
         ref_tbl = quote_ident(referenced_table),
         ref_col = quote_ident(referenced_column),
+        alias = quote_ident(VIOLATION_PREDICATE_REF_ALIAS),
     )
 }
 

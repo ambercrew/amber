@@ -1894,6 +1894,18 @@ async fn create_parents_table(tx: &DbTransaction) {
         .unwrap();
 }
 
+/// A single table whose own `parent_id` references its own `id` (e.g.
+/// `meta.parent_id -> meta.element_id`) — used to cover the self-referential
+/// FK case, where the referenced table equals the source table.
+async fn create_self_referencing_table(tx: &DbTransaction) {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query("CREATE TABLE nodes (id TEXT PRIMARY KEY, parent_id TEXT)")
+        .execute(&mut *conn)
+        .await
+        .unwrap();
+}
+
 async fn insert_parent(tx: &DbTransaction, id: &str) {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
@@ -2638,6 +2650,117 @@ async fn has_unresolved_foreign_keys_all_references_satisfied_returns_false() {
                     "children",
                     "c1",
                     serde_json::json!({"id": "c1", "parent_id": "p1"}),
+                    ms,
+                    1,
+                )],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    let actual = engine.has_unresolved_foreign_keys().await.unwrap();
+
+    // Assert
+
+    assert!(!actual);
+}
+
+#[tokio::test]
+async fn has_unresolved_foreign_keys_self_referential_fk_with_missing_parent_returns_true() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_self_referencing_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table(
+            "nodes",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "nodes",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        )
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "nodes",
+                    "orphan",
+                    serde_json::json!({"id": "orphan", "parent_id": "missing-parent"}),
+                    ms,
+                    0,
+                )],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    let actual = engine.has_unresolved_foreign_keys().await.unwrap();
+
+    // Assert
+
+    assert!(actual);
+}
+
+#[tokio::test]
+async fn has_unresolved_foreign_keys_self_referential_fk_with_existing_parent_returns_false() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_self_referencing_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table(
+            "nodes",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "nodes",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        )
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "nodes",
+                    "root",
+                    serde_json::json!({"id": "root", "parent_id": null}),
+                    ms,
+                    0,
+                )],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "nodes",
+                    "child",
+                    serde_json::json!({"id": "child", "parent_id": "root"}),
                     ms,
                     1,
                 )],
