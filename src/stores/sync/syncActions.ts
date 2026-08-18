@@ -24,6 +24,7 @@ export function sync() {
 			);
 			dispatch(setIsSyncing(true));
 			await syncApi();
+			notifications.show({ message: "Sync complete" });
 		} catch (e) {
 			// eslint-disable-next-line no-console
 			console.error(e);

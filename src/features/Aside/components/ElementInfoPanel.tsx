@@ -15,6 +15,7 @@ import { selectCurrentElement } from "../../../stores/elements/elementsSelectors
 import { updateElementTags } from "../../../api/elements/api/elementsApi";
 import { renameElementAction } from "../../../stores/elements/elementsActions";
 import { selectCurrentElementDetails } from "../../../stores/elementDetails/elementDetailsSelectors";
+import { selectElementRefreshCount } from "../../../stores/sync/syncSelector";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import { ElementId } from "../../../types/elements/elementId";
 import { ElementDetailsResponseDto } from "../../../api/elements/dto/elementDetailsDto";
@@ -53,6 +54,7 @@ function ElementInfoPanel() {
 	const storedMeta = currentElement?.data.meta ?? null;
 	const dispatch = useAppDispatch();
 	const details = useAppSelector(selectCurrentElementDetails);
+	const refreshCount = useAppSelector(selectElementRefreshCount);
 
 	const debouncedRename = useDebouncedCallback(
 		async (id: ElementId, name: string) => {
@@ -108,7 +110,7 @@ function ElementInfoPanel() {
 				</InfoField>
 				<InfoField label="Tags">
 					<TagsInput
-						key={`tags-${storedMeta.elementId.id}`}
+						key={`tags-${storedMeta.elementId.id}-${refreshCount}`}
 						placeholder="Enter tag"
 						size="sm"
 						defaultValue={storedMeta.tags.map(t => t.name)}
@@ -161,6 +163,7 @@ function ElementInfoPanel() {
 					<>
 						<Divider />
 						<ReviewDetails
+							key={`review-${storedMeta.elementId.id}-${refreshCount}`}
 							element={currentElement}
 							details={details}
 						/>
@@ -170,7 +173,7 @@ function ElementInfoPanel() {
 			<Divider />
 
 			<OriginSection
-				key={storedMeta.elementId.id}
+				key={`origin-${storedMeta.elementId.id}-${refreshCount}`}
 				elementId={storedMeta.elementId}
 				bibliographicalSourceId={storedMeta.bibliographicalSourceId}
 				derivedFrom={storedMeta.derivedFrom}

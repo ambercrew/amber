@@ -10,6 +10,8 @@ import {
 	useIsSmallScreen,
 } from "../../../hooks/useIsSmallScreen";
 import { useCurrentElementSync } from "../../../hooks/useCurrentElementSync";
+import { useElementSyncRefresh } from "../../../hooks/useElementSyncRefresh";
+import { usePostSyncRefresh } from "../../../hooks/usePostSyncRefresh";
 import { useCloseSidebarOnSmallScreenNavigation } from "../../../hooks/useCloseSidebarOnSmallScreenNavigation";
 import { useStudySessionGuard } from "../../Study/hooks/useStudySessionGuard";
 import { useStudySessionSummaryToast } from "../../Study/hooks/useStudySessionSummaryToast";
@@ -111,6 +113,8 @@ function App() {
 	);
 	useRedirectIfElementMissing();
 	useCurrentElementSync();
+	useElementSyncRefresh();
+	usePostSyncRefresh();
 	useStudySessionGuard();
 	useStudySessionSummaryToast();
 	useLexicalConversionBridge();

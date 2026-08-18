@@ -17,6 +17,10 @@ import { searchElements } from "../../../api/search/api/searchApi";
 import { SearchElementResultDto } from "../../../api/search/dto/searchElementResultDto";
 import { ElementId } from "../../../types/elements/elementId";
 import useApi from "../../../hooks/useApi";
+import {
+	defaultGlobalSyncEventManager,
+	ListenerType,
+} from "../../../stores/sync/managers/syncEventManager";
 import { SEARCH_DEBOUNCE_MS } from "../config/constants";
 import { createDefaultFilter } from "../utils/createDefaultFilter";
 import { elementKey } from "../utils/elementKey";
@@ -53,10 +57,14 @@ export default function ElementsBrowser() {
 	const { callApi } = useApi();
 	const [debouncedFilters] = useDebouncedValue(filters, SEARCH_DEBOUNCE_MS);
 
-	useEffect(() => {
+	function loadSupportingLists() {
 		void listBibliographicalSources().then(setSources);
 		void listStudyProfiles().then(setProfiles);
 		void listSavedSearches().then(setSavedSearches);
+	}
+
+	useEffect(() => {
+		loadSupportingLists();
 	}, []);
 
 	function runSearch() {
@@ -69,6 +77,27 @@ export default function ElementsBrowser() {
 
 	useEffect(() => {
 		runSearch();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [debouncedFilters]);
+
+	// Results, and the sources/profiles/saved searches feeding the filter UI,
+	// can go stale after a sync pulls in changes from another device.
+	useEffect(() => {
+		function refreshOnSync() {
+			loadSupportingLists();
+			runSearch();
+			return Promise.resolve();
+		}
+
+		defaultGlobalSyncEventManager.addListener(
+			ListenerType.PostSyncComplete,
+			refreshOnSync,
+		);
+		return () =>
+			defaultGlobalSyncEventManager.removeListener(
+				ListenerType.PostSyncComplete,
+				refreshOnSync,
+			);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [debouncedFilters]);
 

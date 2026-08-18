@@ -17,6 +17,8 @@ import { reloadApplicationState } from "../app/appActions";
 import { AppDispatch } from "../store";
 import { setLoggedOf, setUserInformation } from "./userReducer";
 import SignUpRequestDto from "../../api/backend/dto/signUpRequestDto";
+import { notifications } from "@mantine/notifications";
+import errorToString from "../../utils/errorToString";
 
 export function loadUserState() {
 	return async function (dispatch: AppDispatch): Promise<void> {
@@ -52,7 +54,14 @@ export function signUp(navigate: NavigateFunction, request: SignUpRequestDto) {
 
 export function signOut(navigate: NavigateFunction) {
 	return async function (dispatch: AppDispatch): Promise<void> {
-		await signOutApi();
+		try {
+			await signOutApi();
+		} catch (e) {
+			// eslint-disable-next-line no-console
+			console.error(e);
+			notifications.show({ message: errorToString(e), color: "red" });
+			return;
+		}
 		dispatch(setLoggedOf());
 		await dispatch(reloadApplicationState(navigate));
 	};

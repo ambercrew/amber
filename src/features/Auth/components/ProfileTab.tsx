@@ -59,6 +59,12 @@ function ProfileTab() {
 				)}
 				{success && <Alert color="green">Profile updated.</Alert>}
 				<TextInput
+					label="Username"
+					value={userInformation?.username ?? ""}
+					variant="filled"
+					readOnly
+				/>
+				<TextInput
 					label="First name"
 					maxLength={NAME_MAX_LENGTH}
 					{...form.getInputProps("firstName")}

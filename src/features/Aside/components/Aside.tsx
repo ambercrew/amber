@@ -16,6 +16,12 @@ function Aside({ onCollapse }: AsideProps) {
 	const aiEnabled = settings?.enableAi ?? false;
 
 	const tabs: SidebarTab[] = [
+		{
+			value: "info",
+			title: "Element info",
+			icon: <InfoIcon size={16} />,
+			panel: <ElementInfoPanel />,
+		},
 		...(aiEnabled
 			? [
 					{
@@ -27,12 +33,6 @@ function Aside({ onCollapse }: AsideProps) {
 					},
 				]
 			: []),
-		{
-			value: "info",
-			title: "Element info",
-			icon: <InfoIcon size={16} />,
-			panel: <ElementInfoPanel />,
-		},
 	];
 
 	return (
