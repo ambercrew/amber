@@ -1,4 +1,5 @@
 mod apply;
+mod applying_guard;
 mod column_info;
 mod models;
 mod pending_buffer;

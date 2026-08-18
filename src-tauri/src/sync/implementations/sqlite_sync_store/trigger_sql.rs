@@ -2,30 +2,7 @@ use super::models::TableSchema;
 use crate::sync::utils::merge::{DELETED_COL, ROW_COL};
 
 const UPSERT_CONFLICT_CLAUSE: &str = "ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id";
-
-/// Double-quotes a SQL identifier, escaping embedded double quotes. Identifiers
-/// come from `PRAGMA table_info`, not user input, but this is cheap insurance.
-pub(crate) fn quote_ident(ident: &str) -> String {
-    format!("\"{}\"", ident.replace('"', "\"\""))
-}
-
-/// Builds the `row_id` SQL expression for a trigger body: a JSON array of the
-/// primary key column values (in key order), taken from `prefix` (`"NEW"` or
-/// `"OLD"`). A JSON array — rather than e.g. delimiter-joining the values —
-/// keeps composite keys unambiguous no matter what characters the individual
-/// values contain, and needs no special case for single-column keys.
-fn row_id_expr(prefix: &str, pk_columns: &[String]) -> String {
-    let args: String = pk_columns
-        .iter()
-        .map(|col| format!("{prefix}.{}", quote_ident(col)))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("json_array({args})")
-}
-
-fn applying_guard() -> &'static str {
-    "WHEN NOT EXISTS (SELECT 1 FROM sync_applying)"
-}
+const APPLYING_GUARD: &str = "WHEN NOT EXISTS (SELECT 1 FROM sync_applying)";
 
 pub fn drop_trigger_sql(table: &str) -> Vec<String> {
     ["ai", "au", "ad"]
@@ -40,7 +17,7 @@ pub fn column_mode_triggers(schema: &TableSchema) -> Vec<String> {
     let quoted_table = quote_ident(table);
 
     let insert_statements: String = schema
-        .columns
+        .non_pk_columns
         .iter()
         .map(|col| {
             let quoted_col = quote_ident(col);
@@ -57,11 +34,11 @@ pub fn column_mode_triggers(schema: &TableSchema) -> Vec<String> {
 {guard}
 BEGIN
 {insert_statements}END;",
-        guard = applying_guard()
+        guard = APPLYING_GUARD
     );
 
     let update_statements: String = schema
-        .columns
+        .non_pk_columns
         .iter()
         .map(|col| {
             let quoted_col = quote_ident(col);
@@ -80,7 +57,7 @@ BEGIN
 {guard}
 BEGIN
 {update_statements}END;",
-        guard = applying_guard()
+        guard = APPLYING_GUARD
     );
 
     let ad = delete_trigger(table, &schema.pk_columns, &quoted_table);
@@ -96,7 +73,7 @@ pub fn row_mode_triggers(schema: &TableSchema) -> Vec<String> {
     let json_pairs: String = schema
         .pk_columns
         .iter()
-        .chain(schema.columns.iter())
+        .chain(schema.non_pk_columns.iter())
         .map(|col| {
             let quoted_col = quote_ident(col);
             format!("'{col}', NEW.{quoted_col}")
@@ -115,7 +92,7 @@ pub fn row_mode_triggers(schema: &TableSchema) -> Vec<String> {
 {guard}
 BEGIN
 {row_upsert}END;",
-        guard = applying_guard()
+        guard = APPLYING_GUARD
     );
 
     let au = format!(
@@ -123,7 +100,7 @@ BEGIN
 {guard}
 BEGIN
 {row_upsert}END;",
-        guard = applying_guard()
+        guard = APPLYING_GUARD
     );
 
     let ad = delete_trigger(table, &schema.pk_columns, &quoted_table);
@@ -140,8 +117,28 @@ BEGIN
   INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('{table}', {row_id_old}, '{DELETED_COL}', NULL, hlc_now(), device_id())
   {UPSERT_CONFLICT_CLAUSE};
 END;",
-        guard = applying_guard()
+        guard = APPLYING_GUARD
     )
+}
+
+/// Builds the `row_id` SQL expression for a trigger body: a JSON array of the
+/// primary key column values (in key order), taken from `prefix` (`"NEW"` or
+/// `"OLD"`). A JSON array — rather than e.g. delimiter-joining the values —
+/// keeps composite keys unambiguous no matter what characters the individual
+/// values contain, and needs no special case for single-column keys.
+fn row_id_expr(prefix: &str, pk_columns: &[String]) -> String {
+    let args: String = pk_columns
+        .iter()
+        .map(|col| format!("{prefix}.{}", quote_ident(col)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("json_array({args})")
+}
+
+/// Double-quotes a SQL identifier, escaping embedded double quotes. Identifiers
+/// come from `PRAGMA table_info`, not user input, but this is cheap insurance.
+pub(crate) fn quote_ident(ident: &str) -> String {
+    format!("\"{}\"", ident.replace('"', "\"\""))
 }
 
 #[cfg(test)]
@@ -152,7 +149,7 @@ mod tests {
         TableSchema {
             name: "notes".to_string(),
             pk_columns: vec!["id".to_string()],
-            columns: vec!["title".to_string(), "body".to_string()],
+            non_pk_columns: vec!["title".to_string(), "body".to_string()],
         }
     }
 
@@ -160,7 +157,7 @@ mod tests {
         TableSchema {
             name: "notes".to_string(),
             pk_columns: vec!["workspace_id".to_string(), "id".to_string()],
-            columns: vec!["title".to_string()],
+            non_pk_columns: vec!["title".to_string()],
         }
     }
 
@@ -300,7 +297,7 @@ mod tests {
         let schema = TableSchema {
             name: "weird".to_string(),
             pk_columns: vec!["id".to_string()],
-            columns: vec!["a\"b".to_string()],
+            non_pk_columns: vec!["a\"b".to_string()],
         };
 
         // Act

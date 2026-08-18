@@ -10,6 +10,7 @@ use crate::sync::sql_functions;
 use crate::sync::utils::merge::{self, MergeAction};
 use crate::sync::value_objects::granularity::Granularity;
 
+use super::applying_guard::{clear_applying, mark_applying};
 use super::column_info::{column_affinity, primary_key_columns, read_table_info};
 use super::models::{ColumnInfo, PendingCell, RowKey};
 use super::pending_buffer::PendingBuffer;
@@ -31,19 +32,11 @@ pub(super) async fn apply_remote(
     is_last_page: bool,
     pending: &PendingBuffer,
 ) -> Result<(), SyncError> {
-    // `sync_applying` is a regular table created by the sync tables migration
-    // (see its comment there for why it can't be a TEMP table). Cleanup runs
-    // on both the success and error paths so a caller that doesn't roll back
-    // an errored transaction still leaves this row cleared.
-    sqlx::query("INSERT INTO sync_applying(x) VALUES (1)")
-        .execute(&mut *tx)
-        .await?;
+    mark_applying(tx).await?;
 
     let result = apply_remote_page_inner(&mut *tx, &batch, is_last_page, pending).await;
 
-    sqlx::query("DELETE FROM sync_applying")
-        .execute(&mut *tx)
-        .await?;
+    clear_applying(tx).await?;
 
     result
 }

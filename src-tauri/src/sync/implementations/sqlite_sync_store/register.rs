@@ -16,11 +16,6 @@ pub(super) async fn register_table(
         return Err(SyncError::TableNotFound(table.to_string()));
     }
 
-    let pk_columns: Vec<String> = primary_key_columns(table, &columns)?
-        .iter()
-        .map(|c| c.name.clone())
-        .collect();
-
     let existing: Option<String> =
         sqlx::query_scalar("SELECT granularity FROM sync_registry WHERE tbl = ?1")
             .bind(table)
@@ -52,10 +47,15 @@ pub(super) async fn register_table(
         .map(|c| c.name.clone())
         .collect();
 
+    let pk_columns: Vec<String> = primary_key_columns(table, &columns)?
+        .iter()
+        .map(|c| c.name.clone())
+        .collect();
+
     let schema = TableSchema {
         name: table.to_string(),
         pk_columns,
-        columns: non_pk_columns,
+        non_pk_columns,
     };
 
     // Dropping the old triggers before creating new.

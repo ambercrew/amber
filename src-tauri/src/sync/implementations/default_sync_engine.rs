@@ -23,14 +23,6 @@ pub struct DefaultSyncEngine {
 #[async_trait]
 impl SyncEngine for DefaultSyncEngine {
     async fn sync(&self) -> Result<(), SyncError> {
-        // Cells can be applied out of order relative to their foreign key
-        // references (e.g. a child row's cell before its parent's), so
-        // constraint checks are deferred until this whole cycle commits
-        // instead of failing mid-sync.
-        self.connection_manager
-            .disable_foreign_key_constraint_for_current_transaction()
-            .await?;
-
         let result = self.sync_inner().await;
 
         self.connection_manager
@@ -43,6 +35,14 @@ impl SyncEngine for DefaultSyncEngine {
 
 impl DefaultSyncEngine {
     async fn sync_inner(&self) -> Result<(), SyncError> {
+        // Cells can be applied out of order relative to their foreign key
+        // references (e.g. a child row's cell before its parent's), so
+        // constraint checks are deferred until this whole cycle commits
+        // instead of failing mid-sync.
+        self.connection_manager
+            .disable_foreign_key_constraint_for_current_transaction()
+            .await?;
+
         // Pulled before pushing so the server doesn't have to echo back the
         // changes we're about to send it in the same cycle.
         let mut since_server_seq = self.store.get_last_pulled_server_seq().await?;
@@ -58,8 +58,8 @@ impl DefaultSyncEngine {
             }
             since_server_seq = Some(next_server_seq);
 
-            // A row's columns can still be split across the *next* page (see
-            // `SyncStore::apply_remote`), so only persist the cursor and commit
+            // A row's columns can still be split across the *next* page,
+            // so only persist the cursor and commit
             // once nothing is left half-materialized — otherwise a crash before
             // the next page arrives would strand those columns: the cursor
             // would already be past them and the server wouldn't resend them.
@@ -68,9 +68,8 @@ impl DefaultSyncEngine {
                     .set_last_pulled_server_seq(next_server_seq)
                     .await?;
                 self.transaction_manager.save_changes().await?;
-                // `save_changes` commits into a fresh transaction, which resets
-                // SQLite's per-transaction deferred-FK-check pragma — re-arm it
-                // so the next page can still land rows out of FK order.
+
+                // Disabling the foregin key again.
                 self.connection_manager
                     .disable_foreign_key_constraint_for_current_transaction()
                     .await?;

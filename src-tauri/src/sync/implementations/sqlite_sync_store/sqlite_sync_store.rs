@@ -20,6 +20,7 @@ pub struct SqliteSyncStore {
 
 #[async_trait]
 impl SyncStore for SqliteSyncStore {
+    // TODO: review all methods continue here
     async fn register_table(&self, table: &str, granularity: Granularity) -> Result<(), SyncError> {
         let mut guard = self.tx.lock().await;
         register::register_table(guard.as_mut(), table, granularity).await
