@@ -11,6 +11,7 @@ use crate::{
     },
     infrastructure::value_objects::{db_pool::DbPool, db_transaction::DbTransaction},
     settings::value_objects::database_location::DatabaseLocation,
+    sync::bootstrap::register_sync_tables_on_pool,
 };
 
 #[derive(ScopeInjectable)]
@@ -33,6 +34,16 @@ impl DatabaseConnectionManager for SqliteDatabaseConnectionManager {
         };
 
         self.pool.set_pool(new_pool, database_location).await;
+
+        // The database just swapped underneath any in-flight DI scope, whose
+        // own transaction (if any) is still bound to the old one — so the
+        // new database's tables need registering for change tracking again
+        // here, against the new pool directly, rather than leaving it to
+        // every caller that can end up switching databases to remember.
+        let pool_guard = self.pool.pool().await;
+        register_sync_tables_on_pool(&pool_guard)
+            .await
+            .map_err(|err| DatabaseConnectionManagerError::ErrorChangingDatabase(Box::new(err)))?;
 
         Ok(())
     }

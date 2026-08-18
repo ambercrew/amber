@@ -5,7 +5,7 @@ mod fk_repair;
 mod models;
 mod pending_buffer;
 mod push_pull;
-mod register;
+pub(crate) mod register;
 mod sqlite_sync_store;
 #[cfg(test)]
 mod tests;

@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use injector::injector::Injector;
+use sqlx::SqlitePool;
 
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::sync::errors::SyncError;
+use crate::sync::implementations::sqlite_sync_store::register::register_table;
 use crate::sync::store::SyncStore;
 use crate::sync::value_objects::fk_constraint::{FkConstraint, TableSyncConfig};
 use crate::sync::value_objects::fk_policy::FkPolicy;
@@ -229,6 +231,32 @@ pub async fn register_sync_tables(injector: &Arc<Injector>) -> Result<(), SyncEr
     }
 
     scope.save_changes().await?;
+
+    Ok(())
+}
+
+/// Same as [`register_sync_tables`], but runs directly against `pool`
+/// instead of going through a DI scope's [`SyncStore`]. Used when the active
+/// database has just been swapped to `pool` (see
+/// `DatabaseConnectionManager::connect_to_database`/`move_database_to`):
+/// registration must happen against the *new* database, but any DI scope
+/// currently in flight already holds a transaction checked out from the
+/// *old* pool, so it can't be used here — this opens its own transaction on
+/// `pool` instead.
+pub async fn register_sync_tables_on_pool(pool: &SqlitePool) -> Result<(), SyncError> {
+    let mut tx = pool.begin().await?;
+
+    for config in table_configs() {
+        register_table(
+            &mut tx,
+            config.name,
+            config.granularity,
+            &config.fk_constraints,
+        )
+        .await?;
+    }
+
+    tx.commit().await?;
 
     Ok(())
 }

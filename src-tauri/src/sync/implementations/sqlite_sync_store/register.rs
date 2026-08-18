@@ -8,7 +8,7 @@ use crate::sync::value_objects::fk_constraint::FkConstraint;
 use crate::sync::value_objects::fk_policy::FkPolicy;
 use crate::sync::value_objects::granularity::Granularity;
 
-pub(super) async fn register_table(
+pub(crate) async fn register_table(
     tx: &mut SqliteConnection,
     table: &str,
     granularity: Granularity,
