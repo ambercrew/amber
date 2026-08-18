@@ -1,4 +1,5 @@
 use super::models::TableSchema;
+use crate::sync::errors::SyncError;
 use crate::sync::utils::merge::{DELETED_COL, ROW_COL};
 
 const UPSERT_CONFLICT_CLAUSE: &str = "ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id";
@@ -133,6 +134,48 @@ fn row_id_expr(prefix: &str, pk_columns: &[String]) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     format!("json_array({args})")
+}
+
+/// Decodes a `row_id` (see `row_id_expr` above) into its primary key values,
+/// in the same key-column order it was encoded with. Each value is carried
+/// through as text — a JSON string as-is, a JSON number via its canonical
+/// text form — and later bound as a query parameter, where SQLite's own
+/// affinity conversion (see `column_affinity`) restores it to the
+/// destination column's actual storage class.
+pub(super) fn parse_row_id(
+    table: &str,
+    row_id: &str,
+    expected_len: usize,
+) -> Result<Vec<String>, SyncError> {
+    let values: Vec<serde_json::Value> =
+        serde_json::from_str(row_id).map_err(|err| SyncError::InvalidRowPayload {
+            table: table.to_string(),
+            reason: format!("row_id was not a JSON array: {err}"),
+        })?;
+
+    if values.len() != expected_len {
+        return Err(SyncError::InvalidRowPayload {
+            table: table.to_string(),
+            reason: format!(
+                "row_id has {} value(s), expected {expected_len} for this table's primary key",
+                values.len()
+            ),
+        });
+    }
+
+    values
+        .into_iter()
+        .map(|v| match v {
+            serde_json::Value::String(s) => Ok(s),
+            serde_json::Value::Number(n) => Ok(n.to_string()),
+            _ => Err(SyncError::InvalidRowPayload {
+                table: table.to_string(),
+                reason:
+                    "row_id contained a primary key value that was neither a string nor a number"
+                        .to_string(),
+            }),
+        })
+        .collect()
 }
 
 /// Double-quotes a SQL identifier, escaping embedded double quotes. Identifiers

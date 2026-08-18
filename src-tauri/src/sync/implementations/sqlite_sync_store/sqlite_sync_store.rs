@@ -20,7 +20,6 @@ pub struct SqliteSyncStore {
 
 #[async_trait]
 impl SyncStore for SqliteSyncStore {
-    // TODO: verify that the solution for ids being in blob has been fixed
     async fn register_table(&self, table: &str, granularity: Granularity) -> Result<(), SyncError> {
         let mut guard = self.tx.lock().await;
         register::register_table(guard.as_mut(), table, granularity).await
@@ -46,7 +45,6 @@ impl SyncStore for SqliteSyncStore {
         push_pull::set_last_pulled_server_seq(guard.as_mut(), seq).await
     }
 
-    // TODO: review all methods continue here
     async fn apply_remote(&self, batch: ChangeBatch, is_last_page: bool) -> Result<(), SyncError> {
         let mut guard = self.tx.lock().await;
         apply::apply_remote(guard.as_mut(), batch, is_last_page, &self.pending).await
