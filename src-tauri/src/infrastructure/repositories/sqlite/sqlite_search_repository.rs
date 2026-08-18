@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
 use sqlx::{QueryBuilder, Sqlite};
 use uuid::Uuid;
+use uuid::fmt::Hyphenated;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::entities::tag::Tag;
@@ -62,7 +63,8 @@ impl SearchRepository for SqliteSearchRepository {
                 .fetch_all(&mut *conn)
                 .await?;
 
-            let element_ids: Vec<Uuid> = rows.iter().map(|row| row.element_id).collect();
+            let element_ids: Vec<Uuid> =
+                rows.iter().map(|row| row.element_id.into_uuid()).collect();
             let tags_by_element_id = fetch_tags(conn, &element_ids).await?;
 
             (rows, tags_by_element_id)
@@ -70,7 +72,7 @@ impl SearchRepository for SqliteSearchRepository {
 
         let element_ids: Vec<_> = rows
             .iter()
-            .map(|row| (row.element_id, row.element_type.clone()).into_element_id())
+            .map(|row| (row.element_id.into_uuid(), row.element_type.clone()).into_element_id())
             .collect();
         let mut priority_by_element_id = self
             .priority_service
@@ -92,7 +94,7 @@ impl SearchRepository for SqliteSearchRepository {
                 });
             results.push(ElementSearchResult {
                 tags: tags_by_element_id
-                    .remove(&row.element_id)
+                    .remove(&row.element_id.into_uuid())
                     .unwrap_or_default(),
                 element_id,
                 name: row.name,
@@ -132,7 +134,9 @@ async fn fetch_tags(
         JOIN tags t ON t.name = et.tag_id
         WHERE et.element_id IN ("#,
     );
-    push_in_list(&mut query_builder, element_ids);
+    let hyphenated_element_ids: Vec<Hyphenated> =
+        element_ids.iter().map(|id| id.hyphenated()).collect();
+    push_in_list(&mut query_builder, &hyphenated_element_ids);
     query_builder.push(") ORDER BY et.element_id, et.sort_index");
 
     let rows: Vec<TaggedRow> = query_builder
@@ -143,7 +147,7 @@ async fn fetch_tags(
     let mut tags_by_element_id: HashMap<Uuid, Vec<Tag>> = HashMap::new();
     for row in rows {
         tags_by_element_id
-            .entry(row.element_id)
+            .entry(row.element_id.into_uuid())
             .or_default()
             .push(Tag::from(TagRow {
                 name: row.name,
@@ -156,7 +160,7 @@ async fn fetch_tags(
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 struct TaggedRow {
-    element_id: Uuid,
+    element_id: Hyphenated,
     name: String,
     created_at: chrono::DateTime<chrono::Utc>,
     modified_at: chrono::DateTime<chrono::Utc>,
@@ -340,15 +344,16 @@ fn push_select_clause(
         });
         return;
     }
+    let hyphenated_ids: Vec<Hyphenated> = ids.iter().map(|id| id.hyphenated()).collect();
     match operator {
         SelectFilterOperator::IsAnyOf => {
             query_builder.push(format!("{column} IN ("));
-            push_in_list(query_builder, ids);
+            push_in_list(query_builder, &hyphenated_ids);
             query_builder.push(")");
         }
         SelectFilterOperator::IsNoneOf => {
             query_builder.push(format!("{column} IS NULL OR {column} NOT IN ("));
-            push_in_list(query_builder, ids);
+            push_in_list(query_builder, &hyphenated_ids);
             query_builder.push(")");
         }
     }

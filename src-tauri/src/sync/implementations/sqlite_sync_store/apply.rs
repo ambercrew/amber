@@ -57,6 +57,7 @@ async fn apply_remote_page_inner(
     Ok(())
 }
 
+// TODO: reorder methods
 async fn load_registry(
     tx: &mut SqliteConnection,
 ) -> Result<HashMap<String, Granularity>, SyncError> {
@@ -198,6 +199,7 @@ pub(super) async fn try_flush_pending(
 
 /// Flushes every row currently buffered in `pending` as a single upsert per
 /// row, then clears the buffer.
+// TODO: review this
 async fn flush_pending(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
@@ -418,6 +420,7 @@ async fn apply_action(
     }
 }
 
+// TODO: review this
 async fn apply_row_upsert(
     tx: &mut SqliteConnection,
     table: &str,

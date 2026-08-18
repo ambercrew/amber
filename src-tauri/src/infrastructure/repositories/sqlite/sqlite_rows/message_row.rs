@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
+use uuid::fmt::Hyphenated;
 
 use crate::ai_integration::entities::message::{Message, MessageContent};
 
@@ -10,9 +10,9 @@ pub const DOCUMENT_CONTENT_TYPE: &str = "document";
 pub const TOOL_RESULT_TYPE: &str = "tool_result";
 
 pub struct MessageRow {
-    pub id: Uuid,
+    pub id: Hyphenated,
     pub created_date: DateTime<Utc>,
-    pub chat_id: Uuid,
+    pub chat_id: Hyphenated,
     pub content_type: String,
     pub content: Option<String>,
 }
@@ -31,6 +31,11 @@ impl From<MessageRow> for Message {
             MessageContent::ToolResult(serde_json::from_str(&value.content.unwrap()).unwrap())
         };
 
-        Message::new_unchecked(value.id, value.created_date, value.chat_id, message_content)
+        Message::new_unchecked(
+            value.id.into_uuid(),
+            value.created_date,
+            value.chat_id.into_uuid(),
+            message_content,
+        )
     }
 }

@@ -33,7 +33,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
             .create_meta(&learning_asset.meta)
             .await?;
 
-        let uuid = learning_asset.meta.element_id.id();
+        let uuid = learning_asset.meta.element_id.id().hyphenated();
         {
             let mut tx = self.tx.lock().await;
             let tx = tx.as_mut();
@@ -124,7 +124,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
             FROM learning_assets r
             INNER JOIN meta m ON r.id = m.element_id
             WHERE r.id = $1"#,
-            id
+            id.hyphenated()
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -144,7 +144,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
             FROM learning_asset_splits
             WHERE learning_asset_id = $1
             ORDER BY seq"#,
-            learning_asset_id
+            learning_asset_id.hyphenated()
         )
         .fetch_all(&mut *tx)
         .await?;
@@ -170,7 +170,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
             FROM learning_asset_splits
             WHERE learning_asset_id = $1
             ORDER BY seq"#,
-            learning_asset_id
+            learning_asset_id.hyphenated()
         )
         .fetch_all(&mut *tx)
         .await?;
@@ -193,7 +193,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
 
         let row = sqlx::query!(
             "SELECT content FROM learning_asset_splits WHERE learning_asset_id = $1 AND seq = $2",
-            split_id.learning_asset_id,
+            split_id.learning_asset_id.hyphenated(),
             split_id.seq,
         )
         .fetch_one(&mut *tx)
@@ -214,7 +214,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
             "UPDATE learning_asset_splits SET content = $1, content_text = $2 WHERE learning_asset_id = $3 AND seq = $4",
             content,
             content_text,
-            split_id.learning_asset_id,
+            split_id.learning_asset_id.hyphenated(),
             split_id.seq,
         )
         .execute(&mut *tx)
@@ -233,7 +233,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
             "UPDATE learning_assets SET readpoint_split = $1, readpoint_block = $2 WHERE id = $3",
             read_point.split,
             read_point.block,
-            learning_asset_id,
+            learning_asset_id.hyphenated(),
         )
         .execute(&mut *tx)
         .await?;
@@ -250,7 +250,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
         sqlx::query!(
             "UPDATE learning_assets SET interval_multiplier = $1 WHERE id = $2",
             interval_multiplier,
-            learning_asset_id,
+            learning_asset_id.hyphenated(),
         )
         .execute(&mut *tx)
         .await?;

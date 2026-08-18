@@ -48,3 +48,235 @@ DROP INDEX IF EXISTS deleted_entities_entity_id_and_name_index;
 DROP INDEX IF EXISTS deleted_entities_deleted_date_index;
 
 DROP TABLE IF EXISTS deleted_entities;
+
+
+-- sqlx-sqlite's `Encode<Sqlite> for Uuid` always writes a raw 16-byte BLOB,
+-- regardless of a column's declared TEXT affinity (SQLite only converts
+-- *numeric* input under TEXT affinity, not BLOB input). Every id/fk column
+-- below was populated by binding a `uuid::Uuid` directly, so existing rows
+-- have SQLite storage class BLOB even though the column is declared TEXT.
+-- That silently broke `json_array`/`json_object` in the sync trigger SQL
+-- ("JSON cannot hold BLOB values"). The application now binds these columns
+-- via `uuid::fmt::Hyphenated` (canonical lowercase hyphenated text), so this
+-- backfills existing rows to match; it's a no-op wherever a value is already
+-- text (idempotent).
+--
+-- Deferred so that updating a referenced primary key doesn't trip a FK
+-- violation against a child row before that child's own UPDATE below runs.
+PRAGMA defer_foreign_keys = ON;
+
+UPDATE meta SET element_id =
+    lower(hex(substr(element_id,1,4))) || '-' ||
+    lower(hex(substr(element_id,5,2))) || '-' ||
+    lower(hex(substr(element_id,7,2))) || '-' ||
+    lower(hex(substr(element_id,9,2))) || '-' ||
+    lower(hex(substr(element_id,11,6)))
+WHERE typeof(element_id) = 'blob';
+
+UPDATE meta SET parent_id =
+    lower(hex(substr(parent_id,1,4))) || '-' ||
+    lower(hex(substr(parent_id,5,2))) || '-' ||
+    lower(hex(substr(parent_id,7,2))) || '-' ||
+    lower(hex(substr(parent_id,9,2))) || '-' ||
+    lower(hex(substr(parent_id,11,6)))
+WHERE typeof(parent_id) = 'blob';
+
+UPDATE meta SET derived_from_id =
+    lower(hex(substr(derived_from_id,1,4))) || '-' ||
+    lower(hex(substr(derived_from_id,5,2))) || '-' ||
+    lower(hex(substr(derived_from_id,7,2))) || '-' ||
+    lower(hex(substr(derived_from_id,9,2))) || '-' ||
+    lower(hex(substr(derived_from_id,11,6)))
+WHERE typeof(derived_from_id) = 'blob';
+
+UPDATE meta SET study_profile_id =
+    lower(hex(substr(study_profile_id,1,4))) || '-' ||
+    lower(hex(substr(study_profile_id,5,2))) || '-' ||
+    lower(hex(substr(study_profile_id,7,2))) || '-' ||
+    lower(hex(substr(study_profile_id,9,2))) || '-' ||
+    lower(hex(substr(study_profile_id,11,6)))
+WHERE typeof(study_profile_id) = 'blob';
+
+UPDATE meta SET bibliographical_source_id =
+    lower(hex(substr(bibliographical_source_id,1,4))) || '-' ||
+    lower(hex(substr(bibliographical_source_id,5,2))) || '-' ||
+    lower(hex(substr(bibliographical_source_id,7,2))) || '-' ||
+    lower(hex(substr(bibliographical_source_id,9,2))) || '-' ||
+    lower(hex(substr(bibliographical_source_id,11,6)))
+WHERE typeof(bibliographical_source_id) = 'blob';
+
+UPDATE folders SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE learning_assets SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE learning_asset_splits SET learning_asset_id =
+    lower(hex(substr(learning_asset_id,1,4))) || '-' ||
+    lower(hex(substr(learning_asset_id,5,2))) || '-' ||
+    lower(hex(substr(learning_asset_id,7,2))) || '-' ||
+    lower(hex(substr(learning_asset_id,9,2))) || '-' ||
+    lower(hex(substr(learning_asset_id,11,6)))
+WHERE typeof(learning_asset_id) = 'blob';
+
+UPDATE extracts SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE cards SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE study_profiles SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE bibliographical_sources SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE element_tags SET element_id =
+    lower(hex(substr(element_id,1,4))) || '-' ||
+    lower(hex(substr(element_id,5,2))) || '-' ||
+    lower(hex(substr(element_id,7,2))) || '-' ||
+    lower(hex(substr(element_id,9,2))) || '-' ||
+    lower(hex(substr(element_id,11,6)))
+WHERE typeof(element_id) = 'blob';
+
+UPDATE card_reviews SET card_id =
+    lower(hex(substr(card_id,1,4))) || '-' ||
+    lower(hex(substr(card_id,5,2))) || '-' ||
+    lower(hex(substr(card_id,7,2))) || '-' ||
+    lower(hex(substr(card_id,9,2))) || '-' ||
+    lower(hex(substr(card_id,11,6)))
+WHERE typeof(card_id) = 'blob';
+
+UPDATE learning_asset_reviews SET element_id =
+    lower(hex(substr(element_id,1,4))) || '-' ||
+    lower(hex(substr(element_id,5,2))) || '-' ||
+    lower(hex(substr(element_id,7,2))) || '-' ||
+    lower(hex(substr(element_id,9,2))) || '-' ||
+    lower(hex(substr(element_id,11,6)))
+WHERE typeof(element_id) = 'blob';
+
+UPDATE card_review_logs SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE card_review_logs SET card_id =
+    lower(hex(substr(card_id,1,4))) || '-' ||
+    lower(hex(substr(card_id,5,2))) || '-' ||
+    lower(hex(substr(card_id,7,2))) || '-' ||
+    lower(hex(substr(card_id,9,2))) || '-' ||
+    lower(hex(substr(card_id,11,6)))
+WHERE typeof(card_id) = 'blob';
+
+UPDATE learning_asset_review_logs SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE learning_asset_review_logs SET element_id =
+    lower(hex(substr(element_id,1,4))) || '-' ||
+    lower(hex(substr(element_id,5,2))) || '-' ||
+    lower(hex(substr(element_id,7,2))) || '-' ||
+    lower(hex(substr(element_id,9,2))) || '-' ||
+    lower(hex(substr(element_id,11,6)))
+WHERE typeof(element_id) = 'blob';
+
+UPDATE ai_chats SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE ai_messages SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE ai_messages SET ai_chat_id =
+    lower(hex(substr(ai_chat_id,1,4))) || '-' ||
+    lower(hex(substr(ai_chat_id,5,2))) || '-' ||
+    lower(hex(substr(ai_chat_id,7,2))) || '-' ||
+    lower(hex(substr(ai_chat_id,9,2))) || '-' ||
+    lower(hex(substr(ai_chat_id,11,6)))
+WHERE typeof(ai_chat_id) = 'blob';
+
+UPDATE ai_message_context_snippets SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE ai_message_context_snippets SET ai_message_id =
+    lower(hex(substr(ai_message_id,1,4))) || '-' ||
+    lower(hex(substr(ai_message_id,5,2))) || '-' ||
+    lower(hex(substr(ai_message_id,7,2))) || '-' ||
+    lower(hex(substr(ai_message_id,9,2))) || '-' ||
+    lower(hex(substr(ai_message_id,11,6)))
+WHERE typeof(ai_message_id) = 'blob';
+
+UPDATE saved_searches SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE saved_search_filters SET id =
+    lower(hex(substr(id,1,4))) || '-' ||
+    lower(hex(substr(id,5,2))) || '-' ||
+    lower(hex(substr(id,7,2))) || '-' ||
+    lower(hex(substr(id,9,2))) || '-' ||
+    lower(hex(substr(id,11,6)))
+WHERE typeof(id) = 'blob';
+
+UPDATE saved_search_filters SET saved_search_id =
+    lower(hex(substr(saved_search_id,1,4))) || '-' ||
+    lower(hex(substr(saved_search_id,5,2))) || '-' ||
+    lower(hex(substr(saved_search_id,7,2))) || '-' ||
+    lower(hex(substr(saved_search_id,9,2))) || '-' ||
+    lower(hex(substr(saved_search_id,11,6)))
+WHERE typeof(saved_search_id) = 'blob';

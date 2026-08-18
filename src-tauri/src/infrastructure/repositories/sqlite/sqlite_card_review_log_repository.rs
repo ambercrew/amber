@@ -24,8 +24,8 @@ impl CardReviewLogRepository for SqliteCardReviewLogRepository {
         sqlx::query!(
             r#"INSERT INTO card_review_logs (id, card_id, reviewed_at, rating, duration_ms)
             VALUES ($1, $2, datetime($3), $4, $5)"#,
-            log.id,
-            log.card_id,
+            log.id.hyphenated(),
+            log.card_id.map(|id| id.hyphenated()),
             log.reviewed_at,
             rating,
             log.duration_ms,

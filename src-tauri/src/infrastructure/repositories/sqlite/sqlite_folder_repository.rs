@@ -24,7 +24,7 @@ impl FolderRepository for SqliteFolderRepository {
     async fn create(&self, folder: Folder) -> Result<(), RepositoryError> {
         self.meta_repository.create_meta(&folder.meta).await?;
 
-        let uuid = folder.meta.element_id.id();
+        let uuid = folder.meta.element_id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!("INSERT INTO folders (id) VALUES ($1)", uuid)
@@ -86,7 +86,7 @@ impl FolderRepository for SqliteFolderRepository {
             FROM folders f
             INNER JOIN meta m ON f.id = m.element_id
             WHERE f.id = $1"#,
-            id
+            id.hyphenated()
         )
         .fetch_one(&mut *tx)
         .await?;
