@@ -9,6 +9,7 @@ use crate::{
             system_fonts_provider::SystemFontsProvider,
         },
     },
+    sync::bootstrap::register_sync_tables,
 };
 use injector::injector::Injector;
 use tauri::State;
@@ -36,6 +37,12 @@ pub async fn update_settings(
         .await
         .update_settings(new_settings)
         .await?;
+
+    // A base directory or profile change switches the active database (see
+    // `DefaultSettingsUpdater::update_settings`), so that database's tables
+    // need registering for change tracking again — sync registration
+    // doesn't carry over from the previous database.
+    register_sync_tables(&injector).await?;
 
     Ok(())
 }

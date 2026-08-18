@@ -41,10 +41,16 @@ pub fn validate_cell_shape(
 /// HLC race (i.e. `incoming.hlc > existing_hlc`, enforced by the caller's
 /// clock-guarded upsert). `tombstone_hlc` is the row's current `__deleted`
 /// cell HLC, if any — independent of which column this particular cell is.
-/// A delete always wins over a column/row update regardless of HLC order.
+/// A delete wins over a column/row update only if the delete happened after
+/// it (`tombstone_hlc > incoming_hlc`); an update that's newer than the
+/// tombstone is a legitimate resurrection — e.g. re-adding a tag that was
+/// previously removed reuses the same natural `(element_id, tag_id)` row id,
+/// so the row's tombstone in `sync_cells` never goes away on its own the way
+/// it would for a table keyed by a fresh synthetic id per row.
 pub fn decide(
     col: &str,
     value: Option<&[u8]>,
+    incoming_hlc: &Hlc,
     tombstone_hlc: Option<&Hlc>,
     granularity: Granularity,
 ) -> Result<MergeAction, SyncError> {
@@ -52,11 +58,9 @@ pub fn decide(
         return Ok(MergeAction::DeleteRow);
     }
 
-    if tombstone_hlc.is_some() {
-        // Delete always wins over a column/row update, regardless of HLC
-        // order: once a row is deleted, it stays deleted until a `__deleted`
-        // cell itself loses the HLC race (see `apply_remote_inner`'s `won`
-        // check) or is superseded by a newer tombstone.
+    if let Some(tombstone_hlc) = tombstone_hlc
+        && tombstone_hlc > incoming_hlc
+    {
         return Ok(MergeAction::Discard);
     }
     match granularity {
@@ -92,9 +96,18 @@ mod tests {
     fn decide_no_tombstone_column_mode_returns_set_column() {
         // Arrange
 
+        let incoming = hlc(2000, 0);
+
         // Act
 
-        let actual = decide("title", Some(b"hello"), None, Granularity::Column).unwrap();
+        let actual = decide(
+            "title",
+            Some(b"hello"),
+            &incoming,
+            None,
+            Granularity::Column,
+        )
+        .unwrap();
 
         // Assert
 
@@ -108,16 +121,18 @@ mod tests {
     }
 
     #[test]
-    fn decide_tombstone_lower_than_update_still_discards() {
+    fn decide_tombstone_before_update_resurrects_row() {
         // Arrange
 
         let tombstone = hlc(1000, 0);
+        let incoming = hlc(2000, 0);
 
         // Act
 
         let actual = decide(
             "title",
             Some(b"hello"),
+            &incoming,
             Some(&tombstone),
             Granularity::Column,
         )
@@ -125,20 +140,28 @@ mod tests {
 
         // Assert
 
-        assert_eq!(MergeAction::Discard, actual);
+        assert_eq!(
+            MergeAction::SetColumn {
+                col: "title".to_string(),
+                value: Some(b"hello".to_vec())
+            },
+            actual
+        );
     }
 
     #[test]
-    fn decide_tombstone_higher_than_update_discards() {
+    fn decide_tombstone_after_update_discards() {
         // Arrange
 
         let tombstone = hlc(3000, 0);
+        let incoming = hlc(2000, 0);
 
         // Act
 
         let actual = decide(
             "title",
             Some(b"hello"),
+            &incoming,
             Some(&tombstone),
             Granularity::Column,
         )
@@ -150,15 +173,23 @@ mod tests {
     }
 
     #[test]
-    fn decide_tombstone_present_row_mode_delete_wins_over_update() {
+    fn decide_tombstone_after_update_row_mode_delete_wins_over_update() {
         // Arrange
 
         let tombstone = hlc(1000, 0);
+        let incoming = hlc(500, 0);
         let payload = br#"{"id":"1"}"#;
 
         // Act
 
-        let actual = decide(ROW_COL, Some(payload), Some(&tombstone), Granularity::Row).unwrap();
+        let actual = decide(
+            ROW_COL,
+            Some(payload),
+            &incoming,
+            Some(&tombstone),
+            Granularity::Row,
+        )
+        .unwrap();
 
         // Assert
 
@@ -169,9 +200,11 @@ mod tests {
     fn decide_deleted_col_returns_delete_row_regardless_of_tombstone() {
         // Arrange
 
+        let incoming = hlc(1000, 0);
+
         // Act
 
-        let actual = decide(DELETED_COL, None, None, Granularity::Column).unwrap();
+        let actual = decide(DELETED_COL, None, &incoming, None, Granularity::Column).unwrap();
 
         // Assert
 
@@ -182,11 +215,12 @@ mod tests {
     fn decide_row_mode_returns_upsert_row() {
         // Arrange
 
+        let incoming = hlc(1000, 0);
         let payload = br#"{"id":"1"}"#;
 
         // Act
 
-        let actual = decide(ROW_COL, Some(payload), None, Granularity::Row).unwrap();
+        let actual = decide(ROW_COL, Some(payload), &incoming, None, Granularity::Row).unwrap();
 
         // Assert
 

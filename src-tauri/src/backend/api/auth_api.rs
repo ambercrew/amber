@@ -9,6 +9,7 @@ use crate::{
     },
     common::api_error::ApiError,
     infrastructure::extensions::unit_of_work::UnitOfWorkExt,
+    sync::bootstrap::register_sync_tables,
 };
 use injector::injector::Injector;
 use tauri::State;
@@ -26,6 +27,14 @@ pub async fn sign_in(
         .sign_in(username, password)
         .await?;
     scope.save_changes().await?;
+
+    // TODO: best place?? it is alos used in settings
+    // `sign_in` switches the active database to the signed-in user's
+    // profile (via `SettingsUpdater::update_settings`), so the tables in
+    // that database need registering for change tracking again — sync
+    // registration doesn't carry over from the previous database.
+    register_sync_tables(&injector).await?;
+
     Ok(dto)
 }
 
@@ -41,6 +50,12 @@ pub async fn sign_up(
         .sign_up(request)
         .await?;
     scope.save_changes().await?;
+
+    // `sign_up` moves the database to the new user's profile location (via
+    // `SettingsUpdater::set_profile_for_new_user`), so that database's
+    // tables need registering for change tracking again.
+    register_sync_tables(&injector).await?;
+
     Ok(dto)
 }
 
@@ -53,6 +68,12 @@ pub async fn sign_out(injector: State<'_, Arc<Injector>>) -> Result<(), ApiError
         .sign_out()
         .await?;
     scope.save_changes().await?;
+
+    // `sign_out` switches the active database back to the default profile
+    // (via `SettingsUpdater::update_settings`), so that database's tables
+    // need registering for change tracking again.
+    register_sync_tables(&injector).await?;
+
     Ok(())
 }
 

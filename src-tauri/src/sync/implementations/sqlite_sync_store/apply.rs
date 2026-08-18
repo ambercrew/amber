@@ -159,6 +159,7 @@ async fn apply_remote_inner(
         let action = merge::decide(
             &cell.col,
             cell.value.as_deref(),
+            &incoming_hlc,
             tombstone_hlc.as_ref(),
             granularity,
         )?;
@@ -351,15 +352,22 @@ async fn get_or_load_columns(
     Ok(columns)
 }
 
-/// Writes one row via `INSERT ... ON CONFLICT DO UPDATE`, given its known
-/// non-primary-key column values as raw bytes. Shared by both granularities:
-/// column-mode (`apply_row_upsert_columns`, values already raw bytes) and
-/// row-mode (`apply_row_upsert`, values converted from a JSON payload). Each
-/// value is `CAST` back to its destination column's affinity — see the
-/// comment on `column_affinity` — since both callers hand it opaque bytes
-/// rather than typed values. `values` may be empty (a payload that only
-/// carries primary key fields), in which case the insert is a no-op on
-/// conflict.
+/// Writes one row, given its known non-primary-key column values as raw
+/// bytes. Shared by both granularities: column-mode (`apply_row_upsert_columns`,
+/// values already raw bytes) and row-mode (`apply_row_upsert`, values
+/// converted from a JSON payload). Each value is `CAST` back to its
+/// destination column's affinity — see the comment on `column_affinity` —
+/// since both callers hand it opaque bytes rather than typed values.
+///
+/// Tries an `UPDATE` on the known columns first, falling back to `INSERT`
+/// only if no row matched — rather than a single `INSERT ... ON CONFLICT DO
+/// UPDATE`, which SQLite evaluates as a candidate insert *before* resolving
+/// the conflict: any `NOT NULL` column absent from `values` (column-mode
+/// only sends the columns that actually changed) would fail that candidate
+/// insert even though the existing row already has it set, since the
+/// violation isn't on the conflict target itself and so never falls through
+/// to `DO UPDATE`. `values` may be empty (a payload that only carries
+/// primary key fields), in which case this is a no-op for an existing row.
 async fn upsert_row(
     tx: &mut SqliteConnection,
     table: &str,
@@ -371,55 +379,108 @@ async fn upsert_row(
     let mut cols: Vec<String> = values.keys().cloned().collect();
     cols.sort();
 
-    let mut col_exprs = Vec::with_capacity(cols.len());
-    let mut update_clause = Vec::with_capacity(cols.len());
-    let mut idx = pk_values.len() + 1;
-    for col in &cols {
+    // `?{idx} AS <affinity>` for a given column, or the bare placeholder for
+    // a `BLOB`-affinity one (no conversion needed).
+    let cast_expr = |col: &str, idx: usize| -> Result<String, SyncError> {
         let column_info =
             columns
                 .iter()
-                .find(|c| &c.name == col)
+                .find(|c| c.name == col)
                 .ok_or_else(|| SyncError::UnknownColumn {
                     table: table.to_string(),
-                    col: col.clone(),
+                    col: col.to_string(),
                 })?;
         let affinity = column_affinity(&column_info.col_type);
-        let quoted = quote_ident(col);
-        col_exprs.push(if affinity == "BLOB" {
+        Ok(if affinity == "BLOB" {
             format!("?{idx}")
         } else {
             format!("CAST(?{idx} AS {affinity})")
-        });
-        update_clause.push(format!("{quoted} = excluded.{quoted}"));
-        idx += 1;
-    }
+        })
+    };
 
     let pk_idents: Vec<String> = pk_columns.iter().map(|c| quote_ident(&c.name)).collect();
+
+    if !cols.is_empty() {
+        let mut set_clauses = Vec::with_capacity(cols.len());
+        for (i, col) in cols.iter().enumerate() {
+            set_clauses.push(format!("{} = {}", quote_ident(col), cast_expr(col, i + 1)?));
+        }
+        let pk_predicate: String = pk_idents
+            .iter()
+            .enumerate()
+            .map(|(i, ident)| format!("{ident} = ?{}", cols.len() + i + 1))
+            .collect::<Vec<_>>()
+            .join(" AND ");
+
+        let update_sql = format!(
+            "UPDATE {} SET {} WHERE {pk_predicate}",
+            quote_ident(table),
+            set_clauses.join(","),
+        );
+
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(update_sql));
+        for col in &cols {
+            query = query.bind(values.get(col).cloned().flatten());
+        }
+        for value in pk_values {
+            query = query.bind(value);
+        }
+
+        if query.execute(&mut *tx).await?.rows_affected() > 0 {
+            return Ok(());
+        }
+    } else {
+        let pk_predicate: String = pk_idents
+            .iter()
+            .enumerate()
+            .map(|(i, ident)| format!("{ident} = ?{}", i + 1))
+            .collect::<Vec<_>>()
+            .join(" AND ");
+        let exists_sql = format!(
+            "SELECT EXISTS(SELECT 1 FROM {} WHERE {pk_predicate})",
+            quote_ident(table)
+        );
+        let mut query = sqlx::query_scalar(sqlx::AssertSqlSafe(exists_sql));
+        for value in pk_values {
+            query = query.bind(value);
+        }
+        if query.fetch_one(&mut *tx).await? {
+            return Ok(());
+        }
+    }
+
+    // No existing row matched (the `UPDATE`/existence check above proved
+    // it), so this is a genuinely new row: insert it with whatever columns
+    // are known. A `NOT NULL` column with no default that's still missing
+    // at this point correctly surfaces as a constraint error (see the
+    // callers' docs on buffering new rows until complete).
     let pk_placeholders: Vec<String> = (1..=pk_values.len()).map(|i| format!("?{i}")).collect();
     let col_idents: Vec<String> = cols.iter().map(|c| quote_ident(c)).collect();
+    let col_exprs: Vec<String> = cols
+        .iter()
+        .enumerate()
+        .map(|(i, col)| cast_expr(col, pk_values.len() + i + 1))
+        .collect::<Result<_, _>>()?;
 
-    let sql = if col_exprs.is_empty() {
+    let insert_sql = if cols.is_empty() {
         format!(
-            "INSERT INTO {}({}) VALUES ({}) ON CONFLICT({}) DO NOTHING",
+            "INSERT INTO {}({}) VALUES ({})",
             quote_ident(table),
             pk_idents.join(","),
-            pk_placeholders.join(","),
-            pk_idents.join(",")
+            pk_placeholders.join(",")
         )
     } else {
         format!(
-            "INSERT INTO {}({},{}) VALUES ({},{}) ON CONFLICT({}) DO UPDATE SET {}",
+            "INSERT INTO {}({},{}) VALUES ({},{})",
             quote_ident(table),
             pk_idents.join(","),
             col_idents.join(","),
             pk_placeholders.join(","),
-            col_exprs.join(","),
-            pk_idents.join(","),
-            update_clause.join(",")
+            col_exprs.join(",")
         )
     };
 
-    let mut query = sqlx::query(sqlx::AssertSqlSafe(sql));
+    let mut query = sqlx::query(sqlx::AssertSqlSafe(insert_sql));
     for value in pk_values {
         query = query.bind(value);
     }

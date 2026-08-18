@@ -1028,8 +1028,15 @@ async fn apply_remote_stale_update_after_tombstone_is_discarded() {
 }
 
 #[tokio::test]
-async fn apply_remote_higher_hlc_update_after_delete_stays_deleted() {
+async fn apply_remote_higher_hlc_update_after_delete_resurrects_row() {
     // Arrange
+
+    // A row's tombstone in `sync_cells` never goes away on its own once
+    // written (nothing deletes or supersedes it just because the row comes
+    // back), so a later update must be judged against the tombstone's own
+    // HLC rather than being blocked outright — otherwise a row keyed by a
+    // reusable natural id (e.g. re-adding a tag that was removed) could
+    // never come back once deleted, even on a fresh update long after.
 
     let injector = create_test_injector().await;
     let scope = injector.start_scope();
@@ -1073,7 +1080,10 @@ async fn apply_remote_higher_hlc_update_after_delete_stays_deleted() {
 
     // Assert
 
-    assert_eq!(None, get_note_title(&tx, "1").await);
+    assert_eq!(
+        Some("Resurrected".to_string()),
+        get_note_title(&tx, "1").await
+    );
 }
 
 #[tokio::test]
@@ -1421,6 +1431,107 @@ async fn apply_remote_composite_primary_key_updates_matching_row() {
     );
 }
 
+#[tokio::test]
+async fn apply_remote_row_mode_recreated_row_after_tombstone_reuses_same_composite_row_id() {
+    // Arrange
+
+    // Mirrors `element_tags`: a row-mode table whose row id is a natural
+    // composite key (e.g. `(element_id, tag_id)`), not a synthetic id per
+    // row, so removing then re-adding the same association reuses the exact
+    // same row id. The row's `__deleted` cell in `sync_cells` never gets
+    // cleared just because the row comes back, so a later resurrection must
+    // still be judged against the tombstone's own HLC (see `merge::decide`)
+    // instead of being discarded outright.
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_composite_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("composite_notes", Granularity::Row, &[])
+        .await
+        .unwrap();
+
+    let first_seen = far_future_ms();
+    let row_id = row_id_json(&["ws1", "1"]);
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![CellChange {
+                    tbl: "composite_notes".to_string(),
+                    row_id: row_id.clone(),
+                    col: merge::ROW_COL.to_string(),
+                    value: Some(
+                        serde_json::to_vec(
+                            &serde_json::json!({"workspace_id":"ws1","id":"1","title":"First"}),
+                        )
+                        .unwrap(),
+                    ),
+                    hlc: Hlc::new(first_seen, 0, DeviceId::from_name("remote-device")).format(),
+                    device_id: "remote-device".to_string(),
+                }],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![CellChange {
+                    tbl: "composite_notes".to_string(),
+                    row_id: row_id.clone(),
+                    col: merge::DELETED_COL.to_string(),
+                    value: None,
+                    hlc: Hlc::new(first_seen + 1, 0, DeviceId::from_name("remote-device")).format(),
+                    device_id: "remote-device".to_string(),
+                }],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+    assert_eq!(None, get_composite_note_title(&tx, "ws1", "1").await);
+
+    // Act
+
+    // A much later remote cell recreates the same (workspace_id, id) pair —
+    // e.g. re-adding the same tag to the same element after removing it.
+    let resurrection_ms = first_seen + 100_000;
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![CellChange {
+                    tbl: "composite_notes".to_string(),
+                    row_id: row_id.clone(),
+                    col: merge::ROW_COL.to_string(),
+                    value: Some(
+                        serde_json::to_vec(
+                            &serde_json::json!({"workspace_id":"ws1","id":"1","title":"Recreated"}),
+                        )
+                        .unwrap(),
+                    ),
+                    hlc: Hlc::new(resurrection_ms, 0, DeviceId::from_name("remote-device"))
+                        .format(),
+                    device_id: "remote-device".to_string(),
+                }],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(
+        Some("Recreated".to_string()),
+        get_composite_note_title(&tx, "ws1", "1").await
+    );
+}
+
 async fn create_int_component_table(tx: &DbTransaction) {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
@@ -1608,6 +1719,64 @@ async fn apply_remote_new_row_not_null_column_arrives_with_other_cells_in_same_b
     assert!(actual.is_ok(), "{actual:?}");
     assert_eq!(
         Some(("Hi".to_string(), Some("Body".to_string()))),
+        get_required_note(&tx, "1").await
+    );
+}
+
+#[tokio::test]
+async fn apply_remote_column_update_on_existing_row_leaves_untouched_not_null_column_intact() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_required_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("required_notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![
+                    remote_cell_for("required_notes", "1", "title", Some(b"Hi".to_vec()), ms, 0),
+                    remote_cell_for("required_notes", "1", "body", Some(b"Body".to_vec()), ms, 1),
+                ],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    // Only `body` changes here; `title` (NOT NULL) is not part of this cell
+    // batch at all, matching a real column-mode update that touches a
+    // single column on an already-materialized row.
+    let actual = engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell_for(
+                    "required_notes",
+                    "1",
+                    "body",
+                    Some(b"New body".to_vec()),
+                    ms,
+                    2,
+                )],
+            },
+            true,
+        )
+        .await;
+
+    // Assert
+
+    assert!(actual.is_ok(), "{actual:?}");
+    assert_eq!(
+        Some(("Hi".to_string(), Some("New body".to_string()))),
         get_required_note(&tx, "1").await
     );
 }
