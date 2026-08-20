@@ -94,10 +94,16 @@ The `EventManager` trait (implemented by `TauriEventManager`, `common/services/i
 - **secrets** — `SecretsRepository` trait for reading/writing OS-level secrets; keyring implementation lives in `infrastructure/repositories/keyring/`
 - **settings** — User preferences
 - **local_configurations** — Per-machine config not synced to the cloud (e.g. database location)
-- **sync** — Cloud sync via protobuf messages
+- **sync** — Cloud sync via protobuf messages (see Sync below)
 - **backup** — Background auto-backup service
 - **app_info** — Small app-level queries (e.g. store-build detection)
 - **database** — SQLite connection management
+
+### Sync
+
+The `SyncEngine` (`sync/engine.rs`, implemented by `sync/implementations/default_sync_engine.rs`) pushes this device's pending local changes to the backend, then pulls and applies whatever changed remotely, all behind the single `sync` Tauri command (`sync/sync_api.rs`). The unit of sync is a **cell** (one column value in one row) — `CellChange { tbl, row_id, col, value, hlc, device_id }`, a protobuf message compiled via `prost_build`. SQLite triggers auto-stage local row/column changes into a `sync_cells` table; conflicts are resolved last-writer-wins using **Hybrid Logical Clocks** (`sync/hlc/`). A `SyncLock` serializes overlapping sync cycles so pull/push ordering stays causal across devices. On the frontend, `src/stores/sync/syncActions.ts` dispatches the sync thunk and reports success/failure via a Mantine notification (see error-handling rule below).
+
+**BLOB fields are not compatible with sync.** A synced table's primary key is serialized as JSON text for the cell's `row_id`, so any primary-key column with SQLite BLOB affinity is rejected at registration (`SyncError::InvalidPrimaryKey`, see `sync/implementations/sqlite_sync_store/column_info.rs`). Keep synced tables' primary keys as TEXT-affinity (e.g. hyphenated UUID strings), not raw BLOBs.
 
 ### Naming Conventions
 
@@ -105,6 +111,7 @@ The `EventManager` trait (implemented by `TauriEventManager`, `common/services/i
 - Entities: plain struct names
 - Repository traits live in `repositories/`, implementations in `repositories/infrastructure/sqlite/`
 - Error types use `thiserror`; all commands return `Result<T, ApiError>`
+- IDs must be written to repositories as **hyphenated** UUID strings (`id().hyphenated()`), never `.to_string()`/`.simple()` — this also keeps them TEXT-affinity so they stay eligible as sync primary keys (see BLOB note under Sync above).
 
 ### Events
 
@@ -147,7 +154,7 @@ Routes are defined in `src/router.tsx`. For type-safe navigation and param readi
 3. Backend handler runs and returns `Result<ResponseDto, ApiError>`
 4. Errors surface via `ApiError`; success updates local or Redux state
 
-The `useApi` hook standardizes async calls.
+The `useApi` hook standardizes async calls, exposing a `callApi` function. **Always route API calls through one `callApi` call** (from `useApi`/`useApiWithCustomError`) rather than calling `invoke()`/API wrappers directly or scattering multiple `callApi` calls for one logical action. Always display the resulting error somewhere in the UI near the action that triggered it (e.g. inline under a form, as done in `AuthModal`); if there's no sensible place to show it inline, fall back to a Mantine notification (`notifications.show(...)`, as `src/stores/sync/syncActions.ts` does for the sync thunk, which runs outside any component).
 
 ### Backend → Frontend Request Bridge
 
