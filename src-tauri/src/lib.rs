@@ -155,6 +155,7 @@ pub async fn run() {
             is_signed_in,
             resend_email_verification_code,
             sign_in,
+            sign_in_with_google,
             sign_out,
             sign_up,
             update_password,

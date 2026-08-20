@@ -5,7 +5,7 @@ use crate::{
         backend_dto::{UpdatePasswordDto, UserInformationDto},
         clients::amber_backend_client::AmberBackendClient,
         dto::sign_up_request_dto::SignUpRequestDto,
-        services::authenticator::Authenticator,
+        services::{authenticator::Authenticator, google_oauth_flow},
     },
     common::api_error::ApiError,
     infrastructure::extensions::unit_of_work::UnitOfWorkExt,
@@ -24,6 +24,24 @@ pub async fn sign_in(
         .resolve::<dyn Authenticator>()
         .await
         .sign_in(username, password)
+        .await?;
+    scope.save_changes().await?;
+
+    Ok(dto)
+}
+
+#[tauri::command]
+pub async fn sign_in_with_google<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    injector: State<'_, Arc<Injector>>,
+) -> Result<UserInformationDto, ApiError> {
+    let id_token = google_oauth_flow::run(&app_handle).await?;
+
+    let scope = injector.start_scope();
+    let dto = scope
+        .resolve::<dyn Authenticator>()
+        .await
+        .sign_in_with_google(id_token)
         .await?;
     scope.save_changes().await?;
 

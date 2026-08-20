@@ -61,6 +61,7 @@ tokio-rusqlite = "0.6.0"
 fontdb = "0.23.0"
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 quick-xml = "0.41.0"
+sha2 = "0.10.9"
 
 # No default runtime feature on purpose: every platform states its runtime
 # explicitly via its own tauri.<platform>.conf.json ("build.features"),

@@ -2,8 +2,8 @@ use std::{sync::Arc, sync::Mutex, time::Duration};
 
 use crate::backend::{
     backend_dto::{
-        ProblemDetails, SignInDto, SignInResponseDto, SignUpDto, UpdatePasswordDto,
-        UpdateUserInformationDto, UserInformationDto, VerifyEmailDto,
+        GoogleSignInDto, ProblemDetails, SignInDto, SignInResponseDto, SignUpDto,
+        UpdatePasswordDto, UpdateUserInformationDto, UserInformationDto, VerifyEmailDto,
     },
     clients::amber_backend_client::{AmberBackendClient, AmberBackendClientError},
     dto::sign_up_request_dto::SignUpRequestDto,
@@ -145,6 +145,28 @@ impl AmberBackendClient for AmberBackendHttpClient {
         }
         let response = status?;
 
+        self.handle_sign_in_response(response).await
+    }
+
+    async fn sign_in_with_google(
+        &self,
+        id_token: String,
+    ) -> Result<UserInformationDto, AmberBackendClientError> {
+        let dto = GoogleSignInDto { id_token };
+
+        log::info!("Signing-in with Google...");
+        let response = self
+            .reqwest_client
+            .post(
+                self.backend_url
+                    .join("/api/v1/auth/google-sign-in")
+                    .unwrap(),
+            )
+            .json(&dto)
+            .send()
+            .await;
+
+        let response = ensure_success_response(response).await?;
         self.handle_sign_in_response(response).await
     }
 

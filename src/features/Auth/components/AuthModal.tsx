@@ -20,7 +20,11 @@ import {
 	selectAuthModalInitialTab,
 	selectIsAuthModalOpened,
 } from "../../../stores/app/appSelectors";
-import { signIn, signUp } from "../../../stores/user/userActions";
+import {
+	signIn,
+	signInWithGoogle,
+	signUp,
+} from "../../../stores/user/userActions";
 
 interface SignInFormValues {
 	username: string;
@@ -96,6 +100,13 @@ function SignInTab({ onSuccess }: { onSuccess: () => void }) {
 		});
 	}
 
+	async function handleGoogleSignIn() {
+		await callApi(async () => {
+			await dispatch(signInWithGoogle(navigate));
+			onSuccess();
+		});
+	}
+
 	return (
 		<form onSubmit={form.onSubmit(values => void handleSubmit(values))}>
 			<Stack gap="sm" mt="md">
@@ -126,6 +137,8 @@ function SignInTab({ onSuccess }: { onSuccess: () => void }) {
 					type="button"
 					variant="default"
 					leftSection={<GoogleLogoIcon />}
+					loading={isSendingRequest}
+					onClick={() => void handleGoogleSignIn()}
 					fullWidth>
 					Continue with Google
 				</Button>
@@ -174,6 +187,13 @@ function SignUpTab({ onSuccess }: { onSuccess: () => void }) {
 					password,
 				}),
 			);
+			onSuccess();
+		});
+	}
+
+	async function handleGoogleSignIn() {
+		await callApi(async () => {
+			await dispatch(signInWithGoogle(navigate));
 			onSuccess();
 		});
 	}
@@ -248,6 +268,8 @@ function SignUpTab({ onSuccess }: { onSuccess: () => void }) {
 					type="button"
 					variant="default"
 					leftSection={<GoogleLogoIcon />}
+					loading={isSendingRequest}
+					onClick={() => void handleGoogleSignIn()}
 					fullWidth>
 					Continue with Google
 				</Button>

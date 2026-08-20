@@ -2,6 +2,7 @@ import { NavigateFunction } from "react-router";
 import {
 	isSignedIn as isSignedInApi,
 	signIn as signInApi,
+	signInWithGoogle as signInWithGoogleApi,
 	signUp as signUpApi,
 	signOut as signOutApi,
 	verifyUserEmail as verifyUserEmailApi,
@@ -41,6 +42,13 @@ export function signIn(
 ) {
 	return async function (dispatch: AppDispatch): Promise<void> {
 		const userInformation = await signInApi(username, password);
+		await dispatch(reloadApplicationState(navigate, userInformation));
+	};
+}
+
+export function signInWithGoogle(navigate: NavigateFunction) {
+	return async function (dispatch: AppDispatch): Promise<void> {
+		const userInformation = await signInWithGoogleApi();
 		await dispatch(reloadApplicationState(navigate, userInformation));
 	};
 }

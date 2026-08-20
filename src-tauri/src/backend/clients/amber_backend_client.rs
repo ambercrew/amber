@@ -55,6 +55,11 @@ pub trait AmberBackendClient: Send + Sync {
         password: String,
     ) -> Result<UserInformationDto, AmberBackendClientError>;
 
+    async fn sign_in_with_google(
+        &self,
+        id_token: String,
+    ) -> Result<UserInformationDto, AmberBackendClientError>;
+
     async fn sign_up(
         &self,
         request: SignUpRequestDto,
