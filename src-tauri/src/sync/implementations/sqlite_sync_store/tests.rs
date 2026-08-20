@@ -363,6 +363,85 @@ async fn register_table_conflicting_granularity_returns_granularity_mismatch() {
     assert!(matches!(actual, Err(SyncError::GranularityMismatch { .. })));
 }
 
+#[tokio::test]
+async fn register_table_column_mode_backfills_rows_that_existed_before_registration() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    insert_note(&tx, "1", "Title", "Body").await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+
+    // Act
+
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+
+    // Assert
+
+    let cells = get_cells(&tx, "notes", "1").await;
+    assert_eq!(2, cells.len(), "{cells:?}");
+    assert!(cells.iter().any(|(col, _)| col == "title"));
+    assert!(cells.iter().any(|(col, _)| col == "body"));
+}
+
+#[tokio::test]
+async fn register_table_row_mode_backfills_rows_that_existed_before_registration() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    insert_note(&tx, "1", "Title", "Body").await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+
+    // Act
+
+    engine
+        .register_table("notes", Granularity::Row, &[])
+        .await
+        .unwrap();
+
+    // Assert
+
+    let cell = get_cell(&tx, "notes", "1", merge::ROW_COL).await;
+    assert!(cell.is_some());
+}
+
+#[tokio::test]
+async fn register_table_reregistration_does_not_touch_already_backfilled_cell() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    insert_note(&tx, "1", "Title", "Body").await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    let before = get_cell(&tx, "notes", "1", "title").await;
+
+    // Act
+
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+
+    // Assert
+
+    let after = get_cell(&tx, "notes", "1", "title").await;
+    assert_eq!(before, after);
+}
+
 // --- local tracking ---
 
 #[tokio::test]

@@ -4,6 +4,11 @@ use crate::sync::utils::merge::{DELETED_COL, ROW_COL};
 
 const UPSERT_CONFLICT_CLAUSE: &str = "ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id";
 const APPLYING_GUARD: &str = "WHEN NOT EXISTS (SELECT 1 FROM sync_applying)";
+/// Lets `register_table`'s initial-registration backfill (see
+/// `backfill_via_trigger` below) bypass the `au` trigger's per-column "did
+/// this actually change" filter, so a no-op self-assignment `UPDATE` still
+/// forces a full cell write for every pre-existing row.
+const BACKFILLING_BYPASS: &str = "OR EXISTS (SELECT 1 FROM sync_backfilling)";
 
 pub fn drop_trigger_sql(table: &str) -> Vec<String> {
     ["ai", "au", "ad"]
@@ -46,7 +51,7 @@ BEGIN
             format!(
                 "  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)
   SELECT '{table}', {row_id_new}, '{col}', CAST(NEW.{quoted_col} AS BLOB), hlc_now(), device_id()
-  WHERE NEW.{quoted_col} IS NOT OLD.{quoted_col}
+  WHERE NEW.{quoted_col} IS NOT OLD.{quoted_col} {BACKFILLING_BYPASS}
   {UPSERT_CONFLICT_CLAUSE};
 "
             )
@@ -107,6 +112,36 @@ BEGIN
     let ad = delete_trigger(table, &schema.pk_columns, &quoted_table);
 
     vec![ai, au, ad]
+}
+
+/// Forces `table`'s `au` trigger to fire for every row already in it, so
+/// `sync_cells` gets seeded for local data that existed before this table
+/// was registered for sync (e.g. data created in a pre-sync build, or before
+/// the user ever signed in) — those rows never went through an `AFTER
+/// INSERT` trigger, so without this they'd silently never be pushed.
+///
+/// A row-mode `au` trigger always rewrites the whole row unconditionally, so
+/// a self-assignment `UPDATE` on any one column is enough to reuse it as-is.
+/// A column-mode `au` trigger only writes columns that actually changed
+/// (`NEW.col IS NOT OLD.col`), which a self-assignment never satisfies — the
+/// `sync_backfilling` guard row bypasses that check for the duration of this
+/// statement (see `BACKFILLING_BYPASS`) so every column still gets written.
+/// Either way this reuses the trigger's own SQL rather than re-deriving the
+/// `sync_cells` row shape here.
+pub fn backfill_via_trigger(schema: &TableSchema) -> Vec<String> {
+    let quoted_table = quote_ident(&schema.name);
+    let touch_col = quote_ident(
+        schema
+            .pk_columns
+            .first()
+            .expect("every synced table has at least one primary key column"),
+    );
+
+    vec![
+        "INSERT INTO sync_backfilling(x) VALUES (1)".to_string(),
+        format!("UPDATE {quoted_table} SET {touch_col} = {touch_col}"),
+        "DELETE FROM sync_backfilling".to_string(),
+    ]
 }
 
 fn delete_trigger(table: &str, pk_columns: &[String], quoted_table: &str) -> String {
@@ -244,7 +279,7 @@ mod tests {
         );
 
         assert_eq!(
-            "CREATE TRIGGER sync_notes_au AFTER UPDATE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)\n  SELECT 'notes', json_array(NEW.\"id\"), 'title', CAST(NEW.\"title\" AS BLOB), hlc_now(), device_id()\n  WHERE NEW.\"title\" IS NOT OLD.\"title\"\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)\n  SELECT 'notes', json_array(NEW.\"id\"), 'body', CAST(NEW.\"body\" AS BLOB), hlc_now(), device_id()\n  WHERE NEW.\"body\" IS NOT OLD.\"body\"\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
+            "CREATE TRIGGER sync_notes_au AFTER UPDATE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)\n  SELECT 'notes', json_array(NEW.\"id\"), 'title', CAST(NEW.\"title\" AS BLOB), hlc_now(), device_id()\n  WHERE NEW.\"title\" IS NOT OLD.\"title\" OR EXISTS (SELECT 1 FROM sync_backfilling)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)\n  SELECT 'notes', json_array(NEW.\"id\"), 'body', CAST(NEW.\"body\" AS BLOB), hlc_now(), device_id()\n  WHERE NEW.\"body\" IS NOT OLD.\"body\" OR EXISTS (SELECT 1 FROM sync_backfilling)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
             actual[1]
         );
 

@@ -95,6 +95,17 @@ pub(crate) async fn register_table(
             .await?;
     }
 
+    // First-ever registration of this table: seed sync_cells for rows that
+    // already existed locally before triggers were in place (e.g. data
+    // created in a pre-sync build), which would otherwise never be pushed.
+    if existing.is_none() {
+        for statement in trigger_sql::backfill_via_trigger(&schema) {
+            sqlx::query(sqlx::AssertSqlSafe(statement))
+                .execute(&mut *tx)
+                .await?;
+        }
+    }
+
     sqlx::query("DELETE FROM sync_fk_policies WHERE tbl = ?1")
         .bind(table)
         .execute(&mut *tx)

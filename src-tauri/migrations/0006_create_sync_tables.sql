@@ -24,6 +24,14 @@ CREATE INDEX IF NOT EXISTS idx_sync_cells_device_hlc ON sync_cells(device_id, hl
 -- temp"). So a TEMP guard table is unreachable from inside a trigger either way.
 CREATE TABLE IF NOT EXISTS sync_applying (x);
 
+-- Lets `register_table`'s initial-registration backfill bypass the
+-- column-mode `au` trigger's per-column "did this actually change" filter
+-- (see `trigger_sql::BACKFILLING_BYPASS`/`backfill_via_trigger`), so a
+-- no-op self-assignment `UPDATE` on a pre-existing row still forces the
+-- trigger to write a cell for every column, seeding `sync_cells` for local
+-- data that existed before the table was ever registered for sync.
+CREATE TABLE IF NOT EXISTS sync_backfilling (x);
+
 -- `deleted_entities` was a manually-maintained tombstone log for offline-first
 -- sync; sync_cells' HLC-tracked tombstones (see merge::DELETED_COL) now serve
 -- that purpose, so the table, its indexes, and every trigger that fed it are
