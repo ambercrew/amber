@@ -203,7 +203,18 @@ impl AmberBackendClient for AmberBackendHttpClient {
             )
             .send()
             .await;
-        ensure_success_response(response).await?;
+        let result = ensure_success_response(response).await;
+
+        // A 401 means the server already considers this token invalid, so
+        // there is nothing left to revoke remotely — clear it locally the
+        // same as a successful sign-out instead of leaving the user stuck
+        // signed in with an error.
+        if let Err(AmberBackendClientError::Unauthorized) = result {
+            self.clear_auth_token().await?;
+            return Ok(());
+        }
+
+        result?;
         self.clear_auth_token().await?;
         Ok(())
     }
