@@ -169,10 +169,21 @@ async fn discard_unconfigured_violations(
             }
             let predicate = violation_predicate(&table, &fk.from, &fk.tbl, &fk.to);
             let sql = format!("DELETE FROM {} WHERE {predicate}", quote_ident(&table));
-            total += sqlx::query(sqlx::AssertSqlSafe(sql))
+            let rows_affected = sqlx::query(sqlx::AssertSqlSafe(sql))
                 .execute(&mut *tx)
                 .await?
                 .rows_affected();
+            if rows_affected > 0 {
+                log::warn!(
+                    "Discarded {rows_affected} row(s) from '{}' violating unconfigured foreign key {}.{} -> {}.{}",
+                    table,
+                    table,
+                    fk.from,
+                    fk.tbl,
+                    fk.to
+                );
+            }
+            total += rows_affected;
         }
     }
     Ok(total)

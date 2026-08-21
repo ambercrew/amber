@@ -117,6 +117,19 @@ impl AmberBackendHttpClient {
 
         Ok(())
     }
+
+    async fn ensure_authorized_success(
+        &self,
+        response: Result<Response, reqwest_middleware::Error>,
+    ) -> Result<Response, AmberBackendClientError> {
+        let result = ensure_success_response(response).await;
+
+        if let Err(AmberBackendClientError::Unauthorized) = &result {
+            self.clear_auth_token().await?;
+        }
+
+        result
+    }
 }
 
 #[async_trait]
@@ -238,7 +251,7 @@ impl AmberBackendClient for AmberBackendHttpClient {
             .send()
             .await;
 
-        let response = ensure_success_response(response).await?;
+        let response = self.ensure_authorized_success(response).await?;
         self.handle_sign_in_response(response).await?;
 
         Ok(())
@@ -256,7 +269,7 @@ impl AmberBackendClient for AmberBackendHttpClient {
             .send()
             .await;
 
-        ensure_success_response(response).await?;
+        self.ensure_authorized_success(response).await?;
         Ok(())
     }
 
@@ -269,7 +282,7 @@ impl AmberBackendClient for AmberBackendHttpClient {
             .send()
             .await;
 
-        let response = ensure_success_response(response).await?;
+        let response = self.ensure_authorized_success(response).await?;
         match response.json::<UserInformationDto>().await {
             Ok(result) => Ok(result),
             Err(err) => Err(AmberBackendClientError::Deserialization(Box::new(err))),
@@ -306,7 +319,7 @@ impl AmberBackendClient for AmberBackendHttpClient {
             .send()
             .await;
 
-        ensure_success_response(response).await?;
+        self.ensure_authorized_success(response).await?;
 
         Ok(())
     }
@@ -322,7 +335,7 @@ impl AmberBackendClient for AmberBackendHttpClient {
             .send()
             .await;
 
-        ensure_success_response(response).await?;
+        self.ensure_authorized_success(response).await?;
         self.clear_auth_token().await?;
 
         Ok(())
@@ -343,7 +356,7 @@ impl AmberBackendClient for AmberBackendHttpClient {
             .send()
             .await;
 
-        let response = ensure_success_response(response).await?;
+        let response = self.ensure_authorized_success(response).await?;
         self.handle_sign_in_response(response).await?;
 
         Ok(())
@@ -365,7 +378,7 @@ impl AmberBackendClient for AmberBackendHttpClient {
             .send()
             .await;
 
-        ensure_success_response(response).await?;
+        self.ensure_authorized_success(response).await?;
 
         Ok(())
     }
@@ -386,7 +399,7 @@ impl AmberBackendClient for AmberBackendHttpClient {
             .send()
             .await;
 
-        let response = ensure_success_response(response).await?;
+        let response = self.ensure_authorized_success(response).await?;
         let bytes = response
             .bytes()
             .await

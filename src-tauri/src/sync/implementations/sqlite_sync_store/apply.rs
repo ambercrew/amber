@@ -37,7 +37,15 @@ pub(super) async fn apply_remote(
 
     let result = apply_remote_page_inner(&mut *tx, &batch, is_last_page, pending).await;
 
-    clear_applying(tx).await?;
+    // Clearing the guard must always run, but its own error (if any) must
+    // never shadow a real `apply_remote_page_inner` failure — that would
+    // surface a misleading cleanup error in place of the actual cause.
+    if let Err(err) = clear_applying(tx).await {
+        if result.is_ok() {
+            return Err(err);
+        }
+        log::error!("Failed to clear sync_applying guard after apply_remote: {err:?}");
+    }
 
     result?;
 

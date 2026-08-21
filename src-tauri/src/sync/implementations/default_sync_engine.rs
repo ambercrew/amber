@@ -35,9 +35,19 @@ impl SyncEngine for DefaultSyncEngine {
 
         let result = self.sync_inner().await;
 
-        self.connection_manager
+        // Re-enabling FK enforcement must always run, but its own error
+        // (if any) must never shadow a real `sync_inner` failure — that
+        // would surface a misleading FK error in place of the actual cause.
+        if let Err(err) = self
+            .connection_manager
             .enable_foreign_key_constraint_for_current_transaction()
-            .await?;
+            .await
+        {
+            if result.is_ok() {
+                return Err(err.into());
+            }
+            log::error!("Failed to re-enable foreign key enforcement after sync: {err:?}");
+        }
 
         result
     }
@@ -56,15 +66,23 @@ impl DefaultSyncEngine {
         // Pulled before pushing so the server doesn't have to echo back the
         // changes we're about to send it in the same cycle.
         let mut since_server_seq = self.store.get_last_pulled_server_seq().await?;
+        log::info!("Resuming sync pull from server seq {since_server_seq:?}");
+
         loop {
             let pull_response = self.backend_client.pull_changes(since_server_seq).await?;
             let has_more = pull_response.has_more;
             let next_server_seq = pull_response.next_server_seq;
+            let is_last_page = !has_more;
             let remote_batch = ChangeBatch {
                 cells: pull_response.cells,
             };
-            if !remote_batch.cells.is_empty() {
-                self.store.apply_remote(remote_batch, !has_more).await?;
+            // Called even on an empty last page: FK repair (and flushing any
+            // still-pending buffered columns) only runs inside `apply_remote`
+            // when `is_last_page` is true, so skipping the call whenever the
+            // terminating page happens to carry zero cells would leave an
+            // earlier page's deferred FK violation unresolved.
+            if !remote_batch.cells.is_empty() || is_last_page {
+                self.store.apply_remote(remote_batch, is_last_page).await?;
             }
             since_server_seq = Some(next_server_seq);
 
