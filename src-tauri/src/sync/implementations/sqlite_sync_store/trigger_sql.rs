@@ -114,20 +114,16 @@ BEGIN
     vec![ai, au, ad]
 }
 
-/// Forces `table`'s `au` trigger to fire for every row already in it, so
-/// `sync_cells` gets seeded for local data that existed before this table
-/// was registered for sync (e.g. data created in a pre-sync build, or before
-/// the user ever signed in) — those rows never went through an `AFTER
-/// INSERT` trigger, so without this they'd silently never be pushed.
+/// Forces `table`'s `au` trigger to fire for every existing row, seeding
+/// `sync_cells` for rows that predate sync registration (never went through
+/// an `AFTER INSERT` trigger, so they'd otherwise never be pushed).
 ///
-/// A row-mode `au` trigger always rewrites the whole row unconditionally, so
-/// a self-assignment `UPDATE` on any one column is enough to reuse it as-is.
-/// A column-mode `au` trigger only writes columns that actually changed
-/// (`NEW.col IS NOT OLD.col`), which a self-assignment never satisfies — the
-/// `sync_backfilling` guard row bypasses that check for the duration of this
-/// statement (see `BACKFILLING_BYPASS`) so every column still gets written.
-/// Either way this reuses the trigger's own SQL rather than re-deriving the
-/// `sync_cells` row shape here.
+/// Does this via a no-op self-assignment `UPDATE`, reusing the trigger's own
+/// SQL rather than re-deriving the `sync_cells` row shape here. Row-mode
+/// triggers rewrite unconditionally so this just works; column-mode triggers
+/// only write columns where `NEW.col IS NOT OLD.col`, which a self-assignment
+/// never satisfies, so the `sync_backfilling` guard row bypasses that check
+/// for the duration of this statement (see `BACKFILLING_BYPASS`).
 pub fn backfill_via_trigger(schema: &TableSchema) -> Vec<String> {
     let quoted_table = quote_ident(&schema.name);
     let touch_col = quote_ident(
@@ -158,10 +154,9 @@ END;",
 }
 
 /// Builds the `row_id` SQL expression for a trigger body: a JSON array of the
-/// primary key column values (in key order), taken from `prefix` (`"NEW"` or
-/// `"OLD"`). A JSON array — rather than e.g. delimiter-joining the values —
-/// keeps composite keys unambiguous no matter what characters the individual
-/// values contain, and needs no special case for single-column keys.
+/// primary key column values (in key order), from `prefix` (`"NEW"`/`"OLD"`).
+/// JSON array (rather than delimiter-joining) keeps composite keys
+/// unambiguous regardless of the values' contents.
 fn row_id_expr(prefix: &str, pk_columns: &[String]) -> String {
     let args: String = pk_columns
         .iter()
@@ -171,11 +166,9 @@ fn row_id_expr(prefix: &str, pk_columns: &[String]) -> String {
     format!("json_array({args})")
 }
 
-/// Decodes a `row_id` (see `row_id_expr` above) into its primary key values,
-/// in the same key-column order it was encoded with. Each value is carried
-/// through as text — a JSON string as-is, a JSON number via its canonical
-/// text form — and later bound as a query parameter, where SQLite's own
-/// affinity conversion (see `column_affinity`) restores it to the
+/// Decodes a `row_id` (see `row_id_expr`) into its primary key values, in
+/// encoding order. Values are carried through as text and later bound as
+/// query parameters, where SQLite's affinity conversion restores each to its
 /// destination column's actual storage class.
 pub(super) fn parse_row_id(
     table: &str,

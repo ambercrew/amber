@@ -13,8 +13,8 @@ pub enum MergeAction {
     DeleteRow,
 }
 
-/// Column mode forbids the row-mode-only `__row` marker; row mode only ever
-/// carries `__row` or the shared `__deleted` tombstone marker.
+/// Column mode forbids the `__row` marker; row mode only allows `__row` or
+/// the shared `__deleted` tombstone.
 pub fn validate_cell_shape(
     table: &str,
     col: &str,
@@ -37,16 +37,14 @@ pub fn validate_cell_shape(
     }
 }
 
-/// Decides what to do with an incoming cell that has already won the per-cell
-/// HLC race (i.e. `incoming.hlc > existing_hlc`, enforced by the caller's
-/// clock-guarded upsert). `tombstone_hlc` is the row's current `__deleted`
-/// cell HLC, if any — independent of which column this particular cell is.
-/// A delete wins over a column/row update only if the delete happened after
-/// it (`tombstone_hlc > incoming_hlc`); an update that's newer than the
-/// tombstone is a legitimate resurrection — e.g. re-adding a tag that was
-/// previously removed reuses the same natural `(element_id, tag_id)` row id,
-/// so the row's tombstone in `sync_cells` never goes away on its own the way
-/// it would for a table keyed by a fresh synthetic id per row.
+/// Decides what to do with an incoming cell that already won the per-cell HLC
+/// race (`incoming.hlc > existing_hlc`, enforced by the caller's clock-guarded
+/// upsert). `tombstone_hlc` is the row's current `__deleted` HLC, if any. A
+/// delete only wins over an update if it happened after it — an update newer
+/// than the tombstone is a legitimate resurrection (e.g. re-adding a
+/// previously-removed tag reuses the same natural `(element_id, tag_id)` row
+/// id, so its tombstone never clears on its own like it would for a
+/// synthetic-id row).
 pub fn decide(
     col: &str,
     value: Option<&[u8]>,

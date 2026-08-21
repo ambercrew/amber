@@ -25,19 +25,16 @@ pub struct DefaultSyncEngine {
 #[async_trait]
 impl SyncEngine for DefaultSyncEngine {
     async fn sync(&self) -> Result<(), SyncError> {
-        // Serializes whole sync cycles: two overlapping syncs (e.g. a manual
-        // sync racing an auto-sync-on-close) would otherwise each run their
-        // own independent pull/push cycle and could push out of causal order
-        // (e.g. a child element before its parent folder), tripping FK
-        // repair into deleting the "orphaned" child and propagating that
-        // delete to other devices.
+        // Serializes overlapping sync cycles (e.g. manual sync racing
+        // auto-sync-on-close): otherwise pushes could land out of causal
+        // order (child before parent), tripping FK repair into deleting the
+        // "orphaned" child and propagating that delete to other devices.
         let _guard = self.sync_lock.0.lock().await;
 
         let result = self.sync_inner().await;
 
-        // Re-enabling FK enforcement must always run, but its own error
-        // (if any) must never shadow a real `sync_inner` failure — that
-        // would surface a misleading FK error in place of the actual cause.
+        // Must always run, but its own error must never shadow a real
+        // `sync_inner` failure with a misleading FK error.
         if let Err(err) = self
             .connection_manager
             .enable_foreign_key_constraint_for_current_transaction()
@@ -55,16 +52,13 @@ impl SyncEngine for DefaultSyncEngine {
 
 impl DefaultSyncEngine {
     async fn sync_inner(&self) -> Result<(), SyncError> {
-        // Cells can be applied out of order relative to their foreign key
-        // references (e.g. a child row's cell before its parent's), so
-        // constraint checks are deferred until this whole cycle commits
-        // instead of failing mid-sync.
+        // Cells can arrive out of FK order (child before parent), so
+        // constraint checks are deferred until the whole cycle commits.
         self.connection_manager
             .disable_foreign_key_constraint_for_current_transaction()
             .await?;
 
-        // Pulled before pushing so the server doesn't have to echo back the
-        // changes we're about to send it in the same cycle.
+        // Pull first so the server doesn't echo back what we're about to push.
         let mut since_server_seq = self.store.get_last_pulled_server_seq().await?;
         log::info!("Resuming sync pull from server seq {since_server_seq:?}");
 
@@ -76,26 +70,21 @@ impl DefaultSyncEngine {
             let remote_batch = ChangeBatch {
                 cells: pull_response.cells,
             };
-            // Called even on an empty last page: FK repair (and flushing any
-            // still-pending buffered columns) only runs inside `apply_remote`
-            // when `is_last_page` is true, so skipping the call whenever the
-            // terminating page happens to carry zero cells would leave an
-            // earlier page's deferred FK violation unresolved.
+            // Call even on an empty last page: FK repair and buffered-column
+            // flushing only run inside `apply_remote` when `is_last_page`,
+            // so skipping it here could leave a deferred FK violation unresolved.
             if !remote_batch.cells.is_empty() || is_last_page {
                 self.store.apply_remote(remote_batch, is_last_page).await?;
             }
             since_server_seq = Some(next_server_seq);
 
-            // A row's columns can still be split across the *next* page,
-            // so only persist the cursor and commit
-            // once nothing is left half-materialized — otherwise a crash before
-            // the next page arrives would strand those columns: the cursor
-            // would already be past them and the server wouldn't resend them.
-            // Likewise, a child row pulled ahead of its parent still looks
-            // like an FK violation until the parent's page lands — committing
-            // now would trip the deferred FK check at COMMIT, so wait for
-            // `has_unresolved_foreign_keys` to clear too (FK repair itself
-            // only runs on the last page, once any real violation is final).
+            // Only persist the cursor and commit once nothing is left
+            // half-materialized: a row's columns can still be split across
+            // the next page (a crash now would strand them past the cursor,
+            // so the server wouldn't resend them), and a child pulled ahead
+            // of its parent still looks like an FK violation until the
+            // parent's page lands (committing now would trip the deferred FK
+            // check). FK repair itself only runs on the last page.
             if !self.store.has_pending_changes().await?
                 && !self.store.has_unresolved_foreign_keys().await?
             {
@@ -104,7 +93,6 @@ impl DefaultSyncEngine {
                     .await?;
                 self.transaction_manager.save_changes().await?;
 
-                // Disabling the foregin key again.
                 self.connection_manager
                     .disable_foreign_key_constraint_for_current_transaction()
                     .await?;

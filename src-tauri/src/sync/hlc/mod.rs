@@ -66,9 +66,9 @@ impl Hlc {
     }
 }
 
-/// Local event: advance the clock past wall time, bumping the counter only when
-/// physical time did not move forward (guarantees monotonicity under a backwards
-/// or stalled system clock).
+/// Local event: advance past wall time, bumping the counter only when physical
+/// time didn't move forward (keeps the clock monotonic under a backwards or
+/// stalled system clock).
 pub fn tick(state: &Hlc, wall_ms: u64) -> Hlc {
     let physical_ms = state.physical_ms.max(wall_ms);
     let counter = if physical_ms > state.physical_ms {
@@ -84,10 +84,9 @@ pub fn tick(state: &Hlc, wall_ms: u64) -> Hlc {
     }
 }
 
-/// Standard HLC merge on receipt of a remote timestamp: advance past whichever of
-/// local physical time, remote physical time, or wall time is greatest, bumping
-/// the counter from whichever side tied for the max (or resetting it to 0 if wall
-/// time alone moved things forward).
+/// Standard HLC merge on receipt of a remote timestamp: advance past whichever
+/// of local, remote, or wall time is greatest, bumping the counter from
+/// whichever side tied for the max (reset to 0 if wall time alone advanced it).
 pub fn observe(state: &Hlc, remote: &Hlc, wall_ms: u64) -> Hlc {
     let physical_ms = state.physical_ms.max(remote.physical_ms).max(wall_ms);
 

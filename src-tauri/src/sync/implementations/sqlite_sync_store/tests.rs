@@ -12,11 +12,9 @@ use crate::sync::value_objects::fk_policy::FkPolicy;
 use crate::sync::value_objects::granularity::Granularity;
 use crate::test_utils::create_test_injector;
 
-/// `SYNC_CLOCK`/`DEVICE_ID` are process-wide statics shared by every test in
-/// this binary (see the module docs), so a fixed "far future" constant can
-/// collide with the clock's live position once enough parallel tests have
-/// advanced it via `observe()`. Deriving the value from the clock's current
-/// tip instead guarantees it's always ahead of anything written so far.
+/// `SYNC_CLOCK` is a process-wide static shared by every test, so a fixed
+/// "far future" constant could collide with its live position; derive from
+/// the current tip instead to stay ahead of anything written so far.
 fn far_future_ms() -> u64 {
     sql_functions::sync_clock().now().physical_ms + 100_000_000_000
 }
@@ -85,9 +83,9 @@ async fn note_exists(tx: &DbTransaction, id: &str) -> bool {
         .is_some()
 }
 
-/// `sync_cells.row_id` is a JSON array of the primary key column values, in
-/// key order (see `trigger_sql::row_id_expr`) — for every table in this file's
-/// tests, that's a single-element array holding the `notes.id` value.
+/// `sync_cells.row_id` is a JSON array of primary key column values in key
+/// order (see `trigger_sql::row_id_expr`); single-element here since `notes`
+/// has a single-column key.
 fn row_id_json(values: &[&str]) -> String {
     serde_json::to_string(values).unwrap()
 }
@@ -1110,12 +1108,10 @@ async fn apply_remote_stale_update_after_tombstone_is_discarded() {
 async fn apply_remote_higher_hlc_update_after_delete_resurrects_row() {
     // Arrange
 
-    // A row's tombstone in `sync_cells` never goes away on its own once
-    // written (nothing deletes or supersedes it just because the row comes
-    // back), so a later update must be judged against the tombstone's own
-    // HLC rather than being blocked outright — otherwise a row keyed by a
-    // reusable natural id (e.g. re-adding a tag that was removed) could
-    // never come back once deleted, even on a fresh update long after.
+    // A tombstone in `sync_cells` never clears itself when the row returns,
+    // so a later update must be judged against its HLC rather than blocked
+    // outright — otherwise a reusable natural id could never come back once
+    // deleted.
 
     let injector = create_test_injector().await;
     let scope = injector.start_scope();
@@ -1273,13 +1269,11 @@ async fn apply_remote_shape_mismatch_rejects_whole_batch_fail_fast() {
     // Assert
 
     assert!(matches!(actual, Err(SyncError::CellShapeMismatch { .. })));
-    // Column-mode `SetColumn` cells are buffered and only materialized into
-    // the base table by the batch-level flush at the end of `apply_remote`;
-    // the second cell's shape error aborts before that flush runs, so the
-    // first (valid) cell's `sync_cells` bookkeeping won, but its effect never
-    // reached the base table. Atomicity across the whole call is still the
-    // caller's job (rolling back the surrounding transaction), per the
-    // `apply_remote` contract.
+    // `SetColumn` cells only materialize into the base table via the
+    // batch-level flush at the end of `apply_remote`; the second cell's error
+    // aborts before that flush, so the base table never sees the first
+    // (valid) cell either — atomicity is the caller's job (rolling back the
+    // transaction).
     assert_eq!(None, get_note_title(&tx, "1").await);
 }
 
@@ -1514,13 +1508,10 @@ async fn apply_remote_composite_primary_key_updates_matching_row() {
 async fn apply_remote_row_mode_recreated_row_after_tombstone_reuses_same_composite_row_id() {
     // Arrange
 
-    // Mirrors `element_tags`: a row-mode table whose row id is a natural
-    // composite key (e.g. `(element_id, tag_id)`), not a synthetic id per
-    // row, so removing then re-adding the same association reuses the exact
-    // same row id. The row's `__deleted` cell in `sync_cells` never gets
-    // cleared just because the row comes back, so a later resurrection must
-    // still be judged against the tombstone's own HLC (see `merge::decide`)
-    // instead of being discarded outright.
+    // Mirrors `element_tags`: a row-mode table with a natural composite key
+    // (e.g. `(element_id, tag_id)`), so removing then re-adding reuses the
+    // same row id and the resurrection must be judged against the
+    // tombstone's HLC (see `merge::decide`).
 
     let injector = create_test_injector().await;
     let scope = injector.start_scope();
@@ -1577,8 +1568,6 @@ async fn apply_remote_row_mode_recreated_row_after_tombstone_reuses_same_composi
 
     // Act
 
-    // A much later remote cell recreates the same (workspace_id, id) pair —
-    // e.g. re-adding the same tag to the same element after removing it.
     let resurrection_ms = first_seen + 100_000;
     engine
         .apply_remote(
@@ -1832,9 +1821,8 @@ async fn apply_remote_column_update_on_existing_row_leaves_untouched_not_null_co
 
     // Act
 
-    // Only `body` changes here; `title` (NOT NULL) is not part of this cell
-    // batch at all, matching a real column-mode update that touches a
-    // single column on an already-materialized row.
+    // Only `body` is in this batch; `title` (NOT NULL) is untouched, as in a
+    // real column-mode update on an already-materialized row.
     let actual = engine
         .apply_remote(
             ChangeBatch {
@@ -1973,9 +1961,8 @@ async fn create_parents_table(tx: &DbTransaction) {
         .unwrap();
 }
 
-/// A single table whose own `parent_id` references its own `id` (e.g.
-/// `meta.parent_id -> meta.element_id`) — used to cover the self-referential
-/// FK case, where the referenced table equals the source table.
+/// Self-referential FK case: `parent_id` references this same table's `id`
+/// (e.g. `meta.parent_id -> meta.element_id`).
 async fn create_self_referencing_table(tx: &DbTransaction) {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
@@ -1995,9 +1982,8 @@ async fn insert_parent(tx: &DbTransaction, id: &str) {
         .unwrap();
 }
 
-/// No SQL `FOREIGN KEY` to `parents` — an implicit reference, only ever
-/// enforced through a configured `FkConstraint` (see the FK relationships in
-/// `bootstrap.rs` that have no SQL-level constraint, e.g. `meta.parent_id`).
+/// No SQL `FOREIGN KEY` to `parents` — an implicit reference enforced only
+/// through a configured `FkConstraint`, like `meta.parent_id` in `bootstrap.rs`.
 async fn create_children_table(tx: &DbTransaction) {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
@@ -2016,9 +2002,9 @@ async fn create_children_notnull_table(tx: &DbTransaction) {
         .unwrap();
 }
 
-/// A real SQL `FOREIGN KEY` to `parents`, used for the fallback discard pass
-/// on a column with no configured `FkConstraint` (see `fk_repair::repair_foreign_keys`'s
-/// `discard_unconfigured_violations`).
+/// A real SQL `FOREIGN KEY` to `parents`, for the fallback discard pass on a
+/// column with no configured `FkConstraint` (see
+/// `fk_repair::repair_foreign_keys`'s `discard_unconfigured_violations`).
 async fn create_children_fk_table(tx: &DbTransaction) {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();

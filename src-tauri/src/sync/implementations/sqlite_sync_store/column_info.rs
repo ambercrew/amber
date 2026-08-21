@@ -61,10 +61,10 @@ pub(super) fn primary_key_columns<'a>(
     Ok(pk_columns)
 }
 
-/// SQLite's column affinity rules (https://www.sqlite.org/datatype3.html#determination_of_column_affinity),
-/// used both to `CAST` an opaque cell value back into its destination
-/// column's usual storage class before writing it, and to decide which
-/// primary key column types `row_id` can round-trip.
+/// SQLite's column affinity rules (https://www.sqlite.org/datatype3.html#determination_of_column_affinity):
+/// used to `CAST` an opaque cell value back to its destination column's
+/// storage class, and to decide which primary key column types `row_id`
+/// can round-trip.
 pub(super) fn column_affinity(declared_type: &str) -> &'static str {
     let upper = declared_type.to_uppercase();
     if upper.contains("INT") {

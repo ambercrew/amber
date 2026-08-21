@@ -4,23 +4,20 @@ use sqlx::{Row, SqlitePool};
 
 use crate::sync::hlc::{DeviceId, Hlc, HlcClock};
 
-/// Global variable that denotes the latest synced HLC clock, used by the
-/// database functions. Holds a `&'static` reference (leaked on each
-/// `initialize()` call) rather than a `OnceLock` so that switching the active
-/// database (e.g. guest -> signed-in account) can replace the device id and
-/// clock seed instead of silently keeping the previous database's identity.
+/// Latest synced HLC clock, used by the database functions. Uses a `&'static`
+/// leaked on each `initialize()` call rather than a `OnceLock` so switching
+/// the active database (e.g. guest -> signed-in account) can replace the
+/// device id and clock seed instead of keeping the previous identity.
 static SYNC_CLOCK: RwLock<Option<&'static HlcClock>> = RwLock::new(None);
 
 pub(super) fn sync_clock_static() -> Option<&'static HlcClock> {
     *SYNC_CLOCK.read().expect("sync clock lock poisoned")
 }
 
-/// Bootstraps the sync subsystem for a pool: resolves (or creates) this
-/// device's persistent id and (re-)seeds the process-wide HLC clock from that
-/// pool's history. Must run after the sync tables have been migrated in and
-/// `install_sync_sql_functions()` has been called. Safe to call again for a
-/// different pool (e.g. when the active database changes) — it replaces the
-/// previously seeded clock/device id rather than being a no-op.
+/// Resolves (or creates) this device's persistent id and (re-)seeds the
+/// process-wide HLC clock from the pool's history. Must run after the sync
+/// tables are migrated in and `install_sync_sql_functions()` has run. Safe to
+/// call again for a different pool — replaces the previously seeded state.
 pub async fn initialize(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let device_id = get_or_create_device_id(pool).await?;
 
@@ -47,9 +44,8 @@ pub async fn initialize(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-/// Seeds the clock past the highest HLC this device has ever seen (see the
-/// module-level invariant docs on `HlcClock`), or from wall time if there is no
-/// prior history (fresh database).
+/// Seeds past the highest HLC this device has ever seen (see `HlcClock`'s
+/// module-level invariant docs), or from wall time on a fresh database.
 fn compute_seed(max_hlc: Option<Hlc>, wall_ms: u64, device_id: DeviceId) -> Hlc {
     let seed = match max_hlc {
         Some(existing) => crate::sync::hlc::tick(&existing, wall_ms),
@@ -58,9 +54,9 @@ fn compute_seed(max_hlc: Option<Hlc>, wall_ms: u64, device_id: DeviceId) -> Hlc 
     Hlc::new(seed.physical_ms, seed.counter, device_id)
 }
 
-/// This device's persistent id. Panics if called before `initialize()` has run,
-/// which happens as part of `create_sqlite_pool()` — i.e. before any DI-resolved
-/// service could observe it.
+/// This device's persistent id. Panics if called before `initialize()`
+/// (which runs as part of `create_sqlite_pool()`, before any DI-resolved
+/// service could observe it).
 pub fn device_id() -> DeviceId {
     sync_clock().device_id()
 }

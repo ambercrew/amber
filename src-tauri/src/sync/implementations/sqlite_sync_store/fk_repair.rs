@@ -27,13 +27,12 @@ struct DeclaredFk {
 }
 
 /// Resolves every dangling foreign-key reference among synced tables:
-/// configured policies (`sync_fk_policies`) run first, then any declared SQL
-/// FK left unconfigured falls back to discarding the violating row. Runs to
-/// a fixpoint, since discarding a row (or nulling/defaulting one) can newly
-/// orphan a row linked only by an implicit (non-SQL) reference that is
-/// itself configured. Must be called with the sync change-tracking triggers
-/// active (i.e. outside the `sync_applying` guard), so repairs are recorded
-/// as local changes and pushed to the server.
+/// configured policies (`sync_fk_policies`) run first, then any unconfigured
+/// declared SQL FK falls back to discarding the violating row. Runs to a
+/// fixpoint, since repairing one row can newly orphan another linked only by
+/// an implicit (non-SQL) reference. Must be called with sync change-tracking
+/// triggers active (outside the `sync_applying` guard) so repairs are
+/// recorded as local changes and pushed.
 pub(super) async fn repair_foreign_keys(tx: &mut SqliteConnection) -> Result<(), SyncError> {
     let policies = load_policies(tx).await?;
     let configured: HashSet<(String, String)> = policies
@@ -58,9 +57,8 @@ pub(super) async fn repair_foreign_keys(tx: &mut SqliteConnection) -> Result<(),
 }
 
 /// Whether any synced-table row currently violates a declared or configured
-/// foreign key. Checks configured policies directly (covers implicit,
-/// non-SQL references) and `PRAGMA foreign_key_check` for every registered
-/// table (covers declared SQL FKs with no configured policy).
+/// foreign key: configured policies cover implicit non-SQL references,
+/// `PRAGMA foreign_key_check` covers declared SQL FKs without a policy.
 pub(super) async fn has_unresolved_foreign_keys(
     tx: &mut SqliteConnection,
 ) -> Result<bool, SyncError> {
@@ -240,13 +238,10 @@ async fn declared_foreign_keys(
 }
 
 /// Alias for the referenced table inside a [`violation_predicate`] subquery.
-/// Required even though most FKs don't need it: without it, a
-/// self-referential FK (e.g. `meta.parent_id -> meta.element_id`) would have
-/// the subquery's unaliased `FROM {table}` shadow the outer row's table name,
-/// so `{table}.{col}` inside the subquery would resolve to the subquery's own
-/// scan instead of correlating to the outer row — making the `NOT EXISTS`
-/// spuriously true for almost any non-null value, even when the referenced
-/// row genuinely exists.
+/// Required for self-referential FKs (e.g. `meta.parent_id -> meta.element_id`):
+/// without it, the subquery's unaliased `FROM {table}` would shadow the outer
+/// row's table name, so `{table}.{col}` resolves to the subquery's own scan —
+/// making `NOT EXISTS` spuriously true even when the referenced row exists.
 const VIOLATION_PREDICATE_REF_ALIAS: &str = "__fk_ref";
 
 /// The `NOT EXISTS` predicate for one FK relationship: true for a row in

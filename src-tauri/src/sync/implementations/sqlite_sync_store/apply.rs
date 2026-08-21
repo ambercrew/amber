@@ -18,15 +18,12 @@ use super::pending_buffer::PendingBuffer;
 use super::trigger_sql::{parse_row_id, quote_ident};
 
 /// Applies one page of a remote change batch. Column-mode `SetColumn` cells
-/// are buffered in `pending` (kept on the calling `SyncEngine` instance
-/// across pages) instead of being written to the base table immediately, so
-/// that a brand-new row's columns — which the source's own insert trigger
-/// writes together but which pagination on the wire can still split across
-/// pages — accumulate before the row is materialized. For a caller with only
-/// one page, pass `is_last_page = true` on that single call. Pass
-/// `is_last_page = true` on the final page of a multi-page pull to flush
-/// whatever remains buffered; a row that's still missing a `NOT NULL` column
-/// at that point surfaces as a constraint error from the flush itself.
+/// are buffered in `pending` (kept across pages) instead of written
+/// immediately, so a new row's columns — which pagination can split across
+/// pages — accumulate before the row is materialized. Pass `is_last_page =
+/// true` on a single-page call, or on the final page of a multi-page pull to
+/// flush what remains buffered; a row still missing a `NOT NULL` column at
+/// that point surfaces as a constraint error from the flush itself.
 pub(super) async fn apply_remote(
     tx: &mut SqliteConnection,
     batch: ChangeBatch,
@@ -37,9 +34,8 @@ pub(super) async fn apply_remote(
 
     let result = apply_remote_page_inner(&mut *tx, &batch, is_last_page, pending).await;
 
-    // Clearing the guard must always run, but its own error (if any) must
-    // never shadow a real `apply_remote_page_inner` failure — that would
-    // surface a misleading cleanup error in place of the actual cause.
+    // Must always run, but its own error must never shadow a real
+    // `apply_remote_page_inner` failure with a misleading cleanup error.
     if let Err(err) = clear_applying(tx).await {
         if result.is_ok() {
             return Err(err);
@@ -49,10 +45,9 @@ pub(super) async fn apply_remote(
 
     result?;
 
-    // Runs with the sync_applying guard lifted (triggers active), so any
-    // repair is recorded as a local change and pushed to the server. Deferred
-    // to the last page since an FK "violation" earlier in the pull may just
-    // be a reference whose target arrives on a later page.
+    // Runs with the sync_applying guard lifted so repairs are recorded as
+    // local changes and pushed. Deferred to the last page since an earlier
+    // "violation" may just be a reference whose target arrives later.
     if is_last_page {
         fk_repair::repair_foreign_keys(&mut *tx).await?;
     }
@@ -60,13 +55,11 @@ pub(super) async fn apply_remote(
     Ok(())
 }
 
-/// Best-effort attempt to materialize whatever is currently buffered in
-/// `pending`, without waiting for a page explicitly marked as the last one.
-/// Each row is upserted inside its own `SAVEPOINT`: a row whose required
-/// (`NOT NULL`) columns have all arrived is written and removed from the
-/// buffer immediately, while a row still missing a column has its attempt
-/// rolled back and stays buffered for a later page. Returns whether any row
-/// is still buffered afterwards.
+/// Best-effort flush of whatever is buffered in `pending`, without waiting
+/// for the last page. Each row is upserted inside its own `SAVEPOINT`: one
+/// whose required columns have all arrived is written and removed from the
+/// buffer, while one still missing a column is rolled back and stays
+/// buffered. Returns whether any row is still buffered afterwards.
 pub(super) async fn try_flush_pending(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
@@ -259,11 +252,10 @@ async fn apply_action(
     }
 }
 
-/// Writes every buffered column value for one row in a single
-/// `INSERT ... ON CONFLICT DO UPDATE`, so a brand-new row is materialized
-/// with all of its known columns at once instead of via an empty skeleton
-/// insert followed by per-column updates (which would trip a `NOT NULL`
-/// column that has no `DEFAULT`).
+/// Writes every buffered column value for one row in a single upsert, so a
+/// new row is materialized with all known columns at once instead of via an
+/// empty skeleton insert followed by per-column updates (which would trip a
+/// `NOT NULL` column with no `DEFAULT`).
 async fn apply_row_upsert_columns(
     tx: &mut SqliteConnection,
     key: &RowKey,
@@ -366,21 +358,19 @@ async fn get_or_load_columns(
 }
 
 /// Writes one row, given its known non-primary-key column values as raw
-/// bytes. Shared by both granularities: column-mode (`apply_row_upsert_columns`,
-/// values already raw bytes) and row-mode (`apply_row_upsert`, values
-/// converted from a JSON payload). Each value is `CAST` back to its
-/// destination column's affinity — see the comment on `column_affinity` —
-/// since both callers hand it opaque bytes rather than typed values.
+/// bytes. Shared by both granularities: column-mode (already raw bytes) and
+/// row-mode (converted from a JSON payload). Each value is `CAST` back to its
+/// destination column's affinity (see `column_affinity`) since both callers
+/// hand it opaque bytes rather than typed values.
 ///
-/// Tries an `UPDATE` on the known columns first, falling back to `INSERT`
-/// only if no row matched — rather than a single `INSERT ... ON CONFLICT DO
-/// UPDATE`, which SQLite evaluates as a candidate insert *before* resolving
-/// the conflict: any `NOT NULL` column absent from `values` (column-mode
-/// only sends the columns that actually changed) would fail that candidate
-/// insert even though the existing row already has it set, since the
-/// violation isn't on the conflict target itself and so never falls through
-/// to `DO UPDATE`. `values` may be empty (a payload that only carries
-/// primary key fields), in which case this is a no-op for an existing row.
+/// Tries `UPDATE` first, falling back to `INSERT` only if no row matched —
+/// rather than a single `INSERT ... ON CONFLICT DO UPDATE`, which SQLite
+/// evaluates as a candidate insert *before* resolving the conflict: any
+/// `NOT NULL` column absent from `values` (column-mode only sends changed
+/// columns) would fail that candidate insert even though the existing row
+/// already has it set, since the violation never falls through to
+/// `DO UPDATE`. `values` may be empty, in which case this is a no-op for an
+/// existing row.
 async fn upsert_row(
     tx: &mut SqliteConnection,
     table: &str,
@@ -462,11 +452,9 @@ async fn upsert_row(
         }
     }
 
-    // No existing row matched (the `UPDATE`/existence check above proved
-    // it), so this is a genuinely new row: insert it with whatever columns
-    // are known. A `NOT NULL` column with no default that's still missing
-    // at this point correctly surfaces as a constraint error (see the
-    // callers' docs on buffering new rows until complete).
+    // No existing row matched, so this is genuinely new: insert with
+    // whatever columns are known. A missing `NOT NULL` column with no
+    // default correctly surfaces as a constraint error here.
     let pk_placeholders: Vec<String> = (1..=pk_values.len()).map(|i| format!("?{i}")).collect();
     let col_idents: Vec<String> = cols.iter().map(|c| quote_ident(c)).collect();
     let col_exprs: Vec<String> = cols
@@ -506,9 +494,8 @@ async fn upsert_row(
 }
 
 /// Converts a JSON scalar from a row-mode payload into the same raw-bytes
-/// representation column-mode cells already carry (SQLite's own textual
-/// conversion of a native value read as a blob — see `column_affinity`),
-/// so both paths can share `upsert_row`'s `CAST`-based binding.
+/// representation column-mode cells carry, so both paths can share
+/// `upsert_row`'s `CAST`-based binding.
 fn json_scalar_to_bytes(
     table: &str,
     value: &serde_json::Value,

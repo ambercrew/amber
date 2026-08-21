@@ -77,10 +77,9 @@ pub(super) async fn set_last_pulled_server_seq(
     tx: &mut SqliteConnection,
     seq: i64,
 ) -> Result<(), SyncError> {
-    // No staleness/fallback check against the previous cursor value here —
-    // unlike the old syncer, this doesn't fall back to a full re-pull if the
-    // stored cursor is far behind the server's retained history. Logged so a
-    // large jump is at least visible if the backend ever compacts history.
+    // Unlike the old syncer, no fallback to a full re-pull if the cursor is
+    // far behind the server's retained history — just log a large jump so a
+    // potential mid-gap resume (from backend history compaction) is visible.
     if let Some(previous) = get_last_pulled_server_seq(tx).await?
         && seq - previous > 100_000
     {

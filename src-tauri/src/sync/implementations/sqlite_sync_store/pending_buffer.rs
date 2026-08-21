@@ -6,18 +6,15 @@ use tokio::sync::Mutex;
 
 use super::models::{PendingCell, RowKey};
 
-/// Column-mode `SetColumn` cells buffered per `(tbl, row_id)` until they're
-/// flushed into the base table as a single upsert. Buffering (rather than
-/// materializing each cell as its own skeleton-insert-then-update) lets a
-/// brand-new row's columns — which may arrive split across several pulled
-/// pages — accumulate before the row is written, so the initial insert can
-/// supply every column at once instead of tripping a `NOT NULL` column that
-/// has no `DEFAULT`.
+/// Column-mode `SetColumn` cells buffered per `(tbl, row_id)` until flushed
+/// into the base table as a single upsert. Buffering lets a new row's columns
+/// — which may arrive split across several pulled pages — accumulate first,
+/// so the initial insert supplies every column at once instead of tripping a
+/// `NOT NULL` column with no `DEFAULT`.
 ///
-/// Registered as a per-DI-scope resource (see `register_scoped_pending_buffer`
-/// in `create_injector.rs`) so it survives across repeated
-/// `SyncEngine::apply_remote` calls made against the same engine instance
-/// during one sync session.
+/// Registered as a per-DI-scope resource (`register_scoped_pending_buffer`)
+/// so it survives repeated `SyncEngine::apply_remote` calls within one sync
+/// session.
 #[derive(Default)]
 pub(super) struct PendingBuffer {
     rows: Mutex<HashMap<RowKey, Vec<PendingCell>>>,
@@ -50,8 +47,6 @@ impl PendingBuffer {
         std::mem::take(&mut *rows)
     }
 
-    /// Whether any row is still waiting on more columns before it can be
-    /// materialized.
     pub(super) async fn is_empty(&self) -> bool {
         self.rows.lock().await.is_empty()
     }
@@ -64,9 +59,8 @@ impl PendingBuffer {
     }
 }
 
-/// Registers a fresh, empty `PendingBuffer` per DI scope, so it's shared by
-/// every `PendingBuffer` resolution within one scope (one sync session) but
-/// reset for the next.
+/// Registers a fresh, empty `PendingBuffer` per DI scope — shared within one
+/// sync session but reset for the next.
 pub(crate) fn register_scoped_pending_buffer(injector: &mut Injector) {
     injector.register_scope_factory::<PendingBuffer>(|_scope| {
         Box::pin(async move { Arc::new(PendingBuffer::default()) })
