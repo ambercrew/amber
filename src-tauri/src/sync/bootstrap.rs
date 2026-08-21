@@ -7,9 +7,10 @@ use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::sync::errors::SyncError;
 use crate::sync::implementations::sqlite_sync_store::register::register_table;
 use crate::sync::store::SyncStore;
-use crate::sync::value_objects::fk_constraint::{FkConstraint, TableSyncConfig};
+use crate::sync::value_objects::fk_constraint::FkConstraint;
 use crate::sync::value_objects::fk_policy::FkPolicy;
 use crate::sync::value_objects::granularity::Granularity;
+use crate::sync::value_objects::table_sync_config::TableSyncConfig;
 
 /// Every domain table synced to the cloud, paired with its tracking
 /// granularity and its foreign-key repair policies. `meta` is tracked at

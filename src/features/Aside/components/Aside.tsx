@@ -37,7 +37,7 @@ function Aside({ onCollapse }: AsideProps) {
 
 	return (
 		<CollapsibleSidebar
-			defaultValue={aiEnabled ? "info" : "ai"}
+			defaultValue="info"
 			onCollapse={onCollapse}
 			collapsePosition="left"
 			tabs={tabs}

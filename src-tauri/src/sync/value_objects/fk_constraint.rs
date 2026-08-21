@@ -1,5 +1,4 @@
 use crate::sync::value_objects::fk_policy::FkPolicy;
-use crate::sync::value_objects::granularity::Granularity;
 
 /// One foreign-key relationship a synced table declares for a column, and
 /// what to do with a row whose reference turns out to be dangling.
@@ -25,12 +24,4 @@ impl FkConstraint {
             policy,
         }
     }
-}
-
-/// A synced table's tracking granularity plus the FK repair policies for its
-/// dangling-reference-prone columns (see `FkPolicy`).
-pub struct TableSyncConfig {
-    pub name: &'static str,
-    pub granularity: Granularity,
-    pub fk_constraints: Vec<FkConstraint>,
 }

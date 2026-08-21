@@ -1,23 +1,26 @@
-use std::sync::OnceLock;
+use std::sync::RwLock;
 
 use sqlx::{Row, SqlitePool};
 
 use crate::sync::hlc::{DeviceId, Hlc, HlcClock};
 
-/// Global variable that denotes the latest synced HLC clock, used by the database
-/// functions.
-static SYNC_CLOCK: OnceLock<HlcClock> = OnceLock::new();
+/// Global variable that denotes the latest synced HLC clock, used by the
+/// database functions. Holds a `&'static` reference (leaked on each
+/// `initialize()` call) rather than a `OnceLock` so that switching the active
+/// database (e.g. guest -> signed-in account) can replace the device id and
+/// clock seed instead of silently keeping the previous database's identity.
+static SYNC_CLOCK: RwLock<Option<&'static HlcClock>> = RwLock::new(None);
 
 pub(super) fn sync_clock_static() -> Option<&'static HlcClock> {
-    SYNC_CLOCK.get()
+    *SYNC_CLOCK.read().expect("sync clock lock poisoned")
 }
 
 /// Bootstraps the sync subsystem for a pool: resolves (or creates) this
-/// device's persistent id and seeds the process-wide HLC clock. Must run after
-/// the sync tables have been migrated in and `install_sync_sql_functions()`
-/// has been called and the pool's connections were opened (functions attach
-/// per-connection via the auto-extension hook, so this only needs to run once
-/// per process).
+/// device's persistent id and (re-)seeds the process-wide HLC clock from that
+/// pool's history. Must run after the sync tables have been migrated in and
+/// `install_sync_sql_functions()` has been called. Safe to call again for a
+/// different pool (e.g. when the active database changes) — it replaces the
+/// previously seeded clock/device id rather than being a no-op.
 pub async fn initialize(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let device_id = get_or_create_device_id(pool).await?;
 
@@ -38,7 +41,8 @@ pub async fn initialize(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         device_id,
     );
 
-    SYNC_CLOCK.get_or_init(|| HlcClock::new(seed));
+    let clock: &'static HlcClock = Box::leak(Box::new(HlcClock::new(seed)));
+    *SYNC_CLOCK.write().expect("sync clock lock poisoned") = Some(clock);
 
     Ok(())
 }
@@ -64,8 +68,7 @@ pub fn device_id() -> DeviceId {
 /// The process-wide HLC clock. Panics if called before `initialize()` has run —
 /// see `device_id()`.
 pub fn sync_clock() -> &'static HlcClock {
-    SYNC_CLOCK
-        .get()
+    sync_clock_static()
         .expect("sync not initialized: create_sqlite_pool must run before sync engine use")
 }
 

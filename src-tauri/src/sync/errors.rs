@@ -58,7 +58,7 @@ pub enum SyncError {
     #[error("Database error")]
     Database(#[from] sqlx::Error),
 
-    #[error("Sync request to the backend failed")]
+    #[error("Sync request to the backend failed: {0}")]
     Backend(#[from] AmberBackendClientError),
 
     #[error("Failed to commit sync progress")]

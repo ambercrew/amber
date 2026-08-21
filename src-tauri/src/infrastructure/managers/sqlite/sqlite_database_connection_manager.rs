@@ -58,7 +58,33 @@ impl DatabaseConnectionManager for SqliteDatabaseConnectionManager {
             .await?;
         self.connect_to_database(new_database_location).await?;
 
-        if let Err(err) = fs::remove_file(old_location).await {
+        // `connect_to_database` swaps the pool but closes the old one in the
+        // background (see `DbPool::set_pool`), since this scope's own
+        // checked-out connection from the old pool is only released once its
+        // `save_changes()` runs, which happens after this call returns. That
+        // means the old database file can still be in use for a short time
+        // here, so retry the removal instead of failing outright on what is
+        // usually just a transient sharing violation.
+        const MAX_ATTEMPTS: u32 = 10;
+        const RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(100);
+
+        let mut last_err = None;
+        for attempt in 1..=MAX_ATTEMPTS {
+            match fs::remove_file(&old_location).await {
+                Ok(()) => {
+                    last_err = None;
+                    break;
+                }
+                Err(err) => {
+                    last_err = Some(err);
+                    if attempt < MAX_ATTEMPTS {
+                        tokio::time::sleep(RETRY_DELAY).await;
+                    }
+                }
+            }
+        }
+
+        if let Some(err) = last_err {
             return Err(DatabaseConnectionManagerError::Unknown(Box::new(err)));
         }
 

@@ -86,7 +86,12 @@ pub(super) async fn try_flush_pending(
                     .await?;
                 pending.remove(&key.tbl, &key.row_id).await;
             }
-            Err(_) => {
+            Err(err) => {
+                log::debug!(
+                    "try_flush_pending: row {}/{} not yet materializable, re-buffering: {err:?}",
+                    key.tbl,
+                    key.row_id
+                );
                 sqlx::query("ROLLBACK TO SAVEPOINT try_flush_pending")
                     .execute(&mut *tx)
                     .await?;
