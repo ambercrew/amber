@@ -47,7 +47,6 @@ use crate::elements::services::implementations::default_element_move_service::De
 use crate::elements::services::implementations::default_element_tree_service::DefaultElementTreeService;
 use crate::elements::services::implementations::default_priority_service::DefaultPriorityService;
 use crate::elements::services::priority_service::PriorityService;
-use crate::generated_code;
 use crate::infrastructure::clients::amber_backend_http_client::AmberBackendHttpClient;
 use crate::infrastructure::managers::sqlite::sqlite_database_connection_manager::SqliteDatabaseConnectionManager;
 use crate::infrastructure::managers::sqlite::sqlite_transaction_manager::SqliteTransactionManager;
@@ -68,7 +67,6 @@ use crate::infrastructure::repositories::sqlite::sqlite_bibliographical_source_r
 use crate::infrastructure::repositories::sqlite::sqlite_saved_search_repository::SqliteSavedSearchRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_search_repository::SqliteSearchRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_study_profile_repository::SqliteStudyProfileRepository;
-use crate::infrastructure::repositories::sqlite::sqlite_sync_repository::SqliteSyncRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_trash_repository::SqliteTrashRepository;
 use crate::infrastructure::value_objects::app_data_directory::AppDataDirectory;
 use crate::infrastructure::value_objects::db_pool::DbPool;
@@ -77,6 +75,8 @@ use crate::local_configurations::repositories::local_configuration_repository::L
 use crate::secrets::repositories::secrets_repository::SecretsRepository;
 use crate::settings::entities::settings::Settings;
 use crate::settings::repositories::settings_repository::SettingsRepository;
+use crate::sync::engine::SyncEngine;
+use crate::sync::store::SyncStore;
 #[cfg(not(test))]
 use crate::settings::value_objects::settings_profile::SettingsProfile;
 use crate::bibliographical_sources::repositories::bibliographical_source_repository::BibliographicalSourceRepository;
@@ -103,7 +103,6 @@ use crate::study::services::implementations::default_study_profile_service::Defa
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
 use crate::study::services::study_profile_service::StudyProfileService;
-use crate::sync::repositories::sync_repository::SyncRepository;
 use crate::{
     backend::clients::amber_backend_client::AmberBackendClient,
     backup::services::{
@@ -119,17 +118,6 @@ use crate::{
         settings_dto_provider::SettingsDtoProvider,
         settings_updater::SettingsUpdater,
         system_fonts_provider::SystemFontsProvider,
-    },
-    sync::{
-        entities::deleted_entity::DeletedEntity,
-        services::{
-            implementations::default_syncer::DefaultSyncer,
-            syncer::{SyncLock, Syncer},
-        },
-        strategies::{
-            implementations::deleted_entity_strategy::DefaultDeletedEntityStrategy,
-            sync_entity_strategy::SyncEntityStrategy,
-        },
     },
     trash::{
         repositories::trash_repository::TrashRepository,
@@ -185,6 +173,7 @@ pub async fn create_injector<R: tauri::Runtime>(
     let db_pool = DbPool::new(sqlite_pool, settings.database_location().clone());
     injector.register_singleton(Arc::new(db_pool));
     register_scoped_tx(&mut injector);
+    crate::sync::implementations::sqlite_sync_store::register_scoped_pending_buffer(&mut injector);
 
     // Secret repository
 
@@ -194,7 +183,9 @@ pub async fn create_injector<R: tauri::Runtime>(
 
     // Backend
 
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions, target_os = "android"))]
+    let backend_url = Url::parse("http://10.0.2.2:5078").expect("Cannot construct backend url");
+    #[cfg(all(debug_assertions, not(target_os = "android")))]
     let backend_url = Url::parse("http://localhost:5078").expect("Cannot construct backend url");
     #[cfg(not(debug_assertions))]
     let backend_url = Url::parse("https://api.amberapp.dev").expect("Cannot construct backend url");
@@ -211,6 +202,20 @@ pub async fn create_injector<R: tauri::Runtime>(
         injector,
         dyn LocalConfigurationRepository,
         SqliteLocalConfigurationRepository
+    );
+
+    // Sync
+
+    register_scope!(
+        injector,
+        dyn SyncStore,
+        crate::sync::implementations::sqlite_sync_store::SqliteSyncStore
+    );
+    injector.register_singleton(Arc::new(crate::sync::sync_lock::SyncLock::default()));
+    register_scope!(
+        injector,
+        dyn SyncEngine,
+        crate::sync::implementations::default_sync_engine::DefaultSyncEngine
     );
 
     // Elements
@@ -336,17 +341,6 @@ pub async fn create_injector<R: tauri::Runtime>(
         dyn SystemFontsProvider,
         DefaultSystemFontsProvider
     );
-
-    // Syncer
-
-    injector.register_singleton(Arc::new(SyncLock(Mutex::new(()))));
-    register_scope!(injector, dyn SyncRepository, SqliteSyncRepository);
-    register_scope!(
-        injector,
-        dyn SyncEntityStrategy<Input = generated_code::DeletedEntity, Entity = DeletedEntity>,
-        DefaultDeletedEntityStrategy
-    );
-    register_scope!(injector, dyn Syncer, DefaultSyncer);
 
     // Backup
 

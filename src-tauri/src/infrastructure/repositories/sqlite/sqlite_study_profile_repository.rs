@@ -30,7 +30,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             r#"INSERT INTO study_profiles
                 (id, created_at, modified_at, name, is_default, desired_retention, fsrs_params, initial_interval_multiplier, initial_interval_days, min_interval_days)
             VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8, $9, $10)"#,
-            profile.id,
+            profile.id.hyphenated(),
             profile.created_at,
             profile.modified_at,
             profile.name,
@@ -73,7 +73,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             profile.initial_interval_multiplier,
             profile.initial_interval_days,
             profile.min_interval_days,
-            profile.id,
+            profile.id.hyphenated(),
         )
         .execute(&mut *tx)
         .await?;
@@ -84,9 +84,12 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
     async fn delete(&self, id: Uuid) -> Result<(), RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
-        sqlx::query!(r#"DELETE FROM study_profiles WHERE id = $1"#, id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query!(
+            r#"DELETE FROM study_profiles WHERE id = $1"#,
+            id.hyphenated()
+        )
+        .execute(&mut *tx)
+        .await?;
         Ok(())
     }
 
@@ -109,7 +112,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 min_interval_days
             FROM study_profiles
             WHERE id = $1"#,
-            id
+            id.hyphenated()
         )
         .fetch_one(&mut *tx)
         .await?;

@@ -10,7 +10,6 @@ dependencies = [
  "async-trait",
  "base64 0.23.0",
  "chrono",
- "cookie_store",
  "fontdb",
  "fractional_index",
  "fsrs",
@@ -29,12 +28,12 @@ dependencies = [
  "regex",
  "reqwest-middleware",
  "reqwest-retry",
- "reqwest_cookie_store",
  "rig",
  "schemars 1.2.2",
  "serde",
  "serde_json",
  "serde_repr",
+ "sha2 0.10.9",
  "sqlite-vec",
  "sqlx",
  "tauri",
@@ -8546,18 +8545,6 @@ dependencies = [
  "tokio",
  "tracing",
  "wasmtimer",
-]
-
-[[package]]
-name = "reqwest_cookie_store"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e75bc88d954b228850d19e3685cedb38c030a17da34aa01c307f95d6e33de34"
-dependencies = [
- "bytes",
- "cookie_store",
- "reqwest 0.12.28",
- "url",
 ]
 
 [[package]]

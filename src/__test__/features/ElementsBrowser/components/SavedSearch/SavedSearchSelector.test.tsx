@@ -106,7 +106,7 @@ describe("SavedSearchSelector", () => {
 		).toBeInTheDocument();
 	});
 
-	it("Should show the loaded saved search's name as the menu label when a saved search is loaded", () => {
+	it("Should show the loaded saved search's name as the menu label when a saved search is loaded", async () => {
 		// Arrange, Act
 
 		render({
@@ -119,6 +119,7 @@ describe("SavedSearchSelector", () => {
 		expect(
 			screen.getByRole("button", { name: /Math cards/ }),
 		).toBeInTheDocument();
+		await waitFor(() => expect(getSavedSearchFilters).toHaveBeenCalled());
 	});
 
 	it("Should show the Edited badge when live filters differ from the loaded saved search's filters", async () => {

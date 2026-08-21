@@ -1,11 +1,11 @@
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
+use uuid::fmt::Hyphenated;
 
 use crate::study::entities::card_review::CardReview;
 use crate::study::value_objects::card_state::CardState;
 
 pub struct CardReviewRow {
-    pub card_id: Uuid,
+    pub card_id: Hyphenated,
     pub due: DateTime<Utc>,
     pub stability: f64,
     pub difficulty: f64,
@@ -18,7 +18,7 @@ pub struct CardReviewRow {
 impl From<CardReviewRow> for CardReview {
     fn from(row: CardReviewRow) -> Self {
         CardReview {
-            card_id: row.card_id,
+            card_id: row.card_id.into_uuid(),
             due: row.due,
             stability: row.stability as f32,
             difficulty: row.difficulty as f32,

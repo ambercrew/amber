@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PriorityFilterEditor from "../../../../../../features/ElementsBrowser/components/Filter/editors/PriorityFilterEditor";
 import { PriorityFilter } from "../../../../../../api/savedSearches/dto/elementFilter";
@@ -42,8 +42,9 @@ describe("PriorityFilterEditor", () => {
 		// Act
 
 		const [minThumb] = screen.getAllByRole("slider");
-		minThumb.focus();
+		act(() => minThumb.focus());
 		await user.keyboard("{ArrowRight}");
+		await act(async () => {});
 
 		// Assert
 
@@ -59,8 +60,9 @@ describe("PriorityFilterEditor", () => {
 		// Act
 
 		const [, maxThumb] = screen.getAllByRole("slider");
-		maxThumb.focus();
+		act(() => maxThumb.focus());
 		await user.keyboard("{ArrowLeft}");
+		await act(async () => {});
 
 		// Assert
 

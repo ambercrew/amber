@@ -352,7 +352,7 @@ mod tests {
             sqlx::query!(
                 "UPDATE meta SET position = $1 WHERE element_id = $2",
                 adjacent_before.as_bytes(),
-                first_id
+                first_id.hyphenated()
             )
             .execute(&mut *tx_ref)
             .await
@@ -360,7 +360,7 @@ mod tests {
             sqlx::query!(
                 "UPDATE meta SET position = $1 WHERE element_id = $2",
                 adjacent_after.as_bytes(),
-                second_id.id()
+                second_id.id().hyphenated()
             )
             .execute(&mut *tx_ref)
             .await

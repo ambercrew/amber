@@ -26,8 +26,8 @@ impl LearningAssetReviewLogRepository for SqliteLearningAssetReviewLogRepository
         sqlx::query!(
             r#"INSERT INTO learning_asset_review_logs (id, element_id, reviewed_at, action)
             VALUES ($1, $2, datetime($3), $4)"#,
-            log.id,
-            log.element_id,
+            log.id.hyphenated(),
+            log.element_id.map(|id| id.hyphenated()),
             log.reviewed_at,
             action,
         )

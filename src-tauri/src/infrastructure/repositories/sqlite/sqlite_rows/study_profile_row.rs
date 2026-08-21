@@ -1,10 +1,10 @@
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
+use uuid::fmt::Hyphenated;
 
 use crate::study::entities::study_profile::StudyProfile;
 
 pub struct StudyProfileRow {
-    pub id: Uuid,
+    pub id: Hyphenated,
     pub created_at: DateTime<Utc>,
     pub modified_at: DateTime<Utc>,
     pub name: String,
@@ -19,7 +19,7 @@ pub struct StudyProfileRow {
 impl From<StudyProfileRow> for StudyProfile {
     fn from(row: StudyProfileRow) -> Self {
         StudyProfile {
-            id: row.id,
+            id: row.id.into_uuid(),
             created_at: row.created_at,
             modified_at: row.modified_at,
             name: row.name,

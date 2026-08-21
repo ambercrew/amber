@@ -2,7 +2,6 @@ pub mod api_error;
 pub mod common_api;
 pub mod event_manager;
 pub mod events;
-pub mod extensions;
 pub mod repository_error;
 pub mod request_bridge;
 pub mod services;

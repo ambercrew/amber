@@ -253,7 +253,7 @@ describe("FloatingMenuPlugin", () => {
 	it("Should call onClick with the editor and the current active state when the button is clicked", async () => {
 		// Arrange
 
-		vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
 		const onClick = vi.fn();
 		const button = makeButton({ onClick, isActive: () => true });
 		const { editor } = renderPlugin([button]);
@@ -276,7 +276,7 @@ describe("FloatingMenuPlugin", () => {
 	it("Should hide the menu when the button calls the closeMenu callback", async () => {
 		// Arrange
 
-		vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
 		const button = makeButton({
 			onClick: (_editor, _isActive, closeMenu) => closeMenu(),
 		});

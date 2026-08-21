@@ -38,7 +38,7 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
 
         let row = sqlx::query!(
             r#"SELECT
-                m.element_id as "element_id: uuid::Uuid",
+                m.element_id as "element_id: uuid::fmt::Hyphenated",
                 m.element_type,
                 rr.due as "due: DateTime<Utc>",
                 rr.interval_days,
@@ -47,13 +47,13 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
             FROM learning_asset_reviews rr
             INNER JOIN meta m ON m.element_id = rr.element_id
             WHERE rr.element_id = $1"#,
-            element_id
+            element_id.hyphenated()
         )
         .fetch_optional(&mut *tx)
         .await?;
 
         Ok(row.map(|row| LearningAssetReview {
-            element_id: element_id_from_type(row.element_id, &row.element_type),
+            element_id: element_id_from_type(row.element_id.into_uuid(), &row.element_type),
             due: row.due,
             interval_days: row.interval_days as f32,
             last_reviewed: row.last_reviewed,
@@ -65,7 +65,7 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
-        let element_id = review.element_id.id();
+        let element_id = review.element_id.id().hyphenated();
 
         sqlx::query!(
             r#"INSERT INTO learning_asset_reviews
@@ -96,7 +96,7 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
         let tx = tx.as_mut();
 
         let rows = sqlx::query!(
-            r#"SELECT m.element_id as "element_id: uuid::Uuid", m.element_type, m.priority
+            r#"SELECT m.element_id as "element_id: uuid::fmt::Hyphenated", m.element_type, m.priority
             FROM meta m
             LEFT JOIN learning_asset_reviews rr ON rr.element_id = m.element_id
             WHERE m.element_type IN ('learning_asset', 'extract')
@@ -110,7 +110,7 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
         Ok(rows
             .into_iter()
             .map(|row| ElementIdWithPriority {
-                element_id: element_id_from_type(row.element_id, &row.element_type),
+                element_id: element_id_from_type(row.element_id.into_uuid(), &row.element_type),
                 priority: FractionalIndex::from_bytes(row.priority)
                     .expect("Invalid fractional index"),
             })

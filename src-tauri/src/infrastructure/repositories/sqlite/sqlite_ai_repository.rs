@@ -72,7 +72,7 @@ impl AiRepository for SqliteAiRepository {
                 created_date = datetime($2),
                 title = $3
             "#,
-            id,
+            id.hyphenated(),
             created_date,
             title
         )
@@ -95,7 +95,7 @@ impl AiRepository for SqliteAiRepository {
                 title
             FROM ai_chats
             WHERE id = $1"#,
-            id
+            id.hyphenated()
         )
         .fetch_one(&mut *tx)
         .await;
@@ -152,9 +152,9 @@ impl AiRepository for SqliteAiRepository {
                 content_type = $4,
                 content = $5
             "#,
-            id,
+            id.hyphenated(),
             created_date,
-            chat_id,
+            chat_id.hyphenated(),
             content_type,
             content
         )
@@ -180,7 +180,7 @@ impl AiRepository for SqliteAiRepository {
             FROM ai_messages
             WHERE ai_chat_id = $1
             ORDER BY created_date"#,
-            id
+            id.hyphenated()
         )
         .fetch_all(&mut *tx)
         .await;
@@ -195,7 +195,7 @@ impl AiRepository for SqliteAiRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
-        let result = sqlx::query!("DELETE FROM ai_chats WHERE id = $1", id)
+        let result = sqlx::query!("DELETE FROM ai_chats WHERE id = $1", id.hyphenated())
             .execute(&mut *tx)
             .await;
 
@@ -228,8 +228,8 @@ impl AiRepository for SqliteAiRepository {
                 snippet = $3,
                 position = $4
             "#,
-            id,
-            message_id,
+            id.hyphenated(),
+            message_id.hyphenated(),
             text,
             position
         )
@@ -258,7 +258,7 @@ impl AiRepository for SqliteAiRepository {
             JOIN ai_messages m ON m.id = s.ai_message_id
             WHERE m.ai_chat_id = $1
             ORDER BY s.ai_message_id, s.position"#,
-            chat_id
+            chat_id.hyphenated()
         )
         .fetch_all(&mut *tx)
         .await;

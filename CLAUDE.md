@@ -44,9 +44,9 @@ cargo test --workspace --features wry
 cargo clippy --all-targets --features wry
 ```
 
-`Cargo.toml` deliberately has **no default runtime feature** — each platform's `tauri.<platform>.conf.json` opts into its own runtime via `build.features`: **CEF on Linux, WRY everywhere else** (Windows, macOS, Android). Because of this, running bare `cargo build`/`cargo test`/`cargo clippy` without `--features wry` (or `--features cef`) fails to compile (`tauri::Wry` not found). Always pass `--features wry` for local Rust dev/CI, regardless of host OS. Never add a `default` feature to fix this — it would silently combine with whatever a platform's config already opts into.
+`Cargo.toml` has **no default runtime feature** — each platform's `tauri.<platform>.conf.json` opts into its own runtime (**CEF on Linux, WRY elsewhere**). Bare `cargo build`/`test`/`clippy` therefore fails to compile (`tauri::Wry` not found); always pass `--features wry` for local dev/CI regardless of host OS. Never add a `default` feature — it would silently combine with a platform's own choice.
 
-The `[patch.crates-io]` block in `Cargo.toml` redirects `tauri` and all `tauri-plugin-*`/`tauri-runtime-wry` crates to a `feat/cef` branch fork (for CEF runtime support not yet in upstream Tauri). Keep this in mind when debugging anything that looks like an upstream Tauri bug — behavior may differ from the published crate.
+`[patch.crates-io]` redirects `tauri`/`tauri-plugin-*`/`tauri-runtime-wry` to a `feat/cef` fork (adds CEF support upstream lacks). Behavior may diverge from published Tauri — keep this in mind when a bug looks upstream.
 
 ## Backend Architecture (`src-tauri/src/`)
 
@@ -78,11 +78,11 @@ async fn some_command(injector: State<'_, Arc<Injector>>, ...) -> Result<Dto, Ap
 
 ### Bulk Operations
 
-Bulk-operation commands (e.g. those driven by `src/features/ElementsBrowser`'s results action bar — reschedule, tags, set source, delete, etc.) always take an explicit list of element ids from the frontend, never the saved search/filter query that produced them. The frontend resolves the query to concrete `ElementId`s (from the already-fetched search results) before invoking the bulk command; the backend has no knowledge of `ElementFilter`/search state and only ever receives ids to act on.
+Bulk-operation commands (e.g. `src/features/ElementsBrowser`'s results action bar — reschedule, tags, set source, delete) always take an explicit list of element ids, never the search/filter query that produced them. The frontend resolves the query to `ElementId`s before calling; the backend has no knowledge of `ElementFilter`/search state.
 
 ### Event Manager (`common/event_manager.rs`)
 
-The `EventManager` trait (implemented by `TauriEventManager`, `common/services/implementations/tauri_event_manager.rs`) lets services queue frontend-bound events during a request scope without emitting them immediately. Services call `event_manager.push(name, body)` (e.g. `ELEMENT_CREATED_EVENT` in `default_element_creation_service.rs`); identical `AppEvent`s are deduplicated and buffered rather than sent right away. The buffered events are only flushed — via `emit_all()`, which emits each one through `AppHandle::emit` — from inside `SqliteTransactionManager::save_changes` (`infrastructure/managers/sqlite/sqlite_transaction_manager.rs`), right after the DB transaction commits, and reached through the same `UnitOfWorkExt::save_changes` call shown above. This ties event emission to the Unit-of-Work commit so the frontend never observes an event for a change that didn't actually persist (e.g. because the transaction was rolled back or an earlier step in the scope failed).
+The `EventManager` trait (impl: `TauriEventManager`, `common/services/implementations/tauri_event_manager.rs`) lets services queue frontend-bound events during a request scope instead of emitting immediately — `event_manager.push(name, body)` (e.g. `ELEMENT_CREATED_EVENT` in `default_element_creation_service.rs`), with identical `AppEvent`s deduplicated. Events are only flushed (via `emit_all()` → `AppHandle::emit`) from inside `SqliteTransactionManager::save_changes`, right after the DB transaction commits. This ties emission to the Unit-of-Work commit, so the frontend never sees an event for a change that didn't actually persist.
 
 ### Domain Modules
 
@@ -94,10 +94,16 @@ The `EventManager` trait (implemented by `TauriEventManager`, `common/services/i
 - **secrets** — `SecretsRepository` trait for reading/writing OS-level secrets; keyring implementation lives in `infrastructure/repositories/keyring/`
 - **settings** — User preferences
 - **local_configurations** — Per-machine config not synced to the cloud (e.g. database location)
-- **sync** — Cloud sync via protobuf messages
+- **sync** — Cloud sync via protobuf messages (see Sync below)
 - **backup** — Background auto-backup service
 - **app_info** — Small app-level queries (e.g. store-build detection)
 - **database** — SQLite connection management
+
+### Sync
+
+The `SyncEngine` (`sync/engine.rs`, impl: `sync/implementations/default_sync_engine.rs`) pushes pending local changes then pulls/applies remote ones, behind the single `sync` command (`sync/sync_api.rs`). The unit of sync is a **cell** (one column value in one row) — `CellChange { tbl, row_id, col, value, hlc, device_id }`, a `prost_build` protobuf message. SQLite triggers auto-stage local changes into `sync_cells`; conflicts resolve last-writer-wins via **Hybrid Logical Clocks** (`sync/hlc/`). A `SyncLock` serializes overlapping cycles so pull/push stays causal across devices. On the frontend, `src/stores/sync/syncActions.ts` dispatches the sync thunk and reports success/failure via a Mantine notification (see error-handling rule below).
+
+**BLOB primary keys are incompatible with sync** — a synced table's primary key is serialized as JSON text for the cell's `row_id`, so BLOB-affinity PKs are rejected at registration (`SyncError::InvalidPrimaryKey`, `sync/implementations/sqlite_sync_store/column_info.rs`). Keep synced PKs TEXT-affinity (e.g. hyphenated UUID strings).
 
 ### Naming Conventions
 
@@ -105,19 +111,20 @@ The `EventManager` trait (implemented by `TauriEventManager`, `common/services/i
 - Entities: plain struct names
 - Repository traits live in `repositories/`, implementations in `repositories/infrastructure/sqlite/`
 - Error types use `thiserror`; all commands return `Result<T, ApiError>`
+- IDs must be written to repositories as **hyphenated** UUID strings (`id().hyphenated()`), never `.to_string()`/`.simple()` — this also keeps them TEXT-affinity so they stay eligible as sync primary keys (see BLOB note under Sync above).
 
 ### Events
 
-Backend → frontend event names and their payloads live under a module's `events/` directory (e.g. `elements/events/element_created_event.rs`, `common/events/convert_markdown_to_lexical_event.rs`), never in `dto/` or inlined in a service. Each event gets its own file containing both the name constant and its payload struct together — e.g. `ELEMENT_CREATED_EVENT` and `ElementCreatedEventDto` both live in `elements/events/element_created_event.rs`. The frontend mirrors this: the event name constant and its DTO type live together in `src/api/<module>/events/<eventName>.ts` (e.g. `CONVERT_MARKDOWN_TO_LEXICAL_EVENT` and `ConvertMarkdownToLexicalEventDto` in `src/api/common/events/convertMarkdownToLexicalEvent.ts`), placed in whichever module's `api/` directory matches where the Rust event lives (`common/events/` → `src/api/common/events/`). Keep the event name string identical on both sides by hand — there's no compile-time link across the language boundary.
+Backend → frontend event names and payloads live under a module's `events/` directory (e.g. `elements/events/element_created_event.rs`), never in `dto/` or inlined in a service — one file per event, holding both the name constant and its payload struct (e.g. `ELEMENT_CREATED_EVENT` + `ElementCreatedEventDto`). The frontend mirrors this at `src/api/<module>/events/<eventName>.ts` (e.g. `CONVERT_MARKDOWN_TO_LEXICAL_EVENT` + `ConvertMarkdownToLexicalEventDto` in `src/api/common/events/convertMarkdownToLexicalEvent.ts`), in whichever `api/` module matches the Rust event's module. Keep the event name string identical on both sides by hand — there's no compile-time link across the language boundary.
 
 ### Element Duplication
 
-Elements (`Folder`, `LearningAsset`, `Extract`, `Card`) share significant structure — all implement `Element` (for `meta`) and `Tagged` (for `tags`); `Extract` and `Card` also implement `Derived` (for `parent`). These traits live in `elements/entities/traits.rs`. Avoid duplicating logic that can be expressed through these traits:
+Elements (`Folder`, `LearningAsset`, `Extract`, `Card`) share structure via traits in `elements/entities/traits.rs`: all implement `Element` (`meta`) and `Tagged` (`tags`); `Extract`/`Card` also implement `Derived` (`parent`). Prefer these over duplicating per-type logic:
 
-- Use `element.meta()` (via `Element`) instead of repeating `element.meta.id / .name / .position` patterns across element types.
-- Use `tag_strings(tagged)` or equivalent helpers rather than inlining `.tags().iter().map(|t| t.to_string()).collect()` per element.
-- Use `ExtractParent::from_type_and_id` / `CardParent::from_type_and_id` and their `type_str()` / `id()` methods instead of repeating the `"learning_asset" / "extract" / "folder"` match arms. `Extract` uses `ExtractParent` (LearningAsset | Extract | Folder); `Card` uses `CardParent` (LearningAsset | Extract | Folder).
-- Use generic helpers for patterns that repeat over different element types.
+- `element.meta()` instead of repeating `element.meta.id / .name / .position` per type.
+- `tag_strings(tagged)` instead of inlining `.tags().iter().map(|t| t.to_string()).collect()`.
+- `ExtractParent`/`CardParent`'s `from_type_and_id`, `type_str()`, `id()` instead of repeating `"learning_asset" / "extract" / "folder"` match arms (`Extract` uses `ExtractParent`, `Card` uses `CardParent`, both over LearningAsset | Extract | Folder).
+- Generic helpers for patterns that repeat across element types.
 
 ## Frontend Architecture (`src/`)
 
@@ -147,29 +154,29 @@ Routes are defined in `src/router.tsx`. For type-safe navigation and param readi
 3. Backend handler runs and returns `Result<ResponseDto, ApiError>`
 4. Errors surface via `ApiError`; success updates local or Redux state
 
-The `useApi` hook standardizes async calls.
+The `useApi` hook standardizes async calls via a `callApi` function. **Route each logical action through one `callApi` call** (from `useApi`/`useApiWithCustomError`), not direct `invoke()`/wrapper calls or multiple `callApi` calls per action. Always surface the resulting error in the UI near the triggering action (inline, e.g. `AuthModal`); fall back to a Mantine notification (`notifications.show(...)`) only when there's no sensible inline spot — as `src/stores/sync/syncActions.ts` does for the sync thunk, which runs outside any component.
 
 ### Backend → Frontend Request Bridge
 
-Some backend work (e.g. producing Lexical JSON) can only be done on the frontend. `common::request_bridge::RequestBridge` (backend, DI-registered) and `useFrontendRequestBridge` (`src/hooks/useFrontendRequestBridge.ts`, frontend) together provide a reusable backend-initiated request/response channel over Tauri events — the reverse direction of the normal `invoke()` flow above:
+Some backend work (e.g. producing Lexical JSON) can only be done on the frontend. `common::request_bridge::RequestBridge` (backend, DI-registered) and `useFrontendRequestBridge` (`src/hooks/useFrontendRequestBridge.ts`) together give a reusable backend-initiated request/response channel over Tauri events — the reverse of the normal `invoke()` flow:
 
-1. Backend calls `bridge.request(app_handle, event, payload).await`, which emits `event` with `{ requestId, ...payload }` and awaits the frontend's answer (with a timeout).
-2. Frontend answers it by calling `useFrontendRequestBridge<TEvent>(event, handler)` once (e.g. in `App.tsx`) — it listens for `event`, runs `handler(payload)`, and reports the result back via the generic `resolve_frontend_request` command automatically. `TEvent` must extend `FrontendRequestEvent` (i.e. include `requestId`).
+1. Backend calls `bridge.request(app_handle, event, payload).await`, emitting `event` with `{ requestId, ...payload }` and awaiting the answer (with a timeout).
+2. Frontend calls `useFrontendRequestBridge<TEvent>(event, handler)` once (e.g. in `App.tsx`); it listens for `event`, runs `handler(payload)`, and auto-reports the result via `resolve_frontend_request`. `TEvent` must extend `FrontendRequestEvent` (include `requestId`).
 
-Event name constants and the event's DTO type live together under `src/api/<module>/events/` (see Events under Naming Conventions above, e.g. `CONVERT_MARKDOWN_TO_LEXICAL_EVENT` and `ConvertMarkdownToLexicalEventDto` in `src/api/common/events/convertMarkdownToLexicalEvent.ts`) — the event name string must match the `&str` the corresponding Rust `request()` call uses; there's no compile-time link across the language boundary, so keep them in sync by hand. See `src/features/Ai/hooks/useLexicalConversionBridge.ts` and `common/services/implementations/tauri_lexical_json_converter.rs` for the reference implementation.
+Event name/DTO live together under `src/api/<module>/events/` as usual (e.g. `CONVERT_MARKDOWN_TO_LEXICAL_EVENT` in `convertMarkdownToLexicalEvent.ts`) and must match the Rust `request()` call's `&str` by hand — no compile-time link. Reference implementation: `src/features/Ai/hooks/useLexicalConversionBridge.ts` + `common/services/implementations/tauri_lexical_json_converter.rs`.
 
 ### Rich Text (Lexical)
 
-The editor uses **Lexical**, built via its extension system (`@lexical/extension`'s `defineExtension`/`buildEditorFromExtensions`) rather than the older plugin-array API. `src/components/Editor/editorExtension.ts` exports the shared `editorNodes`, `editorExtensionDependencies`, and static `editorTheme` used by **both**:
+The editor uses **Lexical**, built via its extension system (`@lexical/extension`'s `defineExtension`/`buildEditorFromExtensions`), not the older plugin-array API. `src/components/Editor/editorExtension.ts` exports the shared `editorNodes`, `editorExtensionDependencies`, and static `editorTheme` used by **both**:
 
 - `Editor.tsx` — the interactive editor (adds its own `AutoFocusExtension` config and dynamic theme entries like Shiki code-block classes)
-- `lexicalJsonConversion.ts` — a headless editor (`runHeadless`) used to convert HTML/serialized-node fragments to Lexical JSON outside of React (e.g. for Import and for building extract/card content from a highlight)
+- `lexicalJsonConversion.ts` — a headless editor (`runHeadless`) converting HTML/serialized-node fragments to Lexical JSON outside React (e.g. Import, building extract/card content from a highlight)
 
-Keep node types, extension dependencies, and the static theme in sync between these two consumers — a mismatch (e.g. a theme key some extension needs, such as `tableScrollableWrapper`) causes divergent behavior (or dev-only console warnings) between the interactive editor and the headless conversion path. Cell content is stored and transferred as Lexical JSON.
+Keep node types, extension dependencies, and the static theme in sync between these two — a mismatch (e.g. a missing theme key like `tableScrollableWrapper`) causes divergent behavior or dev-only warnings between them. Cell content is stored and transferred as Lexical JSON.
 
 ### Command Palette (`src/commands/`)
 
-A single command registry in `commands.ts` drives the Spotlight palette (`mod+K`), global keyboard shortcuts, and any in-app buttons — each command is declared once and consumed everywhere.
+A single registry in `commands.ts` drives the Spotlight palette (`mod+K`), global shortcuts, and in-app buttons — each command declared once, consumed everywhere.
 
 - To add a command, look at `commands.ts` (`commandIds`, `commandGroups`, `commands`) and follow the shape of existing entries.
 - To trigger a command from a component, use `useRunCommand()` rather than dispatching the underlying action directly.
@@ -243,10 +250,10 @@ it("Should <expected behavior> when <input>", () => {
 
 ### React `act()` warnings in Vitest
 
-Two recurring sources of "not wrapped in act(...)" warnings in this codebase, both caused by state updates that settle a tick after a synchronous `act()`/`fireEvent` call returns:
+Two recurring causes, both a state update settling a tick after a synchronous `act()`/`fireEvent` returns:
 
-- Fake-timer-driven async work (e.g. a debounced auto-save that awaits an API call): use `await vi.runAllTimersAsync()` / `await vi.advanceTimersByTimeAsync(ms)` inside `await act(async () => { ... })` instead of the synchronous `vi.runAllTimers()`/`vi.advanceTimersByTime()`.
-- `@mantine/hooks`' `useLocalStorage`: its cross-instance sync event is dispatched via `queueMicrotask`, so a functional state update settles one microtask tick later. Flush it with `await act(async () => {})` after the triggering render/action.
+- Fake-timer async work (e.g. a debounced auto-save): use `await vi.runAllTimersAsync()` / `advanceTimersByTimeAsync(ms)` inside `await act(async () => {...})`, not the synchronous timer variants.
+- `@mantine/hooks`' `useLocalStorage`: its cross-instance sync fires via `queueMicrotask`, settling one tick late — flush with `await act(async () => {})` after the triggering render/action.
 
 ## Adding a Feature
 

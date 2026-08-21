@@ -1,7 +1,10 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import SettingsModal from "../../../../features/Settings/components/SettingsModal";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import SettingsDto from "../../../../api/settings/dto/settingsDto";
+import { listSystemFonts } from "../../../../api/settings/api/settingsApi";
+
+vi.mock(import("../../../../api/settings/api/settingsApi"));
 
 const settings: SettingsDto = {
 	baseDatabaseDirectory: "/home/user/amber",
@@ -29,6 +32,10 @@ function renderModal(opened: boolean) {
 				settingsModalOpened: opened,
 				priorityModalOpened: false,
 				studySessionSettingsModalOpened: false,
+				authModalOpened: false,
+				authModalInitialTab: "sign-in",
+				verifyEmailModalOpened: false,
+				manageAccountModalOpened: false,
 			},
 			settings: { settings },
 		},
@@ -36,6 +43,10 @@ function renderModal(opened: boolean) {
 }
 
 describe("SettingsModal", () => {
+	beforeEach(() => {
+		vi.mocked(listSystemFonts).mockResolvedValue([]);
+	});
+
 	it("Should not render settings content when the modal is closed", () => {
 		// Arrange
 
@@ -48,7 +59,7 @@ describe("SettingsModal", () => {
 		expect(screen.queryByText("Appearance")).not.toBeInTheDocument();
 	});
 
-	it("Should render the appearance controls when the modal is opened", () => {
+	it("Should render the appearance controls when the modal is opened", async () => {
 		// Arrange
 
 		// Act
@@ -59,5 +70,6 @@ describe("SettingsModal", () => {
 
 		expect(screen.getByText("Appearance")).toBeInTheDocument();
 		expect(screen.getByText("Follow system")).toBeInTheDocument();
+		await waitFor(() => expect(listSystemFonts).toHaveBeenCalled());
 	});
 });

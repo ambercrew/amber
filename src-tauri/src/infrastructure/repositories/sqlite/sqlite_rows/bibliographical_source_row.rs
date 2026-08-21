@@ -1,11 +1,11 @@
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
+use uuid::fmt::Hyphenated;
 
 use crate::bibliographical_sources::entities::bibliographical_source::BibliographicalSource;
 use crate::bibliographical_sources::value_objects::bibliographical_source_type::BibliographicalSourceType;
 
 pub struct BibliographicalSourceRow {
-    pub id: Uuid,
+    pub id: Hyphenated,
     pub created_at: DateTime<Utc>,
     pub modified_at: DateTime<Utc>,
     pub title: String,
@@ -18,7 +18,7 @@ pub struct BibliographicalSourceRow {
 impl From<BibliographicalSourceRow> for BibliographicalSource {
     fn from(row: BibliographicalSourceRow) -> Self {
         BibliographicalSource {
-            id: row.id,
+            id: row.id.into_uuid(),
             created_at: row.created_at,
             modified_at: row.modified_at,
             title: row.title,

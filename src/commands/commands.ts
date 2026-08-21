@@ -2,6 +2,7 @@ import { createElement, ReactNode } from "react";
 import { NavigateFunction } from "react-router";
 import { notifications } from "@mantine/notifications";
 import {
+	ArrowsClockwiseIcon,
 	ArrowsDownUpIcon,
 	BookOpenIcon,
 	BookmarkSimpleIcon,
@@ -31,6 +32,12 @@ import { saveSettings } from "../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../api/settings/dto/updateSettingsRequestDto";
 import { isCurrentlyDark } from "./commandUtils";
 import { selectCurrentElement } from "../stores/elements/elementsSelectors";
+import { sync } from "../stores/sync/syncActions";
+import { selectIsSyncing } from "../stores/sync/syncSelector";
+import {
+	selectIsSignedIn,
+	selectUserInformation,
+} from "../stores/user/userSelectors";
 import { READ_POINT_MANUAL_SET_REQUESTED } from "../types/events/readPointManualSetRequestedEvent";
 import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../types/events/readPointManualClearRequestedEvent";
 import { READ_POINT_MANUAL_GOTO_REQUESTED } from "../types/events/readPointManualGotoRequestedEvent";
@@ -56,6 +63,7 @@ export const commandIds = [
 	"open-priority",
 	"open-study-session-settings",
 	"find-in-page",
+	"sync",
 ] as const;
 export type CommandId = (typeof commandIds)[number];
 
@@ -199,6 +207,17 @@ export const commandsById: Record<CommandId, Command> = {
 		icon: createElement(MagnifyingGlassIcon),
 		enabled: state => selectCurrentElement(state) !== null,
 		execute: dispatch => dispatch(openSearch()),
+	},
+	sync: {
+		id: "sync",
+		group: "General",
+		label: state => (selectIsSyncing(state) ? "Syncing..." : "Sync"),
+		icon: createElement(ArrowsClockwiseIcon),
+		enabled: state =>
+			selectIsSignedIn(state) &&
+			!!selectUserInformation(state)?.isEmailVerified &&
+			!selectIsSyncing(state),
+		execute: dispatch => void dispatch(sync()),
 	},
 };
 

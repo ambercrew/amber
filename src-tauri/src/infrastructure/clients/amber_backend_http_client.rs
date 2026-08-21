@@ -1,32 +1,33 @@
-use std::{
-    io::{BufReader, Cursor},
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, sync::Mutex, time::Duration};
 
 use crate::backend::{
     backend_dto::{
-        ProblemDetails, SignInDto, SignUpDto, SyncEntityDto, SyncedEntitiesPageDto,
+        GoogleSignInDto, ProblemDetails, SignInDto, SignInResponseDto, SignUpDto,
         UpdatePasswordDto, UpdateUserInformationDto, UserInformationDto, VerifyEmailDto,
     },
     clients::amber_backend_client::{AmberBackendClient, AmberBackendClientError},
     dto::sign_up_request_dto::SignUpRequestDto,
 };
+use crate::generated_code::{ChangeBatch, PullResponse};
 use crate::secrets::repositories::secrets_repository::SecretsRepository;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use reqwest_cookie_store::CookieStoreMutex;
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use prost::Message;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
 use reqwest_retry::{RetryError, RetryTransientMiddleware, policies::ExponentialBackoff};
-use tauri_plugin_http::reqwest::{Response, StatusCode, Url};
+use tauri_plugin_http::reqwest::{
+    Response, StatusCode, Url,
+    header::{CONTENT_TYPE, HeaderValue},
+};
 
-const COOKIES_SECRET_KEY: &str = "backend-cookies";
+const PROTOBUF_CONTENT_TYPE: &str = "application/x-protobuf";
+
+const AUTH_TOKEN_SECRET_KEY: &str = "backend-auth-token";
 
 pub struct AmberBackendHttpClient {
     backend_url: Url,
     reqwest_client: ClientWithMiddleware,
-    cookie_store: Arc<CookieStoreMutex>,
     secrets_repository: Arc<dyn SecretsRepository>,
+    auth_token: Mutex<Option<String>>,
 }
 
 impl AmberBackendHttpClient {
@@ -34,34 +35,20 @@ impl AmberBackendHttpClient {
         backend_url: Url,
         secrets_repository: Arc<dyn SecretsRepository>,
     ) -> Result<Self, String> {
-        let mut cookie_store = reqwest_cookie_store::CookieStore::new();
+        let auth_token = secrets_repository
+            .get_secret(AUTH_TOKEN_SECRET_KEY)
+            .await
+            .filter(|token| !token.is_empty());
 
-        if let Some(cookies) = secrets_repository.get_secret(COOKIES_SECRET_KEY).await {
-            let cursor = Cursor::new(cookies);
-            let reader = BufReader::new(cursor);
-            if let Ok(result) = cookie_store::serde::json::load(reader) {
-                cookie_store = result;
-            }
-        } else {
-            log::info!("The application was not able to load stored cookies.")
+        if auth_token.is_none() {
+            log::info!("The application was not able to load a stored authentication token.")
         }
 
-        let cookie_store = reqwest_cookie_store::CookieStoreMutex::new(cookie_store);
-        let cookie_store = std::sync::Arc::new(cookie_store);
-
-        let reqwest_client = tauri_plugin_http::reqwest::Client::builder()
-            .cookie_provider(cookie_store.clone())
-            .build();
+        let reqwest_client = tauri_plugin_http::reqwest::Client::builder().build();
 
         if let Err(err) = reqwest_client {
             return Err(err.to_string());
         }
-
-        #[cfg(debug_assertions)]
-        log::info!(
-            "Loaded the following cookies from keyring entry: {:#?}",
-            cookie_store.lock().unwrap()
-        );
 
         let retry_policy = ExponentialBackoff::builder()
             .retry_bounds(Duration::from_secs(2), Duration::from_secs(30))
@@ -74,9 +61,74 @@ impl AmberBackendHttpClient {
         Ok(Self {
             backend_url,
             reqwest_client: client_with_middleware,
-            cookie_store,
             secrets_repository,
+            auth_token: Mutex::new(auth_token),
         })
+    }
+
+    /// Attaches the currently stored bearer token, if any, to `builder`.
+    fn authorize(&self, builder: RequestBuilder) -> RequestBuilder {
+        let token = self.auth_token.lock().unwrap().clone();
+        match token {
+            Some(token) => builder.bearer_auth(token),
+            None => builder,
+        }
+    }
+
+    /// Parses a `SignInResponseDto` body, persists its token as the new
+    /// bearer token, and returns the user it carries. Every endpoint that
+    /// re-authenticates (sign-in, sign-up, verify-email, update-password)
+    /// returns a fresh token this way, since the backend has no session
+    /// state of its own to keep it valid otherwise.
+    async fn handle_sign_in_response(
+        &self,
+        response: Response,
+    ) -> Result<UserInformationDto, AmberBackendClientError> {
+        let dto = response
+            .json::<SignInResponseDto>()
+            .await
+            .map_err(|err| AmberBackendClientError::Deserialization(Box::new(err)))?;
+
+        self.persist_auth_token(dto.token).await?;
+
+        Ok(dto.user)
+    }
+
+    async fn persist_auth_token(&self, token: String) -> Result<(), AmberBackendClientError> {
+        *self.auth_token.lock().unwrap() = Some(token.clone());
+
+        self.secrets_repository
+            .set_secret(AUTH_TOKEN_SECRET_KEY, &token)
+            .await
+            .map_err(|err| AmberBackendClientError::CannotSaveAuthenticationToken(Box::new(err)))?;
+
+        Ok(())
+    }
+
+    /// Discards the token, e.g. after sign-out or account deletion, both of
+    /// which leave any previously issued token unusable.
+    async fn clear_auth_token(&self) -> Result<(), AmberBackendClientError> {
+        *self.auth_token.lock().unwrap() = None;
+
+        self.secrets_repository
+            .set_secret(AUTH_TOKEN_SECRET_KEY, "")
+            .await
+            .map_err(|err| AmberBackendClientError::CannotSaveAuthenticationToken(Box::new(err)))?;
+
+        Ok(())
+    }
+
+    async fn ensure_authorized_success(
+        &self,
+        response: Result<Response, reqwest_middleware::Error>,
+    ) -> Result<Response, AmberBackendClientError> {
+        let result = ensure_success_response(response).await;
+
+        if let Err(AmberBackendClientError::Unauthorized) = &result {
+            self.clear_auth_token().await?;
+        }
+
+        result
     }
 }
 
@@ -106,12 +158,29 @@ impl AmberBackendClient for AmberBackendHttpClient {
         }
         let response = status?;
 
-        self.persist_cookies().await?;
+        self.handle_sign_in_response(response).await
+    }
 
-        match response.json::<UserInformationDto>().await {
-            Ok(result) => Ok(result),
-            Err(err) => Err(AmberBackendClientError::Deserialization(Box::new(err))),
-        }
+    async fn sign_in_with_google(
+        &self,
+        id_token: String,
+    ) -> Result<UserInformationDto, AmberBackendClientError> {
+        let dto = GoogleSignInDto { id_token };
+
+        log::info!("Signing-in with Google...");
+        let response = self
+            .reqwest_client
+            .post(
+                self.backend_url
+                    .join("/api/v1/auth/google-sign-in")
+                    .unwrap(),
+            )
+            .json(&dto)
+            .send()
+            .await;
+
+        let response = ensure_success_response(response).await?;
+        self.handle_sign_in_response(response).await
     }
 
     async fn sign_up(
@@ -135,23 +204,31 @@ impl AmberBackendClient for AmberBackendHttpClient {
             .await;
 
         let response = ensure_success_response(response).await?;
-        self.persist_cookies().await?;
-
-        match response.json::<UserInformationDto>().await {
-            Ok(result) => Ok(result),
-            Err(err) => Err(AmberBackendClientError::Deserialization(Box::new(err))),
-        }
+        self.handle_sign_in_response(response).await
     }
 
     async fn sign_out(&self) -> Result<(), AmberBackendClientError> {
         log::info!("Signing-out...");
         let response = self
-            .reqwest_client
-            .post(self.backend_url.join("/api/v1/auth/sign-out").unwrap())
+            .authorize(
+                self.reqwest_client
+                    .post(self.backend_url.join("/api/v1/auth/sign-out").unwrap()),
+            )
             .send()
             .await;
-        ensure_success_response(response).await?;
-        self.persist_cookies().await?;
+        let result = ensure_success_response(response).await;
+
+        // A 401 means the server already considers this token invalid, so
+        // there is nothing left to revoke remotely — clear it locally the
+        // same as a successful sign-out instead of leaving the user stuck
+        // signed in with an error.
+        if let Err(AmberBackendClientError::Unauthorized) = result {
+            self.clear_auth_token().await?;
+            return Ok(());
+        }
+
+        result?;
+        self.clear_auth_token().await?;
         Ok(())
     }
 
@@ -166,41 +243,46 @@ impl AmberBackendClient for AmberBackendHttpClient {
         };
 
         let response = self
-            .reqwest_client
-            .post(self.backend_url.join("/api/v1/auth/verify-email").unwrap())
+            .authorize(
+                self.reqwest_client
+                    .post(self.backend_url.join("/api/v1/auth/verify-email").unwrap()),
+            )
             .json(&dto)
             .send()
             .await;
 
-        ensure_success_response(response).await?;
-        self.persist_cookies().await?;
+        let response = self.ensure_authorized_success(response).await?;
+        self.handle_sign_in_response(response).await?;
 
         Ok(())
     }
 
     async fn resend_email_verification_code(&self) -> Result<(), AmberBackendClientError> {
         let response = self
-            .reqwest_client
-            .post(
-                self.backend_url
-                    .join("/api/v1/auth/resend-verification")
-                    .unwrap(),
+            .authorize(
+                self.reqwest_client.post(
+                    self.backend_url
+                        .join("/api/v1/auth/resend-verification")
+                        .unwrap(),
+                ),
             )
             .send()
             .await;
 
-        ensure_success_response(response).await?;
+        self.ensure_authorized_success(response).await?;
         Ok(())
     }
 
     async fn get_user_information(&self) -> Result<UserInformationDto, AmberBackendClientError> {
         let response = self
-            .reqwest_client
-            .get(self.backend_url.join("/api/v1/user").unwrap())
+            .authorize(
+                self.reqwest_client
+                    .get(self.backend_url.join("/api/v1/user").unwrap()),
+            )
             .send()
             .await;
 
-        let response = ensure_success_response(response).await?;
+        let response = self.ensure_authorized_success(response).await?;
         match response.json::<UserInformationDto>().await {
             Ok(result) => Ok(result),
             Err(err) => Err(AmberBackendClientError::Deserialization(Box::new(err))),
@@ -208,21 +290,13 @@ impl AmberBackendClient for AmberBackendHttpClient {
     }
 
     fn is_signed_in(&self) -> Result<bool, AmberBackendClientError> {
-        let store = match self.cookie_store.lock() {
-            Ok(store) => store,
+        match self.auth_token.lock() {
+            Ok(token) => Ok(token.is_some()),
             Err(err) => {
-                log::error!("Cookie store mutex poisoned: {:?}", err);
-                return Err(AmberBackendClientError::CannotLoadStoredCookies);
-            }
-        };
-
-        for cookie in store.iter_unexpired() {
-            if cookie.name() == ".AspNetCore.Cookies" {
-                return Ok(true);
+                log::error!("Auth token mutex poisoned: {:?}", err);
+                Err(AmberBackendClientError::CannotLoadStoredAuthenticationToken)
             }
         }
-
-        Ok(false)
     }
 
     async fn update_user_information(
@@ -237,55 +311,15 @@ impl AmberBackendClient for AmberBackendHttpClient {
 
         log::info!("Updating user information...");
         let response = self
-            .reqwest_client
-            .patch(self.backend_url.join("/api/v1/user").unwrap())
+            .authorize(
+                self.reqwest_client
+                    .patch(self.backend_url.join("/api/v1/user").unwrap()),
+            )
             .json(&dto)
             .send()
             .await;
 
-        ensure_success_response(response).await?;
-
-        Ok(())
-    }
-
-    async fn get_synced_entities_after_ordered_by_created_at(
-        &self,
-        date: DateTime<Utc>,
-        page: u32,
-    ) -> Result<SyncedEntitiesPageDto, AmberBackendClientError> {
-        log::info!("Getting synced entity after {date} and for the page {page}...");
-
-        let response = self
-            .reqwest_client
-            .get(self.backend_url.join("/api/v1/sync").unwrap())
-            .query(&[("date", date.to_rfc3339()), ("page", page.to_string())])
-            .send()
-            .await;
-
-        let response = ensure_success_response(response).await?;
-        match response.json::<SyncedEntitiesPageDto>().await {
-            Ok(result) => Ok(result),
-            Err(err) => Err(AmberBackendClientError::Deserialization(Box::new(err))),
-        }
-    }
-
-    async fn send_synced_entities(
-        &self,
-        entities: &[SyncEntityDto],
-    ) -> Result<(), AmberBackendClientError> {
-        log::info!(
-            "Sending synced entities, a total of {} entities",
-            entities.len()
-        );
-
-        let response = self
-            .reqwest_client
-            .post(self.backend_url.join("/api/v1/sync").unwrap())
-            .json(&entities)
-            .send()
-            .await;
-
-        ensure_success_response(response).await?;
+        self.ensure_authorized_success(response).await?;
 
         Ok(())
     }
@@ -294,13 +328,15 @@ impl AmberBackendClient for AmberBackendHttpClient {
         log::info!("Deleting user email.");
 
         let response = self
-            .reqwest_client
-            .delete(self.backend_url.join("/api/v1/user").unwrap())
+            .authorize(
+                self.reqwest_client
+                    .delete(self.backend_url.join("/api/v1/user").unwrap()),
+            )
             .send()
             .await;
 
-        ensure_success_response(response).await?;
-        self.persist_cookies().await?;
+        self.ensure_authorized_success(response).await?;
+        self.clear_auth_token().await?;
 
         Ok(())
     }
@@ -309,52 +345,68 @@ impl AmberBackendClient for AmberBackendHttpClient {
         log::info!("Updating user password.");
 
         let response = self
-            .reqwest_client
-            .post(
-                self.backend_url
-                    .join("/api/v1/auth/update-password")
-                    .unwrap(),
+            .authorize(
+                self.reqwest_client.post(
+                    self.backend_url
+                        .join("/api/v1/auth/update-password")
+                        .unwrap(),
+                ),
             )
             .json(&dto)
             .send()
             .await;
 
-        ensure_success_response(response).await?;
-        self.persist_cookies().await?;
+        let response = self.ensure_authorized_success(response).await?;
+        self.handle_sign_in_response(response).await?;
 
         Ok(())
     }
-}
 
-impl AmberBackendHttpClient {
-    async fn persist_cookies(&self) -> Result<(), AmberBackendClientError> {
-        let cookies_json = {
-            let mut writer = std::io::BufWriter::new(Vec::new());
-            let store = match self.cookie_store.lock() {
-                Ok(store) => store,
-                Err(err) => {
-                    log::error!("Cookie store mutex poisoned: {:?}", err);
-                    return Err(AmberBackendClientError::CannotLoadStoredCookies);
-                }
-            };
-            cookie_store::serde::json::save(&store, &mut writer).unwrap();
-            String::from_utf8(writer.into_inner().unwrap()).unwrap()
-            // store (MutexGuard) dropped here, before the await below
-        };
+    async fn push_changes(&self, batch: ChangeBatch) -> Result<(), AmberBackendClientError> {
+        log::info!("Pushing {} local change(s)...", batch.cells.len());
 
-        #[cfg(debug_assertions)]
-        log::info!("Saving the following cookies to keyring: {cookies_json}");
-        if let Err(err) = self
-            .secrets_repository
-            .set_secret(COOKIES_SECRET_KEY, &cookies_json)
-            .await
-        {
-            return Err(AmberBackendClientError::CannotSaveAuthenticationCookies(
-                Box::new(err),
-            ));
-        }
+        let response = self
+            .authorize(
+                self.reqwest_client
+                    .post(self.backend_url.join("/api/v1/sync/push").unwrap()),
+            )
+            .header(
+                CONTENT_TYPE,
+                HeaderValue::from_static(PROTOBUF_CONTENT_TYPE),
+            )
+            .body(batch.encode_to_vec())
+            .send()
+            .await;
+
+        self.ensure_authorized_success(response).await?;
 
         Ok(())
+    }
+
+    async fn pull_changes(
+        &self,
+        since_server_seq: Option<i64>,
+    ) -> Result<PullResponse, AmberBackendClientError> {
+        let since_server_seq = since_server_seq.unwrap_or(0);
+        log::info!("Pulling changes since server seq {since_server_seq}...");
+
+        let response = self
+            .authorize(
+                self.reqwest_client
+                    .get(self.backend_url.join("/api/v1/sync/pull").unwrap()),
+            )
+            .query(&[("sinceServerSeq", since_server_seq)])
+            .send()
+            .await;
+
+        let response = self.ensure_authorized_success(response).await?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|err| AmberBackendClientError::Unknown(Box::new(err)))?;
+
+        PullResponse::decode(bytes)
+            .map_err(|err| AmberBackendClientError::Deserialization(Box::new(err)))
     }
 }
 
@@ -403,6 +455,12 @@ async fn ensure_success_response(
         StatusCode::UNAUTHORIZED => Err(AmberBackendClientError::Unauthorized),
         StatusCode::BAD_REQUEST => match response.json::<ProblemDetails>().await {
             Ok(problem_details) => Err(AmberBackendClientError::BadRequest(problem_details.detail)),
+            Err(err) => Err(AmberBackendClientError::Deserialization(Box::new(err))),
+        },
+        StatusCode::INSUFFICIENT_STORAGE => match response.json::<ProblemDetails>().await {
+            Ok(problem_details) => Err(AmberBackendClientError::InsufficientStorage(
+                problem_details.detail,
+            )),
             Err(err) => Err(AmberBackendClientError::Deserialization(Box::new(err))),
         },
         _ => Err(AmberBackendClientError::UnexpectedResponse),

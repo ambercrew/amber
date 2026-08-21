@@ -17,3 +17,15 @@ export const selectIsPriorityModalOpened = (state: RootState) =>
 
 export const selectIsStudySessionSettingsModalOpened = (state: RootState) =>
 	state.app.studySessionSettingsModalOpened;
+
+export const selectIsAuthModalOpened = (state: RootState) =>
+	state.app.authModalOpened;
+
+export const selectAuthModalInitialTab = (state: RootState) =>
+	state.app.authModalInitialTab;
+
+export const selectIsVerifyEmailModalOpened = (state: RootState) =>
+	state.app.verifyEmailModalOpened;
+
+export const selectIsManageAccountModalOpened = (state: RootState) =>
+	state.app.manageAccountModalOpened;

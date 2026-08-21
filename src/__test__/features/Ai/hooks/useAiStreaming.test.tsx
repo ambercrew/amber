@@ -648,7 +648,7 @@ describe("useAiStreaming", () => {
 	it("Should set errorMessage when streamAiResponse throws, while still resetting streaming state", async () => {
 		// Arrange
 
-		vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
 		vi.mocked(streamAiResponse).mockRejectedValue(
 			new Error("Network error"),
 		);

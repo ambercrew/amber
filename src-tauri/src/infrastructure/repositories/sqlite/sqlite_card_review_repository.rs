@@ -38,7 +38,7 @@ impl CardReviewRepository for SqliteCardReviewRepository {
                 last_reviewed as "last_reviewed: _"
             FROM card_reviews
             WHERE card_id = $1"#,
-            card_id
+            card_id.hyphenated()
         )
         .fetch_optional(&mut *tx)
         .await?;
@@ -64,7 +64,7 @@ impl CardReviewRepository for SqliteCardReviewRepository {
                 lapses = excluded.lapses,
                 state = excluded.state,
                 last_reviewed = excluded.last_reviewed"#,
-            review.card_id,
+            review.card_id.hyphenated(),
             review.due,
             review.stability,
             review.difficulty,
@@ -87,7 +87,7 @@ impl CardReviewRepository for SqliteCardReviewRepository {
         let tx = tx.as_mut();
 
         let due = sqlx::query!(
-            r#"SELECT c.id as "id: uuid::Uuid", m.priority
+            r#"SELECT c.id as "id: uuid::fmt::Hyphenated", m.priority
             FROM cards c
             JOIN meta m ON m.element_id = c.id
             LEFT JOIN card_reviews cr ON cr.card_id = c.id
@@ -99,7 +99,7 @@ impl CardReviewRepository for SqliteCardReviewRepository {
         .await?
         .into_iter()
         .map(|row| ElementIdWithPriority {
-            element_id: ElementId::Card(row.id),
+            element_id: ElementId::Card(row.id.into_uuid()),
             priority: FractionalIndex::from_bytes(row.priority).expect("Invalid fractional index"),
         })
         .collect();

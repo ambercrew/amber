@@ -19,7 +19,7 @@ pub struct SqliteTrashRepository {
 #[async_trait]
 impl TrashRepository for SqliteTrashRepository {
     async fn trash(&self, id: ElementId, trashed_at: DateTime<Utc>) -> Result<(), RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
@@ -44,7 +44,7 @@ impl TrashRepository for SqliteTrashRepository {
     }
 
     async fn restore(&self, id: ElementId) -> Result<Vec<ElementId>, RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
@@ -59,7 +59,7 @@ impl TrashRepository for SqliteTrashRepository {
             SET trashed_at = NULL,
                 trashed_root = 0
             WHERE element_id IN (SELECT element_id FROM subtree)
-            RETURNING element_id as "element_id: uuid::Uuid", element_type"#,
+            RETURNING element_id as "element_id: uuid::fmt::Hyphenated", element_type"#,
             uuid
         )
         .fetch_all(&mut *tx)
@@ -67,7 +67,7 @@ impl TrashRepository for SqliteTrashRepository {
 
         Ok(rows
             .into_iter()
-            .map(|row| (row.element_id, row.element_type).into_element_id())
+            .map(|row| (row.element_id.into_uuid(), row.element_type).into_element_id())
             .collect())
     }
 
@@ -84,7 +84,7 @@ impl TrashRepository for SqliteTrashRepository {
                 WHERE m.trashed_root = 0
             )
             SELECT
-                m.element_id as "element_id: uuid::Uuid",
+                m.element_id as "element_id: uuid::fmt::Hyphenated",
                 m.element_type,
                 m.name,
                 m.trashed_at as "trashed_at!: DateTime<Utc>",
@@ -99,7 +99,7 @@ impl TrashRepository for SqliteTrashRepository {
         Ok(rows
             .into_iter()
             .map(|row| TrashedElement {
-                element_id: (row.element_id, row.element_type).into_element_id(),
+                element_id: (row.element_id.into_uuid(), row.element_type).into_element_id(),
                 name: row.name,
                 trashed_at: row.trashed_at,
                 descendant_count: row.descendant_count,
@@ -116,7 +116,7 @@ impl TrashRepository for SqliteTrashRepository {
 
         let rows = sqlx::query!(
             r#"SELECT
-                element_id as "element_id: uuid::Uuid",
+                element_id as "element_id: uuid::fmt::Hyphenated",
                 element_type
             FROM meta
             WHERE trashed_root = 1 AND trashed_at IS NOT NULL AND trashed_at < datetime($1)"#,
@@ -127,12 +127,12 @@ impl TrashRepository for SqliteTrashRepository {
 
         Ok(rows
             .into_iter()
-            .map(|row| (row.element_id, row.element_type).into_element_id())
+            .map(|row| (row.element_id.into_uuid(), row.element_type).into_element_id())
             .collect())
     }
 
     async fn is_trashed(&self, id: ElementId) -> Result<bool, RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
@@ -149,7 +149,7 @@ impl TrashRepository for SqliteTrashRepository {
     }
 
     async fn has_live_ancestry(&self, id: ElementId) -> Result<bool, RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 

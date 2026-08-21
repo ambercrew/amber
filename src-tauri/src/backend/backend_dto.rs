@@ -1,8 +1,5 @@
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use crate::sync::entities::synced_entity::{EntityType, SyncedEntity};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -30,6 +27,19 @@ pub struct UserInformationDto {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct GoogleSignInDto {
+    pub id_token: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SignInResponseDto {
+    pub user: UserInformationDto,
+    pub token: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct SignUpDto {
     pub username: String,
     pub password: String,
@@ -43,22 +53,6 @@ pub struct SignUpDto {
 pub struct UpdateUserInformationDto {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncedEntitiesPageDto {
-    pub synced_entities: Vec<SyncedEntity>,
-    pub has_more: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncEntityDto {
-    pub entity_id: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub entity_type: EntityType,
-    pub data: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

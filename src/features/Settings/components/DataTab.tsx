@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { Button, Group, NumberInput, Stack, Text } from "@mantine/core";
+import { Button, Group, NumberInput, Stack, Switch, Text } from "@mantine/core";
 import { FolderOpenIcon } from "@phosphor-icons/react";
 import { open } from "@tauri-apps/plugin-dialog";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -28,6 +28,10 @@ function DataTab() {
 				buildUpdateSettingsRequest({ trashRetentionDays: days }),
 			),
 		);
+	}
+
+	function handleAutoSyncChange(autoSync: boolean) {
+		void dispatch(saveSettings(buildUpdateSettingsRequest({ autoSync })));
 	}
 
 	async function handleChangeDirectory() {
@@ -81,6 +85,20 @@ function DataTab() {
 					suffix=" days"
 					w={160}
 				/>
+			</Stack>
+
+			<Stack gap="xs">
+				<Switch
+					label="Sync on start and close"
+					checked={settings.autoSync}
+					onChange={e =>
+						handleAutoSyncChange(e.currentTarget.checked)
+					}
+				/>
+				<Text size="xs" c="dimmed">
+					Automatically syncs with the cloud when the app starts and
+					before it closes.
+				</Text>
 			</Stack>
 		</Stack>
 	);

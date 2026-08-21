@@ -36,9 +36,8 @@ use search::search_api::*;
 use settings::settings_api::*;
 use study::study_api::*;
 use study::study_profile_api::*;
+use sync::sync_api::*;
 use trash::trash_api::*;
-
-pub use sync::sync_api::sync;
 
 #[cfg(desktop)]
 use tauri_plugin_window_state::StateFlags;
@@ -47,6 +46,7 @@ use tokio::runtime::Handle;
 use crate::backup::background::spawn_backup_task;
 use crate::common::utils::create_injector::create_injector;
 use crate::infrastructure::value_objects::app_data_directory::AppDataDirectory;
+use crate::sync::bootstrap::register_sync_tables;
 use crate::trash::background::spawn_trash_purge_task;
 
 pub use common::types::SourceError;
@@ -125,6 +125,11 @@ pub async fn run() {
 
             app.manage(injector.clone());
 
+            tokio::task::block_in_place(|| {
+                Handle::current().block_on(register_sync_tables(&injector))
+            })
+            .expect("Failed to register sync tables");
+
             #[cfg(all(dev, desktop))]
             {
                 let _ = app
@@ -150,6 +155,7 @@ pub async fn run() {
             is_signed_in,
             resend_email_verification_code,
             sign_in,
+            sign_in_with_google,
             sign_out,
             sign_up,
             update_password,
@@ -158,8 +164,6 @@ pub async fn run() {
             delete_user,
             get_user_information,
             update_user_information,
-            // Sync
-            sync,
             // Elements
             get_element_tree,
             get_element_by_id,
@@ -251,6 +255,8 @@ pub async fn run() {
             get_chat_messages_ordered,
             rename_ai_chat,
             upload_document,
+            // Sync
+            sync,
             // Common
             resolve_frontend_request,
         ])

@@ -28,6 +28,10 @@ function renderOpenedModal() {
 				settingsModalOpened: false,
 				priorityModalOpened: false,
 				studySessionSettingsModalOpened: false,
+				authModalOpened: false,
+				authModalInitialTab: "sign-in",
+				verifyEmailModalOpened: false,
+				manageAccountModalOpened: false,
 			},
 		},
 	});
