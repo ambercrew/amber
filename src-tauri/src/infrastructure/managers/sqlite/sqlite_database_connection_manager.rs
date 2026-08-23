@@ -33,7 +33,31 @@ impl DatabaseConnectionManager for SqliteDatabaseConnectionManager {
             Ok(pool) => pool,
         };
 
-        self.pool.set_pool(new_pool, database_location).await;
+        // This scope's own transaction may still be holding a connection
+        // checked out from the *old* pool, which would otherwise keep it
+        // open until this scope's `save_changes()` runs — well after this
+        // call returns. Commit it now (against the old pool it was actually
+        // begun on) and replace it with a fresh transaction on the new pool,
+        // mirroring what `SqliteTransactionManager::save_changes` does. This
+        // releases the old pool's connection up front, so it can be closed
+        // synchronously below instead of racing its background closure with
+        // whoever needs the old database file next (e.g. deleting it after a
+        // profile switch — see `move_database_to`).
+        {
+            let mut guard = self.tx.lock().await;
+            let new_tx = new_pool.begin().await.map_err(|err| {
+                DatabaseConnectionManagerError::ErrorChangingDatabase(Box::new(err))
+            })?;
+            let old_tx = std::mem::replace(&mut *guard, new_tx);
+            drop(guard);
+
+            old_tx.commit().await.map_err(|err| {
+                DatabaseConnectionManagerError::ErrorChangingDatabase(Box::new(err))
+            })?;
+        }
+
+        let old_pool = self.pool.set_pool(new_pool, database_location).await;
+        old_pool.close().await;
 
         // The database just swapped underneath any in-flight DI scope, whose
         // own transaction (if any) is still bound to the old one — so the
@@ -58,35 +82,9 @@ impl DatabaseConnectionManager for SqliteDatabaseConnectionManager {
             .await?;
         self.connect_to_database(new_database_location).await?;
 
-        // `connect_to_database` swaps the pool but closes the old one in the
-        // background (see `DbPool::set_pool`), since this scope's own
-        // checked-out connection from the old pool is only released once its
-        // `save_changes()` runs, which happens after this call returns. That
-        // means the old database file can still be in use for a short time
-        // here, so retry the removal instead of failing outright on what is
-        // usually just a transient sharing violation.
-        const MAX_ATTEMPTS: u32 = 10;
-        const RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(100);
-
-        let mut last_err = None;
-        for attempt in 1..=MAX_ATTEMPTS {
-            match fs::remove_file(&old_location).await {
-                Ok(()) => {
-                    last_err = None;
-                    break;
-                }
-                Err(err) => {
-                    last_err = Some(err);
-                    if attempt < MAX_ATTEMPTS {
-                        tokio::time::sleep(RETRY_DELAY).await;
-                    }
-                }
-            }
-        }
-
-        if let Some(err) = last_err {
-            return Err(DatabaseConnectionManagerError::Unknown(Box::new(err)));
-        }
+        fs::remove_file(&old_location)
+            .await
+            .map_err(|err| DatabaseConnectionManagerError::Unknown(Box::new(err)))?;
 
         Ok(())
     }

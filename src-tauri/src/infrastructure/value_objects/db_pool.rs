@@ -24,25 +24,22 @@ impl DbPool {
         self.pool.lock().await
     }
 
-    pub async fn set_pool(&self, new_pool: SqlitePool, new_location: DatabaseLocation) {
+    /// Swaps in `new_pool` and returns the pool it replaced. The caller is
+    /// responsible for making sure the old pool's connections have actually
+    /// been returned (e.g. by committing whatever transaction is still
+    /// checked out from it) before awaiting `close()` on it — otherwise that
+    /// await never returns.
+    pub async fn set_pool(
+        &self,
+        new_pool: SqlitePool,
+        new_location: DatabaseLocation,
+    ) -> SqlitePool {
         let mut pool = self.pool.lock().await;
         let mut location = self.location.lock().await;
 
-        // Swap in the new pool immediately rather than awaiting `close()` on
-        // the old one here: the calling scope may itself already hold a
-        // checked-out, uncommitted connection from the old pool (e.g. a
-        // profile switch during sign-in, resolved as part of the same DI
-        // scope that also opened a `DbTransaction`). `close()` doesn't
-        // return until every checked-out connection is returned, but that
-        // connection is only released by this scope's own `save_changes()`,
-        // which runs after this call — awaiting it inline would deadlock.
-        // Closing in the background lets it finish once that connection is
-        // eventually returned.
         let old_pool = std::mem::replace(&mut *pool, new_pool);
         *location = new_location;
 
-        tokio::spawn(async move {
-            old_pool.close().await;
-        });
+        old_pool
     }
 }
