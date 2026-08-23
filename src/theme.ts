@@ -164,8 +164,8 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--editor-surface-bg": "var(--sidebar-bg)",
 	},
 	dark: {
-		"--mantine-color-body": "var(--mantine-color-dark-7)",
-		"--sidebar-bg": "var(--mantine-color-dark-6)",
+		"--mantine-color-body": "var(--mantine-color-dark-6)",
+		"--sidebar-bg": "var(--mantine-color-dark-7)",
 		"--editor-surface-bg": "var(--mantine-color-dark-5)",
 	},
 });
