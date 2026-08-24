@@ -47,8 +47,8 @@ const NAME_MAX_LENGTH = 50;
 const EMAIL_MAX_LENGTH = 50;
 const PASSWORD_MIN_LENGTH = 8;
 
-// Not live yet — the legal page this should point to hasn't been published.
-const TERMS_AND_PRIVACY_URL = "";
+const TERMS_AND_PRIVACY_URL =
+	"https://github.com/ambercrew/amber/blob/main/docs/LEGAL.md";
 
 function validateUsername(value: string) {
 	if (value.trim().length === 0) return "Required";
