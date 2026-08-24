@@ -92,7 +92,7 @@ impl SettingsUpdater for DefaultSettingsUpdater {
             // this device signs in as a given user), move the current local
             // database there instead of connecting to a fresh empty one, so
             // local changes made before switching aren't discarded.
-            let database_already_exists = tokio::fs::try_exists(new_location.get_path())
+            let database_already_exists = tokio::fs::try_exists(settings.database_directory())
                 .await
                 .unwrap_or(false);
 
