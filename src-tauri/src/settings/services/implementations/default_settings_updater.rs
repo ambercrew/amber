@@ -11,7 +11,6 @@ use crate::{
         dto::update_settings_request_dto::UpdateSettingsRequestDto,
         repositories::settings_repository::SettingsRepository,
         services::settings_updater::{SettingsUpdater, SettingsUpdaterError},
-        value_objects::settings_profile::SettingsProfile,
     },
 };
 
@@ -87,13 +86,27 @@ impl SettingsUpdater for DefaultSettingsUpdater {
         }
 
         if change_database_location {
-            log::info!(
-                "Changing database location to {}",
-                settings.database_location()
-            );
-            self.database_connection_manager
-                .connect_to_database(settings.database_location())
-                .await?;
+            let new_location = settings.database_location();
+
+            // If nothing lives at the new location yet (e.g. the first time
+            // this device signs in as a given user), move the current local
+            // database there instead of connecting to a fresh empty one, so
+            // local changes made before switching aren't discarded.
+            let database_already_exists = tokio::fs::try_exists(new_location.get_path())
+                .await
+                .unwrap_or(false);
+
+            if database_already_exists {
+                log::info!("Changing database location to {new_location}");
+                self.database_connection_manager
+                    .connect_to_database(new_location)
+                    .await?;
+            } else {
+                log::info!("Moving database to {new_location}");
+                self.database_connection_manager
+                    .move_database_to(new_location)
+                    .await?;
+            }
         }
 
         self.settings_repository.save_settings(settings).await?;
@@ -106,27 +119,10 @@ impl SettingsUpdater for DefaultSettingsUpdater {
 
         Ok(())
     }
-
-    /// Sets the profile for settings when the user is newly created, leading to
-    /// database being moved to the new user location.
-    async fn set_profile_for_new_user(
-        &self,
-        profile_name: String,
-    ) -> Result<(), SettingsUpdaterError> {
-        let mut settings = self.settings_repository.get_settings().await;
-        settings.profile = SettingsProfile::User(profile_name);
-        self.database_connection_manager
-            .move_database_to(settings.database_location())
-            .await?;
-        self.settings_repository.save_settings(settings).await?;
-        Ok(())
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{path::PathBuf, str::FromStr};
-
     use injector::{injector::Injector, register_scope};
     use mockall::predicate::eq;
     use tokio::sync::Mutex;
@@ -168,21 +164,27 @@ mod tests {
     }
 
     #[tokio::test]
-    pub async fn update_settings_updated_database_location_called_manager() {
+    pub async fn update_settings_updated_database_location_to_missing_database_moved_database() {
         // Arrange
 
+        let base_dir = std::env::temp_dir().join("amber_test_update_settings_missing_database");
+        std::fs::remove_dir_all(&base_dir).ok();
+
         let request = UpdateSettingsRequestDto {
-            base_database_directory: Some("new path".into()),
+            base_database_directory: Some(base_dir.clone()),
             ..Default::default()
         };
 
         let mut database_connection_manager = MockDatabaseConnectionManager::new();
         database_connection_manager
-            .expect_connect_to_database()
+            .expect_move_database_to()
             .with(eq(DatabaseLocation::new_unchecked(
-                PathBuf::from_str("new path").unwrap().join("amber.dev.db"),
+                base_dir.join("amber.dev.db"),
             )))
             .returning(|_| Box::pin(async { Ok(()) }));
+        database_connection_manager
+            .expect_connect_to_database()
+            .never();
 
         let injector = initialize_test_injector(database_connection_manager).await;
         let scope = injector.start_scope();
@@ -191,6 +193,45 @@ mod tests {
         // Act & Assert
 
         service.update_settings(request).await.unwrap();
+
+        std::fs::remove_dir_all(&base_dir).ok();
+    }
+
+    #[tokio::test]
+    pub async fn update_settings_updated_database_location_to_existing_database_connected_to_database()
+     {
+        // Arrange
+
+        let base_dir = std::env::temp_dir().join("amber_test_update_settings_existing_database");
+        std::fs::remove_dir_all(&base_dir).ok();
+        std::fs::create_dir_all(&base_dir).unwrap();
+        std::fs::write(base_dir.join("amber.dev.db"), b"").unwrap();
+
+        let request = UpdateSettingsRequestDto {
+            base_database_directory: Some(base_dir.clone()),
+            ..Default::default()
+        };
+
+        let mut database_connection_manager = MockDatabaseConnectionManager::new();
+        database_connection_manager
+            .expect_connect_to_database()
+            .with(eq(DatabaseLocation::new_unchecked(
+                base_dir.join("amber.dev.db"),
+            )))
+            .returning(|_| Box::pin(async { Ok(()) }));
+        database_connection_manager
+            .expect_move_database_to()
+            .never();
+
+        let injector = initialize_test_injector(database_connection_manager).await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<DefaultSettingsUpdater>().await;
+
+        // Act & Assert
+
+        service.update_settings(request).await.unwrap();
+
+        std::fs::remove_dir_all(&base_dir).ok();
     }
 
     #[tokio::test]

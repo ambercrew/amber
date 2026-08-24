@@ -71,7 +71,10 @@ impl Authenticator for DefaultAuthenticator {
     ) -> Result<UserInformationDto, AuthenticatorError> {
         let user_information = self.backend_client.sign_up(request).await?;
         self.settings_updater
-            .set_profile_for_new_user(user_information.username.clone())
+            .update_settings(UpdateSettingsRequestDto {
+                profile: Some(SettingsProfile::User(user_information.username.clone())),
+                ..Default::default()
+            })
             .await?;
         Ok(user_information)
     }
