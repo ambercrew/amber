@@ -26,7 +26,7 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
         sqlx::query!(
             r#"INSERT INTO saved_searches (id, created_at, modified_at, name)
             VALUES ($1, datetime($2), datetime($3), $4)"#,
-            saved_search.id,
+            saved_search.id.hyphenated(),
             saved_search.created_at,
             saved_search.modified_at,
             saved_search.name,
@@ -44,7 +44,7 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
         sqlx::query!(
             r#"UPDATE saved_searches SET name = $1 WHERE id = $2"#,
             saved_search.name,
-            saved_search.id,
+            saved_search.id.hyphenated(),
         )
         .execute(&mut *tx)
         .await?;
@@ -55,9 +55,12 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
     async fn delete(&self, id: Uuid) -> Result<(), RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
-        sqlx::query!(r#"DELETE FROM saved_searches WHERE id = $1"#, id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query!(
+            r#"DELETE FROM saved_searches WHERE id = $1"#,
+            id.hyphenated()
+        )
+        .execute(&mut *tx)
+        .await?;
         Ok(())
     }
 
@@ -74,7 +77,7 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
                 name
             FROM saved_searches
             WHERE id = $1"#,
-            id
+            id.hyphenated()
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -117,7 +120,7 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
             FROM saved_search_filters
             WHERE saved_search_id = $1
             ORDER BY position ASC"#,
-            saved_search_id
+            saved_search_id.hyphenated()
         )
         .fetch_all(&mut *tx)
         .await?;
@@ -135,7 +138,7 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
 
         sqlx::query!(
             r#"DELETE FROM saved_search_filters WHERE saved_search_id = $1"#,
-            saved_search_id
+            saved_search_id.hyphenated()
         )
         .execute(&mut *tx)
         .await?;
@@ -148,8 +151,8 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
             sqlx::query!(
                 r#"INSERT INTO saved_search_filters (id, saved_search_id, position, filter)
                 VALUES ($1, $2, $3, $4)"#,
-                id,
-                saved_search_id,
+                id.hyphenated(),
+                saved_search_id.hyphenated(),
                 filter.index,
                 filter_json,
             )

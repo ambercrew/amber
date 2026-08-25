@@ -1,12 +1,12 @@
-use crate::backend::{backend_dto::SyncEntityDto, dto::sign_up_request_dto::SignUpRequestDto};
+use crate::backend::dto::sign_up_request_dto::SignUpRequestDto;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 #[cfg(test)]
 use mockall::automock;
 use thiserror::Error;
 
 use crate::SourceError;
-use crate::backend::backend_dto::{SyncedEntitiesPageDto, UpdatePasswordDto, UserInformationDto};
+use crate::backend::backend_dto::{UpdatePasswordDto, UserInformationDto};
+use crate::generated_code::{ChangeBatch, PullResponse};
 
 #[derive(Error, Debug)]
 pub enum AmberBackendClientError {
@@ -26,16 +26,19 @@ pub enum AmberBackendClientError {
     Connect,
     #[error("The request timed out, please try again!")]
     Timeout,
-    #[error("Cannot save authentication cookies")]
-    CannotSaveAuthenticationCookies(#[source] SourceError),
-    #[error("Cannot load stored cookies")]
-    CannotLoadStoredCookies,
+    #[error("Cannot save authentication token")]
+    CannotSaveAuthenticationToken(#[source] SourceError),
+    #[error("Cannot load stored authentication token")]
+    CannotLoadStoredAuthenticationToken,
+    #[error("{0}")]
+    InsufficientStorage(String),
 }
 
 impl PartialEq for AmberBackendClientError {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::BadRequest(a), Self::BadRequest(b)) => a == b,
+            (Self::InsufficientStorage(a), Self::InsufficientStorage(b)) => a == b,
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }
     }
@@ -50,6 +53,11 @@ pub trait AmberBackendClient: Send + Sync {
         &self,
         username: String,
         password: String,
+    ) -> Result<UserInformationDto, AmberBackendClientError>;
+
+    async fn sign_in_with_google(
+        &self,
+        id_token: String,
     ) -> Result<UserInformationDto, AmberBackendClientError>;
 
     async fn sign_up(
@@ -76,18 +84,16 @@ pub trait AmberBackendClient: Send + Sync {
         last_name: Option<String>,
     ) -> Result<(), AmberBackendClientError>;
 
-    async fn get_synced_entities_after_ordered_by_created_at(
-        &self,
-        date: DateTime<Utc>,
-        page: u32,
-    ) -> Result<SyncedEntitiesPageDto, AmberBackendClientError>;
-
-    async fn send_synced_entities(
-        &self,
-        entities: &[SyncEntityDto],
-    ) -> Result<(), AmberBackendClientError>;
-
     async fn delete_user(&self) -> Result<(), AmberBackendClientError>;
 
     async fn update_password(&self, dto: UpdatePasswordDto) -> Result<(), AmberBackendClientError>;
+
+    /// Pushes this device's local changes to the backend.
+    async fn push_changes(&self, batch: ChangeBatch) -> Result<(), AmberBackendClientError>;
+
+    /// Pulls remote changes since `since_server_seq` (`None` for a full pull).
+    async fn pull_changes(
+        &self,
+        since_server_seq: Option<i64>,
+    ) -> Result<PullResponse, AmberBackendClientError>;
 }

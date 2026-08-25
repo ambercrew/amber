@@ -22,7 +22,7 @@ pub struct SqliteMetaRepository {
 #[async_trait]
 impl MetaRepository for SqliteMetaRepository {
     async fn create_meta(&self, meta: &Meta) -> Result<(), RepositoryError> {
-        let uuid = meta.element_id.id();
+        let uuid = meta.element_id.id().hyphenated();
         let element_type = meta.element_id.element_name();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
@@ -34,12 +34,12 @@ impl MetaRepository for SqliteMetaRepository {
             meta.name,
             meta.position.as_bytes(),
             meta.priority.as_bytes(),
-            meta.parent.map(|p| p.id()),
+            meta.parent.map(|p| p.id().hyphenated()),
             meta.parent.map(|p| p.element_name()),
-            meta.derived_from.map(|p| p.id()),
+            meta.derived_from.map(|p| p.id().hyphenated()),
             meta.derived_from.map(|p| p.element_name()),
-            meta.study_profile_id,
-            meta.bibliographical_source_id,
+            meta.study_profile_id.map(|id| id.hyphenated()),
+            meta.bibliographical_source_id.map(|id| id.hyphenated()),
             meta.created_at,
             meta.modified_at,
         )
@@ -70,7 +70,7 @@ impl MetaRepository for SqliteMetaRepository {
                 modified_at as "modified_at: _"
             FROM meta
             WHERE element_id = $1"#,
-            id
+            id.hyphenated()
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -79,7 +79,7 @@ impl MetaRepository for SqliteMetaRepository {
     }
 
     async fn delete(&self, id: ElementId) -> Result<(), RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
@@ -91,7 +91,7 @@ impl MetaRepository for SqliteMetaRepository {
     }
 
     async fn get_tags(&self, id: ElementId) -> Result<Vec<Tag>, RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
@@ -114,7 +114,7 @@ impl MetaRepository for SqliteMetaRepository {
     }
 
     async fn update_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
@@ -143,7 +143,7 @@ impl MetaRepository for SqliteMetaRepository {
     }
 
     async fn add_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
@@ -169,7 +169,7 @@ impl MetaRepository for SqliteMetaRepository {
     }
 
     async fn remove_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
@@ -187,7 +187,7 @@ impl MetaRepository for SqliteMetaRepository {
     }
 
     async fn rename(&self, id: ElementId, new_name: String) -> Result<(), RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
@@ -201,7 +201,7 @@ impl MetaRepository for SqliteMetaRepository {
     }
 
     async fn exists(&self, id: ElementId) -> Result<bool, RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         let row = sqlx::query!(
@@ -218,12 +218,12 @@ impl MetaRepository for SqliteMetaRepository {
         id: ElementId,
         study_profile_id: Option<Uuid>,
     ) -> Result<(), RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
             r#"UPDATE meta SET study_profile_id = $1 WHERE element_id = $2"#,
-            study_profile_id,
+            study_profile_id.map(|id| id.hyphenated()),
             uuid
         )
         .execute(&mut *tx)
@@ -236,12 +236,12 @@ impl MetaRepository for SqliteMetaRepository {
         id: ElementId,
         bibliographical_source_id: Option<Uuid>,
     ) -> Result<(), RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
             r#"UPDATE meta SET bibliographical_source_id = $1 WHERE element_id = $2"#,
-            bibliographical_source_id,
+            bibliographical_source_id.map(|id| id.hyphenated()),
             uuid
         )
         .execute(&mut *tx)
@@ -250,7 +250,7 @@ impl MetaRepository for SqliteMetaRepository {
     }
 
     async fn clear_derived_from(&self, id: ElementId) -> Result<(), RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
@@ -270,7 +270,7 @@ impl MetaRepository for SqliteMetaRepository {
         let tx = tx.as_mut();
         let row = sqlx::query!(
             r#"SELECT COUNT(*) as "count: i64" FROM meta WHERE bibliographical_source_id = $1 AND trashed_at IS NULL"#,
-            bibliographical_source_id
+            bibliographical_source_id.hyphenated()
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -283,12 +283,12 @@ impl MetaRepository for SqliteMetaRepository {
         new_parent: Option<ElementId>,
         new_position: FractionalIndex,
     ) -> Result<(), RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
             r#"UPDATE meta SET parent_id = $1, parent_type = $2, position = $3 WHERE element_id = $4"#,
-            new_parent.map(|p| p.id()),
+            new_parent.map(|p| p.id().hyphenated()),
             new_parent.map(|p| p.element_name()),
             new_position.as_bytes(),
             uuid
@@ -302,7 +302,7 @@ impl MetaRepository for SqliteMetaRepository {
         &self,
         parent: Option<ElementId>,
     ) -> Result<Option<FractionalIndex>, RepositoryError> {
-        let parent_id = parent.map(|p| p.id());
+        let parent_id = parent.map(|p| p.id().hyphenated());
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         let row = sqlx::query!(
@@ -338,7 +338,7 @@ impl MetaRepository for SqliteMetaRepository {
             WHERE parent_id IS $1 AND position < $2 AND trashed_at IS NULL
             ORDER BY position DESC
             LIMIT 1"#,
-            meta.parent.map(|m| m.id()),
+            meta.parent.map(|m| m.id().hyphenated()),
             meta.position.as_bytes()
         )
         .fetch_optional(&mut *tx)
@@ -371,7 +371,7 @@ impl MetaRepository for SqliteMetaRepository {
             WHERE parent_id IS $1 AND position > $2 AND trashed_at IS NULL
             ORDER BY position
             LIMIT 1"#,
-            meta.parent.map(|m| m.id()),
+            meta.parent.map(|m| m.id().hyphenated()),
             meta.position.as_bytes()
         )
         .fetch_optional(&mut *tx)
@@ -384,7 +384,7 @@ impl MetaRepository for SqliteMetaRepository {
         &self,
         parent: Option<ElementId>,
     ) -> Result<Vec<Meta>, RepositoryError> {
-        let parent_id = parent.map(|p| p.id());
+        let parent_id = parent.map(|p| p.id().hyphenated());
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         let rows = sqlx::query_as!(
@@ -418,7 +418,7 @@ impl MetaRepository for SqliteMetaRepository {
         id: ElementId,
         new_priority: FractionalIndex,
     ) -> Result<(), RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
@@ -557,7 +557,7 @@ impl MetaRepository for SqliteMetaRepository {
         excluding: ElementId,
         offset: i64,
     ) -> Result<Option<Meta>, RepositoryError> {
-        let uuid = excluding.id();
+        let uuid = excluding.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
@@ -601,7 +601,7 @@ impl MetaRepository for SqliteMetaRepository {
     }
 
     async fn count_with_lower_priority(&self, id: ElementId) -> Result<i64, RepositoryError> {
-        let uuid = id.id();
+        let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         let row = sqlx::query!(

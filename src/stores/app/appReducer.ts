@@ -1,4 +1,6 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { PayloadAction, createSlice } from "@reduxjs/toolkit";
+
+export type AuthModalTab = "sign-in" | "sign-up";
 
 export interface AppState {
 	startedInitialStateLoading: boolean;
@@ -7,6 +9,10 @@ export interface AppState {
 	settingsModalOpened: boolean;
 	priorityModalOpened: boolean;
 	studySessionSettingsModalOpened: boolean;
+	authModalOpened: boolean;
+	authModalInitialTab: AuthModalTab;
+	verifyEmailModalOpened: boolean;
+	manageAccountModalOpened: boolean;
 }
 
 const initialState: AppState = {
@@ -16,6 +22,10 @@ const initialState: AppState = {
 	settingsModalOpened: false,
 	priorityModalOpened: false,
 	studySessionSettingsModalOpened: false,
+	authModalOpened: false,
+	authModalInitialTab: "sign-in",
+	verifyEmailModalOpened: false,
+	manageAccountModalOpened: false,
 };
 
 const appSlice = createSlice({
@@ -55,6 +65,28 @@ const appSlice = createSlice({
 		closeStudySessionSettingsModal: state => {
 			state.studySessionSettingsModalOpened = false;
 		},
+		openAuthModal: (
+			state,
+			action: PayloadAction<AuthModalTab | undefined>,
+		) => {
+			state.authModalOpened = true;
+			state.authModalInitialTab = action.payload ?? "sign-in";
+		},
+		closeAuthModal: state => {
+			state.authModalOpened = false;
+		},
+		openVerifyEmailModal: state => {
+			state.verifyEmailModalOpened = true;
+		},
+		closeVerifyEmailModal: state => {
+			state.verifyEmailModalOpened = false;
+		},
+		openManageAccountModal: state => {
+			state.manageAccountModalOpened = true;
+		},
+		closeManageAccountModal: state => {
+			state.manageAccountModalOpened = false;
+		},
 	},
 });
 
@@ -72,4 +104,10 @@ export const {
 	closePriorityModal,
 	openStudySessionSettingsModal,
 	closeStudySessionSettingsModal,
+	openAuthModal,
+	closeAuthModal,
+	openVerifyEmailModal,
+	closeVerifyEmailModal,
+	openManageAccountModal,
+	closeManageAccountModal,
 } = appSlice.actions;

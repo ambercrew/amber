@@ -605,7 +605,7 @@ mod tests {
             sqlx::query!(
                 "UPDATE meta SET priority = $1 WHERE element_id = $2",
                 adjacent_before.as_bytes(),
-                previous_id
+                previous_id.hyphenated()
             )
             .execute(&mut *tx_ref)
             .await
@@ -613,7 +613,7 @@ mod tests {
             sqlx::query!(
                 "UPDATE meta SET priority = $1 WHERE element_id = $2",
                 adjacent_after.as_bytes(),
-                bibliographical_source_id.id()
+                bibliographical_source_id.id().hyphenated()
             )
             .execute(&mut *tx_ref)
             .await

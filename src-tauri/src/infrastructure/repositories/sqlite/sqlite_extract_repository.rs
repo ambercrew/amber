@@ -25,7 +25,7 @@ impl ExtractRepository for SqliteExtractRepository {
     async fn create(&self, extract: Extract) -> Result<(), RepositoryError> {
         self.meta_repository.create_meta(&extract.meta).await?;
 
-        let uuid = extract.meta.element_id.id();
+        let uuid = extract.meta.element_id.id().hyphenated();
         let content_text = extract_plain_text(&extract.content);
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
@@ -97,7 +97,7 @@ impl ExtractRepository for SqliteExtractRepository {
             FROM extracts e
             INNER JOIN meta m ON e.id = m.element_id
             WHERE e.id = $1"#,
-            id
+            id.hyphenated()
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -113,7 +113,7 @@ impl ExtractRepository for SqliteExtractRepository {
             "UPDATE extracts SET content = $1, content_text = $2 WHERE id = $3",
             content,
             content_text,
-            id,
+            id.hyphenated(),
         )
         .execute(&mut *tx)
         .await?;
@@ -130,7 +130,7 @@ impl ExtractRepository for SqliteExtractRepository {
         sqlx::query!(
             "UPDATE extracts SET interval_multiplier = $1 WHERE id = $2",
             interval_multiplier,
-            id,
+            id.hyphenated(),
         )
         .execute(&mut *tx)
         .await?;

@@ -25,7 +25,7 @@ impl BibliographicalSourceRepository for SqliteBibliographicalSourceRepository {
             r#"INSERT INTO bibliographical_sources
                 (id, created_at, modified_at, title, authors, publication_date, type, location)
             VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8)"#,
-            source.id,
+            source.id.hyphenated(),
             source.created_at,
             source.modified_at,
             source.title,
@@ -57,7 +57,7 @@ impl BibliographicalSourceRepository for SqliteBibliographicalSourceRepository {
             source.publication_date,
             source.source_type.as_str(),
             source.location,
-            source.id,
+            source.id.hyphenated(),
         )
         .execute(&mut *tx)
         .await?;
@@ -68,9 +68,12 @@ impl BibliographicalSourceRepository for SqliteBibliographicalSourceRepository {
     async fn delete(&self, id: Uuid) -> Result<(), RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
-        sqlx::query!(r#"DELETE FROM bibliographical_sources WHERE id = $1"#, id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query!(
+            r#"DELETE FROM bibliographical_sources WHERE id = $1"#,
+            id.hyphenated()
+        )
+        .execute(&mut *tx)
+        .await?;
         Ok(())
     }
 
@@ -91,7 +94,7 @@ impl BibliographicalSourceRepository for SqliteBibliographicalSourceRepository {
                 location
             FROM bibliographical_sources
             WHERE id = $1"#,
-            id
+            id.hyphenated()
         )
         .fetch_one(&mut *tx)
         .await?;

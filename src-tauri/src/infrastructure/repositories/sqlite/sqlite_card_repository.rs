@@ -25,7 +25,7 @@ impl CardRepository for SqliteCardRepository {
     async fn create(&self, card: Card) -> Result<(), RepositoryError> {
         self.meta_repository.create_meta(&card.meta).await?;
 
-        let uuid = card.meta.element_id.id();
+        let uuid = card.meta.element_id.id().hyphenated();
         let front_text = extract_plain_text(&card.front);
         let back_text = extract_plain_text(&card.back);
         let mut tx = self.tx.lock().await;
@@ -99,7 +99,7 @@ impl CardRepository for SqliteCardRepository {
             FROM cards c
             INNER JOIN meta m ON c.id = m.element_id
             WHERE c.id = $1"#,
-            id
+            id.hyphenated()
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -123,7 +123,7 @@ impl CardRepository for SqliteCardRepository {
             back,
             front_text,
             back_text,
-            id,
+            id.hyphenated(),
         )
         .execute(&mut *tx)
         .await?;

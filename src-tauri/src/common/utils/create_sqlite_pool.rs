@@ -6,7 +6,7 @@ use sqlx::{
 };
 use tokio::fs;
 
-use crate::{SourceError, settings::value_objects::database_location::DatabaseLocation};
+use crate::{SourceError, settings::value_objects::database_location::DatabaseLocation, sync};
 
 pub async fn create_sqlite_pool_from_location(
     database_location: &DatabaseLocation,
@@ -18,6 +18,8 @@ pub async fn create_sqlite_pool_from_location(
 }
 
 pub async fn create_sqlite_pool(url: &str) -> Result<SqlitePool, sqlx::Error> {
+    sync::sql_functions::install_sync_sql_functions();
+
     let options = SqliteConnectOptions::from_str(url)?
         .journal_mode(SqliteJournalMode::Wal)
         .optimize_on_close(true, None)
@@ -29,6 +31,7 @@ pub async fn create_sqlite_pool(url: &str) -> Result<SqlitePool, sqlx::Error> {
         .create_if_missing(true);
     let pool = SqlitePoolOptions::new().connect_with(options).await?;
     sqlx::migrate!("./migrations/").run(&pool).await?;
+    sync::sql_functions::initialize(&pool).await?;
 
     Ok(pool)
 }

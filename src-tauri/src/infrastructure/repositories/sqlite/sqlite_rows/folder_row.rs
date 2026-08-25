@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
+use uuid::fmt::Hyphenated;
 
 use crate::elements::entities::folder::Folder;
 use crate::elements::extensions::into_element_id_ext::IntoOptionalElementIdExt;
@@ -8,16 +8,16 @@ use crate::elements::value_objects::meta::Meta;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct FolderRow {
-    pub id: Uuid,
+    pub id: Hyphenated,
     pub name: String,
     pub position: Vec<u8>,
     pub priority: Vec<u8>,
-    pub parent_id: Option<Uuid>,
+    pub parent_id: Option<Hyphenated>,
     pub parent_type: Option<String>,
-    pub derived_from_id: Option<Uuid>,
+    pub derived_from_id: Option<Hyphenated>,
     pub derived_from_type: Option<String>,
-    pub study_profile_id: Option<Uuid>,
-    pub bibliographical_source_id: Option<Uuid>,
+    pub study_profile_id: Option<Hyphenated>,
+    pub bibliographical_source_id: Option<Hyphenated>,
     pub created_at: DateTime<Utc>,
     pub modified_at: DateTime<Utc>,
 }
@@ -26,12 +26,17 @@ impl From<FolderRow> for Folder {
     fn from(row: FolderRow) -> Self {
         Folder {
             meta: Meta {
-                element_id: ElementId::Folder(row.id),
+                element_id: ElementId::Folder(row.id.into_uuid()),
                 name: row.name,
-                parent: (row.parent_id, row.parent_type).into_element_id(),
-                derived_from: (row.derived_from_id, row.derived_from_type).into_element_id(),
-                study_profile_id: row.study_profile_id,
-                bibliographical_source_id: row.bibliographical_source_id,
+                parent: (row.parent_id.map(Hyphenated::into_uuid), row.parent_type)
+                    .into_element_id(),
+                derived_from: (
+                    row.derived_from_id.map(Hyphenated::into_uuid),
+                    row.derived_from_type,
+                )
+                    .into_element_id(),
+                study_profile_id: row.study_profile_id.map(Hyphenated::into_uuid),
+                bibliographical_source_id: row.bibliographical_source_id.map(Hyphenated::into_uuid),
                 position: fractional_index::FractionalIndex::from_bytes(row.position)
                     .expect("Invalid fractional index"),
                 priority: fractional_index::FractionalIndex::from_bytes(row.priority)

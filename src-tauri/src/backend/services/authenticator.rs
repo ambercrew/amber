@@ -25,6 +25,11 @@ pub trait Authenticator: Send + Sync {
         password: String,
     ) -> Result<UserInformationDto, AuthenticatorError>;
 
+    async fn sign_in_with_google(
+        &self,
+        id_token: String,
+    ) -> Result<UserInformationDto, AuthenticatorError>;
+
     async fn sign_out(&self) -> Result<(), AuthenticatorError>;
 
     async fn sign_up(

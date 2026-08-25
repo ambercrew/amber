@@ -40,6 +40,20 @@ impl Authenticator for DefaultAuthenticator {
         Ok(user_information)
     }
 
+    async fn sign_in_with_google(
+        &self,
+        id_token: String,
+    ) -> Result<UserInformationDto, AuthenticatorError> {
+        let user_information = self.backend_client.sign_in_with_google(id_token).await?;
+        self.settings_updater
+            .update_settings(UpdateSettingsRequestDto {
+                profile: Some(SettingsProfile::User(user_information.username.clone())),
+                ..Default::default()
+            })
+            .await?;
+        Ok(user_information)
+    }
+
     async fn sign_out(&self) -> Result<(), AuthenticatorError> {
         self.backend_client.sign_out().await?;
         self.settings_updater
@@ -57,7 +71,10 @@ impl Authenticator for DefaultAuthenticator {
     ) -> Result<UserInformationDto, AuthenticatorError> {
         let user_information = self.backend_client.sign_up(request).await?;
         self.settings_updater
-            .set_profile_for_new_user(user_information.username.clone())
+            .update_settings(UpdateSettingsRequestDto {
+                profile: Some(SettingsProfile::User(user_information.username.clone())),
+                ..Default::default()
+            })
             .await?;
         Ok(user_information)
     }

@@ -12,6 +12,10 @@ export function signIn(
 	});
 }
 
+export function signInWithGoogle(): Promise<UserInformationDto> {
+	return invoke("sign_in_with_google");
+}
+
 export function signUp(request: SignUpRequestDto): Promise<UserInformationDto> {
 	return invoke("sign_up", {
 		request,

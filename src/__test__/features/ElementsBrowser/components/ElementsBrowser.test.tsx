@@ -72,7 +72,7 @@ describe("ElementsBrowser", () => {
 		vi.mocked(searchElements).mockResolvedValue(RESULTS);
 	});
 
-	it("Should render the page title and subtitle when mounted", () => {
+	it("Should render the page title and subtitle when mounted", async () => {
 		// Arrange, Act
 
 		render();
@@ -85,6 +85,7 @@ describe("ElementsBrowser", () => {
 		expect(
 			screen.getByText(/Search and filter every element/),
 		).toBeInTheDocument();
+		await waitFor(() => expect(searchElements).toHaveBeenCalled());
 	});
 
 	it("Should load sources, profiles, saved searches, and results when mounted", async () => {

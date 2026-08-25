@@ -78,6 +78,10 @@ function appStateFor(priorityModalOpened: boolean): AppState {
 		settingsModalOpened: false,
 		priorityModalOpened,
 		studySessionSettingsModalOpened: false,
+		authModalOpened: false,
+		authModalInitialTab: "sign-in",
+		verifyEmailModalOpened: false,
+		manageAccountModalOpened: false,
 	};
 }
 

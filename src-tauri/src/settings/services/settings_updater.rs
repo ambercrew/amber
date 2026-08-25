@@ -26,9 +26,4 @@ pub trait SettingsUpdater: Send + Sync {
         &self,
         new_settings: UpdateSettingsRequestDto,
     ) -> Result<(), SettingsUpdaterError>;
-
-    async fn set_profile_for_new_user(
-        &self,
-        profile_name: String,
-    ) -> Result<(), SettingsUpdaterError>;
 }

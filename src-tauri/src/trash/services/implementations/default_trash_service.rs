@@ -377,7 +377,7 @@ mod tests {
             let tx_ref = guard.as_mut();
             sqlx::query!(
                 "UPDATE meta SET trashed_at = datetime('now'), trashed_root = 1 WHERE element_id = $1",
-                grandparent_id.id()
+                grandparent_id.id().hyphenated()
             )
             .execute(&mut *tx_ref)
             .await

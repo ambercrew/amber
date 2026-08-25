@@ -10,6 +10,8 @@ import {
 	useIsSmallScreen,
 } from "../../../hooks/useIsSmallScreen";
 import { useCurrentElementSync } from "../../../hooks/useCurrentElementSync";
+import { useElementSyncRefresh } from "../../../hooks/useElementSyncRefresh";
+import { usePostSyncRefresh } from "../../../hooks/usePostSyncRefresh";
 import { useCloseSidebarOnSmallScreenNavigation } from "../../../hooks/useCloseSidebarOnSmallScreenNavigation";
 import { useStudySessionGuard } from "../../Study/hooks/useStudySessionGuard";
 import { useStudySessionSummaryToast } from "../../Study/hooks/useStudySessionSummaryToast";
@@ -29,6 +31,10 @@ import StudyProfileModal from "../../Study/components/StudyProfileModal.tsx";
 import SettingsModal from "../../Settings/components/SettingsModal.tsx";
 import PriorityModal from "../../Aside/components/PriorityModal.tsx";
 import StudySessionSettingsModal from "../../Study/components/StudySessionSettingsModal.tsx";
+import AuthModal from "../../Auth/components/AuthModal.tsx";
+import VerifyEmailModal from "../../Auth/components/VerifyEmailModal.tsx";
+import ManageAccountModal from "../../Auth/components/ManageAccountModal.tsx";
+import SyncingModal from "../../Sidebar/components/SyncingModal.tsx";
 import AppHeader from "./AppHeader.tsx";
 import TrashedElementBanner, {
 	TRASHED_ELEMENT_BANNER_HEIGHT,
@@ -107,6 +113,8 @@ function App() {
 	);
 	useRedirectIfElementMissing();
 	useCurrentElementSync();
+	useElementSyncRefresh();
+	usePostSyncRefresh();
 	useStudySessionGuard();
 	useStudySessionSummaryToast();
 	useLexicalConversionBridge();
@@ -176,6 +184,10 @@ function App() {
 			<SettingsModal />
 			<PriorityModal />
 			<StudySessionSettingsModal />
+			<AuthModal />
+			<VerifyEmailModal />
+			<ManageAccountModal />
+			<SyncingModal />
 			<Notifications />
 			<SafeAreaTopBackdrop />
 

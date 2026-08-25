@@ -11,7 +11,7 @@ import {
 import { generateColors } from "@mantine/colors-generator";
 import { Dropzone } from "@mantine/dropzone";
 
-const green = generateColors("#0a8158");
+const green = generateColors("#076647");
 const blue = generateColors("#1478c0");
 const orange = generateColors("#c2560a");
 const red = generateColors("#dd2137");
@@ -58,31 +58,32 @@ const grayLight: MantineColorsTuple = [
 	"#403b31",
 	"#201c15",
 ];
+// Same warm hue as `graLight`, scaled down (~75% brightness) rather than
+// reused as-is: on dark backgrounds the un-scaled curve read as too light.
 const grayDark: MantineColorsTuple = [
-	"#faf8f4",
-	"#f0ece4",
-	"#e5e0d5",
-	"#d4cdbf",
-	"#c2baa9",
-	"#aaa290",
-	"#847d6c",
-	"#787162",
-	"#6a6456",
-	"#59544a",
+	"#b7b6b1",
+	"#b2b0aa",
+	"#aba8a0",
+	"#a39e94",
+	"#979185",
+	"#6b665a",
+	"#565147",
+	"#49443b",
+	"#302c25",
+	"#181510",
 ];
 
-// Dark surfaces: deep warm browns instead of neutral gray.
 const dark: MantineColorsTuple = [
-	"#efeae1",
-	"#d8d1c4",
-	"#a99a7e",
-	"#897b61",
-	"#4a4336",
-	"#38322a",
-	"#2a251f",
-	"#221e19",
-	"#191613",
-	"#12100d",
+	"#c5c4bf",
+	"#ada9a1",
+	"#9a9489",
+	"#676258",
+	"#302d27",
+	"#27241e",
+	"#211e19",
+	"#181511",
+	"#13100d",
+	"#0f0d0a",
 ];
 
 export const theme = createTheme({
@@ -164,8 +165,12 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--editor-surface-bg": "var(--sidebar-bg)",
 	},
 	dark: {
-		"--mantine-color-body": "var(--mantine-color-dark-6)",
-		"--sidebar-bg": "var(--mantine-color-dark-7)",
-		"--editor-surface-bg": "var(--mantine-color-dark-5)",
+		"--mantine-color-body": "var(--mantine-color-dark-7)",
+		"--sidebar-bg": "var(--mantine-color-dark-8)",
+		"--editor-surface-bg": "var(--sidebar-bg)",
+
+		"--mantine-color-amber-light": "rgba(232, 155, 12, 0.25)",
+		"--mantine-color-amber-light-hover": "rgba(232, 155, 12, 0.35)",
+		"--mantine-color-amber-light-color": "var(--mantine-color-amber-1)",
 	},
 });

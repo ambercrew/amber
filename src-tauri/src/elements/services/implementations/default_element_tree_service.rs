@@ -570,7 +570,7 @@ mod tests {
         {
             let mut guard = tx.lock().await;
             let tx_ref = guard.as_mut();
-            sqlx::query!("DELETE FROM folders WHERE id = $1", removed_id)
+            sqlx::query!("DELETE FROM folders WHERE id = $1", removed_id.hyphenated())
                 .execute(&mut *tx_ref)
                 .await
                 .unwrap();
