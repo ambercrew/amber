@@ -183,11 +183,11 @@ pub async fn create_injector<R: tauri::Runtime>(
 
     // Backend
 
-    #[cfg(all(debug_assertions, target_os = "android"))]
-    let backend_url = Url::parse("http://10.0.2.2:5078").expect("Cannot construct backend url");
-    #[cfg(all(debug_assertions, not(target_os = "android")))]
-    let backend_url = Url::parse("http://localhost:5078").expect("Cannot construct backend url");
-    #[cfg(not(debug_assertions))]
+    // #[cfg(all(debug_assertions, target_os = "android"))]
+    // let backend_url = Url::parse("http://10.0.2.2:5078").expect("Cannot construct backend url");
+    // #[cfg(all(debug_assertions, not(target_os = "android")))]
+    // let backend_url = Url::parse("http://localhost:5078").expect("Cannot construct backend url");
+    // #[cfg(not(debug_assertions))]
     let backend_url = Url::parse("https://api.amberapp.dev").expect("Cannot construct backend url");
 
     injector.register_singleton::<dyn AmberBackendClient>(Arc::new(

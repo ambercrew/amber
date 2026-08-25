@@ -58,7 +58,7 @@ impl SyncStore for SqliteSyncStore {
 
     async fn has_pending_changes(&self) -> Result<bool, SyncError> {
         let mut guard = self.tx.lock().await;
-        apply::try_flush_pending(guard.as_mut(), &self.pending).await
+        apply::flush_pending_outside_page(guard.as_mut(), &self.pending).await
     }
 
     async fn has_unresolved_foreign_keys(&self) -> Result<bool, SyncError> {

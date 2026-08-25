@@ -17,11 +17,13 @@ pub(super) async fn read_table_info(
     for row in rows {
         let pk: i64 = row.try_get("pk")?;
         let notnull: i64 = row.try_get("notnull")?;
+        let default_value: Option<String> = row.try_get("dflt_value")?;
         columns.push(ColumnInfo {
             name: row.try_get("name")?,
             col_type: row.try_get("type")?,
             pk_position: (pk != 0).then_some(pk as u32),
             notnull: notnull != 0,
+            has_default: default_value.is_some(),
         });
     }
 

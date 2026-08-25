@@ -1950,6 +1950,85 @@ async fn apply_remote_page_delete_on_later_page_drops_pending_columns_for_that_r
     assert!(!note_exists(&tx, "1").await);
 }
 
+#[tokio::test]
+async fn apply_remote_resurrected_row_missing_not_null_column_backfills_it_from_cell_log() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_required_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("required_notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // `title` lands, then a tombstone clears both the row and every column
+    // buffered for it. `sync_cells` keeps `title`, but the pull cursor has
+    // already moved past it, so the server will never send it again.
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell_for(
+                    "required_notes",
+                    "1",
+                    "title",
+                    Some(b"Hi".to_vec()),
+                    ms,
+                    0,
+                )],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell_for(
+                    "required_notes",
+                    "1",
+                    merge::DELETED_COL,
+                    None,
+                    ms,
+                    1,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    // A later cycle resurrects the row carrying only `body`.
+    let actual = engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell_for(
+                    "required_notes",
+                    "1",
+                    "body",
+                    Some(b"Body".to_vec()),
+                    ms,
+                    2,
+                )],
+            },
+            true,
+        )
+        .await;
+
+    // Assert
+
+    assert!(actual.is_ok(), "{actual:?}");
+    assert_eq!(
+        Some(("Hi".to_string(), Some("Body".to_string()))),
+        get_required_note(&tx, "1").await
+    );
+}
+
 // --- FK repair ---
 
 async fn create_parents_table(tx: &DbTransaction) {
@@ -2842,4 +2921,133 @@ async fn has_unresolved_foreign_keys_self_referential_fk_with_existing_parent_re
     // Assert
 
     assert!(!actual);
+}
+
+#[tokio::test]
+async fn apply_remote_last_page_with_unmaterialized_row_skips_foreign_key_repair() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_fk_table(&tx).await;
+    create_required_notes_table(&tx).await;
+    defer_foreign_keys(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("parents", Granularity::Row, &[])
+        .await
+        .unwrap();
+    engine
+        .register_table("children_fk", Granularity::Row, &[])
+        .await
+        .unwrap();
+    engine
+        .register_table("required_notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    // `required_notes` row 1 can never be materialized from this batch: its
+    // NOT NULL `title` is neither in the batch nor in the cell log. So the
+    // local state is knowingly incomplete when the last page lands, and an
+    // apparent FK violation may just be a reference to a row that hasn't been
+    // assembled yet.
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![
+                    remote_cell_for("required_notes", "1", "body", Some(b"Body".to_vec()), ms, 0),
+                    row_cell(
+                        "children_fk",
+                        "c1",
+                        serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
+                        ms,
+                        1,
+                    ),
+                ],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert!(
+        child_exists(&tx, "children_fk", "c1").await,
+        "FK repair must not discard rows while any row is still unmaterialized"
+    );
+    assert!(
+        !get_cells(&tx, "children_fk", "c1")
+            .await
+            .iter()
+            .any(|(col, _)| col == merge::DELETED_COL),
+        "no deletion should be staged for pushing to other devices"
+    );
+}
+
+#[tokio::test]
+async fn has_pending_changes_materializing_a_row_does_not_stage_it_as_a_local_change() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_required_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("required_notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // A non-final page buffers both columns without materializing the row.
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![
+                    remote_cell_for("required_notes", "1", "title", Some(b"Hi".to_vec()), ms, 0),
+                    remote_cell_for("required_notes", "1", "body", Some(b"Body".to_vec()), ms, 1),
+                ],
+            },
+            false,
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    // `sync_inner` calls this between pages to decide whether it can commit;
+    // it materializes the row, which writes to the base table and so fires
+    // the change-tracking triggers.
+    let still_buffered = engine.has_pending_changes().await.unwrap();
+
+    // Assert
+
+    assert!(!still_buffered);
+    assert_eq!(
+        Some(("Hi".to_string(), Some("Body".to_string()))),
+        get_required_note(&tx, "1").await
+    );
+    assert_eq!(
+        "remote-device",
+        get_cell(&tx, "required_notes", "1", "title")
+            .await
+            .unwrap()
+            .2,
+        "materializing a pulled row must not rewrite its cell as locally authored"
+    );
+    assert!(
+        engine
+            .changes_since_last_push()
+            .await
+            .unwrap()
+            .cells
+            .is_empty(),
+        "freshly pulled data must never be echoed back to the server as a local change"
+    );
 }

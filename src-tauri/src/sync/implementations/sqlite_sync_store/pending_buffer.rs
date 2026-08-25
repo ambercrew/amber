@@ -41,12 +41,6 @@ impl PendingBuffer {
         rows.remove(&key);
     }
 
-    /// Drains and returns everything currently buffered.
-    pub(super) async fn take_all(&self) -> HashMap<RowKey, Vec<PendingCell>> {
-        let mut rows = self.rows.lock().await;
-        std::mem::take(&mut *rows)
-    }
-
     pub(super) async fn is_empty(&self) -> bool {
         self.rows.lock().await.is_empty()
     }

@@ -22,8 +22,11 @@ use super::trigger_sql::{parse_row_id, quote_ident};
 /// immediately, so a new row's columns — which pagination can split across
 /// pages — accumulate before the row is materialized. Pass `is_last_page =
 /// true` on a single-page call, or on the final page of a multi-page pull to
-/// flush what remains buffered; a row still missing a `NOT NULL` column at
-/// that point surfaces as a constraint error from the flush itself.
+/// attempt flushing what remains buffered — first topping each row up from the
+/// local cell log (see `backfill_required_columns_from_cell_log`). A row still
+/// missing a `NOT NULL` column even then (e.g. another device is still mid-push
+/// for it) just stays buffered for a retry on the next sync, rather than
+/// failing this one, and suppresses foreign key repair for the cycle.
 pub(super) async fn apply_remote(
     tx: &mut SqliteConnection,
     batch: ChangeBatch,
@@ -48,11 +51,61 @@ pub(super) async fn apply_remote(
     // Runs with the sync_applying guard lifted so repairs are recorded as
     // local changes and pushed. Deferred to the last page since an earlier
     // "violation" may just be a reference whose target arrives later.
+    //
+    // Skipped entirely while any row is still unmaterialized: because repairs
+    // are pushed, repairing against a knowingly-incomplete local state would
+    // propagate deletions of rows that are perfectly intact everywhere else —
+    // a buffered row is absent locally, so every reference to it looks like a
+    // dangling foreign key and `DiscardRow`/the unconfigured-FK fallback would
+    // delete the referencing rows and replicate those tombstones outward. The
+    // remaining pages' work simply doesn't commit (see `sync_inner`'s
+    // `has_unresolved_foreign_keys` gate) and is re-pulled next sync.
     if is_last_page {
-        fk_repair::repair_foreign_keys(&mut *tx).await?;
+        if pending.is_empty().await {
+            fk_repair::repair_foreign_keys(&mut *tx).await?;
+        } else {
+            log::warn!(
+                "Skipping foreign key repair: one or more rows are still unmaterialized, so \
+                 apparent violations may just be references to a row that hasn't been \
+                 assembled yet. Repair will run once the next sync completes those rows."
+            );
+        }
     }
 
     Ok(())
+}
+
+/// [`try_flush_pending`] for callers running *outside* an [`apply_remote`]
+/// page, i.e. `SyncStore::has_pending_changes`, which `sync_inner` calls
+/// between pages to decide whether it is safe to commit.
+///
+/// Such a caller must raise the `sync_applying` guard itself. Materializing a
+/// row writes to the base table, which fires that table's change-tracking
+/// triggers; unguarded, every column of every row flushed here is staged in
+/// `sync_cells` under *this* device's id and `hlc_now()`, so the next push
+/// echoes freshly pulled remote data straight back to the server as if it were
+/// a local edit. It also overwrites the remote cell's recorded HLC and
+/// device id, corrupting the basis for later merge decisions.
+pub(super) async fn flush_pending_outside_page(
+    tx: &mut SqliteConnection,
+    pending: &PendingBuffer,
+) -> Result<bool, SyncError> {
+    mark_applying(tx).await?;
+
+    let result = try_flush_pending(&mut *tx, pending).await;
+
+    // Must always run, but its own error must never shadow a real flush
+    // failure with a misleading cleanup error.
+    if let Err(err) = clear_applying(tx).await {
+        if result.is_ok() {
+            return Err(err);
+        }
+        log::error!(
+            "Failed to clear sync_applying guard after flush_pending_outside_page: {err:?}"
+        );
+    }
+
+    result
 }
 
 /// Best-effort flush of whatever is buffered in `pending`, without waiting
@@ -60,7 +113,10 @@ pub(super) async fn apply_remote(
 /// whose required columns have all arrived is written and removed from the
 /// buffer, while one still missing a column is rolled back and stays
 /// buffered. Returns whether any row is still buffered afterwards.
-pub(super) async fn try_flush_pending(
+///
+/// Assumes the `sync_applying` guard is already raised — call
+/// [`flush_pending_outside_page`] instead from outside an [`apply_remote`] page.
+async fn try_flush_pending(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
 ) -> Result<bool, SyncError> {
@@ -68,6 +124,8 @@ pub(super) async fn try_flush_pending(
     let mut column_cache = HashMap::new();
 
     for (key, cells) in rows {
+        let buffered_cols: Vec<String> = cells.iter().map(|c| c.col.clone()).collect();
+
         sqlx::query("SAVEPOINT try_flush_pending")
             .execute(&mut *tx)
             .await?;
@@ -81,7 +139,8 @@ pub(super) async fn try_flush_pending(
             }
             Err(err) => {
                 log::debug!(
-                    "try_flush_pending: row {}/{} not yet materializable, re-buffering: {err:?}",
+                    "try_flush_pending: row {}/{} not yet materializable from buffered columns \
+                     {buffered_cols:?}, re-buffering: {err:?}",
                     key.tbl,
                     key.row_id
                 );
@@ -106,9 +165,70 @@ async fn apply_remote_page_inner(
 ) -> Result<(), SyncError> {
     apply_remote_inner(tx, batch, pending).await?;
 
-    if is_last_page {
-        let mut column_cache = HashMap::new();
-        flush_pending(tx, pending, &mut column_cache).await?;
+    if is_last_page && try_flush_pending(tx, pending).await? {
+        log::warn!(
+            "apply_remote: reached the last pulled page with one or more rows still \
+             missing required columns; left them buffered for a retry on the next sync"
+        );
+        log_incomplete_pending_rows(tx, pending).await?;
+    }
+
+    Ok(())
+}
+
+/// Reports every row still buffered after the final page's flush attempt:
+/// which columns arrived over the wire, which required ones are missing, and
+/// which columns the *local* cell log already holds for that row.
+///
+/// The last part is the one that distinguishes the two causes of an incomplete
+/// row, which a bare `NOT NULL constraint failed` cannot:
+/// - the missing columns are absent from `sync_cells` too — the server really
+///   hasn't got them yet (another device is mid-push), so the next sync fixes
+///   it by itself;
+/// - the missing columns *are* in `sync_cells` — they were pulled by an earlier
+///   cycle whose cursor already committed past them, so the server will never
+///   resend them and this row can never materialize from the wire alone. That
+///   one is permanent and needs the values read back out of `sync_cells`.
+async fn log_incomplete_pending_rows(
+    tx: &mut SqliteConnection,
+    pending: &PendingBuffer,
+) -> Result<(), SyncError> {
+    let mut column_cache = HashMap::new();
+
+    for (key, cells) in pending.snapshot().await {
+        let mut arrived: Vec<&str> = cells.iter().map(|c| c.col.as_str()).collect();
+        arrived.sort_unstable();
+
+        let columns = get_or_load_columns(tx, &key.tbl, &mut column_cache).await?;
+        let missing: Vec<&str> = columns
+            .iter()
+            .filter(|c| c.is_required_on_insert() && !arrived.contains(&c.name.as_str()))
+            .map(|c| c.name.as_str())
+            .collect();
+
+        let known_locally: Vec<String> = sqlx::query_scalar(
+            "SELECT col FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 ORDER BY col",
+        )
+        .bind(&key.tbl)
+        .bind(&key.row_id)
+        .fetch_all(&mut *tx)
+        .await?;
+
+        let recoverable_from_cell_log: Vec<&&str> = missing
+            .iter()
+            .filter(|col| known_locally.iter().any(|known| known == *col))
+            .collect();
+
+        log::warn!(
+            "sync-incomplete-row: tbl={} row_id={} arrived_this_pull={:?} missing_required={:?} \
+             already_in_local_sync_cells={:?} of_which_missing_are_recoverable_locally={:?}",
+            key.tbl,
+            key.row_id,
+            arrived,
+            missing,
+            known_locally,
+            recoverable_from_cell_log,
+        );
     }
 
     Ok(())
@@ -197,21 +317,6 @@ async fn apply_remote_inner(
     Ok(())
 }
 
-/// Flushes every row currently buffered in `pending` as a single upsert per
-/// row, then clears the buffer.
-async fn flush_pending(
-    tx: &mut SqliteConnection,
-    pending: &PendingBuffer,
-    column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
-) -> Result<(), SyncError> {
-    let rows = pending.take_all().await;
-    for (key, cells) in rows {
-        apply_row_upsert_columns(tx, &key, cells, column_cache).await?;
-    }
-
-    Ok(())
-}
-
 async fn apply_action(
     tx: &mut SqliteConnection,
     table: &str,
@@ -279,7 +384,105 @@ async fn apply_row_upsert_columns(
     let pk_columns = primary_key_columns(table, &columns)?;
     let pk_values = parse_row_id(table, &key.row_id, pk_columns.len())?;
 
+    backfill_required_columns_from_cell_log(
+        tx,
+        key,
+        &pk_columns,
+        &pk_values,
+        &columns,
+        &mut values,
+    )
+    .await?;
+
     upsert_row(tx, table, &pk_columns, &pk_values, &columns, values).await
+}
+
+/// Fills in the columns a new row's `INSERT` must supply (`NOT NULL`, no
+/// `DEFAULT`) but that this pull didn't deliver, reading them from the local
+/// `sync_cells` log.
+///
+/// `sync_cells` is the durable, complete record of every cell this device has
+/// won, whereas the pending buffer only ever holds what arrived over the wire
+/// during *this* pull — and a row can legitimately lose buffered columns
+/// mid-cycle while the cursor still commits past them:
+///
+/// - a `DeleteRow` for the row clears its buffered cells (see
+///   `apply_remote_inner`), after which a newer cell resurrects the row with
+///   only a subset of its columns;
+/// - a cell that loses its HLC comparison against `sync_cells` is skipped
+///   before ever reaching the buffer.
+///
+/// Either way the server will not resend those columns, so without consulting
+/// the cell log the row could never be materialized again and the constraint
+/// failure would be permanent rather than transient.
+///
+/// Only runs for a row that doesn't exist yet: an existing row already
+/// satisfies its `NOT NULL` columns, so the `UPDATE` path needs nothing added.
+async fn backfill_required_columns_from_cell_log(
+    tx: &mut SqliteConnection,
+    key: &RowKey,
+    pk_columns: &[&ColumnInfo],
+    pk_values: &[String],
+    columns: &[ColumnInfo],
+    values: &mut HashMap<String, Option<Vec<u8>>>,
+) -> Result<(), SyncError> {
+    let missing: Vec<&str> = columns
+        .iter()
+        .filter(|c| c.is_required_on_insert() && !values.contains_key(&c.name))
+        .map(|c| c.name.as_str())
+        .collect();
+
+    if missing.is_empty() || row_exists(tx, &key.tbl, pk_columns, pk_values).await? {
+        return Ok(());
+    }
+
+    for col in missing {
+        let value: Option<Option<Vec<u8>>> = sqlx::query_scalar(
+            "SELECT value FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 AND col = ?3",
+        )
+        .bind(&key.tbl)
+        .bind(&key.row_id)
+        .bind(col)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some(value) = value {
+            log::debug!(
+                "backfilled required column '{col}' for {}/{} from the local cell log",
+                key.tbl,
+                key.row_id
+            );
+            values.insert(col.to_string(), value);
+        }
+    }
+
+    Ok(())
+}
+
+/// Whether a row with these primary key values exists in `table`.
+async fn row_exists(
+    tx: &mut SqliteConnection,
+    table: &str,
+    pk_columns: &[&ColumnInfo],
+    pk_values: &[String],
+) -> Result<bool, SyncError> {
+    let pk_predicate: String = pk_columns
+        .iter()
+        .enumerate()
+        .map(|(i, c)| format!("{} = ?{}", quote_ident(&c.name), i + 1))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    let sql = format!(
+        "SELECT EXISTS(SELECT 1 FROM {} WHERE {pk_predicate})",
+        quote_ident(table)
+    );
+
+    let mut query = sqlx::query_scalar(sqlx::AssertSqlSafe(sql));
+    for value in pk_values {
+        query = query.bind(value);
+    }
+
+    Ok(query.fetch_one(&mut *tx).await?)
 }
 
 async fn apply_row_upsert(
@@ -432,24 +635,8 @@ async fn upsert_row(
         if query.execute(&mut *tx).await?.rows_affected() > 0 {
             return Ok(());
         }
-    } else {
-        let pk_predicate: String = pk_idents
-            .iter()
-            .enumerate()
-            .map(|(i, ident)| format!("{ident} = ?{}", i + 1))
-            .collect::<Vec<_>>()
-            .join(" AND ");
-        let exists_sql = format!(
-            "SELECT EXISTS(SELECT 1 FROM {} WHERE {pk_predicate})",
-            quote_ident(table)
-        );
-        let mut query = sqlx::query_scalar(sqlx::AssertSqlSafe(exists_sql));
-        for value in pk_values {
-            query = query.bind(value);
-        }
-        if query.fetch_one(&mut *tx).await? {
-            return Ok(());
-        }
+    } else if row_exists(tx, table, pk_columns, pk_values).await? {
+        return Ok(());
     }
 
     // No existing row matched, so this is genuinely new: insert with
