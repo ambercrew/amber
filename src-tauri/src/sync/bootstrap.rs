@@ -12,21 +12,17 @@ use crate::sync::value_objects::fk_policy::FkPolicy;
 use crate::sync::value_objects::granularity::Granularity;
 use crate::sync::value_objects::table_sync_config::TableSyncConfig;
 
-/// Every domain table synced to the cloud, paired with its tracking
-/// granularity and FK repair policies. `meta` uses column granularity so
-/// concurrent edits to different fields of the same element (e.g. rename vs.
-/// reposition on different devices) merge independently rather than one
-/// clobbering the other; everything else is row granularity.
-/// `local_configurations` is per-machine and deliberately excluded, as are
-/// sync's own bookkeeping tables (`sync_cells`, `sync_registry`,
-/// `sync_applying`, `sync_fk_policies`).
+/// Every domain table synced to the cloud, paired with its tracking granularity
+/// and FK repair policies. `meta` uses column granularity so concurrent edits to
+/// different fields of the same element merge independently; everything else is
+/// row granularity. `local_configurations` is per-machine and excluded, as are
+/// sync's own bookkeeping tables.
 ///
 /// FK policies mirror the schema's `ON DELETE` semantics (`SET NULL` →
-/// `FkPolicy::SetNull`, `CASCADE` → `FkPolicy::DiscardRow`), plus a few
-/// references enforced only by triggers rather than a SQL `FOREIGN KEY`
-/// (`meta.parent_id`/`derived_from_id`, each element table's `id` back to
-/// `meta.element_id`) that still need an explicit policy for the FK repair
-/// pass in `apply::apply_remote` (`is_last_page`) to handle.
+/// `FkPolicy::SetNull`, `CASCADE` → `FkPolicy::DiscardRow`), plus references
+/// enforced only by triggers (`meta.parent_id`/`derived_from_id`, each element
+/// table's `id` back to `meta.element_id`) that the FK repair pass still needs
+/// an explicit policy for.
 fn table_configs() -> Vec<TableSyncConfig> {
     vec![
         TableSyncConfig {
@@ -213,9 +209,9 @@ fn table_configs() -> Vec<TableSyncConfig> {
     ]
 }
 
-/// Registers every synced domain table for change tracking. Idempotent, so
-/// safe to call on every app start; must run before the app is usable since
-/// writes to an unregistered table are never tracked for sync.
+/// Registers every synced domain table for change tracking. Idempotent, and
+/// must run before the app is usable: writes to an unregistered table are
+/// never tracked.
 pub async fn register_sync_tables(injector: &Arc<Injector>) -> Result<(), SyncError> {
     let scope = injector.start_scope();
     let store = scope.resolve::<dyn SyncStore>().await;
@@ -231,11 +227,9 @@ pub async fn register_sync_tables(injector: &Arc<Injector>) -> Result<(), SyncEr
     Ok(())
 }
 
-/// Same as [`register_sync_tables`], but runs directly against `pool` instead
-/// of a DI scope's [`SyncStore`]. Needed right after the active database is
-/// swapped to `pool` (see `DatabaseConnectionManager::connect_to_database`/
-/// `move_database_to`), since any in-flight DI scope still holds a
-/// transaction on the *old* pool.
+/// Same as [`register_sync_tables`], but runs directly against `pool` instead of
+/// a DI scope's [`SyncStore`]. Needed right after the active database is swapped
+/// to `pool`, since an in-flight scope still holds a transaction on the old one.
 pub async fn register_sync_tables_on_pool(pool: &SqlitePool) -> Result<(), SyncError> {
     let mut tx = pool.begin().await?;
 

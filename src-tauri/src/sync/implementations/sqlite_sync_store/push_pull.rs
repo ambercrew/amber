@@ -3,11 +3,14 @@ use sqlx::{Row, SqliteConnection};
 use crate::generated_code::{CellChange, ChangeBatch};
 use crate::sync::errors::SyncError;
 use crate::sync::hlc::Hlc;
-use crate::sync::sql_functions;
 
 const LAST_PUSHED_HLC_CONFIG: &str = "sync_last_pushed_hlc";
 const LAST_PULLED_SERVER_SEQ_CONFIG: &str = "sync_last_pulled_server_seq";
 
+/// The cells this device wrote and hasn't pushed yet. Matches on the same
+/// `device_id()` SQL function the change-tracking triggers stamp cells with, so
+/// both sides resolve to the clock registered on this very connection (see
+/// `register_sync_sql_functions`) rather than to two ids that could drift apart.
 pub(super) async fn changes_since_last_push(
     tx: &mut SqliteConnection,
 ) -> Result<ChangeBatch, SyncError> {
@@ -18,14 +21,11 @@ pub(super) async fn changes_since_last_push(
             .await?
             .unwrap_or_default();
 
-    let device_id = sql_functions::device_id();
-
     let rows = sqlx::query(
         "SELECT tbl, row_id, col, value, hlc, device_id FROM sync_cells
-         WHERE device_id = ?1 AND hlc > ?2
+         WHERE sync_cells.device_id = device_id() AND hlc > ?1
          ORDER BY hlc",
     )
-    .bind(device_id.to_string())
     .bind(&last_pushed_hlc)
     .fetch_all(&mut *tx)
     .await?;
@@ -77,9 +77,9 @@ pub(super) async fn set_last_pulled_server_seq(
     tx: &mut SqliteConnection,
     seq: i64,
 ) -> Result<(), SyncError> {
-    // Unlike the old syncer, no fallback to a full re-pull if the cursor is
-    // far behind the server's retained history — just log a large jump so a
-    // potential mid-gap resume (from backend history compaction) is visible.
+    // There is no fallback to a full re-pull if the cursor falls behind the
+    // server's retained history, so log a large jump to make a mid-gap resume
+    // (after backend history compaction) visible.
     if let Some(previous) = get_last_pulled_server_seq(tx).await?
         && seq - previous > 100_000
     {

@@ -201,12 +201,13 @@ pub mod tests {
         injector.register_singleton(Arc::new(AppDataDirectory::new(app_data_directory.clone())));
 
         // Must use database that is saved on disk for backups to work.
-        let sqlite_pool = create_sqlite_pool(&format!("sqlite:///{}", path.to_string_lossy()))
-            .await
-            .unwrap();
+        let (sqlite_pool, sync_clock) =
+            create_sqlite_pool(&format!("sqlite:///{}", path.to_string_lossy()))
+                .await
+                .unwrap();
         let database_location = DatabaseLocation::new_unchecked(app_data_directory);
 
-        let db_pool = DbPool::new(sqlite_pool, database_location);
+        let db_pool = DbPool::new(sqlite_pool, database_location, sync_clock);
         injector.register_singleton(Arc::new(db_pool));
         register_scoped_tx(&mut injector);
 

@@ -4,10 +4,8 @@ use crate::sync::utils::merge::{DELETED_COL, ROW_COL};
 
 const UPSERT_CONFLICT_CLAUSE: &str = "ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id";
 const APPLYING_GUARD: &str = "WHEN NOT EXISTS (SELECT 1 FROM sync_applying)";
-/// Lets `register_table`'s initial-registration backfill (see
-/// `backfill_via_trigger` below) bypass the `au` trigger's per-column "did
-/// this actually change" filter, so a no-op self-assignment `UPDATE` still
-/// forces a full cell write for every pre-existing row.
+/// Lets `backfill_via_trigger` bypass the `au` trigger's per-column "did this
+/// change" filter, so its no-op self-assignment `UPDATE` still writes a cell.
 const BACKFILLING_BYPASS: &str = "OR EXISTS (SELECT 1 FROM sync_backfilling)";
 
 pub fn drop_trigger_sql(table: &str) -> Vec<String> {
@@ -115,15 +113,10 @@ BEGIN
 }
 
 /// Forces `table`'s `au` trigger to fire for every existing row, seeding
-/// `sync_cells` for rows that predate sync registration (never went through
-/// an `AFTER INSERT` trigger, so they'd otherwise never be pushed).
-///
-/// Does this via a no-op self-assignment `UPDATE`, reusing the trigger's own
-/// SQL rather than re-deriving the `sync_cells` row shape here. Row-mode
-/// triggers rewrite unconditionally so this just works; column-mode triggers
-/// only write columns where `NEW.col IS NOT OLD.col`, which a self-assignment
-/// never satisfies, so the `sync_backfilling` guard row bypasses that check
-/// for the duration of this statement (see `BACKFILLING_BYPASS`).
+/// `sync_cells` for rows that predate registration and so never went through an
+/// `AFTER INSERT` trigger. Uses a no-op self-assignment `UPDATE` to reuse the
+/// trigger's own SQL; the `sync_backfilling` guard row lifts the column-mode
+/// `NEW.col IS NOT OLD.col` filter a self-assignment could never satisfy.
 pub fn backfill_via_trigger(schema: &TableSchema) -> Vec<String> {
     let quoted_table = quote_ident(&schema.name);
     let touch_col = quote_ident(
@@ -153,10 +146,9 @@ END;",
     )
 }
 
-/// Builds the `row_id` SQL expression for a trigger body: a JSON array of the
-/// primary key column values (in key order), from `prefix` (`"NEW"`/`"OLD"`).
-/// JSON array (rather than delimiter-joining) keeps composite keys
-/// unambiguous regardless of the values' contents.
+/// Builds the `row_id` expression for a trigger body: a JSON array of the
+/// primary key values in key order, from `prefix` (`"NEW"`/`"OLD"`). JSON keeps
+/// composite keys unambiguous whatever the values contain.
 fn row_id_expr(prefix: &str, pk_columns: &[String]) -> String {
     let args: String = pk_columns
         .iter()
@@ -167,9 +159,8 @@ fn row_id_expr(prefix: &str, pk_columns: &[String]) -> String {
 }
 
 /// Decodes a `row_id` (see `row_id_expr`) into its primary key values, in
-/// encoding order. Values are carried through as text and later bound as
-/// query parameters, where SQLite's affinity conversion restores each to its
-/// destination column's actual storage class.
+/// encoding order. They stay text until bound as query parameters, where
+/// SQLite's affinity conversion restores each column's storage class.
 pub(super) fn parse_row_id(
     table: &str,
     row_id: &str,
@@ -206,8 +197,7 @@ pub(super) fn parse_row_id(
         .collect()
 }
 
-/// Double-quotes a SQL identifier, escaping embedded double quotes. Identifiers
-/// come from `PRAGMA table_info`, not user input, but this is cheap insurance.
+/// Double-quotes a SQL identifier, escaping embedded double quotes.
 pub(crate) fn quote_ident(ident: &str) -> String {
     format!("\"{}\"", ident.replace('"', "\"\""))
 }

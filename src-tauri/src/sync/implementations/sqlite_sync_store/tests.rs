@@ -1,10 +1,12 @@
 use sqlx::Row;
 
+use injector::injector_scope::InjectorScope;
+
 use crate::generated_code::{CellChange, ChangeBatch};
+use crate::infrastructure::value_objects::db_pool::DbPool;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 use crate::sync::errors::SyncError;
 use crate::sync::hlc::{DeviceId, Hlc};
-use crate::sync::sql_functions;
 use crate::sync::store::SyncStore;
 use crate::sync::utils::merge;
 use crate::sync::value_objects::fk_constraint::FkConstraint;
@@ -12,11 +14,22 @@ use crate::sync::value_objects::fk_policy::FkPolicy;
 use crate::sync::value_objects::granularity::Granularity;
 use crate::test_utils::create_test_injector;
 
-/// `SYNC_CLOCK` is a process-wide static shared by every test, so a fixed
-/// "far future" constant could collide with its live position; derive from
-/// the current tip instead to stay ahead of anything written so far.
+/// Far enough ahead of wall time that a remote cell stamped with it always
+/// wins the last-writer-wins merge against anything the local clock issues.
 fn far_future_ms() -> u64 {
-    sql_functions::sync_clock().now().physical_ms + 100_000_000_000
+    crate::sync::hlc::wall_time_ms() + 100_000_000_000
+}
+
+/// The device id the test database's own clock stamps cells with.
+async fn local_device_id(scope: &InjectorScope<'_>) -> String {
+    scope
+        .resolve::<DbPool>()
+        .await
+        .sync_clock()
+        .await
+        .get()
+        .device_id()
+        .to_string()
 }
 
 async fn create_notes_table(tx: &DbTransaction) {
@@ -83,9 +96,8 @@ async fn note_exists(tx: &DbTransaction, id: &str) -> bool {
         .is_some()
 }
 
-/// `sync_cells.row_id` is a JSON array of primary key column values in key
-/// order (see `trigger_sql::row_id_expr`); single-element here since `notes`
-/// has a single-column key.
+/// `sync_cells.row_id` is a JSON array of primary key values in key order (see
+/// `trigger_sql::row_id_expr`); single-element for `notes`.
 fn row_id_json(values: &[&str]) -> String {
     serde_json::to_string(values).unwrap()
 }
@@ -694,7 +706,7 @@ async fn changes_since_last_push_column_mode_reports_one_cell_per_column_with_co
     assert_eq!("notes", title_cell.tbl);
     assert_eq!(single_row_id("1"), title_cell.row_id);
     assert_eq!(Some(b"Title".to_vec()), title_cell.value);
-    assert_eq!(sql_functions::device_id().to_string(), title_cell.device_id);
+    assert_eq!(local_device_id(&scope).await, title_cell.device_id);
 
     let body_cell = actual.cells.iter().find(|c| c.col == "body").unwrap();
     assert_eq!(Some(b"Body".to_vec()), body_cell.value);
@@ -1108,10 +1120,9 @@ async fn apply_remote_stale_update_after_tombstone_is_discarded() {
 async fn apply_remote_higher_hlc_update_after_delete_resurrects_row() {
     // Arrange
 
-    // A tombstone in `sync_cells` never clears itself when the row returns,
-    // so a later update must be judged against its HLC rather than blocked
-    // outright — otherwise a reusable natural id could never come back once
-    // deleted.
+    // A tombstone never clears itself when the row returns, so a later update is
+    // judged against its HLC; otherwise a reusable natural id could never come
+    // back once deleted.
 
     let injector = create_test_injector().await;
     let scope = injector.start_scope();
@@ -1269,11 +1280,9 @@ async fn apply_remote_shape_mismatch_rejects_whole_batch_fail_fast() {
     // Assert
 
     assert!(matches!(actual, Err(SyncError::CellShapeMismatch { .. })));
-    // `SetColumn` cells only materialize into the base table via the
-    // batch-level flush at the end of `apply_remote`; the second cell's error
-    // aborts before that flush, so the base table never sees the first
-    // (valid) cell either — atomicity is the caller's job (rolling back the
-    // transaction).
+    // `SetColumn` cells only materialize via the flush at the end of
+    // `apply_remote`; the second cell's error aborts before that, so the base
+    // table never sees the first one either.
     assert_eq!(None, get_note_title(&tx, "1").await);
 }
 
@@ -1383,7 +1392,13 @@ async fn apply_remote_advances_local_clock_past_remote_hlc() {
 
     // Assert
 
-    let actual = sql_functions::sync_clock().now();
+    let actual = scope
+        .resolve::<DbPool>()
+        .await
+        .sync_clock()
+        .await
+        .get()
+        .now();
     assert!(actual > remote_hlc);
 }
 
@@ -1508,9 +1523,8 @@ async fn apply_remote_composite_primary_key_updates_matching_row() {
 async fn apply_remote_row_mode_recreated_row_after_tombstone_reuses_same_composite_row_id() {
     // Arrange
 
-    // Mirrors `element_tags`: a row-mode table with a natural composite key
-    // (e.g. `(element_id, tag_id)`), so removing then re-adding reuses the
-    // same row id and the resurrection must be judged against the
+    // Mirrors `element_tags`: a row-mode table with a natural composite key, so
+    // re-adding reuses the row id and the resurrection is judged against the
     // tombstone's HLC (see `merge::decide`).
 
     let injector = create_test_injector().await;
@@ -1821,8 +1835,8 @@ async fn apply_remote_column_update_on_existing_row_leaves_untouched_not_null_co
 
     // Act
 
-    // Only `body` is in this batch; `title` (NOT NULL) is untouched, as in a
-    // real column-mode update on an already-materialized row.
+    // Only `body` is in this batch; `title` (NOT NULL) is untouched, as in a real
+    // update on an already-materialized row.
     let actual = engine
         .apply_remote(
             ChangeBatch {
@@ -1965,9 +1979,9 @@ async fn apply_remote_resurrected_row_missing_not_null_column_backfills_it_from_
         .unwrap();
     let ms = far_future_ms();
 
-    // `title` lands, then a tombstone clears both the row and every column
-    // buffered for it. `sync_cells` keeps `title`, but the pull cursor has
-    // already moved past it, so the server will never send it again.
+    // `title` lands, then a tombstone clears the row and its buffered columns.
+    // `sync_cells` keeps `title`, but the cursor has moved past it, so the server
+    // will never send it again.
     engine
         .apply_remote(
             ChangeBatch {
@@ -2082,8 +2096,7 @@ async fn create_children_notnull_table(tx: &DbTransaction) {
 }
 
 /// A real SQL `FOREIGN KEY` to `parents`, for the fallback discard pass on a
-/// column with no configured `FkConstraint` (see
-/// `fk_repair::repair_foreign_keys`'s `discard_unconfigured_violations`).
+/// column with no configured `FkConstraint`.
 async fn create_children_fk_table(tx: &DbTransaction) {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
@@ -2107,10 +2120,8 @@ async fn create_grandchildren_table(tx: &DbTransaction) {
         .unwrap();
 }
 
-/// Statement-time FK enforcement would otherwise reject an insert of a row
-/// referencing a not-yet-pulled (or permanently missing) parent — the same
-/// deferral `DefaultSyncEngine::sync` arms for a real sync cycle (see
-/// `disable_foreign_key_constraint_for_current_transaction`).
+/// Statement-time FK enforcement would otherwise reject a row referencing a
+/// not-yet-pulled parent — the same deferral `DefaultSyncEngine::sync` arms.
 async fn defer_foreign_keys(tx: &DbTransaction) {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
@@ -2951,11 +2962,9 @@ async fn apply_remote_last_page_with_unmaterialized_row_skips_foreign_key_repair
 
     // Act
 
-    // `required_notes` row 1 can never be materialized from this batch: its
-    // NOT NULL `title` is neither in the batch nor in the cell log. So the
-    // local state is knowingly incomplete when the last page lands, and an
-    // apparent FK violation may just be a reference to a row that hasn't been
-    // assembled yet.
+    // `required_notes` row 1 can never be materialized from this batch: its NOT
+    // NULL `title` is neither in the batch nor in the cell log, so local state is
+    // knowingly incomplete when the last page lands.
     engine
         .apply_remote(
             ChangeBatch {
@@ -3021,9 +3030,8 @@ async fn has_pending_changes_materializing_a_row_does_not_stage_it_as_a_local_ch
 
     // Act
 
-    // `sync_inner` calls this between pages to decide whether it can commit;
-    // it materializes the row, which writes to the base table and so fires
-    // the change-tracking triggers.
+    // `sync_inner` calls this between pages to decide whether it can commit; it
+    // materializes the row, firing the change-tracking triggers.
     let still_buffered = engine.has_pending_changes().await.unwrap();
 
     // Assert

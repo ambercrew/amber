@@ -18,8 +18,7 @@ struct StoredFkPolicy {
 }
 
 /// One declared SQL foreign key (`PRAGMA foreign_key_list`) on a registered
-/// table, used for the fallback discard pass on columns with no configured
-/// policy (see `repair_foreign_keys`).
+/// table, used for the fallback discard pass on columns with no policy.
 struct DeclaredFk {
     tbl: String,
     from: String,
@@ -27,12 +26,10 @@ struct DeclaredFk {
 }
 
 /// Resolves every dangling foreign-key reference among synced tables:
-/// configured policies (`sync_fk_policies`) run first, then any unconfigured
-/// declared SQL FK falls back to discarding the violating row. Runs to a
-/// fixpoint, since repairing one row can newly orphan another linked only by
-/// an implicit (non-SQL) reference. Must be called with sync change-tracking
-/// triggers active (outside the `sync_applying` guard) so repairs are
-/// recorded as local changes and pushed.
+/// configured policies (`sync_fk_policies`) first, then unconfigured declared
+/// SQL FKs by discarding the violating row. Runs to a fixpoint, since one repair
+/// can newly orphan a row linked only by an implicit reference. Must run outside
+/// the `sync_applying` guard so repairs are tracked as local changes.
 pub(super) async fn repair_foreign_keys(tx: &mut SqliteConnection) -> Result<(), SyncError> {
     let policies = load_policies(tx).await?;
     let configured: HashSet<(String, String)> = policies
@@ -153,8 +150,8 @@ async fn apply_policy(
     Ok(rows_affected)
 }
 
-/// Discards rows violating a declared SQL FK that has no configured policy
-/// on the same `(table, column)` (the fallback for decision 2).
+/// Discards rows violating a declared SQL FK with no configured policy on the
+/// same `(table, column)`.
 async fn discard_unconfigured_violations(
     tx: &mut SqliteConnection,
     configured: &HashSet<(String, String)>,
@@ -195,10 +192,8 @@ async fn registered_tables(tx: &mut SqliteConnection) -> Result<Vec<String>, Syn
 }
 
 /// Declared SQL foreign keys for `table`, via `PRAGMA foreign_key_list`. A
-/// `NULL` "to" column means the FK targets the parent's primary key, which
-/// this codebase always models as a single TEXT column (see
-/// `column_info::primary_key_columns`), so it is resolved from
-/// `PRAGMA table_info` on the parent.
+/// `NULL` "to" column means the FK targets the parent's primary key, resolved
+/// from `PRAGMA table_info` on the parent.
 async fn declared_foreign_keys(
     tx: &mut SqliteConnection,
     table: &str,
@@ -238,10 +233,8 @@ async fn declared_foreign_keys(
 }
 
 /// Alias for the referenced table inside a [`violation_predicate`] subquery.
-/// Required for self-referential FKs (e.g. `meta.parent_id -> meta.element_id`):
-/// without it, the subquery's unaliased `FROM {table}` would shadow the outer
-/// row's table name, so `{table}.{col}` resolves to the subquery's own scan —
-/// making `NOT EXISTS` spuriously true even when the referenced row exists.
+/// Required for self-referential FKs: unaliased, the subquery would shadow the
+/// outer row's table name and make `NOT EXISTS` spuriously true.
 const VIOLATION_PREDICATE_REF_ALIAS: &str = "__fk_ref";
 
 /// The `NOT EXISTS` predicate for one FK relationship: true for a row in

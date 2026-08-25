@@ -107,7 +107,7 @@ pub fn observe(state: &Hlc, remote: &Hlc, wall_ms: u64) -> Hlc {
     }
 }
 
-fn wall_time_ms() -> u64 {
+pub fn wall_time_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()

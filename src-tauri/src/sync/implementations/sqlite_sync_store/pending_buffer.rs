@@ -6,15 +6,13 @@ use tokio::sync::Mutex;
 
 use super::models::{PendingCell, RowKey};
 
-/// Column-mode `SetColumn` cells buffered per `(tbl, row_id)` until flushed
-/// into the base table as a single upsert. Buffering lets a new row's columns
-/// — which may arrive split across several pulled pages — accumulate first,
-/// so the initial insert supplies every column at once instead of tripping a
-/// `NOT NULL` column with no `DEFAULT`.
+/// Column-mode `SetColumn` cells buffered per `(tbl, row_id)` until flushed into
+/// the base table as a single upsert, so a new row's columns — which may arrive
+/// split across pages — are all supplied by the initial insert instead of
+/// tripping a `NOT NULL` column with no `DEFAULT`.
 ///
-/// Registered as a per-DI-scope resource (`register_scoped_pending_buffer`)
-/// so it survives repeated `SyncEngine::apply_remote` calls within one sync
-/// session.
+/// Per-DI-scope (`register_scoped_pending_buffer`), so it survives repeated
+/// `SyncEngine::apply_remote` calls within one sync session.
 #[derive(Default)]
 pub(super) struct PendingBuffer {
     rows: Mutex<HashMap<RowKey, Vec<PendingCell>>>,
@@ -45,9 +43,8 @@ impl PendingBuffer {
         self.rows.lock().await.is_empty()
     }
 
-    /// Clones everything currently buffered without draining it, so a caller
-    /// can attempt to materialize rows and leave whichever ones still fail
-    /// buffered for a later page (see `apply::try_flush_pending`).
+    /// Clones everything buffered without draining it, so a caller can leave the
+    /// rows that still fail to materialize buffered for a later page.
     pub(super) async fn snapshot(&self) -> HashMap<RowKey, Vec<PendingCell>> {
         self.rows.lock().await.clone()
     }

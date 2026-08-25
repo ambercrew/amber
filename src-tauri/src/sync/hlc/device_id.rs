@@ -3,9 +3,8 @@ use std::str::FromStr;
 
 use uuid::Uuid;
 
-/// The persistent id of a device participating in sync, backed by a UUID
-/// rather than a bare `String` so a malformed id can't silently propagate
-/// through HLC comparisons and merges.
+/// The persistent id of a device participating in sync. A UUID rather than a
+/// bare `String` so a malformed id can't propagate through HLC comparisons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(Uuid);
 
@@ -14,8 +13,7 @@ impl DeviceId {
         Self(Uuid::new_v4())
     }
 
-    /// Deterministically derives a `DeviceId` from a name, so tests can use
-    /// readable labels (e.g. `"device-a"`) instead of literal UUIDs.
+    /// Derives a `DeviceId` from a name, so tests can use readable labels.
     #[cfg(test)]
     pub fn from_name(name: &str) -> Self {
         use std::hash::{Hash, Hasher};

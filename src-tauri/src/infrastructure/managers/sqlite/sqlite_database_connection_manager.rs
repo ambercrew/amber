@@ -26,12 +26,13 @@ impl DatabaseConnectionManager for SqliteDatabaseConnectionManager {
         &self,
         database_location: DatabaseLocation,
     ) -> Result<(), DatabaseConnectionManagerError> {
-        let new_pool = match create_sqlite_pool_from_location(&database_location).await {
-            Err(err) => {
-                return Err(DatabaseConnectionManagerError::ErrorChangingDatabase(err));
-            }
-            Ok(pool) => pool,
-        };
+        let (new_pool, new_sync_clock) =
+            match create_sqlite_pool_from_location(&database_location).await {
+                Err(err) => {
+                    return Err(DatabaseConnectionManagerError::ErrorChangingDatabase(err));
+                }
+                Ok(pool) => pool,
+            };
 
         // This scope's own transaction may still be holding a connection
         // checked out from the *old* pool, which would otherwise keep it
@@ -56,7 +57,10 @@ impl DatabaseConnectionManager for SqliteDatabaseConnectionManager {
             })?;
         }
 
-        let old_pool = self.pool.set_pool(new_pool, database_location).await;
+        let old_pool = self
+            .pool
+            .set_pool(new_pool, database_location, new_sync_clock)
+            .await;
         old_pool.close().await;
 
         // The database just swapped underneath any in-flight DI scope, whose

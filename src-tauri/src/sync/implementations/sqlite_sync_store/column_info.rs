@@ -30,9 +30,9 @@ pub(super) async fn read_table_info(
     Ok(columns)
 }
 
-/// Returns this table's primary key columns, ordered by their position within
-/// the key (so callers can encode/decode `row_id` consistently). Errors if the
-/// table has no primary key or any key column has BLOB affinity.
+/// This table's primary key columns, ordered by position within the key so
+/// callers encode/decode `row_id` consistently. Errors if the table has no
+/// primary key, or a key column has BLOB affinity.
 pub(super) fn primary_key_columns<'a>(
     table: &str,
     columns: &'a [ColumnInfo],
@@ -63,10 +63,8 @@ pub(super) fn primary_key_columns<'a>(
     Ok(pk_columns)
 }
 
-/// SQLite's column affinity rules (https://www.sqlite.org/datatype3.html#determination_of_column_affinity):
-/// used to `CAST` an opaque cell value back to its destination column's
-/// storage class, and to decide which primary key column types `row_id`
-/// can round-trip.
+/// SQLite's column affinity rules (https://www.sqlite.org/datatype3.html#determination_of_column_affinity),
+/// used to `CAST` an opaque cell value back to its column's storage class.
 pub(super) fn column_affinity(declared_type: &str) -> &'static str {
     let upper = declared_type.to_uppercase();
     if upper.contains("INT") {

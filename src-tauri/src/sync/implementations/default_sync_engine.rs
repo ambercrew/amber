@@ -25,16 +25,14 @@ pub struct DefaultSyncEngine {
 #[async_trait]
 impl SyncEngine for DefaultSyncEngine {
     async fn sync(&self) -> Result<(), SyncError> {
-        // Serializes overlapping sync cycles (e.g. manual sync racing
-        // auto-sync-on-close): otherwise pushes could land out of causal
-        // order (child before parent), tripping FK repair into deleting the
-        // "orphaned" child and propagating that delete to other devices.
+        // Serializes overlapping sync cycles: out-of-causal-order pushes (child
+        // before parent) would trip FK repair into deleting the "orphaned" child
+        // and propagating that delete to other devices.
         let _guard = self.sync_lock.0.lock().await;
 
         let result = self.sync_inner().await;
 
-        // Must always run, but its own error must never shadow a real
-        // `sync_inner` failure with a misleading FK error.
+        // Must always run, but must not shadow a real `sync_inner` failure.
         if let Err(err) = self
             .connection_manager
             .enable_foreign_key_constraint_for_current_transaction()
@@ -71,20 +69,16 @@ impl DefaultSyncEngine {
                 cells: pull_response.cells,
             };
             // Call even on an empty last page: FK repair and buffered-column
-            // flushing only run inside `apply_remote` when `is_last_page`,
-            // so skipping it here could leave a deferred FK violation unresolved.
+            // flushing only run inside `apply_remote` when `is_last_page`.
             if !remote_batch.cells.is_empty() || is_last_page {
                 self.store.apply_remote(remote_batch, is_last_page).await?;
             }
             since_server_seq = Some(next_server_seq);
 
             // Only persist the cursor and commit once nothing is left
-            // half-materialized: a row's columns can still be split across
-            // the next page (a crash now would strand them past the cursor,
-            // so the server wouldn't resend them), and a child pulled ahead
-            // of its parent still looks like an FK violation until the
-            // parent's page lands (committing now would trip the deferred FK
-            // check). FK repair itself only runs on the last page.
+            // half-materialized: a crash would strand columns past the cursor,
+            // and a child pulled ahead of its parent would trip the deferred FK
+            // check.
             if !self.store.has_pending_changes().await?
                 && !self.store.has_unresolved_foreign_keys().await?
             {
@@ -131,7 +125,6 @@ mod tests {
     use crate::generated_code::{CellChange, PullResponse};
     use crate::infrastructure::value_objects::db_transaction::DbTransaction;
     use crate::sync::hlc::DeviceId;
-    use crate::sync::sql_functions;
     use crate::sync::utils::merge;
     use crate::sync::value_objects::fk_constraint::FkConstraint;
     use crate::sync::value_objects::fk_policy::FkPolicy;
@@ -140,13 +133,10 @@ mod tests {
 
     use super::*;
 
-    /// `SYNC_CLOCK` is a process-wide static shared by every test in this
-    /// binary, so a fixed "far future" constant can collide with the clock's
-    /// live position once enough parallel tests have advanced it via
-    /// `observe()`. Deriving the value from the clock's current tip instead
-    /// guarantees it's always ahead of anything written so far.
+    /// Far enough ahead of wall time that a remote cell stamped with it always
+    /// wins the last-writer-wins merge against anything the local clock issues.
     fn far_future_ms() -> u64 {
-        sql_functions::sync_clock().now().physical_ms + 100_000_000_000
+        crate::sync::hlc::wall_time_ms() + 100_000_000_000
     }
 
     async fn create_notes_table(tx: &DbTransaction) {
@@ -329,9 +319,8 @@ mod tests {
         let value = Some(serde_json::to_vec(&payload).unwrap());
 
         let mut backend_client = MockAmberBackendClient::new();
-        // The sync clock is only initialized once the injector (and thus the
-        // sqlite pool) is set up, so `far_future_ms` is computed lazily here
-        // rather than before the injector exists.
+        // Computed lazily: the sync clock only exists once the injector (and so
+        // the sqlite pool) is set up.
         backend_client.expect_pull_changes().returning(move |_| {
             let cell = remote_cell("1", merge::ROW_COL, value.clone(), far_future_ms(), 0);
             Ok(PullResponse {

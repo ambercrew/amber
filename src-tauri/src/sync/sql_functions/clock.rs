@@ -1,51 +1,73 @@
-use std::sync::RwLock;
+use std::sync::{Arc, OnceLock};
 
 use sqlx::{Row, SqlitePool};
 
 use crate::sync::hlc::{DeviceId, Hlc, HlcClock};
 
-/// Latest synced HLC clock, used by the database functions. Uses a `&'static`
-/// leaked on each `initialize()` call rather than a `OnceLock` so switching
-/// the active database (e.g. guest -> signed-in account) can replace the
-/// device id and clock seed instead of keeping the previous identity.
-static SYNC_CLOCK: RwLock<Option<&'static HlcClock>> = RwLock::new(None);
+/// The `local_configurations` row holding the sync device id of the database
+/// it lives in.
+pub const DEVICE_ID_CONFIG: &str = "sync_device_id";
 
-pub(super) fn sync_clock_static() -> Option<&'static HlcClock> {
-    *SYNC_CLOCK.read().expect("sync clock lock poisoned")
+/// The HLC clock of one database: created by `create_sqlite_pool` alongside its
+/// pool, given to every connection as the `hlc_now()` / `device_id()` SQL
+/// functions' app data, and injected into services through `DbPool`. Owned per
+/// database rather than process-wide so a second database open in the same
+/// process issues HLCs under its own device id.
+///
+/// Empty between opening the pool and [`SyncClock::initialize`]; nothing can
+/// write a cell in that window, since the sync tables don't exist yet.
+#[derive(Default)]
+pub struct SyncClock {
+    clock: OnceLock<HlcClock>,
 }
 
-/// Resolves (or creates) this device's persistent id and (re-)seeds the
-/// process-wide HLC clock from the pool's history. Must run after the sync
-/// tables are migrated in and `install_sync_sql_functions()` has run. Safe to
-/// call again for a different pool — replaces the previously seeded state.
-pub async fn initialize(pool: &SqlitePool) -> Result<(), sqlx::Error> {
-    let device_id = get_or_create_device_id(pool).await?;
+impl SyncClock {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self::default())
+    }
 
-    let max_hlc: Option<String> = sqlx::query("SELECT max(hlc) AS max_hlc FROM sync_cells")
-        .fetch_one(pool)
-        .await?
-        .try_get("max_hlc")
-        .ok();
+    /// Resolves (or creates) `pool`'s persistent device id and seeds the clock
+    /// past the highest HLC that database has stored, so a restart can never
+    /// reissue an HLC. Runs once per clock, after the sync tables are migrated.
+    pub async fn initialize(&self, pool: &SqlitePool) -> Result<(), sqlx::Error> {
+        let device_id = get_or_create_device_id(pool).await?;
 
-    let wall_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
+        let max_hlc: Option<String> = sqlx::query("SELECT max(hlc) AS max_hlc FROM sync_cells")
+            .fetch_one(pool)
+            .await?
+            .try_get("max_hlc")
+            .ok();
 
-    let seed = compute_seed(
-        max_hlc.and_then(|value| Hlc::parse(&value).ok()),
-        wall_ms,
-        device_id,
-    );
+        let seed = compute_seed(
+            max_hlc.and_then(|value| Hlc::parse(&value).ok()),
+            crate::sync::hlc::wall_time_ms(),
+            device_id,
+        );
 
-    let clock: &'static HlcClock = Box::leak(Box::new(HlcClock::new(seed)));
-    *SYNC_CLOCK.write().expect("sync clock lock poisoned") = Some(clock);
+        assert!(
+            self.clock.set(HlcClock::new(seed)).is_ok(),
+            "a database's sync clock is seeded exactly once, by create_sqlite_pool"
+        );
 
-    Ok(())
+        Ok(())
+    }
+
+    /// `None` until [`SyncClock::initialize`] has seeded this clock. Only the SQL
+    /// functions need this: they are registered before seeding is possible.
+    pub fn try_get(&self) -> Option<&HlcClock> {
+        self.clock.get()
+    }
+
+    /// Panics unless [`SyncClock::initialize`] has run, which
+    /// `create_sqlite_pool` does before handing the clock to anything else.
+    pub fn get(&self) -> &HlcClock {
+        self.try_get()
+            .expect("sync not initialized: create_sqlite_pool must run before sync engine use")
+    }
 }
 
-/// Seeds past the highest HLC this device has ever seen (see `HlcClock`'s
-/// module-level invariant docs), or from wall time on a fresh database.
+/// Seeds past the highest HLC this database has seen, or from wall time on a
+/// fresh database.
 fn compute_seed(max_hlc: Option<Hlc>, wall_ms: u64, device_id: DeviceId) -> Hlc {
     let seed = match max_hlc {
         Some(existing) => crate::sync::hlc::tick(&existing, wall_ms),
@@ -54,23 +76,10 @@ fn compute_seed(max_hlc: Option<Hlc>, wall_ms: u64, device_id: DeviceId) -> Hlc 
     Hlc::new(seed.physical_ms, seed.counter, device_id)
 }
 
-/// This device's persistent id. Panics if called before `initialize()`
-/// (which runs as part of `create_sqlite_pool()`, before any DI-resolved
-/// service could observe it).
-pub fn device_id() -> DeviceId {
-    sync_clock().device_id()
-}
-
-/// The process-wide HLC clock. Panics if called before `initialize()` has run —
-/// see `device_id()`.
-pub fn sync_clock() -> &'static HlcClock {
-    sync_clock_static()
-        .expect("sync not initialized: create_sqlite_pool must run before sync engine use")
-}
-
 async fn get_or_create_device_id(pool: &SqlitePool) -> Result<DeviceId, sqlx::Error> {
     let existing: Option<String> =
-        sqlx::query("SELECT value FROM local_configurations WHERE name = 'sync_device_id'")
+        sqlx::query("SELECT value FROM local_configurations WHERE name = ?1")
+            .bind(DEVICE_ID_CONFIG)
             .fetch_optional(pool)
             .await?
             .and_then(|row| row.try_get("value").ok());
@@ -83,18 +92,19 @@ async fn get_or_create_device_id(pool: &SqlitePool) -> Result<DeviceId, sqlx::Er
 
     let device_id = DeviceId::new_v4();
     sqlx::query(
-        "INSERT INTO local_configurations(name, value) VALUES ('sync_device_id', ?1)
+        "INSERT INTO local_configurations(name, value) VALUES (?1, ?2)
          ON CONFLICT(name) DO UPDATE SET value = local_configurations.value",
     )
+    .bind(DEVICE_ID_CONFIG)
     .bind(device_id.to_string())
     .execute(pool)
     .await?;
 
-    let device_id: String =
-        sqlx::query("SELECT value FROM local_configurations WHERE name = 'sync_device_id'")
-            .fetch_one(pool)
-            .await?
-            .try_get("value")?;
+    let device_id: String = sqlx::query("SELECT value FROM local_configurations WHERE name = ?1")
+        .bind(DEVICE_ID_CONFIG)
+        .fetch_one(pool)
+        .await?
+        .try_get("value")?;
 
     Ok(device_id
         .parse()
@@ -105,6 +115,14 @@ async fn get_or_create_device_id(pool: &SqlitePool) -> Result<DeviceId, sqlx::Er
 mod tests {
     use super::*;
     use crate::common::utils::create_sqlite_pool::create_sqlite_pool;
+
+    async fn delete_device_id(pool: &SqlitePool) {
+        sqlx::query("DELETE FROM local_configurations WHERE name = ?1")
+            .bind(DEVICE_ID_CONFIG)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
 
     #[test]
     fn compute_seed_with_existing_max_hlc_exceeds_it() {
@@ -141,53 +159,54 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn initialize_creates_and_persists_device_id() {
+    async fn create_sqlite_pool_no_existing_database_creates_and_persists_device_id() {
         // Arrange
-
-        let pool = create_sqlite_pool("sqlite::memory:").await.unwrap();
 
         // Act
 
-        initialize(&pool).await.unwrap();
-        let device_id: String =
-            sqlx::query("SELECT value FROM local_configurations WHERE name = 'sync_device_id'")
-                .fetch_one(&pool)
-                .await
-                .unwrap()
-                .try_get("value")
-                .unwrap();
+        let (pool, _) = create_sqlite_pool("sqlite::memory:").await.unwrap();
 
         // Assert
 
-        assert!(!device_id.is_empty());
+        let device_id: String =
+            sqlx::query_scalar("SELECT value FROM local_configurations WHERE name = ?1")
+                .bind(DEVICE_ID_CONFIG)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert!(device_id.parse::<DeviceId>().is_ok());
     }
 
     #[tokio::test]
-    async fn device_id_sql_function_after_initialize_matches_device_id() {
+    async fn device_id_sql_function_two_pools_resolves_each_databases_own_device_id() {
         // Arrange
 
-        let pool = create_sqlite_pool("sqlite::memory:").await.unwrap();
-        initialize(&pool).await.unwrap();
+        let (first_pool, first_clock) = create_sqlite_pool("sqlite::memory:").await.unwrap();
+        let (second_pool, second_clock) = create_sqlite_pool("sqlite::memory:").await.unwrap();
 
         // Act
 
-        let actual: String = sqlx::query_scalar("SELECT device_id()")
-            .fetch_one(&pool)
+        let first: String = sqlx::query_scalar("SELECT device_id()")
+            .fetch_one(&first_pool)
+            .await
+            .unwrap();
+        let second: String = sqlx::query_scalar("SELECT device_id()")
+            .fetch_one(&second_pool)
             .await
             .unwrap();
 
         // Assert
 
-        assert_eq!(device_id().to_string(), actual);
+        assert_eq!(first_clock.get().device_id().to_string(), first);
+        assert_eq!(second_clock.get().device_id().to_string(), second);
+        assert_ne!(first, second);
     }
 
     #[tokio::test]
-    async fn hlc_now_sql_function_after_initialize_returns_monotonically_increasing_hlcs() {
+    async fn hlc_now_sql_function_called_twice_returns_monotonically_increasing_hlcs() {
         // Arrange
 
-        let pool = create_sqlite_pool("sqlite::memory:").await.unwrap();
-        initialize(&pool).await.unwrap();
+        let (pool, _) = create_sqlite_pool("sqlite::memory:").await.unwrap();
 
         // Act
 
@@ -209,7 +228,8 @@ mod tests {
     async fn get_or_create_device_id_no_existing_row_creates_and_persists_valid_id() {
         // Arrange
 
-        let pool = create_sqlite_pool("sqlite::memory:").await.unwrap();
+        let (pool, _) = create_sqlite_pool("sqlite::memory:").await.unwrap();
+        delete_device_id(&pool).await;
 
         // Act
 
@@ -218,11 +238,10 @@ mod tests {
         // Assert
 
         let persisted: String =
-            sqlx::query("SELECT value FROM local_configurations WHERE name = 'sync_device_id'")
+            sqlx::query_scalar("SELECT value FROM local_configurations WHERE name = ?1")
+                .bind(DEVICE_ID_CONFIG)
                 .fetch_one(&pool)
                 .await
-                .unwrap()
-                .try_get("value")
                 .unwrap();
         assert_eq!(persisted, actual.to_string());
     }
@@ -231,7 +250,7 @@ mod tests {
     async fn get_or_create_device_id_existing_row_returns_same_id_on_second_call() {
         // Arrange
 
-        let pool = create_sqlite_pool("sqlite::memory:").await.unwrap();
+        let (pool, _) = create_sqlite_pool("sqlite::memory:").await.unwrap();
         let first = get_or_create_device_id(&pool).await.unwrap();
 
         // Act

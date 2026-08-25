@@ -2,10 +2,9 @@ use std::sync::Mutex;
 
 use super::{DeviceId, Hlc, observe, tick, wall_time_ms};
 
-/// Process-wide HLC state. Never persisted directly: on startup it's reseeded
-/// from `max(hlc)` over `sync_cells` (kept forever, including tombstones)
-/// merged with wall time, so reseed can never reissue a duplicate or
-/// backwards-moving HLC across restarts.
+/// In-memory HLC state. Never persisted directly: on startup it is reseeded from
+/// `max(hlc)` over `sync_cells` merged with wall time, so a restart can never
+/// reissue a duplicate or backwards-moving HLC.
 pub struct HlcClock {
     state: Mutex<Hlc>,
 }
@@ -31,7 +30,7 @@ impl HlcClock {
         next
     }
 
-    /// This device's persistent id, fixed at construction; `tick`/`observe` never change it.
+    /// This device's persistent id, fixed at construction.
     pub fn device_id(&self) -> DeviceId {
         self.state
             .lock()

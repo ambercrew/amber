@@ -161,16 +161,20 @@ pub async fn create_injector<R: tauri::Runtime>(
     // Sqlite & Database
 
     #[cfg(not(test))]
-    let sqlite_pool = create_sqlite_pool_from_location(&settings.database_location())
+    let (sqlite_pool, sync_clock) = create_sqlite_pool_from_location(&settings.database_location())
         .await
         .expect("Error connecting to Sqlite database");
 
     #[cfg(test)]
-    let sqlite_pool = create_sqlite_pool("sqlite::memory:")
+    let (sqlite_pool, sync_clock) = create_sqlite_pool("sqlite::memory:")
         .await
         .expect("Error connecting to Sqlite database");
 
-    let db_pool = DbPool::new(sqlite_pool, settings.database_location().clone());
+    let db_pool = DbPool::new(
+        sqlite_pool,
+        settings.database_location().clone(),
+        sync_clock,
+    );
     injector.register_singleton(Arc::new(db_pool));
     register_scoped_tx(&mut injector);
     crate::sync::implementations::sqlite_sync_store::register_scoped_pending_buffer(&mut injector);

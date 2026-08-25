@@ -5,8 +5,7 @@ use sqlx::{Row, SqliteConnection};
 
 use crate::generated_code::ChangeBatch;
 use crate::sync::errors::SyncError;
-use crate::sync::hlc::Hlc;
-use crate::sync::sql_functions;
+use crate::sync::hlc::{Hlc, HlcClock};
 use crate::sync::utils::merge::{self, MergeAction};
 use crate::sync::value_objects::granularity::Granularity;
 
@@ -17,28 +16,23 @@ use super::models::{ColumnInfo, PendingCell, RowKey};
 use super::pending_buffer::PendingBuffer;
 use super::trigger_sql::{parse_row_id, quote_ident};
 
-/// Applies one page of a remote change batch. Column-mode `SetColumn` cells
-/// are buffered in `pending` (kept across pages) instead of written
-/// immediately, so a new row's columns — which pagination can split across
-/// pages — accumulate before the row is materialized. Pass `is_last_page =
-/// true` on a single-page call, or on the final page of a multi-page pull to
-/// attempt flushing what remains buffered — first topping each row up from the
-/// local cell log (see `backfill_required_columns_from_cell_log`). A row still
-/// missing a `NOT NULL` column even then (e.g. another device is still mid-push
-/// for it) just stays buffered for a retry on the next sync, rather than
-/// failing this one, and suppresses foreign key repair for the cycle.
+/// Applies one page of a remote change batch. Column-mode `SetColumn` cells are
+/// buffered in `pending` across pages, so a new row's columns accumulate before
+/// the row is materialized. `is_last_page` triggers a final flush attempt; a row
+/// still missing a `NOT NULL` column stays buffered for the next sync and
+/// suppresses foreign key repair for this cycle.
 pub(super) async fn apply_remote(
     tx: &mut SqliteConnection,
     batch: ChangeBatch,
     is_last_page: bool,
     pending: &PendingBuffer,
+    clock: &HlcClock,
 ) -> Result<(), SyncError> {
     mark_applying(tx).await?;
 
-    let result = apply_remote_page_inner(&mut *tx, &batch, is_last_page, pending).await;
+    let result = apply_remote_page_inner(&mut *tx, &batch, is_last_page, pending, clock).await;
 
-    // Must always run, but its own error must never shadow a real
-    // `apply_remote_page_inner` failure with a misleading cleanup error.
+    // Must always run, but must not shadow a real apply failure.
     if let Err(err) = clear_applying(tx).await {
         if result.is_ok() {
             return Err(err);
@@ -48,18 +42,11 @@ pub(super) async fn apply_remote(
 
     result?;
 
-    // Runs with the sync_applying guard lifted so repairs are recorded as
-    // local changes and pushed. Deferred to the last page since an earlier
-    // "violation" may just be a reference whose target arrives later.
-    //
-    // Skipped entirely while any row is still unmaterialized: because repairs
-    // are pushed, repairing against a knowingly-incomplete local state would
-    // propagate deletions of rows that are perfectly intact everywhere else —
-    // a buffered row is absent locally, so every reference to it looks like a
-    // dangling foreign key and `DiscardRow`/the unconfigured-FK fallback would
-    // delete the referencing rows and replicate those tombstones outward. The
-    // remaining pages' work simply doesn't commit (see `sync_inner`'s
-    // `has_unresolved_foreign_keys` gate) and is re-pulled next sync.
+    // Runs with the guard lifted so repairs are staged as local changes, and
+    // only on the last page since an earlier "violation" may be a reference
+    // whose target arrives later. Skipped while any row is unmaterialized: it is
+    // absent locally, so intact references to it look dangling and the repair's
+    // deletions would be pushed outward.
     if is_last_page {
         if pending.is_empty().await {
             fk_repair::repair_foreign_keys(&mut *tx).await?;
@@ -75,17 +62,11 @@ pub(super) async fn apply_remote(
     Ok(())
 }
 
-/// [`try_flush_pending`] for callers running *outside* an [`apply_remote`]
-/// page, i.e. `SyncStore::has_pending_changes`, which `sync_inner` calls
-/// between pages to decide whether it is safe to commit.
-///
-/// Such a caller must raise the `sync_applying` guard itself. Materializing a
-/// row writes to the base table, which fires that table's change-tracking
-/// triggers; unguarded, every column of every row flushed here is staged in
-/// `sync_cells` under *this* device's id and `hlc_now()`, so the next push
-/// echoes freshly pulled remote data straight back to the server as if it were
-/// a local edit. It also overwrites the remote cell's recorded HLC and
-/// device id, corrupting the basis for later merge decisions.
+/// [`try_flush_pending`] for callers outside an [`apply_remote`] page, i.e.
+/// `SyncStore::has_pending_changes`. Raises the `sync_applying` guard itself:
+/// materializing a row fires the table's change-tracking triggers, which
+/// unguarded would re-stage freshly pulled remote data as a local edit under
+/// this device's id and clock, corrupting later merge decisions.
 pub(super) async fn flush_pending_outside_page(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
@@ -94,8 +75,7 @@ pub(super) async fn flush_pending_outside_page(
 
     let result = try_flush_pending(&mut *tx, pending).await;
 
-    // Must always run, but its own error must never shadow a real flush
-    // failure with a misleading cleanup error.
+    // Must always run, but must not shadow a real flush failure.
     if let Err(err) = clear_applying(tx).await {
         if result.is_ok() {
             return Err(err);
@@ -108,14 +88,13 @@ pub(super) async fn flush_pending_outside_page(
     result
 }
 
-/// Best-effort flush of whatever is buffered in `pending`, without waiting
-/// for the last page. Each row is upserted inside its own `SAVEPOINT`: one
-/// whose required columns have all arrived is written and removed from the
-/// buffer, while one still missing a column is rolled back and stays
-/// buffered. Returns whether any row is still buffered afterwards.
+/// Best-effort flush of whatever is buffered in `pending`. Each row is upserted
+/// inside its own `SAVEPOINT`: a complete row is written and dropped from the
+/// buffer, an incomplete one is rolled back and stays. Returns whether any row
+/// is still buffered.
 ///
-/// Assumes the `sync_applying` guard is already raised — call
-/// [`flush_pending_outside_page`] instead from outside an [`apply_remote`] page.
+/// Assumes the `sync_applying` guard is raised — outside an [`apply_remote`]
+/// page call [`flush_pending_outside_page`] instead.
 async fn try_flush_pending(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
@@ -162,8 +141,9 @@ async fn apply_remote_page_inner(
     batch: &ChangeBatch,
     is_last_page: bool,
     pending: &PendingBuffer,
+    clock: &HlcClock,
 ) -> Result<(), SyncError> {
-    apply_remote_inner(tx, batch, pending).await?;
+    apply_remote_inner(tx, batch, pending, clock).await?;
 
     if is_last_page && try_flush_pending(tx, pending).await? {
         log::warn!(
@@ -176,19 +156,11 @@ async fn apply_remote_page_inner(
     Ok(())
 }
 
-/// Reports every row still buffered after the final page's flush attempt:
-/// which columns arrived over the wire, which required ones are missing, and
-/// which columns the *local* cell log already holds for that row.
-///
-/// The last part is the one that distinguishes the two causes of an incomplete
-/// row, which a bare `NOT NULL constraint failed` cannot:
-/// - the missing columns are absent from `sync_cells` too — the server really
-///   hasn't got them yet (another device is mid-push), so the next sync fixes
-///   it by itself;
-/// - the missing columns *are* in `sync_cells` — they were pulled by an earlier
-///   cycle whose cursor already committed past them, so the server will never
-///   resend them and this row can never materialize from the wire alone. That
-///   one is permanent and needs the values read back out of `sync_cells`.
+/// Reports every row still buffered after the final flush attempt. Listing the
+/// columns the local cell log holds distinguishes two causes a bare
+/// `NOT NULL constraint failed` cannot: the server hasn't sent them yet (the
+/// next sync fixes it), or an earlier cycle already committed past them, so they
+/// will never be resent and must come from `sync_cells`.
 async fn log_incomplete_pending_rows(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
@@ -238,6 +210,7 @@ async fn apply_remote_inner(
     tx: &mut SqliteConnection,
     batch: &ChangeBatch,
     pending: &PendingBuffer,
+    clock: &HlcClock,
 ) -> Result<(), SyncError> {
     let registry = load_registry(tx).await?;
     let mut column_cache: HashMap<String, Vec<ColumnInfo>> = HashMap::new();
@@ -266,7 +239,7 @@ async fn apply_remote_inner(
         .rows_affected()
             > 0;
 
-        sql_functions::sync_clock().observe(&incoming_hlc);
+        clock.observe(&incoming_hlc);
 
         if !won {
             continue;
@@ -295,9 +268,7 @@ async fn apply_remote_inner(
                 pending.push(&cell.tbl, &cell.row_id, col, value).await;
             }
             MergeAction::DeleteRow => {
-                // A delete makes any buffered-but-not-yet-materialized column
-                // update for this row moot; drop it instead of trying to
-                // upsert a row that's about to be deleted anyway.
+                // A delete makes buffered column updates for this row moot.
                 pending.remove(&cell.tbl, &cell.row_id).await;
                 apply_action(
                     tx,
@@ -357,10 +328,9 @@ async fn apply_action(
     }
 }
 
-/// Writes every buffered column value for one row in a single upsert, so a
-/// new row is materialized with all known columns at once instead of via an
-/// empty skeleton insert followed by per-column updates (which would trip a
-/// `NOT NULL` column with no `DEFAULT`).
+/// Writes every buffered column of one row in a single upsert, so a new row is
+/// materialized at once instead of via a skeleton insert that would trip a
+/// `NOT NULL` column with no `DEFAULT`.
 async fn apply_row_upsert_columns(
     tx: &mut SqliteConnection,
     key: &RowKey,
@@ -373,8 +343,7 @@ async fn apply_row_upsert_columns(
 
     let table = key.tbl.as_str();
 
-    // Later cells for the same column win (matches the per-cell HLC race
-    // already resolved before buffering).
+    // Later cells for the same column win.
     let mut values: HashMap<String, Option<Vec<u8>>> = HashMap::new();
     for cell in cells {
         values.insert(cell.col, cell.value);
@@ -397,27 +366,16 @@ async fn apply_row_upsert_columns(
     upsert_row(tx, table, &pk_columns, &pk_values, &columns, values).await
 }
 
-/// Fills in the columns a new row's `INSERT` must supply (`NOT NULL`, no
-/// `DEFAULT`) but that this pull didn't deliver, reading them from the local
-/// `sync_cells` log.
+/// Fills in columns a new row's `INSERT` requires (`NOT NULL`, no `DEFAULT`)
+/// but that this pull didn't deliver, reading them from `sync_cells` — the
+/// durable record of every cell this device has won, where the pending buffer
+/// only holds what arrived during *this* pull. A row can lose buffered columns
+/// mid-cycle (a `DeleteRow` clears them, or a cell loses its HLC comparison)
+/// while the cursor commits past them; the server won't resend those, so the
+/// row would otherwise never be materializable again.
 ///
-/// `sync_cells` is the durable, complete record of every cell this device has
-/// won, whereas the pending buffer only ever holds what arrived over the wire
-/// during *this* pull — and a row can legitimately lose buffered columns
-/// mid-cycle while the cursor still commits past them:
-///
-/// - a `DeleteRow` for the row clears its buffered cells (see
-///   `apply_remote_inner`), after which a newer cell resurrects the row with
-///   only a subset of its columns;
-/// - a cell that loses its HLC comparison against `sync_cells` is skipped
-///   before ever reaching the buffer.
-///
-/// Either way the server will not resend those columns, so without consulting
-/// the cell log the row could never be materialized again and the constraint
-/// failure would be permanent rather than transient.
-///
-/// Only runs for a row that doesn't exist yet: an existing row already
-/// satisfies its `NOT NULL` columns, so the `UPDATE` path needs nothing added.
+/// Only runs for a row that doesn't exist yet; an existing row already satisfies
+/// its `NOT NULL` columns.
 async fn backfill_required_columns_from_cell_log(
     tx: &mut SqliteConnection,
     key: &RowKey,
@@ -459,7 +417,6 @@ async fn backfill_required_columns_from_cell_log(
     Ok(())
 }
 
-/// Whether a row with these primary key values exists in `table`.
 async fn row_exists(
     tx: &mut SqliteConnection,
     table: &str,
@@ -509,9 +466,8 @@ async fn apply_row_upsert(
             reason: "payload was not a JSON object".to_string(),
         })?;
 
-    // The primary key is taken from `pk_values` (already decoded from
-    // `row_id`), not re-read from the payload — `row_id` is what the merge
-    // conflict was resolved against, so it's the source of truth here.
+    // The primary key comes from `row_id`, which the merge conflict was
+    // resolved against, not from the payload.
     let mut values: HashMap<String, Option<Vec<u8>>> = HashMap::new();
     for (key, json_value) in obj {
         if pk_columns.iter().any(|c| &c.name == key) {
@@ -560,20 +516,14 @@ async fn get_or_load_columns(
     Ok(columns)
 }
 
-/// Writes one row, given its known non-primary-key column values as raw
-/// bytes. Shared by both granularities: column-mode (already raw bytes) and
-/// row-mode (converted from a JSON payload). Each value is `CAST` back to its
-/// destination column's affinity (see `column_affinity`) since both callers
-/// hand it opaque bytes rather than typed values.
+/// Writes one row from its non-primary-key column values as raw bytes, shared
+/// by column-mode and row-mode. Each value is `CAST` to its column's affinity
+/// since both callers hand over opaque bytes.
 ///
-/// Tries `UPDATE` first, falling back to `INSERT` only if no row matched —
-/// rather than a single `INSERT ... ON CONFLICT DO UPDATE`, which SQLite
-/// evaluates as a candidate insert *before* resolving the conflict: any
-/// `NOT NULL` column absent from `values` (column-mode only sends changed
-/// columns) would fail that candidate insert even though the existing row
-/// already has it set, since the violation never falls through to
-/// `DO UPDATE`. `values` may be empty, in which case this is a no-op for an
-/// existing row.
+/// Tries `UPDATE` first, falling back to `INSERT`, rather than a single
+/// `INSERT ... ON CONFLICT DO UPDATE`: SQLite evaluates the candidate insert
+/// *before* resolving the conflict, so a `NOT NULL` column absent from `values`
+/// would fail it even though the existing row already has it set.
 async fn upsert_row(
     tx: &mut SqliteConnection,
     table: &str,
@@ -585,8 +535,7 @@ async fn upsert_row(
     let mut cols: Vec<String> = values.keys().cloned().collect();
     cols.sort();
 
-    // `?{idx} AS <affinity>` for a given column, or the bare placeholder for
-    // a `BLOB`-affinity one (no conversion needed).
+    // `CAST(?{idx} AS <affinity>)`, or a bare placeholder for `BLOB` affinity.
     let cast_expr = |col: &str, idx: usize| -> Result<String, SyncError> {
         let column_info =
             columns
@@ -639,9 +588,7 @@ async fn upsert_row(
         return Ok(());
     }
 
-    // No existing row matched, so this is genuinely new: insert with
-    // whatever columns are known. A missing `NOT NULL` column with no
-    // default correctly surfaces as a constraint error here.
+    // Genuinely new row: a missing required column correctly errors here.
     let pk_placeholders: Vec<String> = (1..=pk_values.len()).map(|i| format!("?{i}")).collect();
     let col_idents: Vec<String> = cols.iter().map(|c| quote_ident(c)).collect();
     let col_exprs: Vec<String> = cols
@@ -680,9 +627,8 @@ async fn upsert_row(
     Ok(())
 }
 
-/// Converts a JSON scalar from a row-mode payload into the same raw-bytes
-/// representation column-mode cells carry, so both paths can share
-/// `upsert_row`'s `CAST`-based binding.
+/// Converts a JSON scalar from a row-mode payload into the raw bytes
+/// column-mode cells carry, so both paths share `upsert_row`.
 fn json_scalar_to_bytes(
     table: &str,
     value: &serde_json::Value,
