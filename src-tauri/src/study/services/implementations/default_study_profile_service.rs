@@ -5,10 +5,12 @@ use chrono::Utc;
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
 
+use crate::common::event_manager::EventManager;
 use crate::common::repository_error::RepositoryError;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::study::entities::study_profile::StudyProfile;
+use crate::study::events::study_profiles_changed_event::STUDY_PROFILES_CHANGED_EVENT;
 use crate::study::repositories::study_profile_repository::StudyProfileRepository;
 use crate::study::services::study_profile_service::{
     FSRS_PARAM_COUNT, StudyProfileFields, StudyProfileService, StudyProfileServiceError,
@@ -18,6 +20,7 @@ use crate::study::services::study_profile_service::{
 pub struct DefaultStudyProfileService {
     study_profile_repository: Arc<dyn StudyProfileRepository>,
     meta_repository: Arc<dyn MetaRepository>,
+    event_manager: Arc<dyn EventManager>,
 }
 
 #[async_trait]
@@ -46,6 +49,7 @@ impl StudyProfileService for DefaultStudyProfileService {
             min_interval_days: fields.min_interval_days,
         };
         self.study_profile_repository.create(&profile).await?;
+        self.emit_profiles_changed().await;
         Ok(profile)
     }
 
@@ -67,11 +71,14 @@ impl StudyProfileService for DefaultStudyProfileService {
             ..existing
         };
         self.study_profile_repository.update(&profile).await?;
+        self.emit_profiles_changed().await;
         Ok(profile)
     }
 
     async fn delete_profile(&self, id: Uuid) -> Result<(), RepositoryError> {
-        self.study_profile_repository.delete(id).await
+        self.study_profile_repository.delete(id).await?;
+        self.emit_profiles_changed().await;
+        Ok(())
     }
 
     async fn clone_profile(&self, id: Uuid) -> Result<StudyProfile, RepositoryError> {
@@ -86,6 +93,7 @@ impl StudyProfileService for DefaultStudyProfileService {
             ..existing
         };
         self.study_profile_repository.create(&clone).await?;
+        self.emit_profiles_changed().await;
         Ok(clone)
     }
 
@@ -96,6 +104,7 @@ impl StudyProfileService for DefaultStudyProfileService {
             ..self.study_profile_repository.get_by_id(id).await?
         };
         self.study_profile_repository.update(&profile).await?;
+        self.emit_profiles_changed().await;
         Ok(profile)
     }
 
@@ -123,6 +132,14 @@ impl StudyProfileService for DefaultStudyProfileService {
     }
 }
 
+impl DefaultStudyProfileService {
+    async fn emit_profiles_changed(&self) {
+        self.event_manager
+            .push(STUDY_PROFILES_CHANGED_EVENT, serde_json::Value::Null)
+            .await;
+    }
+}
+
 fn validate_fsrs_params(
     params: Option<Vec<f32>>,
 ) -> Result<Option<Vec<f32>>, StudyProfileServiceError> {
@@ -142,6 +159,7 @@ mod tests {
     use injector::{injector::Injector, register_scope};
 
     use crate::{
+        common::event_manager::{EventManager, MockEventManager},
         elements::value_objects::meta::Meta,
         infrastructure::repositories::sqlite::{
             sqlite_meta_repository::SqliteMetaRepository,
@@ -152,8 +170,15 @@ mod tests {
 
     use super::*;
 
+    fn permissive_event_manager() -> Arc<dyn EventManager> {
+        let mut mock = MockEventManager::new();
+        mock.expect_push().returning(|_, _| Box::pin(async {}));
+        Arc::new(mock)
+    }
+
     async fn initialize_test_injector() -> Injector {
         let mut injector = create_test_injector().await;
+        injector.register_singleton::<dyn EventManager>(permissive_event_manager());
         register_scope!(injector, dyn MetaRepository, SqliteMetaRepository);
         register_scope!(
             injector,

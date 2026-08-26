@@ -1,8 +1,10 @@
 import { ActionIcon, Group, Select, Tooltip } from "@mantine/core";
 import { assignStudyProfile } from "../../../api/study/api/studyProfileApi";
+import { STUDY_PROFILES_CHANGED_EVENT } from "../../../api/study/events/studyProfilesChangedEvent";
 import { ElementDetailsResponseDto } from "../../../api/elements/dto/elementDetailsDto";
 import useApi from "../../../hooks/useApi";
 import useAppDispatch from "../../../hooks/useAppDispatch";
+import { useTauriEvent } from "../../../hooks/useTauriEvent";
 import { openStudyProfileModal } from "../../../stores/app/appReducer";
 import { loadElementDetailsAction } from "../../../stores/elementDetails/elementDetailsActions";
 import { ElementId } from "../../../types/elements/elementId";
@@ -30,6 +32,10 @@ function ElementProfileRow({ elementId, details }: ElementProfileRowProps) {
 			await dispatch(loadElementDetailsAction(elementId));
 		});
 	}
+
+	useTauriEvent(STUDY_PROFILES_CHANGED_EVENT, () => {
+		void dispatch(loadElementDetailsAction(elementId));
+	});
 
 	const selectValue =
 		effective?.source === "direct" ? effective.profile.id : INHERIT_VALUE;
