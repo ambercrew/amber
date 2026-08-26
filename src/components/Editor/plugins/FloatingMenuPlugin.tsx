@@ -25,7 +25,6 @@ import {
 	Paper,
 	Tooltip,
 } from "@mantine/core";
-import { useIsCoarsePointer } from "../../../hooks/useIsCoarsePointer";
 import styles from "../Editor.module.css";
 
 export interface FloatingMenuButton {
@@ -138,7 +137,6 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 	const [isMenuFocused, setIsMenuFocused] = useState(false);
 	const menuRef = useRef<HTMLDivElement>(null);
 	const escapedRef = useRef(false);
-	const coarsePointer = useIsCoarsePointer();
 	const { isPointerDown, isPointerReleased } = usePointerInteractions();
 
 	const calculatePosition = useCallback(() => {
@@ -174,12 +172,10 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 
 			setCoords({
 				x,
-				y: coarsePointer
-					? domRangeRect.bottom - editorRect.top + 10
-					: domRangeRect.top - editorRect.top - 10,
+				y: domRangeRect.top - editorRect.top - 10,
 			});
 		});
-	}, [editor, isPointerDown, coarsePointer, coords]);
+	}, [editor, isPointerDown, coords]);
 
 	const $handleSelectionChange = useCallback(() => {
 		if (
@@ -283,9 +279,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 			style={{
 				top: coords?.y ?? 0,
 				left: coords?.x ?? 0,
-				transform: coarsePointer
-					? "translateY(0)"
-					: "translateY(-100%)",
+				transform: "translateY(-100%)",
 				visibility: shouldShow ? "visible" : "hidden",
 				opacity: shouldShow ? 1 : 0,
 				pointerEvents: shouldShow ? "auto" : "none",

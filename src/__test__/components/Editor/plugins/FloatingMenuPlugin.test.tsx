@@ -369,22 +369,6 @@ describe("FloatingMenuPlugin", () => {
 		expect(getMenuPaper()).toHaveStyle({ transform: "translateY(-100%)" });
 	});
 
-	it("Should use a downward transform when the pointer is coarse", () => {
-		// Arrange
-
-		vi.mocked(useIsCoarsePointer).mockReturnValue(true);
-		const button = makeButton();
-		const { editor } = renderPlugin([button]);
-
-		// Act
-
-		setTextAndSelectAll(editor, "Hello world");
-
-		// Assert
-
-		expect(getMenuPaper()).toHaveStyle({ transform: "translateY(0)" });
-	});
-
 	it("Should evaluate isActive with a RangeSelection reflecting the current selection", () => {
 		// Arrange
 
