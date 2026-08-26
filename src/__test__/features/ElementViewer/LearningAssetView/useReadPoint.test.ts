@@ -1,3 +1,4 @@
+import { createElement, ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReadPoint } from "../../../../features/ElementViewer/LearningAssetView/useReadPoint";
@@ -5,6 +6,7 @@ import { AUTO_SAVE_DELAY_IN_MILLISECONDS } from "../../../../config/constants";
 import { ReadPoint } from "../../../../types/elements/readPoint";
 import { READ_POINT_MANUAL_SET_REQUESTED } from "../../../../types/events/readPointManualSetRequestedEvent";
 import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../../../../types/events/readPointManualClearRequestedEvent";
+import { MainScrollContext } from "../../../../features/App/context/mainScrollContext";
 
 const { updateReadPointMock } = vi.hoisted(() => ({
 	updateReadPointMock: vi.fn(),
@@ -69,6 +71,15 @@ function setBlockBottoms(root: HTMLElement, bottoms: number[]) {
 // one still visible, so the saved `block` should be 2.
 const BOTTOMS_TOP_VISIBLE_IS_TWO = [10, 10, 100, 100, 100];
 
+/** A stand-in for the main content area's scroll container, whose bottom edge
+ * matches jsdom's default `window.innerHeight` (768) so "is at document end"
+ * checks behave the same as when the window itself used to scroll. */
+function makeScrollElement(): HTMLElement {
+	const scrollElement = document.createElement("div");
+	scrollElement.getBoundingClientRect = () => rect(768);
+	return scrollElement;
+}
+
 function renderReadPoint(overrides: {
 	root: HTMLElement | undefined;
 	primarySeq: number;
@@ -87,17 +98,28 @@ function renderReadPoint(overrides: {
 		lastSplitSeq,
 		onReadPointChange,
 	} = overrides;
-	return renderHook(() =>
-		useReadPoint({
-			learningAssetId,
-			primarySeq,
-			initial,
-			getContentRoot: () => root,
-			lastSplitSeq,
-			restoredRef,
-			onReadPointChange,
-		}),
+	const scrollElement = makeScrollElement();
+	const rendered = renderHook(
+		() =>
+			useReadPoint({
+				learningAssetId,
+				primarySeq,
+				initial,
+				getContentRoot: () => root,
+				lastSplitSeq,
+				restoredRef,
+				onReadPointChange,
+			}),
+		{
+			wrapper: ({ children }: { children: ReactNode }) =>
+				createElement(
+					MainScrollContext,
+					{ value: scrollElement },
+					children,
+				),
+		},
 	);
+	return { ...rendered, scrollElement };
 }
 
 describe("useReadPoint", () => {
@@ -117,7 +139,7 @@ describe("useReadPoint", () => {
 		const root = makeRoot(5);
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: false };
-		renderReadPoint({
+		const { scrollElement } = renderReadPoint({
 			root,
 			primarySeq: 4,
 			initial: { split: 4, block: 0 },
@@ -127,7 +149,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event("scroll"));
+			scrollElement.dispatchEvent(new Event("scroll"));
 			await vi.runAllTimersAsync();
 		});
 
@@ -142,7 +164,7 @@ describe("useReadPoint", () => {
 		const root = makeRoot(5);
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: true };
-		renderReadPoint({
+		const { scrollElement } = renderReadPoint({
 			root,
 			primarySeq: 4,
 			initial: { split: 4, block: 0 },
@@ -152,7 +174,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event("scroll"));
+			scrollElement.dispatchEvent(new Event("scroll"));
 			await vi.runAllTimersAsync();
 		});
 
@@ -173,7 +195,7 @@ describe("useReadPoint", () => {
 		// scrolled all the way to the end of this, the learning asset's last split.
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: true };
-		renderReadPoint({
+		const { scrollElement } = renderReadPoint({
 			root,
 			primarySeq: 4,
 			initial: { split: 4, block: 0 },
@@ -184,7 +206,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event("scroll"));
+			scrollElement.dispatchEvent(new Event("scroll"));
 			await vi.runAllTimersAsync();
 		});
 
@@ -202,7 +224,7 @@ describe("useReadPoint", () => {
 		const root = makeRoot(5);
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: true };
-		renderReadPoint({
+		const { scrollElement } = renderReadPoint({
 			root,
 			primarySeq: 4,
 			initial: { split: 4, block: 0 },
@@ -213,7 +235,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event("scroll"));
+			scrollElement.dispatchEvent(new Event("scroll"));
 			await vi.runAllTimersAsync();
 		});
 
@@ -231,7 +253,7 @@ describe("useReadPoint", () => {
 		const root = makeRoot(5);
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: true };
-		renderReadPoint({
+		const { scrollElement } = renderReadPoint({
 			root,
 			primarySeq: 4,
 			// Last-saved is seeded from `initial`, and the scroll resolves to
@@ -243,7 +265,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event("scroll"));
+			scrollElement.dispatchEvent(new Event("scroll"));
 			await vi.runAllTimersAsync();
 		});
 
@@ -258,7 +280,7 @@ describe("useReadPoint", () => {
 		const root = makeRoot(5);
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: true };
-		const { unmount } = renderReadPoint({
+		const { unmount, scrollElement } = renderReadPoint({
 			root,
 			primarySeq: 4,
 			initial: { split: 4, block: 0 },
@@ -269,7 +291,7 @@ describe("useReadPoint", () => {
 
 		// Run the scroll's rAF (records the read point) but not the autosave debounce.
 		await act(async () => {
-			window.dispatchEvent(new Event("scroll"));
+			scrollElement.dispatchEvent(new Event("scroll"));
 			await vi.advanceTimersByTimeAsync(20);
 		});
 		const savedBeforeUnmount = updateReadPointMock.mock.calls.length;
@@ -292,7 +314,7 @@ describe("useReadPoint", () => {
 		const root = makeRoot(5);
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: true };
-		const { unmount } = renderReadPoint({
+		const { unmount, scrollElement } = renderReadPoint({
 			root,
 			primarySeq: 4,
 			initial: { split: 4, block: 0 },
@@ -302,7 +324,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event("scroll"));
+			scrollElement.dispatchEvent(new Event("scroll"));
 			await vi.advanceTimersByTimeAsync(
 				20 + AUTO_SAVE_DELAY_IN_MILLISECONDS,
 			);
@@ -349,7 +371,7 @@ describe("useReadPoint", () => {
 		const root = makeRoot(5);
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: true };
-		const { result } = renderReadPoint({
+		const { result, scrollElement } = renderReadPoint({
 			root,
 			primarySeq: 4,
 			initial: { split: 4, block: 0 },
@@ -363,7 +385,7 @@ describe("useReadPoint", () => {
 			await vi.runAllTimersAsync();
 		});
 		await act(async () => {
-			window.dispatchEvent(new Event("scroll"));
+			scrollElement.dispatchEvent(new Event("scroll"));
 			await vi.runAllTimersAsync();
 		});
 
@@ -499,7 +521,7 @@ describe("useReadPoint", () => {
 		const root = makeRoot(5);
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: true };
-		const { result } = renderReadPoint({
+		const { result, scrollElement } = renderReadPoint({
 			root,
 			primarySeq: 4,
 			initial: { split: 4, block: 0 },
@@ -516,7 +538,7 @@ describe("useReadPoint", () => {
 			await vi.runAllTimersAsync();
 		});
 		await act(async () => {
-			window.dispatchEvent(new Event("scroll"));
+			scrollElement.dispatchEvent(new Event("scroll"));
 			await vi.runAllTimersAsync();
 		});
 
@@ -562,7 +584,7 @@ describe("useReadPoint", () => {
 		const root = makeRoot(5);
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: true };
-		renderReadPoint({
+		const { scrollElement } = renderReadPoint({
 			root,
 			primarySeq: 4,
 			initial: { split: 4, block: 3 },
@@ -576,7 +598,7 @@ describe("useReadPoint", () => {
 			await vi.runAllTimersAsync();
 		});
 		await act(async () => {
-			window.dispatchEvent(new Event("scroll"));
+			scrollElement.dispatchEvent(new Event("scroll"));
 			await vi.runAllTimersAsync();
 		});
 
@@ -723,7 +745,7 @@ describe("useReadPoint", () => {
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: true };
 		const onReadPointChange = vi.fn();
-		renderReadPoint({
+		const { scrollElement } = renderReadPoint({
 			root,
 			primarySeq: 4,
 			initial: { split: 4, block: 0 },
@@ -734,7 +756,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event("scroll"));
+			scrollElement.dispatchEvent(new Event("scroll"));
 			await vi.runAllTimersAsync();
 		});
 
