@@ -11,6 +11,7 @@ import {
 } from "../../../hooks/useIsSmallScreen";
 import { useCurrentElementSync } from "../../../hooks/useCurrentElementSync";
 import { useElementSyncRefresh } from "../../../hooks/useElementSyncRefresh";
+import { useStudySessionFinishedRefresh } from "../../../hooks/useStudySessionFinishedRefresh";
 import { usePostSyncRefresh } from "../../../hooks/usePostSyncRefresh";
 import { useCloseSidebarOnSmallScreenNavigation } from "../../../hooks/useCloseSidebarOnSmallScreenNavigation";
 import { useStudySessionGuard } from "../../Study/hooks/useStudySessionGuard";
@@ -121,6 +122,7 @@ function App() {
 	useRedirectIfElementMissing();
 	useCurrentElementSync();
 	useElementSyncRefresh();
+	useStudySessionFinishedRefresh();
 	usePostSyncRefresh();
 	useStudySessionGuard();
 	useStudySessionSummaryToast();

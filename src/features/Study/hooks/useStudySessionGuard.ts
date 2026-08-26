@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation } from "react-router";
-import { sessionStopped } from "../../../stores/study/studyReducer";
+import { stopStudySessionAction } from "../../../stores/study/studyActions";
 import { selectStudyStatus } from "../../../stores/study/studySelectors";
 import { StudySessionLocationState } from "../../../types/study/studySessionLocationState";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -23,7 +23,7 @@ export function useStudySessionGuard() {
 	useEffect(() => {
 		if (statusRef.current !== "studying") return;
 		const state = location.state as StudySessionLocationState | null;
-		if (!state?.studySessionNav) dispatch(sessionStopped());
+		if (!state?.studySessionNav) dispatch(stopStudySessionAction());
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [location.key, dispatch]);
 }

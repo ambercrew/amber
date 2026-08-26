@@ -6,7 +6,9 @@ import {
 	nextLearningAssetAction,
 	skipLearningAssetAction,
 	startStudySession,
+	stopStudySessionAction,
 } from "../../../stores/study/studyActions";
+import { STUDY_SESSION_FINISHED } from "../../../types/events/studySessionFinishedEvent";
 import { StudyState } from "../../../stores/study/studyReducer";
 import {
 	finishLearningAsset,
@@ -222,6 +224,35 @@ describe("gradeCardAction", () => {
 		);
 	});
 
+	it("Should not fire STUDY_SESSION_FINISHED when other elements remain in the queue", async () => {
+		// Arrange
+
+		vi.mocked(registerCardReview).mockResolvedValue(
+			makeCardReview(IN_TWO_DAYS()),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("1"), cardQueueItem("2")],
+			},
+			elements: elementsStateFor(cardElement("1")),
+		});
+		const listener = vi.fn();
+		window.addEventListener(STUDY_SESSION_FINISHED, listener);
+
+		// Act
+
+		await store.dispatch(
+			gradeCardAction("1", SCHEDULED_REVIEW, "good", navigate),
+		);
+
+		// Assert
+
+		expect(listener).not.toHaveBeenCalled();
+		window.removeEventListener(STUDY_SESSION_FINISHED, listener);
+	});
+
 	it("Should requeue the card instead of removing it when due again within the session horizon", async () => {
 		// Arrange
 
@@ -319,6 +350,58 @@ describe("gradeCardAction", () => {
 			finished: 0,
 		});
 		expect(navigate).not.toHaveBeenCalled();
+	});
+
+	it("Should fire STUDY_SESSION_FINISHED once the last pending element is completed", async () => {
+		// Arrange
+
+		vi.mocked(registerCardReview).mockResolvedValue(
+			makeCardReview(IN_TWO_DAYS()),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: { ...BASE_STUDY_STATE, queue: [cardQueueItem("1")] },
+			elements: elementsStateFor(cardElement("1")),
+		});
+		const listener = vi.fn();
+		window.addEventListener(STUDY_SESSION_FINISHED, listener);
+
+		// Act
+
+		await store.dispatch(
+			gradeCardAction("1", SCHEDULED_REVIEW, "good", navigate),
+		);
+
+		// Assert
+
+		expect(listener).toHaveBeenCalledTimes(1);
+		window.removeEventListener(STUDY_SESSION_FINISHED, listener);
+	});
+});
+
+describe("stopStudySessionAction", () => {
+	it("Should reset the session state and fire STUDY_SESSION_FINISHED", () => {
+		// Arrange
+
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("1"), cardQueueItem("2")],
+			},
+		});
+		const listener = vi.fn();
+		window.addEventListener(STUDY_SESSION_FINISHED, listener);
+
+		// Act
+
+		store.dispatch(stopStudySessionAction());
+
+		// Assert
+
+		expect(store.getState().study.status).toBe("editing");
+		expect(store.getState().study.queue).toEqual([]);
+		expect(listener).toHaveBeenCalledTimes(1);
+		window.removeEventListener(STUDY_SESSION_FINISHED, listener);
 	});
 });
 

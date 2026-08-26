@@ -6,6 +6,7 @@ import {
 	renderWithProviders,
 } from "../../../test-utils/renderWithProviders";
 import { StudySessionLocationState } from "../../../../types/study/studySessionLocationState";
+import { STUDY_SESSION_FINISHED } from "../../../../types/events/studySessionFinishedEvent";
 
 const BASE_STUDY_STATE = {
 	queue: [],
@@ -82,6 +83,34 @@ describe("useStudySessionGuard", () => {
 		// Assert
 
 		expect(store.getState().study.status).toBe("editing");
+	});
+
+	it("Should fire STUDY_SESSION_FINISHED when stopping the session via navigation", () => {
+		// Arrange
+
+		const initialState: StudySessionLocationState = {
+			studySessionNav: true,
+		};
+		const listener = vi.fn();
+		window.addEventListener(STUDY_SESSION_FINISHED, listener);
+
+		renderWithProviders(<HookWrapper />, {
+			preloadedState: {
+				study: { ...BASE_STUDY_STATE, status: "studying" },
+			},
+			memoryRouterProps: {
+				initialEntries: [{ pathname: "/", state: initialState }],
+			},
+		});
+
+		// Act
+
+		fireEvent.click(screen.getByTestId("navigate-manual"));
+
+		// Assert
+
+		expect(listener).toHaveBeenCalledTimes(1);
+		window.removeEventListener(STUDY_SESSION_FINISHED, listener);
 	});
 
 	it("Should not stop the session when navigating with study session navigation state", () => {

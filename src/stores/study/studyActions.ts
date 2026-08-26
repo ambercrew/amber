@@ -19,8 +19,10 @@ import {
 	learningAssetSkipped,
 	sessionAdvanced,
 	sessionStarted,
+	sessionStopped,
 } from "./studyReducer";
 import { selectStudyIndex } from "./studySelectors";
+import { STUDY_SESSION_FINISHED } from "../../types/events/studySessionFinishedEvent";
 
 // A same-day relearning card is re-queued rather than dropped until "later
 // today" only if its new due time still falls within the live session.
@@ -120,10 +122,20 @@ function advanceSession(
 	dispatch(sessionAdvanced({ completedElementId }));
 
 	const { queue } = getState().study;
-	if (queue.length === 0) return;
+	if (queue.length === 0) {
+		window.dispatchEvent(new Event(STUDY_SESSION_FINISHED));
+		return;
+	}
 
 	const nextIndex = currentIndex >= queue.length ? 0 : currentIndex;
 	navigateToElement(queue[nextIndex]?.elementId, navigate);
+}
+
+export function stopStudySessionAction() {
+	return (dispatch: AppDispatch) => {
+		dispatch(sessionStopped());
+		window.dispatchEvent(new Event(STUDY_SESSION_FINISHED));
+	};
 }
 
 function navigateToElement(

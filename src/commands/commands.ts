@@ -28,8 +28,10 @@ import {
 	openStudySessionSettingsModal,
 } from "../stores/app/appReducer";
 import { openSearch } from "../stores/search/searchReducer";
-import { startStudySession } from "../stores/study/studyActions";
-import { sessionStopped } from "../stores/study/studyReducer";
+import {
+	startStudySession,
+	stopStudySessionAction,
+} from "../stores/study/studyActions";
 import { selectStudyStatus } from "../stores/study/studySelectors";
 import { saveSettings } from "../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../api/settings/dto/updateSettingsRequestDto";
@@ -160,7 +162,7 @@ export const commandsById: Record<CommandId, Command> = {
 		shortcut: TOGGLE_STUDY_SESSION_SHORTCUT,
 		icon: createElement(PencilSimpleIcon),
 		enabled: state => selectStudyStatus(state) === "studying",
-		execute: dispatch => dispatch(sessionStopped()),
+		execute: dispatch => dispatch(stopStudySessionAction()),
 	},
 	"set-read-point": {
 		id: "set-read-point",
