@@ -1,14 +1,32 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
+import { createElement, ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useSplitMountWindow } from "../../../../features/ElementViewer/LearningAssetView/useSplitMountWindow";
 import { LearningAssetSplitMetaDto } from "../../../../types/elements/learningAssetSplitMetaDto";
+import { MainScrollContext } from "../../../../features/App/context/mainScrollContext";
 
 function makeSplits(count: number): LearningAssetSplitMetaDto[] {
 	return Array.from({ length: count }, (_, index) => ({
 		seq: index,
 		charCount: 10,
 	}));
+}
+
+/**
+ * The hook observes the main content area's scroll container, so it needs one
+ * from `MainScrollContext` to attach its `IntersectionObserver` to.
+ */
+function renderSplitMountWindow(props: {
+	splits: LearningAssetSplitMetaDto[];
+	initialSeq: number;
+}) {
+	const scroller = document.createElement("div");
+
+	return renderHook(() => useSplitMountWindow(props), {
+		wrapper: ({ children }: { children: ReactNode }) =>
+			createElement(MainScrollContext, { value: scroller }, children),
+	});
 }
 
 function sorted(seqs: Set<number>): number[] {
@@ -23,12 +41,7 @@ describe("useSplitMountWindow", () => {
 
 		// Act
 
-		const { result } = renderHook(() =>
-			useSplitMountWindow({
-				splits,
-				initialSeq: 0,
-			}),
-		);
+		const { result } = renderSplitMountWindow({ splits, initialSeq: 0 });
 
 		// Assert
 
@@ -45,12 +58,7 @@ describe("useSplitMountWindow", () => {
 
 		// Act
 
-		const { result } = renderHook(() =>
-			useSplitMountWindow({
-				splits,
-				initialSeq: 5,
-			}),
-		);
+		const { result } = renderSplitMountWindow({ splits, initialSeq: 5 });
 
 		// Assert
 
@@ -99,9 +107,7 @@ describe("useSplitMountWindow lock/unlock gating", () => {
 		// Arrange
 
 		const splits = makeSplits(10);
-		const { result } = renderHook(() =>
-			useSplitMountWindow({ splits, initialSeq: 5 }),
-		);
+		const { result } = renderSplitMountWindow({ splits, initialSeq: 5 });
 		const topSlot = document.createElement("div");
 		act(() => {
 			result.current.registerSlot(0)(topSlot);
@@ -122,9 +128,7 @@ describe("useSplitMountWindow lock/unlock gating", () => {
 		// Arrange
 
 		const splits = makeSplits(10);
-		const { result } = renderHook(() =>
-			useSplitMountWindow({ splits, initialSeq: 5 }),
-		);
+		const { result } = renderSplitMountWindow({ splits, initialSeq: 5 });
 		const topSlot = document.createElement("div");
 		act(() => {
 			result.current.registerSlot(0)(topSlot);
@@ -147,9 +151,7 @@ describe("useSplitMountWindow lock/unlock gating", () => {
 		// Arrange
 
 		const splits = makeSplits(10);
-		const { result } = renderHook(() =>
-			useSplitMountWindow({ splits, initialSeq: 0 }),
-		);
+		const { result } = renderSplitMountWindow({ splits, initialSeq: 0 });
 		act(() => {
 			result.current.unlock();
 		});

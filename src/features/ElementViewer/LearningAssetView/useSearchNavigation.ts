@@ -4,6 +4,7 @@ import { searchHighlightRegistry } from "../../../components/Editor/plugins/Sear
 import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAssetSplitMetaDto";
 import { estimateOffsetBeforeSplit } from "./heights/estimateCumulativeOffset";
 import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "./learningAssetViewConstants";
+import { useMainScrollElement } from "../../App/context/mainScrollContext";
 
 interface Props {
 	splits: LearningAssetSplitMetaDto[];
@@ -41,6 +42,7 @@ export function useSearchNavigation({
 	releaseJump,
 }: Props): ReturnValue {
 	const pendingRef = useRef<PendingMatchScroll | null>(null);
+	const scroller = useMainScrollElement();
 
 	const scrollToMatchNow = useCallback(
 		(seq: number, localIndex: number): boolean => {
@@ -65,7 +67,7 @@ export function useSearchNavigation({
 				return;
 			}
 			const offset = estimateOffsetBeforeSplit(splits, seq, getHeight);
-			window.scrollTo({
+			scroller?.scrollTo({
 				top: Math.max(
 					0,
 					offset - LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX,
@@ -75,7 +77,7 @@ export function useSearchNavigation({
 			pendingRef.current = { seq, localIndex };
 			jumpTo(seq);
 		},
-		[splits, getHeight, getContentRoot, jumpTo, scrollToMatchNow],
+		[splits, getHeight, getContentRoot, jumpTo, scrollToMatchNow, scroller],
 	);
 
 	const notifySearchTargetReady = useCallback(

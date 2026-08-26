@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { ActionIcon, Group, Paper, Text, Transition } from "@mantine/core";
-import { useDebouncedCallback, useHeadroom, useHotkeys } from "@mantine/hooks";
+import { useDebouncedCallback, useHotkeys } from "@mantine/hooks";
 import {
 	CaretDownIcon,
 	CaretUpIcon,
@@ -27,6 +27,8 @@ import {
 	selectSearchTotalMatches,
 } from "../../stores/search/searchSelectors";
 import { HEADROOM_FIXED_AT } from "../App/components/App";
+import { useMainScrollElement } from "../App/context/mainScrollContext";
+import { useElementHeadroom } from "../../hooks/useElementHeadroom";
 
 const QUERY_DEBOUNCE_IN_MILLISECONDS = 400;
 
@@ -44,9 +46,10 @@ export default function FindInPageBar() {
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const onNext = () => dispatch(goToNextMatch());
 	const onPrevious = () => dispatch(goToPreviousMatch());
-	// Mirrors App.tsx's useHeadroom: collapsing the header doesn't change
+	// Mirrors App.tsx's headroom: collapsing the header doesn't change
 	// --app-shell-header-height, so this needs the same pinned state.
-	const { pinned: headerPinned } = useHeadroom({
+	const headerPinned = useElementHeadroom({
+		element: useMainScrollElement(),
 		fixedAt: HEADROOM_FIXED_AT,
 	});
 

@@ -7,6 +7,7 @@ import { updateReadPoint } from "../../../api/elements/api/elementsApi";
 import { ReadPoint } from "../../../types/elements/readPoint";
 import { READ_POINT_MANUAL_SET_REQUESTED } from "../../../types/events/readPointManualSetRequestedEvent";
 import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../../../types/events/readPointManualClearRequestedEvent";
+import { useMainScrollElement } from "../../App/context/mainScrollContext";
 
 interface Props {
 	learningAssetId: string;
@@ -67,11 +68,15 @@ function topVisibleBlockIndex(root: HTMLElement, topOffset: number): number {
 }
 
 /** Whether the last block of the learning asset's last split is fully scrolled into view. */
-function isAtDocumentEnd(root: HTMLElement): boolean {
+function isAtDocumentEnd(
+	root: HTMLElement,
+	scrollElement: HTMLElement,
+): boolean {
 	const lastBlock = root.children[root.children.length - 1];
 	return (
 		!!lastBlock &&
-		lastBlock.getBoundingClientRect().bottom <= window.innerHeight
+		lastBlock.getBoundingClientRect().bottom <=
+			scrollElement.getBoundingClientRect().bottom
 	);
 }
 
@@ -157,19 +162,21 @@ export function useReadPoint({
 		[persistReadPoint, onReadPointChange],
 	);
 
+	const scrollElement = useMainScrollElement();
 	const recordReadPoint = useCallback(() => {
 		// Don't record scrolling that happens before the restore has landed,
 		// or once a manual/extract placement has taken over for this opening.
 		if (!restoredRef.current || precedenceRef.current !== "automatic") {
 			return;
 		}
+		if (!scrollElement) return;
 		const seq = primarySeqRef.current;
 		const root = getContentRoot(seq);
 		if (!root) return;
 		// Reaching the end of the learning asset means there is nothing left to
 		// resume from, so the read point clears instead of pointing at the
 		// last block.
-		if (seq === lastSplitSeq && isAtDocumentEnd(root)) {
+		if (seq === lastSplitSeq && isAtDocumentEnd(root, scrollElement)) {
 			persistReadPoint(NO_READ_POINT);
 			return;
 		}
@@ -178,11 +185,18 @@ export function useReadPoint({
 			LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX,
 		);
 		persistReadPoint({ split: seq, block });
-	}, [restoredRef, getContentRoot, persistReadPoint, lastSplitSeq]);
+	}, [
+		restoredRef,
+		scrollElement,
+		getContentRoot,
+		persistReadPoint,
+		lastSplitSeq,
+	]);
 
 	// Throttle to one measurement per frame — scroll fires far more often than
 	// paints, and measuring a block's rect on every event is wasteful.
 	useEffect(() => {
+		if (!scrollElement) return;
 		let frame: number | null = null;
 		const handler = () => {
 			if (frame !== null) return;
@@ -191,12 +205,12 @@ export function useReadPoint({
 				recordReadPoint();
 			});
 		};
-		window.addEventListener("scroll", handler, { passive: true });
+		scrollElement.addEventListener("scroll", handler, { passive: true });
 		return () => {
-			window.removeEventListener("scroll", handler);
+			scrollElement.removeEventListener("scroll", handler);
 			if (frame !== null) cancelAnimationFrame(frame);
 		};
-	}, [recordReadPoint]);
+	}, [scrollElement, recordReadPoint]);
 
 	const recordExtractReadPoint = useCallback(
 		(seq: number, block: number) => {

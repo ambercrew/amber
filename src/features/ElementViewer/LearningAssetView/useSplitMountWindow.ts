@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LEARNING_ASSET_SPLIT_MOUNT_NEIGHBORS } from "./learningAssetViewConstants";
 import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAssetSplitMetaDto";
+import { useMainScrollElement } from "../../App/context/mainScrollContext";
 
 interface Props {
 	splits: LearningAssetSplitMetaDto[];
@@ -44,8 +45,11 @@ export function useSplitMountWindow({
 	// top-of-document splits as intersecting and collapse the window there
 	// before anything scrolls to the actual target.
 	const lockedRef = useRef(true);
+	const scroller = useMainScrollElement();
 
 	useEffect(() => {
+		if (!scroller) return;
+
 		const observer = new IntersectionObserver(
 			entries => {
 				for (const entry of entries) {
@@ -59,8 +63,8 @@ export function useSplitMountWindow({
 				const topmost = Math.min(...intersectingRef.current);
 				setPrimarySeq(prev => (prev === topmost ? prev : topmost));
 			},
-			// `root: null` = the scrolling viewport (the app window scrolls).
-			{ root: null, threshold: 0 },
+			// The main content area is the scroller, not the window.
+			{ root: scroller, threshold: 0 },
 		);
 		observerRef.current = observer;
 		// Observe any slots whose refs were attached before this effect ran.
@@ -71,7 +75,7 @@ export function useSplitMountWindow({
 			observer.disconnect();
 			observerRef.current = null;
 		};
-	}, []);
+	}, [scroller]);
 
 	const registerSlot = useCallback(
 		(seq: number) => (element: Element | null) => {

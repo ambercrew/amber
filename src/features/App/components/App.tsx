@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet } from "react-router";
 import { AppShell, Box } from "@mantine/core";
-import { useSplitter, useHeadroom } from "@mantine/hooks";
+import { useSplitter } from "@mantine/hooks";
 import { Notifications } from "@mantine/notifications";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { useRedirectIfElementMissing } from "../../../hooks/useRedirectIfElementMissing";
@@ -49,6 +49,8 @@ import {
 import useBackButtonPress from "../../../hooks/useBackButtonPress.ts";
 import { BackButtonPriority } from "../../../managers/backButtonManager.ts";
 import { useLexicalConversionBridge } from "../hooks/useLexicalConversionBridge.ts";
+import { MainScrollContext } from "../context/mainScrollContext.ts";
+import { useElementHeadroom } from "../../../hooks/useElementHeadroom.ts";
 
 // Must be defined manually otherwise hiding header or footer when scrolling won't work.
 export const HEADER_AND_FOOTER_HEIGHT = 56;
@@ -58,7 +60,11 @@ const SIDEBAR_DEFAULT = 320;
 const ASIDE_DEFAULT = 320;
 
 function App() {
-	const { pinned } = useHeadroom({ fixedAt: HEADROOM_FIXED_AT });
+	const [mainElement, setMainElement] = useState<HTMLElement | null>(null);
+	const pinned = useElementHeadroom({
+		element: mainElement,
+		fixedAt: HEADROOM_FIXED_AT,
+	});
 
 	const isSmallScreen = useIsSmallScreen();
 	const [sidebarExpanded, setSidebarExpanded] = useState(!isSmallScreen);
@@ -138,106 +144,127 @@ function App() {
 	if (!areSettingsLoaded) return null;
 
 	return (
-		<AppShell
-			// eslint-disable-next-line react-hooks/refs
-			ref={splitter.ref}
-			layout="alt"
-			navbar={{
-				width: navbarWidth,
-				breakpoint: SMALL_SCREEN_BREAKPOINT,
-				collapsed: {
-					desktop: !sidebarExpanded,
-					mobile: !sidebarExpanded,
-				},
-			}}
-			aside={{
-				width: asideWidth,
-				breakpoint: SMALL_SCREEN_BREAKPOINT,
-				collapsed: {
-					desktop: !asideExpanded,
-					mobile: !asideExpanded,
-				},
-			}}
-			header={{
-				height: mobile
-					? `calc(${HEADER_AND_FOOTER_HEIGHT}px + ${SAFE_AREA_TOP}${
-							isCurrentElementTrashed
-								? ` + ${TRASHED_ELEMENT_BANNER_HEIGHT}px`
-								: ""
-						})`
-					: HEADER_AND_FOOTER_HEIGHT +
-						(isCurrentElementTrashed
-							? TRASHED_ELEMENT_BANNER_HEIGHT
-							: 0),
-				collapsed: !pinned,
-				offset: false,
-			}}
-			footer={{
-				height: HEADER_AND_FOOTER_HEIGHT,
-				collapsed: footerCollapsed,
-			}}
-			padding="md">
-			{!mobile && <Updater />}
-			<CommandPalette />
-			<ImportModal />
-			<StudyProfileModal />
-			<SettingsModal />
-			<PriorityModal />
-			<StudySessionSettingsModal />
-			<AuthModal />
-			<VerifyEmailModal />
-			<ManageAccountModal />
-			<SyncingModal />
-			<Notifications />
-			<SafeAreaTopBackdrop />
+		<MainScrollContext value={mainElement}>
+			<AppShell
+				// eslint-disable-next-line react-hooks/refs
+				ref={splitter.ref}
+				mode="fixed"
+				layout="alt"
+				h="100dvh"
+				style={{
+					overflow: "hidden",
+					"--app-shell-transition-duration": "calc(200ms * 2)",
+				}}
+				navbar={{
+					width: navbarWidth,
+					breakpoint: SMALL_SCREEN_BREAKPOINT,
+					collapsed: {
+						desktop: !sidebarExpanded,
+						mobile: !sidebarExpanded,
+					},
+				}}
+				aside={{
+					width: asideWidth,
+					breakpoint: SMALL_SCREEN_BREAKPOINT,
+					collapsed: {
+						desktop: !asideExpanded,
+						mobile: !asideExpanded,
+					},
+				}}
+				header={{
+					height: mobile
+						? `calc(${HEADER_AND_FOOTER_HEIGHT}px + ${SAFE_AREA_TOP}${
+								isCurrentElementTrashed
+									? ` + ${TRASHED_ELEMENT_BANNER_HEIGHT}px`
+									: ""
+							})`
+						: HEADER_AND_FOOTER_HEIGHT +
+							(isCurrentElementTrashed
+								? TRASHED_ELEMENT_BANNER_HEIGHT
+								: 0),
+					collapsed: !pinned,
+				}}
+				footer={{
+					height: HEADER_AND_FOOTER_HEIGHT,
+					collapsed: footerCollapsed,
+				}}
+				padding="md">
+				{!mobile && <Updater />}
+				<CommandPalette />
+				<ImportModal />
+				<StudyProfileModal />
+				<SettingsModal />
+				<PriorityModal />
+				<StudySessionSettingsModal />
+				<AuthModal />
+				<VerifyEmailModal />
+				<ManageAccountModal />
+				<SyncingModal />
+				<Notifications />
+				<SafeAreaTopBackdrop />
 
-			<AppShell.Header style={safeAreaTop}>
-				<Box h={HEADER_AND_FOOTER_HEIGHT}>
-					<AppHeader
-						onToggleSidebar={() => splitter.toggleCollapse(0)}
-						onToggleAside={() => setAsideExpanded(v => !v)}
-					/>
-				</Box>
-				<TrashedElementBanner />
-			</AppShell.Header>
+				<AppShell.Header style={safeAreaTop}>
+					<Box h={HEADER_AND_FOOTER_HEIGHT}>
+						<AppHeader
+							onToggleSidebar={() => splitter.toggleCollapse(0)}
+							onToggleAside={() => setAsideExpanded(v => !v)}
+						/>
+					</Box>
+					<TrashedElementBanner />
+				</AppShell.Header>
 
-			<AppShell.Footer
-				style={
-					mobile && footerCollapsed
-						? {
-								transform: `translateY(calc(var(--app-shell-footer-height) + ${SAFE_AREA_BOTTOM}))`,
-							}
-						: undefined
-				}>
-				<StudySessionBar />
-			</AppShell.Footer>
+				<AppShell.Footer
+					style={
+						mobile && footerCollapsed
+							? {
+									transform: `translateY(calc(var(--app-shell-footer-height) + ${SAFE_AREA_BOTTOM}))`,
+								}
+							: undefined
+					}>
+					<StudySessionBar />
+				</AppShell.Footer>
 
-			<AppShell.Navbar style={safeAreaTop}>
-				<Sidebar onCollapse={() => splitter.collapse(0)} />
-				{!isSmallScreen && (
-					<ResizeHandle
-						side="right"
-						// eslint-disable-next-line react-hooks/refs
-						handleProps={splitter.getHandleProps({ index: 0 })}
-					/>
-				)}
-			</AppShell.Navbar>
+				<AppShell.Navbar style={safeAreaTop}>
+					<Sidebar onCollapse={() => splitter.collapse(0)} />
+					{!isSmallScreen && (
+						<ResizeHandle
+							side="right"
+							// eslint-disable-next-line react-hooks/refs
+							handleProps={splitter.getHandleProps({ index: 0 })}
+						/>
+					)}
+				</AppShell.Navbar>
 
-			<AppShell.Main pt="var(--app-shell-header-height)">
-				<Outlet />
-			</AppShell.Main>
+				<AppShell.Main
+					ref={setMainElement}
+					p="var(--app-shell-padding)"
+					style={{
+						position: "fixed",
+						top: "var(--app-shell-header-offset, 0rem)",
+						bottom: "var(--app-shell-footer-offset, 0rem)",
+						insetInlineStart:
+							"var(--app-shell-navbar-offset, 0rem)",
+						insetInlineEnd: "var(--app-shell-aside-offset, 0rem)",
+						overflowY: "auto",
+						overflowX: "hidden",
+						transitionProperty:
+							"top, bottom, inset-inline-start, inset-inline-end",
+					}}>
+					<Outlet />
+				</AppShell.Main>
 
-			<AppShell.Aside style={safeAreaTop}>
-				<Aside onCollapse={() => setAsideExpanded(false)} />
-				{!isSmallScreen && (
-					<ResizeHandle
-						side="left"
-						// eslint-disable-next-line react-hooks/refs
-						handleProps={splitter.getHandleProps({ index: 1 })}
-					/>
-				)}
-			</AppShell.Aside>
-		</AppShell>
+				<AppShell.Aside style={safeAreaTop}>
+					<Aside onCollapse={() => setAsideExpanded(false)} />
+					{!isSmallScreen && (
+						<ResizeHandle
+							side="left"
+							// eslint-disable-next-line react-hooks/refs
+							handleProps={splitter.getHandleProps({ index: 1 })}
+						/>
+					)}
+				</AppShell.Aside>
+			</AppShell>
+		</MainScrollContext>
 	);
 }
 
