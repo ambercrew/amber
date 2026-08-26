@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useDebouncedValue } from "@mantine/hooks";
-import { Group, Paper, Stack, Text, Title } from "@mantine/core";
+import { Alert, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import {
 	ElementFilter,
 	ElementFilterField,
@@ -54,8 +54,11 @@ export default function ElementsBrowser() {
 	const [selectedIds, setSelectedIds] = useState<ElementId[]>(
 		locationState?.elementsBrowser?.selectedIds ?? [],
 	);
-	const { callApi } = useApi();
+	const { callApi, errorMessage } = useApi();
 	const [debouncedFilters] = useDebouncedValue(filters, SEARCH_DEBOUNCE_MS);
+	// Searches are fired on every filter edit and can resolve out of order, so
+	// only the most recently started one is allowed to publish its results.
+	const latestSearchId = useRef(0);
 
 	function loadSupportingLists() {
 		void listBibliographicalSources().then(setSources);
@@ -68,9 +71,12 @@ export default function ElementsBrowser() {
 	}, []);
 
 	function runSearch() {
+		const searchId = ++latestSearchId.current;
 		void callApi(() => searchElements({ filters: debouncedFilters })).then(
 			searchResults => {
-				if (searchResults) setResults(searchResults);
+				if (searchResults && searchId === latestSearchId.current) {
+					setResults(searchResults);
+				}
 			},
 		);
 	}
@@ -168,6 +174,11 @@ export default function ElementsBrowser() {
 					))}
 					<AddFilterMenu onSelect={handleAddFilter} />
 				</Group>
+				{errorMessage && (
+					<Alert color="red" title="Search failed">
+						{errorMessage}
+					</Alert>
+				)}
 				<BulkActionsBar
 					selectedIds={selectedIds}
 					selectedResults={selectedResults}

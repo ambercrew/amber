@@ -231,6 +231,7 @@ fn push_filter_clause(query_builder: &mut QueryBuilder<Sqlite>, filter: &Element
         } => push_date_clause(
             query_builder,
             "COALESCE(cr.due, lar.due)",
+            DateDirection::Future,
             operator,
             days,
             from,
@@ -242,7 +243,15 @@ fn push_filter_clause(query_builder: &mut QueryBuilder<Sqlite>, filter: &Element
             from,
             to,
             ..
-        } => push_date_clause(query_builder, "m.created_at", operator, days, from, to),
+        } => push_date_clause(
+            query_builder,
+            "m.created_at",
+            DateDirection::Past,
+            operator,
+            days,
+            from,
+            to,
+        ),
         ElementFilter::BibliographicalSource {
             operator,
             source_ids,
@@ -272,9 +281,30 @@ fn push_filter_clause(query_builder: &mut QueryBuilder<Sqlite>, filter: &Element
     }
 }
 
+/// Which way a `withinDays` window points. A due date lies ahead of today, a
+/// creation date behind it, so the same "within N days" operator has to build
+/// the window in opposite directions per field.
+#[derive(Debug, Clone, Copy)]
+enum DateDirection {
+    Past,
+    Future,
+}
+
+/// Today's calendar date in the user's own timezone. Timestamps are stored in
+/// UTC, but the rest of the app rolls the day over at local midnight (see
+/// `study::utils::day_boundary`), so the filters have to agree with it.
+const TODAY: &str = "date('now', 'localtime')";
+
+/// The stored UTC timestamp in `column_expr` as a local calendar date, so it
+/// can be compared against `TODAY` or against a date the user picked.
+fn local_date(column_expr: &str) -> String {
+    format!("date({column_expr}, 'localtime')")
+}
+
 fn push_date_clause(
     query_builder: &mut QueryBuilder<Sqlite>,
     column_expr: &str,
+    direction: DateDirection,
     operator: &DateFilterOperator,
     days: &Option<i64>,
     from: &Option<String>,
@@ -282,15 +312,23 @@ fn push_date_clause(
 ) {
     match operator {
         DateFilterOperator::Today => {
-            query_builder.push(format!("date({column_expr}) = date('now')"));
+            query_builder.push(format!("{} = {TODAY}", local_date(column_expr)));
         }
         DateFilterOperator::WithinDays => match days {
             Some(days) => {
-                query_builder.push(format!(
-                    "date({column_expr}) BETWEEN date('now') AND date('now', '+' || "
-                ));
-                query_builder.push_bind(*days);
-                query_builder.push(" || ' days')");
+                query_builder.push(format!("{} BETWEEN ", local_date(column_expr)));
+                match direction {
+                    DateDirection::Future => {
+                        query_builder.push(format!("{TODAY} AND date('now', 'localtime', '+' || "));
+                        query_builder.push_bind(*days);
+                        query_builder.push(" || ' days')");
+                    }
+                    DateDirection::Past => {
+                        query_builder.push("date('now', 'localtime', '-' || ");
+                        query_builder.push_bind(*days);
+                        query_builder.push(format!(" || ' days') AND {TODAY}"));
+                    }
+                }
             }
             None => {
                 query_builder.push("1 = 1");
@@ -298,7 +336,7 @@ fn push_date_clause(
         },
         DateFilterOperator::Before => match from {
             Some(from) => {
-                query_builder.push(format!("date({column_expr}) < date("));
+                query_builder.push(format!("{} < date(", local_date(column_expr)));
                 query_builder.push_bind(from.clone());
                 query_builder.push(")");
             }
@@ -308,7 +346,7 @@ fn push_date_clause(
         },
         DateFilterOperator::After => match from {
             Some(from) => {
-                query_builder.push(format!("date({column_expr}) > date("));
+                query_builder.push(format!("{} > date(", local_date(column_expr)));
                 query_builder.push_bind(from.clone());
                 query_builder.push(")");
             }
@@ -318,7 +356,7 @@ fn push_date_clause(
         },
         DateFilterOperator::Between => match (from, to) {
             (Some(from), Some(to)) => {
-                query_builder.push(format!("date({column_expr}) BETWEEN date("));
+                query_builder.push(format!("{} BETWEEN date(", local_date(column_expr)));
                 query_builder.push_bind(from.clone());
                 query_builder.push(") AND date(");
                 query_builder.push_bind(to.clone());
@@ -452,6 +490,7 @@ mod tests {
     use crate::study::repositories::card_review_repository::CardReviewRepository;
     use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
     use crate::study::repositories::study_profile_repository::StudyProfileRepository;
+    use crate::study::utils::day_boundary::start_of_today_utc;
     use crate::study::value_objects::card_state::CardState;
     use crate::test_utils::create_test_injector;
     use crate::trash::repositories::trash_repository::TrashRepository;
@@ -1332,6 +1371,86 @@ mod tests {
 
         assert_eq!(1, results.len());
         assert_eq!(due_soon_id, results[0].element_id);
+    }
+
+    #[tokio::test]
+    async fn search_created_date_filter_today_matches_whole_local_day() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        // Both ends of the user's own day, which for any timezone but UTC fall
+        // on a different UTC calendar date than the local one.
+        let mut just_after_midnight = make_folder("AfterMidnight", FractionalIndex::default());
+        let mut just_before_midnight = make_folder(
+            "BeforeMidnight",
+            FractionalIndex::new_after(&FractionalIndex::default()),
+        );
+        just_after_midnight.meta.created_at = start_of_today_utc() + Duration::minutes(1);
+        just_before_midnight.meta.created_at =
+            start_of_today_utc() + Duration::days(1) - Duration::minutes(1);
+        folder_repository.create(just_after_midnight).await.unwrap();
+        folder_repository
+            .create(just_before_midnight)
+            .await
+            .unwrap();
+
+        let filters = vec![ElementFilter::CreatedDate {
+            id: Uuid::new_v4(),
+            operator: DateFilterOperator::Today,
+            days: None,
+            from: None,
+            to: None,
+        }];
+
+        // Act
+
+        let results = search_repository.search(&filters).await.unwrap();
+
+        // Assert
+
+        assert_eq!(2, results.len());
+    }
+
+    #[tokio::test]
+    async fn search_created_date_filter_within_days_returns_recently_created_elements() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let mut recent = make_folder("Recent", FractionalIndex::default());
+        let mut old = make_folder(
+            "Old",
+            FractionalIndex::new_after(&FractionalIndex::default()),
+        );
+        recent.meta.created_at = Utc::now() - Duration::days(2);
+        old.meta.created_at = Utc::now() - Duration::days(20);
+        let recent_id = recent.meta.element_id;
+        folder_repository.create(recent).await.unwrap();
+        folder_repository.create(old).await.unwrap();
+
+        let filters = vec![ElementFilter::CreatedDate {
+            id: Uuid::new_v4(),
+            operator: DateFilterOperator::WithinDays,
+            days: Some(7),
+            from: None,
+            to: None,
+        }];
+
+        // Act
+
+        let results = search_repository.search(&filters).await.unwrap();
+
+        // Assert
+
+        assert_eq!(1, results.len());
+        assert_eq!(recent_id, results[0].element_id);
     }
 
     #[tokio::test]
