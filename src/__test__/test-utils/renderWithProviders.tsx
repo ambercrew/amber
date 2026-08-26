@@ -37,7 +37,14 @@ export function renderWithProviders(
 
 	function Wrapper({ children }: PropsWithChildren<object>): JSX.Element {
 		return (
-			<MantineProvider>
+			// `env="test"` makes Mantine's `Transition` render its children
+			// synchronously instead of scheduling them through two
+			// requestAnimationFrames and a timer. Anything that opens behind a
+			// transition (Menu, Popover, Modal) is then present in the same flush as
+			// the click that opened it, so queries like `findAllByRole("menuitem")` no
+			// longer race it once the suite runs parallel enough to delay those
+			// callbacks.
+			<MantineProvider env="test">
 				<MemoryRouter {...memoryRouterProps}>
 					<LocationDisplay />
 					<Provider store={store}>{children}</Provider>

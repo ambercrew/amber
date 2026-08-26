@@ -20,15 +20,25 @@
 
 .inline-code {
 	display: inline-block;
-	background-color: var(--editor-surface-bg) !important;
 }
 
 .code-block {
 	display: block;
-	/* Shiki sets its own inline background-color per theme; override it
-	   so code blocks match the app's warm palette instead of the
-	   'one-light' theme's stark white. */
+}
+
+/* Lexical nests code as `<code class="code-block"><code><span class="inline-code">`,
+   and Mantine's Typography paints every <code> it sees — its reset for the
+   nested case only matches under a <pre>, which Lexical never emits. Paint the
+   outermost one and flatten the rest. !important beats Shiki's inline style. */
+.typography code {
 	background-color: var(--editor-surface-bg) !important;
+}
+
+.typography code code,
+.typography code .inline-code {
+	background-color: transparent !important;
+	padding: 0;
+	border-radius: 0;
 }
 
 .table-cell-header {

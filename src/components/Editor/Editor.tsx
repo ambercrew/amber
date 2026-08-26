@@ -89,7 +89,7 @@ export default function Editor({
 	return (
 		<Menu withinPortal shadow="lg">
 			<Menu.ContextMenu disabled={contextMenuDisabled}>
-				<Typography>
+				<Typography className={styles.typography}>
 					<LexicalExtensionComposer
 						extension={editorExtension}
 						contentEditable={null}>

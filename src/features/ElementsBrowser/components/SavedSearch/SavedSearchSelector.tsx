@@ -147,6 +147,9 @@ export default function SavedSearchSelector({
 					position="bottom-start"
 					width={280}
 					withinPortal
+					returnFocus={
+						!renamingSearch && !deletingSearch && !isSaveModalOpen
+					}
 					closeOnItemClick={false}>
 					<Menu.Target>
 						<AppTooltip
