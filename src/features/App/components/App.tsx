@@ -244,6 +244,7 @@ function App() {
 					p="var(--app-shell-padding)"
 					style={{
 						position: "fixed",
+						minHeight: 0,
 						top: "var(--app-shell-header-offset, 0rem)",
 						bottom: "var(--app-shell-footer-offset, 0rem)",
 						insetInlineStart:

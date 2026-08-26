@@ -142,7 +142,7 @@ export default function ElementsBrowser() {
 	);
 
 	return (
-		<Paper withBorder radius="md" p="md" maw={900} mx="auto" mt="lg">
+		<Paper withBorder radius="md" p="md" maw={900} mx="auto" my="lg">
 			<Stack gap="sm">
 				<Stack gap={2}>
 					<Title order={2}>Browser</Title>
