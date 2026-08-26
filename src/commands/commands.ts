@@ -2,6 +2,7 @@ import { createElement, ReactNode } from "react";
 import { NavigateFunction } from "react-router";
 import { notifications } from "@mantine/notifications";
 import {
+	ArrowCounterClockwiseIcon,
 	ArrowsClockwiseIcon,
 	ArrowsDownUpIcon,
 	BookOpenIcon,
@@ -10,6 +11,8 @@ import {
 	FadersHorizontalIcon,
 	GearIcon,
 	MagnifyingGlassIcon,
+	MagnifyingGlassMinusIcon,
+	MagnifyingGlassPlusIcon,
 	MapPinIcon,
 	MoonIcon,
 	PencilSimpleIcon,
@@ -30,6 +33,7 @@ import { sessionStopped } from "../stores/study/studyReducer";
 import { selectStudyStatus } from "../stores/study/studySelectors";
 import { saveSettings } from "../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../api/settings/dto/updateSettingsRequestDto";
+import { selectSettings } from "../stores/settings/settingsSelector";
 import { isCurrentlyDark } from "./commandUtils";
 import { selectCurrentElement } from "../stores/elements/elementsSelectors";
 import { sync } from "../stores/sync/syncActions";
@@ -41,6 +45,8 @@ import {
 import { READ_POINT_MANUAL_SET_REQUESTED } from "../types/events/readPointManualSetRequestedEvent";
 import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../types/events/readPointManualClearRequestedEvent";
 import { READ_POINT_MANUAL_GOTO_REQUESTED } from "../types/events/readPointManualGotoRequestedEvent";
+import { isMobile } from "../utils/tauriUtils";
+import { ZOOM_STEP, clampZoom } from "../utils/zoom";
 
 export const SPOTLIGHT_SHORTCUT = "mod+K";
 export const IMPORT_SHORTCUT = "mod+shift+N";
@@ -49,6 +55,9 @@ export const OPEN_SETTINGS_SHORTCUT = "mod+P";
 export const SET_READ_POINT_SHORTCUT = "mod+shift+R";
 export const OPEN_PRIORITY_SHORTCUT = "alt+P";
 export const FIND_IN_PAGE_SHORTCUT = "mod+F";
+export const ZOOM_IN_SHORTCUT = "mod+=";
+export const ZOOM_OUT_SHORTCUT = "mod+-";
+export const RESET_ZOOM_SHORTCUT = "mod+0";
 
 export const commandIds = [
 	"import",
@@ -64,6 +73,9 @@ export const commandIds = [
 	"open-study-session-settings",
 	"find-in-page",
 	"sync",
+	"zoom-in",
+	"zoom-out",
+	"reset-zoom",
 ] as const;
 export type CommandId = (typeof commandIds)[number];
 
@@ -218,6 +230,57 @@ export const commandsById: Record<CommandId, Command> = {
 			!!selectUserInformation(state)?.isEmailVerified &&
 			!selectIsSyncing(state),
 		execute: dispatch => void dispatch(sync()),
+	},
+	"zoom-in": {
+		id: "zoom-in",
+		group: "Settings",
+		label: "Zoom in",
+		shortcut: ZOOM_IN_SHORTCUT,
+		icon: createElement(MagnifyingGlassPlusIcon),
+		enabled: () => !isMobile(),
+		execute: (dispatch, getState) => {
+			const current = selectSettings(getState())?.zoomPercentage ?? 100;
+			void dispatch(
+				saveSettings(
+					buildUpdateSettingsRequest({
+						zoomPercentage: clampZoom(current + ZOOM_STEP),
+					}),
+				),
+			);
+		},
+	},
+	"zoom-out": {
+		id: "zoom-out",
+		group: "Settings",
+		label: "Zoom out",
+		shortcut: ZOOM_OUT_SHORTCUT,
+		icon: createElement(MagnifyingGlassMinusIcon),
+		enabled: () => !isMobile(),
+		execute: (dispatch, getState) => {
+			const current = selectSettings(getState())?.zoomPercentage ?? 100;
+			void dispatch(
+				saveSettings(
+					buildUpdateSettingsRequest({
+						zoomPercentage: clampZoom(current - ZOOM_STEP),
+					}),
+				),
+			);
+		},
+	},
+	"reset-zoom": {
+		id: "reset-zoom",
+		group: "Settings",
+		label: "Reset zoom",
+		shortcut: RESET_ZOOM_SHORTCUT,
+		icon: createElement(ArrowCounterClockwiseIcon),
+		enabled: () => !isMobile(),
+		execute: dispatch => {
+			void dispatch(
+				saveSettings(
+					buildUpdateSettingsRequest({ zoomPercentage: 100 }),
+				),
+			);
+		},
 	},
 };
 

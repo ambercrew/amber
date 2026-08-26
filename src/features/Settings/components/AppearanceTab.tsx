@@ -22,14 +22,13 @@ import {
 import { Font, Theme } from "../../../api/settings/dto/settingsDto";
 import { listSystemFonts } from "../../../api/settings/api/settingsApi";
 import { isMobile } from "../../../utils/tauriUtils";
+import { ZOOM_MAX, ZOOM_MIN } from "../../../utils/zoom";
 import {
 	SYSTEM_DEFAULT_FONT_VALUE,
 	fontToSelectValue,
 	selectValueToFont,
 } from "./fontSelectUtils";
 
-const ZOOM_MIN = 50;
-const ZOOM_MAX = 200;
 const ZOOM_MARKS = [
 	{ value: 50, label: "50%" },
 	{ value: 100, label: "100%" },
@@ -89,7 +88,17 @@ function AppearanceTab() {
 	const dispatch = useAppDispatch();
 	const { callApi } = useApi();
 	const [zoom, setZoom] = useState(settings?.zoomPercentage ?? 100);
+	// Tracks the last zoom value we synced the slider to, so external changes
+	// (Ctrl +/- shortcuts, Ctrl+wheel) while this tab is open are reflected.
+	const [syncedZoom, setSyncedZoom] = useState(
+		settings?.zoomPercentage ?? 100,
+	);
 	const [systemFonts, setSystemFonts] = useState<string[]>([]);
+
+	if (settings && settings.zoomPercentage !== syncedZoom) {
+		setSyncedZoom(settings.zoomPercentage);
+		setZoom(settings.zoomPercentage);
+	}
 
 	useEffect(() => {
 		// System font enumeration isn't supported on mobile, so the font

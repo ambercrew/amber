@@ -51,6 +51,7 @@ import { BackButtonPriority } from "../../../managers/backButtonManager.ts";
 import { useLexicalConversionBridge } from "../hooks/useLexicalConversionBridge.ts";
 import { MainScrollContext } from "../context/mainScrollContext.ts";
 import { useElementHeadroom } from "../../../hooks/useElementHeadroom.ts";
+import { useWheelZoom } from "../../../hooks/useWheelZoom.ts";
 
 // Must be defined manually otherwise hiding header or footer when scrolling won't work.
 export const HEADER_AND_FOOTER_HEIGHT = 56;
@@ -124,6 +125,7 @@ function App() {
 	useStudySessionGuard();
 	useStudySessionSummaryToast();
 	useLexicalConversionBridge();
+	useWheelZoom();
 
 	const navbarWidth =
 		parseFloat(String(splitter.sizes[0])) || SIDEBAR_DEFAULT;
