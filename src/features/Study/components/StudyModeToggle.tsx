@@ -1,10 +1,11 @@
-import { Switch, Tooltip } from "@mantine/core";
+import { Switch } from "@mantine/core";
 import { IconProps } from "@phosphor-icons/react";
 import { cloneElement, ReactElement } from "react";
 import { commandIcon } from "../../../commands/commandIcon";
 import { useRunCommand } from "../../../commands/useRunCommand";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectStudyStatus } from "../../../stores/study/studySelectors";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 function StudyModeToggle() {
 	const run = useRunCommand();
@@ -13,7 +14,7 @@ function StudyModeToggle() {
 	const studying = status === "studying";
 
 	return (
-		<Tooltip label={studying ? "Studying" : "Editing"} refProp="rootRef">
+		<AppTooltip label={studying ? "Studying" : "Editing"} refProp="rootRef">
 			<Switch
 				size="lg"
 				checked={studying}
@@ -30,7 +31,7 @@ function StudyModeToggle() {
 					run(studying ? "enter-edit-mode" : "enter-study-mode")
 				}
 			/>
-		</Tooltip>
+		</AppTooltip>
 	);
 }
 

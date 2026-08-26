@@ -4,7 +4,6 @@ import {
 	Highlight,
 	Menu,
 	RenderTreeNodePayload,
-	Tooltip,
 } from "@mantine/core";
 import {
 	CaretDownIcon,
@@ -19,6 +18,7 @@ import { ElementNodeProps } from "../../utils/elementTreeUtils";
 import TrashElementModal from "../TrashElementModal";
 import ElementTreeMenuItems from "./ElementTreeMenuItems";
 import RenameElementForm from "./RenameElementForm";
+import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
 
 const ICON_SIZE = 18;
 
@@ -112,7 +112,7 @@ function ElementTreeNode({
 						onClose={onRenameClose}
 					/>
 				) : (
-					<Tooltip label={label} openDelay={500}>
+					<AppTooltip label={label} openDelay={500}>
 						<Highlight
 							highlight={search}
 							flex={1}
@@ -120,7 +120,7 @@ function ElementTreeNode({
 							aria-label={label}>
 							{`${label} (${childrenCount})`}
 						</Highlight>
-					</Tooltip>
+					</AppTooltip>
 				)}
 				<Menu
 					withinPortal

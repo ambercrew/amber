@@ -1,12 +1,12 @@
-import { ActionIcon, Box, Group, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Box, Group, Text } from "@mantine/core";
 import { CommandIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { spotlight } from "@mantine/spotlight";
 import ElementNodeIcon from "./ElementNodeIcon";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
-import { formatShortcut } from "../../../commands/formatShortcut";
 import { SPOTLIGHT_SHORTCUT } from "../../../commands/commands";
 import StudyModeToggle from "../../Study/components/StudyModeToggle";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 interface AppHeaderProps {
 	onToggleSidebar: () => void;
@@ -26,7 +26,7 @@ function AppHeader({ onToggleSidebar, onToggleAside }: AppHeaderProps) {
 			wrap="nowrap"
 			justify="space-between">
 			<Group gap={0} align="center" wrap="nowrap" miw={0}>
-				<Tooltip label="Toggle left sidebar">
+				<AppTooltip label="Toggle left sidebar">
 					<ActionIcon
 						variant="subtle"
 						size="lg"
@@ -34,7 +34,7 @@ function AppHeader({ onToggleSidebar, onToggleAside }: AppHeaderProps) {
 						onClick={onToggleSidebar}>
 						<SidebarSimpleIcon size={18} />
 					</ActionIcon>
-				</Tooltip>
+				</AppTooltip>
 
 				{storedMeta && (
 					<Group gap={6} align="center" wrap="nowrap" miw={0} px="xs">
@@ -51,8 +51,9 @@ function AppHeader({ onToggleSidebar, onToggleAside }: AppHeaderProps) {
 
 			<Group gap={6} align="center" wrap="nowrap">
 				<StudyModeToggle />
-				<Tooltip
-					label={`Open command palette (${formatShortcut(SPOTLIGHT_SHORTCUT)})`}>
+				<AppTooltip
+					label="Open command palette"
+					shortcut={SPOTLIGHT_SHORTCUT}>
 					<ActionIcon
 						variant="subtle"
 						size="lg"
@@ -60,8 +61,8 @@ function AppHeader({ onToggleSidebar, onToggleAside }: AppHeaderProps) {
 						onClick={() => spotlight.open()}>
 						<CommandIcon size={18} />
 					</ActionIcon>
-				</Tooltip>
-				<Tooltip label="Toggle right sidebar">
+				</AppTooltip>
+				<AppTooltip label="Toggle right sidebar">
 					<ActionIcon
 						variant="subtle"
 						size="lg"
@@ -72,7 +73,7 @@ function AppHeader({ onToggleSidebar, onToggleAside }: AppHeaderProps) {
 							style={{ transform: "scaleX(-1)" }}
 						/>
 					</ActionIcon>
-				</Tooltip>
+				</AppTooltip>
 			</Group>
 		</Group>
 	);

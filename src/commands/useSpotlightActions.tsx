@@ -4,12 +4,17 @@ import type { SpotlightActionGroupData } from "@mantine/spotlight";
 import { useStore } from "react-redux";
 import { RootState } from "../stores/store";
 import { commandGroups, commands } from "./commands";
-import { formatShortcut } from "./formatShortcut";
+import { useShortcutDisplay } from "./useShortcutDisplay";
 import { useRunCommand } from "./useRunCommand";
+
+function renderShortcut(shortcut: string | undefined) {
+	return shortcut && <Kbd>{shortcut}</Kbd>;
+}
 
 function buildActionGroups(
 	state: RootState,
 	run: (id: (typeof commands)[number]["id"]) => void,
+	shortcutDisplay: (shortcut: string | undefined) => string | undefined,
 ): SpotlightActionGroupData[] {
 	const visible = commands.filter(c => !c.enabled || c.enabled(state));
 
@@ -25,9 +30,7 @@ function buildActionGroups(
 							? c.label(state)
 							: c.label,
 					leftSection: c.icon,
-					rightSection: c.shortcut && (
-						<Kbd>{formatShortcut(c.shortcut)}</Kbd>
-					),
+					rightSection: renderShortcut(shortcutDisplay(c.shortcut)),
 					onClick: () => run(c.id),
 				})),
 		}))
@@ -37,13 +40,17 @@ function buildActionGroups(
 export function useSpotlightActions() {
 	const store = useStore<RootState>();
 	const run = useRunCommand();
+	const shortcutDisplay = useShortcutDisplay();
 	const [actions, setActions] = useState<SpotlightActionGroupData[]>(() =>
-		buildActionGroups(store.getState(), run),
+		buildActionGroups(store.getState(), run, shortcutDisplay),
 	);
 
 	const refresh = useCallback(
-		() => setActions(buildActionGroups(store.getState(), run)),
-		[store, run],
+		() =>
+			setActions(
+				buildActionGroups(store.getState(), run, shortcutDisplay),
+			),
+		[store, run, shortcutDisplay],
 	);
 
 	return { actions, refresh };

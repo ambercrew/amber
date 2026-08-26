@@ -23,9 +23,9 @@ import {
 	Group,
 	MantineColor,
 	Paper,
-	Tooltip,
 } from "@mantine/core";
 import styles from "../Editor.module.css";
+import AppTooltip from "../../AppTooltip/AppTooltip";
 
 export interface FloatingMenuButton {
 	divider?: false;
@@ -297,7 +297,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 					isFloatingMenuDivider(btn) ? (
 						<Divider key={btn.name} mx={4} orientation="vertical" />
 					) : btn.showLabel ? (
-						<Tooltip key={btn.name} label={btn.title}>
+						<AppTooltip key={btn.name} label={btn.title}>
 							<Button
 								variant={
 									activeState[btn.name] ? "filled" : "subtle"
@@ -319,9 +319,9 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 								}>
 								{btn.label ?? btn.title}
 							</Button>
-						</Tooltip>
+						</AppTooltip>
 					) : (
-						<Tooltip key={btn.name} label={btn.title}>
+						<AppTooltip key={btn.name} label={btn.title}>
 							<ActionIcon
 								variant={
 									activeState[btn.name] ? "filled" : "subtle"
@@ -341,7 +341,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 								}>
 								<btn.Icon size={22} />
 							</ActionIcon>
-						</Tooltip>
+						</AppTooltip>
 					),
 				)}
 			</Group>

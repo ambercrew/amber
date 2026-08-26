@@ -9,7 +9,6 @@ import {
 	Select,
 	Stack,
 	Text,
-	Tooltip,
 } from "@mantine/core";
 import { useDebouncedCallback } from "@mantine/hooks";
 import { modals } from "@mantine/modals";
@@ -39,6 +38,7 @@ import { paths } from "../../../paths";
 import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
 import InfoField from "./InfoField";
 import InfoGroup from "./InfoGroup";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 const NEW_VALUE = "__new__";
 
@@ -207,13 +207,13 @@ function OriginSection({
 									{derivedFromName ?? "…"}
 								</Anchor>
 							</Group>
-							<Tooltip label="Clear derived from">
+							<AppTooltip label="Clear derived from">
 								<ActionIcon
 									variant="subtle"
 									onClick={handleClearDerivedFrom}>
 									<XIcon size={18} />
 								</ActionIcon>
-							</Tooltip>
+							</AppTooltip>
 						</Group>
 					) : (
 						<Text size="sm" c="dimmed">
@@ -249,14 +249,14 @@ function OriginSection({
 								allowDeselect={false}
 								onChange={handleSourceChange}
 							/>
-							<Tooltip label="Delete source">
+							<AppTooltip label="Delete source">
 								<ActionIcon
 									variant="subtle"
 									color="red"
 									onClick={handleDeleteSource}>
 									<TrashIcon size={16} />
 								</ActionIcon>
-							</Tooltip>
+							</AppTooltip>
 						</Group>
 					</InfoField>
 

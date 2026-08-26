@@ -1,4 +1,4 @@
-import { ActionIcon, Tooltip } from "@mantine/core";
+import { ActionIcon } from "@mantine/core";
 import { commandIcon } from "../../../commands/commandIcon";
 import { useRunCommand } from "../../../commands/useRunCommand";
 import useAppSelector from "../../../hooks/useAppSelector";
@@ -7,6 +7,7 @@ import {
 	selectIsSignedIn,
 	selectUserInformation,
 } from "../../../stores/user/userSelectors";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 function SyncButton() {
 	const run = useRunCommand();
@@ -19,7 +20,7 @@ function SyncButton() {
 	if (!isSignedIn || !isEmailVerified) return null;
 
 	return (
-		<Tooltip label={isSyncing ? "Syncing..." : "Sync"}>
+		<AppTooltip label={isSyncing ? "Syncing..." : "Sync"}>
 			<ActionIcon
 				variant="subtle"
 				color="gray"
@@ -29,7 +30,7 @@ function SyncButton() {
 				aria-label="Sync">
 				{commandIcon("sync")}
 			</ActionIcon>
-		</Tooltip>
+		</AppTooltip>
 	);
 }
 

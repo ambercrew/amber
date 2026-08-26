@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getNearestNodeFromDOMNode, NodeKey } from "lexical";
-import { Box, Tooltip } from "@mantine/core";
+import { Box } from "@mantine/core";
 import { commandIcon } from "../../../commands/commandIcon";
+import AppTooltip from "../../AppTooltip/AppTooltip";
 
 interface ReadPointMarkerPluginProps {
 	/** Index of the block (among the editor root's children) to mark. */
@@ -84,10 +85,13 @@ export default function ReadPointMarkerPlugin({
 	if (top === null) return null;
 
 	return (
-		<Tooltip label="You'll resume here next time" position="left" withArrow>
+		<AppTooltip
+			label="You'll resume here next time"
+			position="left"
+			withArrow>
 			<Box pos="absolute" top={top} right="100%" mr={5} fz={22}>
 				{commandIcon("set-read-point")}
 			</Box>
-		</Tooltip>
+		</AppTooltip>
 	);
 }

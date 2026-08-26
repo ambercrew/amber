@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Badge, Button, Group, Menu, Text, Tooltip } from "@mantine/core";
+import { Badge, Button, Group, Menu, Text } from "@mantine/core";
 import {
 	BookmarkSimpleIcon,
 	CaretDownIcon,
@@ -26,6 +26,7 @@ import SavedSearchMenuRow from "./SavedSearchMenuRow";
 import SaveSavedSearchModal from "./SaveSavedSearchModal";
 import RenameSavedSearchModal from "./RenameSavedSearchModal";
 import DeleteSavedSearchModal from "./DeleteSavedSearchModal";
+import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
 
 interface SavedSearchSelectorProps {
 	filters: ElementFilter[];
@@ -148,7 +149,7 @@ export default function SavedSearchSelector({
 					withinPortal
 					closeOnItemClick={false}>
 					<Menu.Target>
-						<Tooltip
+						<AppTooltip
 							label={
 								loadedSavedSearch?.name ?? "Untitled search"
 							}>
@@ -168,7 +169,7 @@ export default function SavedSearchSelector({
 									)}
 								</Group>
 							</Button>
-						</Tooltip>
+						</AppTooltip>
 					</Menu.Target>
 					<Menu.Dropdown onClick={event => event.stopPropagation()}>
 						<Menu.Label>Saved searches</Menu.Label>

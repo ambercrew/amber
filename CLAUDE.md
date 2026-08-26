@@ -10,6 +10,8 @@ Amber is a Tauri 2 desktop app (React 19 frontend, Rust backend) for incremental
 
 - Use **Mantine** (`@mantine/core`, `@mantine/hooks`) components for all UI. Prefer built-in Mantine components over building custom ones.
 - Use **`@phosphor-icons/react`** for icons.
+- Use **`AppTooltip`** (`src/components/AppTooltip/AppTooltip.tsx`) instead of Mantine's `Tooltip` — it takes the same props, but it also opens on tap (Mantine's tooltips are hover-only, so touch users can never read them) and accepts a `shortcut` prop (raw `useHotkeys` notation, e.g. `"mod+K"`). Never hand-append a shortcut to a tooltip label.
+- **Never display a keyboard shortcut on touch input** — there's no keyboard to press it with. Every shortcut shown in the UI must be rendered through `useShortcutDisplay()` (`src/commands/useShortcutDisplay.ts`), which formats it and yields `undefined` on a coarse pointer; `AppTooltip`'s `shortcut` prop and `useCommandShortcut(id)` already go through it. Never call `formatShortcut` directly from a component.
 - Avoid custom CSS. Use Mantine's built-in style props (`p`, `px`, `h`, `w`, `gap`, `justify`, `align`) and inline `style` objects only when Mantine props are insufficient. Do not create `.module.css` files for layout or cosmetic concerns that Mantine already covers.
 
 ## Commands
@@ -134,7 +136,7 @@ Elements (`Folder`, `LearningAsset`, `Extract`, `Card`) share structure via trai
 
 - `api/` — Typed wrappers around `invoke()` calls, mirroring backend modules (`elements`, `study`, `settings`, `sync`, `backend`, `bibliographicalSources`, `appInfo`)
 - `features/` — Route-scoped feature modules, e.g. `App` (root shell), `ElementViewer` (editor/reviewer for a selected element), `Sidebar` (file tree), `Study`, `Import`, `Settings`, `Aside`, `Updater`
-- `components/` — Shared cross-feature components (e.g. `Editor`, the Lexical-based rich text editor)
+- `components/` — Shared cross-feature components (e.g. `Editor`, the Lexical-based rich text editor, and `AppTooltip`, the tooltip every feature uses — see UI Guidelines)
 - `stores/` — Redux slices: `elements`, `elementDetails`, `user`, `sync`, `settings`, `bibliographicalSources`, `study`, `search`, `app`
 - `hooks/` — Reusable hooks; notably `useApi` for loading/error state around API calls
 - `managers/`, `utils/`, `config/`, `types/` — Helpers, constants, shared types
@@ -180,7 +182,7 @@ A single registry in `commands.ts` drives the Spotlight palette (`mod+K`), globa
 
 - To add a command, look at `commands.ts` (`commandIds`, `commandGroups`, `commands`) and follow the shape of existing entries.
 - To trigger a command from a component, use `useRunCommand()` rather than dispatching the underlying action directly.
-- For displaying a shortcut, use `formatShortcut()`; the palette's own open shortcut is `SPOTLIGHT_SHORTCUT`, both in `commands.ts`.
+- For displaying a shortcut, use `useShortcutDisplay()` (or `useCommandShortcut(id)` for a command's own shortcut) — never `formatShortcut()` directly, which doesn't know about touch input. The palette's own open shortcut is `SPOTLIGHT_SHORTCUT` in `commands.ts`.
 - `CommandPalette` is mounted once in `App.tsx`. To open it elsewhere, call `spotlight.open()` from `@mantine/spotlight` — don't mount a second `<Spotlight>`.
 
 ### CSS Naming Conventions

@@ -1,7 +1,8 @@
 import { KeyboardEvent, useState } from "react";
-import { ActionIcon, Group, Textarea, Tooltip } from "@mantine/core";
+import { ActionIcon, Group, Textarea } from "@mantine/core";
 import { ArrowUpIcon, PaperclipIcon, StopIcon } from "@phosphor-icons/react";
 import { open } from "@tauri-apps/plugin-dialog";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 interface ChatInputProps {
 	disabled?: boolean;
@@ -53,7 +54,7 @@ function ChatInput({
 
 	return (
 		<Group align="flex-end" gap={6} pt="xs" wrap="nowrap">
-			<Tooltip label="Upload a document">
+			<AppTooltip label="Upload a document">
 				<ActionIcon
 					variant="default"
 					size="lg"
@@ -63,7 +64,7 @@ function ChatInput({
 					aria-label="Upload document">
 					<PaperclipIcon size={18} />
 				</ActionIcon>
-			</Tooltip>
+			</AppTooltip>
 
 			<Textarea
 				style={{ flex: 1 }}

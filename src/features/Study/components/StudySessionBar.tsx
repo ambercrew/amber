@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Box, Button, Group, Text, Tooltip } from "@mantine/core";
+import { Box, Button, Group, Text } from "@mantine/core";
 import { useHotkeys } from "@mantine/hooks";
 import { useNavigate } from "react-router";
 import { SMALL_SCREEN_BREAKPOINT } from "../../../hooks/useIsSmallScreen";
 import { previewNextLearningAsset } from "../../../api/study/api/studyApi";
-import { formatShortcut } from "../../../commands/formatShortcut";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { useCardScheduling } from "../hooks/useCardScheduling";
@@ -25,6 +24,7 @@ import {
 } from "../../../stores/study/studySelectors";
 import { Rating } from "../../../types/study/rating";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 const SHOW_ANSWER_SHORTCUT = "space";
 
@@ -34,11 +34,6 @@ const RATINGS: { rating: Rating; label: string; shortcut: string }[] = [
 	{ rating: "good", label: "Good", shortcut: "3" },
 	{ rating: "easy", label: "Easy", shortcut: "4" },
 ];
-
-function withShortcut(text: string | null, shortcut: string): string {
-	const suffix = `(${formatShortcut(shortcut)})`;
-	return text ? `${text} ${suffix}` : suffix;
-}
 
 function formatElapsed(totalSeconds: number): string {
 	const minutes = Math.floor(totalSeconds / 60);
@@ -157,43 +152,40 @@ function StudySessionBar() {
 			</Box>
 
 			{answerHidden ? (
-				<Tooltip label={withShortcut(null, SHOW_ANSWER_SHORTCUT)}>
+				<AppTooltip shortcut={SHOW_ANSWER_SHORTCUT}>
 					<Button
 						variant="default"
 						size="sm"
 						onClick={() => dispatch(answerShown())}>
 						Show answer
 					</Button>
-				</Tooltip>
+				</AppTooltip>
 			) : current.type === "card" ? (
 				<Group gap="xs" wrap="nowrap" align="flex-end">
 					{RATINGS.map(({ rating, label, shortcut }) => (
-						<Tooltip
+						<AppTooltip
 							key={rating}
-							label={withShortcut(
-								cardDuePreview
-									? formatRelativeDueDate(
-											cardDuePreview[rating].due,
-										)
-									: null,
-								shortcut,
-							)}>
+							label={
+								cardDuePreview &&
+								formatRelativeDueDate(
+									cardDuePreview[rating].due,
+								)
+							}
+							shortcut={shortcut}>
 							<Button
 								size="sm"
 								variant="default"
 								onClick={() => grade(rating)}>
 								{label}
 							</Button>
-						</Tooltip>
+						</AppTooltip>
 					))}
 				</Group>
 			) : (
 				<Group gap="xs" wrap="nowrap" align="flex-end">
-					<Tooltip
-						label={withShortcut(
-							"Move to the end of the queue",
-							"1",
-						)}>
+					<AppTooltip
+						label="Move to the end of the queue"
+						shortcut="1">
 						<Button
 							variant="default"
 							size="sm"
@@ -204,14 +196,13 @@ function StudySessionBar() {
 							}>
 							Skip
 						</Button>
-					</Tooltip>
-					<Tooltip
-						label={withShortcut(
-							nextLearningAssetDue
-								? formatRelativeDueDate(nextLearningAssetDue)
-								: null,
-							"2",
-						)}>
+					</AppTooltip>
+					<AppTooltip
+						label={
+							nextLearningAssetDue &&
+							formatRelativeDueDate(nextLearningAssetDue)
+						}
+						shortcut="2">
 						<Button
 							variant="default"
 							size="sm"
@@ -222,8 +213,8 @@ function StudySessionBar() {
 							}>
 							Next
 						</Button>
-					</Tooltip>
-					<Tooltip label={withShortcut("Won't repeat", "3")}>
+					</AppTooltip>
+					<AppTooltip label="Won't repeat" shortcut="3">
 						<Button
 							variant="default"
 							size="sm"
@@ -237,7 +228,7 @@ function StudySessionBar() {
 							}>
 							Finish
 						</Button>
-					</Tooltip>
+					</AppTooltip>
 				</Group>
 			)}
 

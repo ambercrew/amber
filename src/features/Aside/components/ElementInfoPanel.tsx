@@ -5,7 +5,6 @@ import {
 	Stack,
 	Text,
 	TagsInput,
-	Tooltip,
 } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
 import { useDebouncedCallback } from "@mantine/hooks";
@@ -27,6 +26,7 @@ import InfoField from "./InfoField";
 import InfoGroup from "./InfoGroup";
 import ReviewDetails from "./ReviewDetails";
 import OriginSection from "./OriginSection";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 function formatDue(due: string | null, finished: boolean): string {
 	if (finished) return "Finished";
@@ -131,13 +131,13 @@ function ElementInfoPanel() {
 								? `${details.priority.percentage.toFixed(2)}% (${details.priority.rank}/${details.priority.total})`
 								: "—"}
 						</Text>
-						<Tooltip label="Set priority">
+						<AppTooltip label="Set priority">
 							<ActionIcon
 								variant="subtle"
 								onClick={() => dispatch(openPriorityModal())}>
 								{commandIcon("open-priority")}
 							</ActionIcon>
-						</Tooltip>
+						</AppTooltip>
 					</Group>
 				</InfoField>
 			</InfoGroup>

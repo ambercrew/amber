@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Menu, Text } from "@mantine/core";
 import { CommandId } from "./commands";
 import { commandIcon } from "./commandIcon";
-import { commandShortcut } from "./commandShortcut";
+import { useCommandShortcut } from "./useCommandShortcut";
 import { useRunCommand } from "./useRunCommand";
 
 interface CommandMenuItemProps {
@@ -13,7 +13,7 @@ interface CommandMenuItemProps {
 /** A `Menu.Item` wired to a command: icon, shortcut, and click-to-run all sourced from its declaration in `commands.ts`. */
 export function CommandMenuItem({ id, children }: CommandMenuItemProps) {
 	const runCommand = useRunCommand();
-	const shortcut = commandShortcut(id);
+	const shortcut = useCommandShortcut(id);
 
 	return (
 		<Menu.Item

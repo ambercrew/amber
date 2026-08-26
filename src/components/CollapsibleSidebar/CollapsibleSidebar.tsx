@@ -5,12 +5,12 @@ import {
 	Group,
 	ActionIcon,
 	ScrollArea,
-	Tooltip,
 	Box,
 } from "@mantine/core";
 import { XIcon } from "@phosphor-icons/react";
 import { SMALL_SCREEN_BREAKPOINT } from "../../hooks/useIsSmallScreen";
 import { useLocalStorage } from "@mantine/hooks";
+import AppTooltip from "../AppTooltip/AppTooltip";
 
 export interface SidebarTab {
 	value: string;
@@ -76,7 +76,7 @@ function CollapsibleSidebar({
 					style={{ position: "relative" }}>
 					<Tabs.List>
 						{tabs.map(tab => (
-							<Tooltip
+							<AppTooltip
 								key={tab.value}
 								label={tab.title}
 								position="bottom">
@@ -85,7 +85,7 @@ function CollapsibleSidebar({
 									aria-label={tab.title}>
 									{tab.icon}
 								</Tabs.Tab>
-							</Tooltip>
+							</AppTooltip>
 						))}
 					</Tabs.List>
 					<ActionIcon

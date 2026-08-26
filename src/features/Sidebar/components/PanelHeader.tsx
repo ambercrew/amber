@@ -1,6 +1,7 @@
-import { ActionIcon, Group, Menu, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Group, Menu, Text } from "@mantine/core";
 import { IconProps } from "@phosphor-icons/react";
 import { cloneElement, ReactElement, ReactNode } from "react";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 const ICON_SIZE = 18;
 
@@ -41,18 +42,18 @@ function PanelHeader({ title, actions = [] }: PanelHeaderProps) {
 					if (action.menu) {
 						return (
 							<Menu key={action.label} position="bottom-end">
-								<Tooltip label={action.label}>
+								<AppTooltip label={action.label}>
 									<Menu.Target>{button}</Menu.Target>
-								</Tooltip>
+								</AppTooltip>
 								{action.menu}
 							</Menu>
 						);
 					}
 
 					return (
-						<Tooltip key={action.label} label={action.label}>
+						<AppTooltip key={action.label} label={action.label}>
 							{button}
-						</Tooltip>
+						</AppTooltip>
 					);
 				})}
 			</Group>

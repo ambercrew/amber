@@ -6,7 +6,6 @@ import {
 	NavLink,
 	Stack,
 	Text,
-	Tooltip,
 } from "@mantine/core";
 import { ArrowCounterClockwiseIcon, TrashIcon } from "@phosphor-icons/react";
 import { MouseEvent, useEffect, useState } from "react";
@@ -32,6 +31,7 @@ import {
 import { formatTrashCountdown } from "../../../utils/formatTrashCountdown";
 import ElementNodeIcon from "../../App/components/ElementNodeIcon";
 import PanelHeader from "./PanelHeader";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 const ICON_SIZE = 18;
 
@@ -178,7 +178,7 @@ function TrashPanel() {
 						}
 						rightSection={
 							<Group gap={2} wrap="nowrap">
-								<Tooltip label="Restore">
+								<AppTooltip label="Restore">
 									<ActionIcon
 										variant="subtle"
 										aria-label="Restore"
@@ -189,8 +189,8 @@ function TrashPanel() {
 										})}>
 										<ArrowCounterClockwiseIcon size={16} />
 									</ActionIcon>
-								</Tooltip>
-								<Tooltip label="Delete permanently">
+								</AppTooltip>
+								<AppTooltip label="Delete permanently">
 									<ActionIcon
 										variant="subtle"
 										color="red"
@@ -203,7 +203,7 @@ function TrashPanel() {
 										)}>
 										<TrashIcon size={16} />
 									</ActionIcon>
-								</Tooltip>
+								</AppTooltip>
 							</Group>
 						}
 						onClick={() =>

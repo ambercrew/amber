@@ -1,9 +1,10 @@
-import { Group, Pill, Tooltip } from "@mantine/core";
+import { Group, Pill } from "@mantine/core";
 import useAppSelector from "../../../hooks/useAppSelector";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { selectAiContextSnippets } from "../../../stores/aiContext/aiSelectors";
 import { removeAiContextSnippet } from "../../../stores/aiContext/aiReducer";
 import { previewText } from "../utils/contextSnippetPreview";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 function AiContextSnippets() {
 	const snippets = useAppSelector(selectAiContextSnippets);
@@ -14,7 +15,7 @@ function AiContextSnippets() {
 	return (
 		<Group gap="xs" py="xs" wrap="wrap">
 			{snippets.map(snippet => (
-				<Tooltip key={snippet.id} label={snippet.text} multiline>
+				<AppTooltip key={snippet.id} label={snippet.text} multiline>
 					<Pill
 						size="lg"
 						withRemoveButton
@@ -30,7 +31,7 @@ function AiContextSnippets() {
 						}}>
 						{previewText(snippet.text)}
 					</Pill>
-				</Tooltip>
+				</AppTooltip>
 			))}
 		</Group>
 	);

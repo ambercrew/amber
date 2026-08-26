@@ -6,7 +6,6 @@ import {
 	Text,
 	Textarea,
 	TextInput,
-	Tooltip,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { modals } from "@mantine/modals";
@@ -21,6 +20,7 @@ import {
 	StudyProfileDto,
 	StudyProfileRequestDto,
 } from "../../../api/study/dto/studyProfileDto";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 interface ProfileFormProps {
 	profile: StudyProfileDto | null;
@@ -125,10 +125,10 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 	return (
 		<form onSubmit={form.onSubmit(values => void handleSubmit(values))}>
 			<Stack gap="sm">
-				<Tooltip label="A label to identify this profile." multiline>
+				<AppTooltip label="A label to identify this profile." multiline>
 					<TextInput label="Name" {...form.getInputProps("name")} />
-				</Tooltip>
-				<Tooltip
+				</AppTooltip>
+				<AppTooltip
 					label="The probability of recall FSRS aims for when scheduling cards. Higher retention means more frequent reviews."
 					multiline>
 					<NumberInput
@@ -139,8 +139,8 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 						decimalScale={2}
 						{...form.getInputProps("desiredRetention")}
 					/>
-				</Tooltip>
-				<Tooltip
+				</AppTooltip>
+				<AppTooltip
 					label="Advanced: the FSRS model weights used to schedule cards. Leave as-is unless you know what you're doing."
 					multiline>
 					<Textarea
@@ -149,8 +149,8 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 						minRows={2}
 						{...form.getInputProps("fsrsParams")}
 					/>
-				</Tooltip>
-				<Tooltip
+				</AppTooltip>
+				<AppTooltip
 					label="Starting multiplier applied to the interval each time an incremental learning asset or extract is revisited. Copied onto each learning asset/extract when it's created; editing this afterwards only affects newly created ones."
 					multiline>
 					<NumberInput
@@ -160,8 +160,8 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 						decimalScale={2}
 						{...form.getInputProps("initialIntervalMultiplier")}
 					/>
-				</Tooltip>
-				<Tooltip
+				</AppTooltip>
+				<AppTooltip
 					label="Days until the first due date for learning assets, extracts and cards created under this profile."
 					multiline>
 					<NumberInput
@@ -170,8 +170,8 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 						step={1}
 						{...form.getInputProps("initialIntervalDays")}
 					/>
-				</Tooltip>
-				<Tooltip
+				</AppTooltip>
+				<AppTooltip
 					label="Floor applied to computed intervals, so incremental learning asset items are never scheduled sooner than this."
 					multiline>
 					<NumberInput
@@ -180,7 +180,7 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 						step={1}
 						{...form.getInputProps("minIntervalDays")}
 					/>
-				</Tooltip>
+				</AppTooltip>
 
 				<Group justify="space-between" mt="sm">
 					<Group gap={4}>
@@ -193,7 +193,7 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 							</Button>
 						)}
 						{profile && !profile.isDefault && (
-							<Tooltip
+							<AppTooltip
 								label="Makes this the default profile. Default status can only be moved to another profile, never simply turned off."
 								multiline>
 								<Button
@@ -202,7 +202,7 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 									onClick={() => void handleSetDefault()}>
 									Make default
 								</Button>
-							</Tooltip>
+							</AppTooltip>
 						)}
 						{profile && !profile.isDefault && (
 							<Button

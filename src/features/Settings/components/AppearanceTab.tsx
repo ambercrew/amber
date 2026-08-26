@@ -7,7 +7,6 @@ import {
 	Slider,
 	Stack,
 	Text,
-	Tooltip,
 } from "@mantine/core";
 import { InfoIcon } from "@phosphor-icons/react";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -28,6 +27,7 @@ import {
 	fontToSelectValue,
 	selectValueToFont,
 } from "./fontSelectUtils";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
 const ZOOM_MARKS = [
 	{ value: 50, label: "50%" },
@@ -55,13 +55,13 @@ function FontPicker({
 		<Stack gap="xs">
 			<Group gap={4}>
 				<Text size="sm">{label}</Text>
-				<Tooltip
+				<AppTooltip
 					label={tooltip}
 					multiline
 					w={260}
-					events={{ hover: true, focus: true, touch: true }}>
+					events={{ focus: true }}>
 					<InfoIcon />
-				</Tooltip>
+				</AppTooltip>
 			</Group>
 			<Select
 				value={fontToSelectValue(font)}
