@@ -43,6 +43,13 @@ function learningAssetQueueItem(id: string): DueElementDto {
 	};
 }
 
+function extractQueueItem(id: string): DueElementDto {
+	return {
+		elementId: { type: "extract", id },
+		title: `Extract ${id}`,
+	};
+}
+
 function cardElement(id: string): AnyElementDto {
 	return {
 		type: "card",
@@ -68,6 +75,21 @@ function learningAssetElement(id: string): AnyElementDto {
 				...META_FIELDS,
 			},
 			readPoint: { split: 0, block: 0 },
+			intervalMultiplier: 1.2,
+		},
+	};
+}
+
+function extractElement(id: string): AnyElementDto {
+	return {
+		type: "extract",
+		data: {
+			meta: {
+				elementId: { type: "extract", id },
+				name: `Extract ${id}`,
+				...META_FIELDS,
+			},
+			content: "Content",
 			intervalMultiplier: 1.2,
 		},
 	};
@@ -105,7 +127,7 @@ const BASE_STUDY_STATE: StudyState = {
 	queue: [],
 	cardPhase: "question",
 	shownAt: null,
-	counts: { cards: 0, learningAssets: 0, finished: 0 },
+	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
 };
 
@@ -293,6 +315,7 @@ describe("gradeCardAction", () => {
 		expect(state.summary).toEqual({
 			cards: 1,
 			learningAssets: 0,
+			extracts: 0,
 			finished: 0,
 		});
 		expect(navigate).not.toHaveBeenCalled();
@@ -329,9 +352,41 @@ describe("nextLearningAssetAction", () => {
 
 		const state = store.getState().study;
 		expect(state.counts.learningAssets).toBe(1);
+		expect(state.counts.extracts).toBe(0);
 		expect(state.queue.map(item => item.elementId.id)).toEqual(["2"]);
 		expect(navigate).toHaveBeenCalledWith(
 			"/learningAsset/2",
+			expect.objectContaining({ state: { studySessionNav: true } }),
+		);
+	});
+
+	it("Should increment the extract count instead of the learning asset count when advancing an extract", async () => {
+		// Arrange
+
+		vi.mocked(nextLearningAsset).mockResolvedValue(LEARNING_ASSET_REVIEW);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [extractQueueItem("1"), extractQueueItem("2")],
+			},
+			elements: elementsStateFor(extractElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(
+			nextLearningAssetAction({ type: "extract", id: "1" }, navigate),
+		);
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.counts.extracts).toBe(1);
+		expect(state.counts.learningAssets).toBe(0);
+		expect(state.queue.map(item => item.elementId.id)).toEqual(["2"]);
+		expect(navigate).toHaveBeenCalledWith(
+			"/extract/2",
 			expect.objectContaining({ state: { studySessionNav: true } }),
 		);
 	});
@@ -442,10 +497,42 @@ describe("finishLearningAssetAction", () => {
 
 		const state = store.getState().study;
 		expect(state.counts.finished).toBe(1);
+		expect(state.counts.learningAssets).toBe(1);
 		expect(state.queue.map(item => item.elementId.id)).toEqual(["2"]);
 		expect(navigate).toHaveBeenCalledWith(
 			"/learningAsset/2",
 			expect.objectContaining({ state: { studySessionNav: true } }),
 		);
+	});
+
+	it("Should include the finished element in the session summary when it is the last element in the queue", async () => {
+		// Arrange
+
+		vi.mocked(finishLearningAsset).mockResolvedValue(LEARNING_ASSET_REVIEW);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [extractQueueItem("1")],
+			},
+			elements: elementsStateFor(extractElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(
+			finishLearningAssetAction({ type: "extract", id: "1" }, navigate),
+		);
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.status).toBe("editing");
+		expect(state.summary).toEqual({
+			cards: 0,
+			learningAssets: 0,
+			extracts: 1,
+			finished: 1,
+		});
 	});
 });

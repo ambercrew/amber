@@ -21,7 +21,7 @@ const BASE_STATE: StudyState = {
 	queue: [],
 	cardPhase: "question",
 	shownAt: null,
-	counts: { cards: 0, learningAssets: 0, finished: 0 },
+	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
 };
 
@@ -44,6 +44,7 @@ describe("studyReducer", () => {
 		expect(actual.counts).toEqual({
 			cards: 0,
 			learningAssets: 0,
+			extracts: 0,
 			finished: 0,
 		});
 		expect(actual.summary).toBeNull();
@@ -54,8 +55,8 @@ describe("studyReducer", () => {
 
 		const state: StudyState = {
 			...BASE_STATE,
-			counts: { cards: 4, learningAssets: 1, finished: 2 },
-			summary: { cards: 4, learningAssets: 1, finished: 2 },
+			counts: { cards: 4, learningAssets: 1, extracts: 1, finished: 2 },
+			summary: { cards: 4, learningAssets: 1, extracts: 1, finished: 2 },
 		};
 		const queue = [queueItem("card", "1")];
 
@@ -68,6 +69,7 @@ describe("studyReducer", () => {
 		expect(actual.counts).toEqual({
 			cards: 0,
 			learningAssets: 0,
+			extracts: 0,
 			finished: 0,
 		});
 		expect(actual.summary).toBeNull();
@@ -92,7 +94,7 @@ describe("studyReducer", () => {
 
 		const state: StudyState = {
 			...BASE_STATE,
-			counts: { cards: 2, learningAssets: 0, finished: 0 },
+			counts: { cards: 2, learningAssets: 0, extracts: 0, finished: 0 },
 		};
 
 		// Act
@@ -104,38 +106,90 @@ describe("studyReducer", () => {
 		expect(actual.counts.cards).toBe(3);
 	});
 
-	it("Should increment the learning asset count when learningAssetAdvanced is dispatched", () => {
+	it("Should increment the learning asset count when learningAssetAdvanced is dispatched for a learning asset", () => {
 		// Arrange
 
 		const state: StudyState = {
 			...BASE_STATE,
-			counts: { cards: 0, learningAssets: 1, finished: 0 },
+			counts: { cards: 0, learningAssets: 1, extracts: 0, finished: 0 },
 		};
 
 		// Act
 
-		const actual = studyReducer(state, learningAssetAdvanced());
+		const actual = studyReducer(
+			state,
+			learningAssetAdvanced({ elementType: "learningAsset" }),
+		);
 
 		// Assert
 
 		expect(actual.counts.learningAssets).toBe(2);
+		expect(actual.counts.extracts).toBe(0);
 	});
 
-	it("Should increment the finished count when learningAssetFinished is dispatched", () => {
+	it("Should increment the extract count when learningAssetAdvanced is dispatched for an extract", () => {
 		// Arrange
 
 		const state: StudyState = {
 			...BASE_STATE,
-			counts: { cards: 0, learningAssets: 0, finished: 1 },
+			counts: { cards: 0, learningAssets: 1, extracts: 1, finished: 0 },
 		};
 
 		// Act
 
-		const actual = studyReducer(state, learningAssetFinished());
+		const actual = studyReducer(
+			state,
+			learningAssetAdvanced({ elementType: "extract" }),
+		);
+
+		// Assert
+
+		expect(actual.counts.extracts).toBe(2);
+		expect(actual.counts.learningAssets).toBe(1);
+	});
+
+	it("Should increment the finished and learning asset counts when learningAssetFinished is dispatched for a learning asset", () => {
+		// Arrange
+
+		const state: StudyState = {
+			...BASE_STATE,
+			counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 1 },
+		};
+
+		// Act
+
+		const actual = studyReducer(
+			state,
+			learningAssetFinished({ elementType: "learningAsset" }),
+		);
 
 		// Assert
 
 		expect(actual.counts.finished).toBe(2);
+		expect(actual.counts.learningAssets).toBe(1);
+		expect(actual.counts.extracts).toBe(0);
+	});
+
+	it("Should increment the finished and extract counts when learningAssetFinished is dispatched for an extract", () => {
+		// Arrange
+
+		const state: StudyState = {
+			...BASE_STATE,
+			counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 1 },
+		};
+
+		// Act
+
+		const actual = studyReducer(
+			state,
+			learningAssetFinished({ elementType: "extract" }),
+		);
+
+		// Assert
+
+		expect(actual.counts.finished).toBe(2);
+		expect(actual.counts.extracts).toBe(1);
+		expect(actual.counts.learningAssets).toBe(0);
 	});
 
 	describe("cardRequeued", () => {
@@ -277,7 +331,12 @@ describe("studyReducer", () => {
 				...BASE_STATE,
 				status: "studying",
 				queue,
-				counts: { cards: 3, learningAssets: 1, finished: 2 },
+				counts: {
+					cards: 3,
+					learningAssets: 1,
+					extracts: 1,
+					finished: 2,
+				},
 			};
 
 			// Act
@@ -296,6 +355,7 @@ describe("studyReducer", () => {
 			expect(actual.summary).toEqual({
 				cards: 3,
 				learningAssets: 1,
+				extracts: 1,
 				finished: 2,
 			});
 		});
@@ -329,7 +389,7 @@ describe("studyReducer", () => {
 
 		const state: StudyState = {
 			...BASE_STATE,
-			summary: { cards: 1, learningAssets: 0, finished: 0 },
+			summary: { cards: 1, learningAssets: 0, extracts: 0, finished: 0 },
 		};
 
 		// Act

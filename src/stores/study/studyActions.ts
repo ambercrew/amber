@@ -78,7 +78,7 @@ export function nextLearningAssetAction(
 	return async (dispatch: AppDispatch, getState: () => RootState) => {
 		const currentIndex = selectStudyIndex(getState());
 		await nextLearningAsset(elementId);
-		dispatch(learningAssetAdvanced());
+		dispatch(learningAssetAdvanced({ elementType: elementId.type }));
 		advanceSession(dispatch, getState, navigate, elementId, currentIndex);
 	};
 }
@@ -101,7 +101,7 @@ export function finishLearningAssetAction(
 	return async (dispatch: AppDispatch, getState: () => RootState) => {
 		const currentIndex = selectStudyIndex(getState());
 		await finishLearningAsset(elementId);
-		dispatch(learningAssetFinished());
+		dispatch(learningAssetFinished({ elementType: elementId.type }));
 		advanceSession(dispatch, getState, navigate, elementId, currentIndex);
 	};
 }

@@ -9,16 +9,20 @@ const BASE_STUDY_STATE = {
 	queue: [],
 	cardPhase: "question" as const,
 	shownAt: null,
-	counts: { cards: 0, learningAssets: 0, finished: 0 },
+	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 };
 
 function studyStateFor(
-	summary: { cards: number; learningAssets: number } | null,
+	summary: {
+		cards: number;
+		learningAssets: number;
+		extracts?: number;
+	} | null,
 ) {
 	return {
 		...BASE_STUDY_STATE,
 		counts: { ...BASE_STUDY_STATE.counts, ...summary },
-		summary: summary && { ...summary, finished: 0 },
+		summary: summary && { extracts: 0, ...summary, finished: 0 },
 	};
 }
 
@@ -49,7 +53,11 @@ describe("useStudySessionSummaryToast", () => {
 
 		renderWithProviders(<HookWrapper />, {
 			preloadedState: {
-				study: studyStateFor({ cards: 3, learningAssets: 2 }),
+				study: studyStateFor({
+					cards: 3,
+					learningAssets: 2,
+					extracts: 4,
+				}),
 			},
 		});
 
@@ -57,7 +65,8 @@ describe("useStudySessionSummaryToast", () => {
 
 		expect(notifications.show).toHaveBeenCalledWith(
 			expect.objectContaining({
-				message: "Done for today — 3 cards, 2 learningAssets",
+				message:
+					"Done for today — 3 cards, 2 learningAssets, 4 extracts",
 			}),
 		);
 	});

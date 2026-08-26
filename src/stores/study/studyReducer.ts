@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { DueElementDto } from "../../api/study/dto/dueElementDto";
 import { ElementId } from "../../types/elements/elementId";
+import { ElementNodeType } from "../../types/elements/elementNodeType";
 
 export type StudyStatus = "editing" | "studying";
 export type CardPhase = "question" | "answer";
@@ -8,6 +9,7 @@ export type CardPhase = "question" | "answer";
 export interface StudyCounts {
 	cards: number;
 	learningAssets: number;
+	extracts: number;
 	finished: number;
 }
 
@@ -29,7 +31,7 @@ const initialState: StudyState = {
 	queue: [],
 	cardPhase: "question",
 	shownAt: null,
-	counts: { cards: 0, learningAssets: 0, finished: 0 },
+	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
 };
 
@@ -46,7 +48,12 @@ const studySlice = createSlice({
 			state.queue = action.payload;
 			state.cardPhase = "question";
 			state.shownAt = Date.now();
-			state.counts = { cards: 0, learningAssets: 0, finished: 0 };
+			state.counts = {
+				cards: 0,
+				learningAssets: 0,
+				extracts: 0,
+				finished: 0,
+			};
 			state.summary = null;
 		},
 		answerShown: state => {
@@ -73,8 +80,15 @@ const studySlice = createSlice({
 			state.queue.splice(currentIndex, 1);
 			state.queue.splice(insertAt - 1, 0, current);
 		},
-		learningAssetAdvanced: state => {
-			state.counts.learningAssets += 1;
+		learningAssetAdvanced: (
+			state,
+			action: PayloadAction<{ elementType: ElementNodeType }>,
+		) => {
+			if (action.payload.elementType === "extract") {
+				state.counts.extracts += 1;
+			} else {
+				state.counts.learningAssets += 1;
+			}
 		},
 		// Moves a learning asset/extract to the end of the queue when the user
 		// isn't ready to review it yet, without marking it done.
@@ -89,7 +103,15 @@ const studySlice = createSlice({
 			const [current] = state.queue.splice(currentIndex, 1);
 			state.queue.push(current);
 		},
-		learningAssetFinished: state => {
+		learningAssetFinished: (
+			state,
+			action: PayloadAction<{ elementType: ElementNodeType }>,
+		) => {
+			if (action.payload.elementType === "extract") {
+				state.counts.extracts += 1;
+			} else {
+				state.counts.learningAssets += 1;
+			}
 			state.counts.finished += 1;
 		},
 		// Removes the reviewed element (if any — a requeued card isn't done

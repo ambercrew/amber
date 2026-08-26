@@ -12,7 +12,7 @@ function studyStateFor(status: "editing" | "studying") {
 		queue: [],
 		cardPhase: "question" as const,
 		shownAt: null,
-		counts: { cards: 0, learningAssets: 0, finished: 0 },
+		counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 		summary: null,
 	};
 }
