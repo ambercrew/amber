@@ -91,7 +91,7 @@ describe("FilterEditor", () => {
 
 		// Assert
 
-		expect(screen.getByText("Priority 70–100%")).toBeInTheDocument();
+		expect(screen.getByText("Priority 70.00–100.00%")).toBeInTheDocument();
 	});
 
 	it("Should render the StudyProfileFilterEditor when the filter's field is studyProfile", () => {

@@ -80,7 +80,7 @@ describe("SearchResultsTable", () => {
 
 		expect(screen.getByText(CARD_RESULT.name)).toBeInTheDocument();
 		expect(screen.getByText("Card")).toBeInTheDocument();
-		expect(screen.getByText("50.0%")).toBeInTheDocument();
+		expect(screen.getByText("50.00%")).toBeInTheDocument();
 		expect(
 			screen.getByText(new Date(CARD_RESULT.due!).toLocaleString()),
 		).toBeInTheDocument();

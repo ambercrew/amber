@@ -30,7 +30,7 @@ describe("PriorityFilterEditor", () => {
 
 		// Assert
 
-		expect(screen.getByText("Priority 70–100%")).toBeInTheDocument();
+		expect(screen.getByText("Priority 70.00–100.00%")).toBeInTheDocument();
 	});
 
 	it("Should call onChange with the increased min when the min thumb is moved right", async () => {

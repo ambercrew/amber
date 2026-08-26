@@ -430,6 +430,9 @@ describe("describeFilter", () => {
 
 		// Assert
 
-		expect(actual).toEqual({ operatorLabel: "", valueLabel: "70–100%" });
+		expect(actual).toEqual({
+			operatorLabel: "",
+			valueLabel: "70.00–100.00%",
+		});
 	});
 });

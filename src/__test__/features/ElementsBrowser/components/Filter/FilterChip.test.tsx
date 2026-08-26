@@ -75,7 +75,7 @@ describe("FilterChip", () => {
 		// Assert
 
 		expect(screen.getByText("Priority")).toBeInTheDocument();
-		expect(screen.getByText("70–100%")).toBeInTheDocument();
+		expect(screen.getByText("70.00–100.00%")).toBeInTheDocument();
 	});
 
 	it("Should call onRemove when the remove button is clicked", async () => {
@@ -117,6 +117,8 @@ describe("FilterChip", () => {
 
 		// Act, Assert
 
-		expect(await screen.findByText("Priority 70–100%")).toBeInTheDocument();
+		expect(
+			await screen.findByText("Priority 70.00–100.00%"),
+		).toBeInTheDocument();
 	});
 });

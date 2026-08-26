@@ -142,7 +142,7 @@ describe("PriorityModal", () => {
 
 		// Assert
 
-		expect(await screen.findByDisplayValue("50%")).toBeInTheDocument();
+		expect(await screen.findByDisplayValue("50.00%")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("3")).toBeInTheDocument();
 		expect(screen.getByText("Rank 3 of 5")).toBeInTheDocument();
 	});

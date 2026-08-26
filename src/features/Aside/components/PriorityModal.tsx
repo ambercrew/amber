@@ -13,6 +13,10 @@ import { loadElementDetailsAction } from "../../../stores/elementDetails/element
 import { selectCurrentElementDetails } from "../../../stores/elementDetails/elementDetailsSelectors";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
 import { ElementId } from "../../../types/elements/elementId";
+import {
+	formatPriorityPercentage,
+	PRIORITY_PERCENTAGE_DECIMALS,
+} from "../../../utils/formatPriorityPercentage";
 import { PRIORITY_CHANGED } from "../../../types/events/priorityChangedEvent";
 import styles from "./PriorityModal.module.css";
 
@@ -92,7 +96,8 @@ function PriorityModalBody({
 			/>
 			<NumberInput
 				label="Percentage"
-				decimalScale={2}
+				decimalScale={PRIORITY_PERCENTAGE_DECIMALS}
+				fixedDecimalScale
 				suffix="%"
 				min={0}
 				max={100}
@@ -106,7 +111,7 @@ function PriorityModalBody({
 					min={0}
 					max={100}
 					step={percentageStep}
-					label={value => `${value.toFixed(0)}%`}
+					label={formatPriorityPercentage}
 					onChange={handleSliderChange}
 					onChangeEnd={handlePercentageChange}
 					classNames={{ track: styles["gradient-track"] }}
