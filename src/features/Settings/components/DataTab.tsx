@@ -9,6 +9,7 @@ import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTex
 import { changeDatabaseDirectory } from "../../../stores/app/appActions";
 import { saveSettings } from "../../../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../../../api/settings/dto/updateSettingsRequestDto";
+import { isMobile } from "../../../utils/tauriUtils";
 
 const RETENTION_MIN_DAYS = 1;
 const RETENTION_MAX_DAYS = 99;
@@ -49,11 +50,15 @@ function DataTab() {
 	return (
 		<Stack gap="lg" pt="md">
 			<Stack gap="xs">
-				<Text size="sm">Database directory</Text>
-				<Text size="xs" c="dimmed">
-					Where your data is stored. Changing this reconnects the
-					database.
-				</Text>
+                {!isMobile() && (
+                    <>
+                    <Text size="sm">Database directory</Text>
+                    <Text size="xs" c="dimmed">
+                            Where your data is stored. Changing this reconnects the
+                            database.
+                        </Text>
+                        </>
+                    )}
 				<Group align="flex-end" gap="sm" wrap="nowrap">
 					<AutosizeTextInput
 						readOnly
