@@ -18,6 +18,7 @@ function Sidebar({ onCollapse }: SidebarProps) {
 			<CollapsibleSidebar
 				defaultValue="tree"
 				onCollapse={onCollapse}
+				localStorageKey="sidebar"
 				tabs={[
 					{
 						value: "tree",

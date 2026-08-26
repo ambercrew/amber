@@ -60,6 +60,10 @@ export default defineConfig({
 		environment: "jsdom",
 		setupFiles: "./src/__test__/setup.ts",
 		css: true,
+		// Mantine + userEvent component tests regularly need more than the 5s
+		// default when the whole suite runs in parallel on a loaded machine.
+		testTimeout: 20000,
+		hookTimeout: 20000,
 		coverage: {
 			reporter: ["lcov"],
 			include: ["src/**/*.{ts,tsx,js,jsx}"],

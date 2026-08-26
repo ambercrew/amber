@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
 import {
 	AppShell,
 	Tabs,
@@ -10,6 +10,7 @@ import {
 } from "@mantine/core";
 import { XIcon } from "@phosphor-icons/react";
 import { SMALL_SCREEN_BREAKPOINT } from "../../hooks/useIsSmallScreen";
+import { useLocalStorage } from "@mantine/hooks";
 
 export interface SidebarTab {
 	value: string;
@@ -36,6 +37,8 @@ interface CollapsibleSidebarProps {
 	onCollapse: () => void;
 	/** Side the collapse button is anchored to. Defaults to "right". */
 	collapsePosition?: "left" | "right";
+	/** Used to remember which tab were open last time the app was open. */
+	localStorageKey: string;
 }
 
 function CollapsibleSidebar({
@@ -43,8 +46,12 @@ function CollapsibleSidebar({
 	defaultValue,
 	onCollapse,
 	collapsePosition = "right",
+	localStorageKey,
 }: CollapsibleSidebarProps) {
-	const [value, setValue] = useState(defaultValue);
+	const [value, setValue] = useLocalStorage({
+		defaultValue,
+		key: `${localStorageKey}.open-tab`,
+	});
 	const activeValue = tabs.some(tab => tab.value === value)
 		? value
 		: (tabs[0]?.value ?? "");

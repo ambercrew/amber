@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 import "@testing-library/jest-dom";
-import { vi } from "vitest";
+import { beforeEach, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/app", () => ({
 	onBackButtonPress: vi.fn().mockResolvedValue({ unregister: vi.fn() }),
@@ -92,4 +92,10 @@ const localStorageMock = (() => {
 
 Object.defineProperty(window, "localStorage", {
 	value: localStorageMock,
+});
+
+// Components that persist state with `useLocalStorage` would otherwise leak
+// that state into later tests in the same file.
+beforeEach(() => {
+	window.localStorage.clear();
 });

@@ -40,6 +40,7 @@ function Aside({ onCollapse }: AsideProps) {
 			defaultValue="info"
 			onCollapse={onCollapse}
 			collapsePosition="left"
+			localStorageKey="aside"
 			tabs={tabs}
 		/>
 	);
