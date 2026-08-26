@@ -11,7 +11,7 @@ import { saveSettings } from "../../../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../../../api/settings/dto/updateSettingsRequestDto";
 
 const RETENTION_MIN_DAYS = 1;
-const RETENTION_MAX_DAYS = 365;
+const RETENTION_MAX_DAYS = 99;
 
 function DataTab() {
 	const settings = useAppSelector(selectSettings);
@@ -83,7 +83,6 @@ function DataTab() {
 					clampBehavior="strict"
 					allowDecimal={false}
 					suffix=" days"
-					w={160}
 				/>
 			</Stack>
 
