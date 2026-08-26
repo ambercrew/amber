@@ -3,7 +3,7 @@ use serde::Serialize;
 use crate::bibliographical_sources::dto::bibliographical_source_dto::BibliographicalSourceResponseDto;
 use crate::elements::dto::priority_info_dto::PriorityInfoResponseDto;
 use crate::elements::services::element_details_service::ElementDetails;
-use crate::study::dto::card_review_dto::CardReviewResponseDto;
+use crate::study::dto::card_review_response_dto::CardReviewResponseDto;
 use crate::study::dto::learning_asset_review_dto::LearningAssetReviewResponseDto;
 use crate::study::dto::study_profile_dto::{EffectiveProfileResponseDto, StudyProfileResponseDto};
 

@@ -1,36 +1,34 @@
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use fsrs::FSRSError;
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
 use crate::study::entities::card_review::CardReview;
+use crate::study::entities::study_profile::StudyProfile;
 use crate::study::services::profile_resolution_service::ProfileResolutionError;
 use crate::study::value_objects::rating::Rating;
 
 #[async_trait]
 pub trait CardGradingService: Send + Sync {
-    async fn grade_card(
+    /// Persists a review the frontend has already scheduled with ts-fsrs and
+    /// logs the rating that produced it.
+    async fn register_review(
         &self,
-        card_id: Uuid,
+        review: CardReview,
         rating: Rating,
         duration_ms: Option<u32>,
     ) -> Result<CardReview, GradeCardError>;
 
-    /// Computes the due date that grading `card_id` with each rating would
-    /// produce, without persisting a review.
-    async fn preview_card(&self, card_id: Uuid) -> Result<CardDuePreview, GradeCardError>;
+    /// The card's current review state plus the study profile it inherits,
+    /// which together are the inputs the frontend's scheduler needs. Cards
+    /// without a stored review yet get the profile's new-card defaults.
+    async fn scheduling_inputs(
+        &self,
+        card_id: Uuid,
+    ) -> Result<(CardReview, StudyProfile), GradeCardError>;
 
     // Resets the cards review as if it was newly created.
     async fn reset(&self, card_ids: Vec<Uuid>) -> Result<(), GradeCardError>;
-}
-
-pub struct CardDuePreview {
-    pub again: DateTime<Utc>,
-    pub hard: DateTime<Utc>,
-    pub good: DateTime<Utc>,
-    pub easy: DateTime<Utc>,
 }
 
 #[derive(Debug, Error)]
@@ -40,7 +38,4 @@ pub enum GradeCardError {
 
     #[error(transparent)]
     ProfileResolution(#[from] ProfileResolutionError),
-
-    #[error("FSRS scheduling failed: {0}")]
-    Fsrs(#[from] FSRSError),
 }

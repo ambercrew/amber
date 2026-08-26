@@ -12,8 +12,9 @@ use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::local_configurations::repositories::local_configuration_repository::{
     LocalConfigurationRepository, LocalConfigurationRepositoryExt,
 };
-use crate::study::dto::card_due_preview_dto::CardDuePreviewDto;
-use crate::study::dto::card_review_dto::CardReviewResponseDto;
+use crate::study::dto::card_review_request_dto::CardReviewRequestDto;
+use crate::study::dto::card_review_response_dto::CardReviewResponseDto;
+use crate::study::dto::card_scheduling_dto::CardSchedulingDto;
 use crate::study::dto::due_element_dto::DueElementDto;
 use crate::study::dto::learning_asset_review_dto::LearningAssetReviewResponseDto;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
@@ -78,10 +79,12 @@ pub async fn get_due_elements(
     Ok(result)
 }
 
+/// Persists a review the frontend scheduled with ts-fsrs. Scheduling itself
+/// lives on the frontend, which owns the full FSRS scheduler.
 #[tauri::command]
-pub async fn grade_card(
+pub async fn register_card_review(
     injector: State<'_, Arc<Injector>>,
-    card_id: Uuid,
+    review: CardReviewRequestDto,
     rating: Rating,
     duration_ms: Option<u32>,
 ) -> Result<CardReviewResponseDto, ApiError> {
@@ -89,22 +92,24 @@ pub async fn grade_card(
     let result = scope
         .resolve::<dyn CardGradingService>()
         .await
-        .grade_card(card_id, rating, duration_ms)
+        .register_review(review.into(), rating, duration_ms)
         .await?;
     scope.save_changes().await?;
     Ok(result.into())
 }
 
+/// The current review state and effective study profile for a card, which is
+/// everything the frontend needs to schedule it.
 #[tauri::command]
-pub async fn preview_card_review(
+pub async fn get_card_scheduling(
     injector: State<'_, Arc<Injector>>,
     card_id: Uuid,
-) -> Result<CardDuePreviewDto, ApiError> {
+) -> Result<CardSchedulingDto, ApiError> {
     let scope = injector.start_scope();
     let result = scope
         .resolve::<dyn CardGradingService>()
         .await
-        .preview_card(card_id)
+        .scheduling_inputs(card_id)
         .await?;
     Ok(result.into())
 }

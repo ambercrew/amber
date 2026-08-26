@@ -1,21 +1,18 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, Utc};
-use fsrs::{FSRS, MemoryState, NextStates};
+use chrono::Utc;
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
 
 use crate::elements::value_objects::element_id::ElementId;
 use crate::study::entities::card_review::CardReview;
 use crate::study::entities::card_review_log::CardReviewLog;
+use crate::study::entities::study_profile::StudyProfile;
 use crate::study::repositories::card_review_log_repository::CardReviewLogRepository;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
-use crate::study::services::card_grading_service::{
-    CardDuePreview, CardGradingService, GradeCardError,
-};
+use crate::study::services::card_grading_service::{CardGradingService, GradeCardError};
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
-use crate::study::value_objects::card_state::CardState;
 use crate::study::value_objects::rating::Rating;
 
 #[derive(ScopeInjectable)]
@@ -27,50 +24,18 @@ pub struct DefaultCardGradingService {
 
 #[async_trait]
 impl CardGradingService for DefaultCardGradingService {
-    async fn grade_card(
+    async fn register_review(
         &self,
-        card_id: Uuid,
+        review: CardReview,
         rating: Rating,
         duration_ms: Option<u32>,
     ) -> Result<CardReview, GradeCardError> {
-        let (next_states, existing) = self.compute_next_states(card_id).await?;
-        let now = Utc::now();
-        let selected = select_state(&next_states, rating);
-
-        let previous_state = existing
-            .as_ref()
-            .map(|review| review.state)
-            .unwrap_or(CardState::New);
-        let was_reviewed_before =
-            matches!(previous_state, CardState::Review | CardState::Relearning);
-        let is_lapse = rating == Rating::Again && was_reviewed_before;
-
-        let review = CardReview {
-            card_id,
-            due: now + interval_to_duration(selected.interval),
-            stability: selected.memory.stability,
-            difficulty: selected.memory.difficulty,
-            reps: existing.as_ref().map(|review| review.reps).unwrap_or(0) + 1,
-            lapses: existing.as_ref().map(|review| review.lapses).unwrap_or(0)
-                + u32::from(is_lapse),
-            state: if rating == Rating::Again {
-                if was_reviewed_before {
-                    CardState::Relearning
-                } else {
-                    CardState::Learning
-                }
-            } else {
-                CardState::Review
-            },
-            last_reviewed: Some(now),
-        };
-
         self.card_review_repository.upsert(&review).await?;
         self.card_review_log_repository
             .create(&CardReviewLog {
                 id: Uuid::new_v4(),
-                card_id: Some(card_id),
-                reviewed_at: now,
+                card_id: Some(review.card_id),
+                reviewed_at: Utc::now(),
                 rating,
                 duration_ms,
             })
@@ -79,16 +44,21 @@ impl CardGradingService for DefaultCardGradingService {
         Ok(review)
     }
 
-    async fn preview_card(&self, card_id: Uuid) -> Result<CardDuePreview, GradeCardError> {
-        let (next_states, _) = self.compute_next_states(card_id).await?;
-        let now = Utc::now();
+    async fn scheduling_inputs(
+        &self,
+        card_id: Uuid,
+    ) -> Result<(CardReview, StudyProfile), GradeCardError> {
+        let profile = self
+            .profile_resolution_service
+            .resolve_profile(Some(ElementId::Card(card_id)))
+            .await?;
+        let review = self
+            .card_review_repository
+            .get_by_card_id(card_id)
+            .await?
+            .unwrap_or_else(|| CardReview::new_for_profile(card_id, &profile));
 
-        Ok(CardDuePreview {
-            again: now + interval_to_duration(next_states.again.interval),
-            hard: now + interval_to_duration(next_states.hard.interval),
-            good: now + interval_to_duration(next_states.good.interval),
-            easy: now + interval_to_duration(next_states.easy.interval),
-        })
+        Ok((review, profile))
     }
 
     async fn reset(&self, card_ids: Vec<Uuid>) -> Result<(), GradeCardError> {
@@ -104,59 +74,9 @@ impl CardGradingService for DefaultCardGradingService {
     }
 }
 
-impl DefaultCardGradingService {
-    async fn compute_next_states(
-        &self,
-        card_id: Uuid,
-    ) -> Result<(NextStates, Option<CardReview>), GradeCardError> {
-        let profile = self
-            .profile_resolution_service
-            .resolve_profile(Some(ElementId::Card(card_id)))
-            .await?;
-        let fsrs = FSRS::new(profile.fsrs_params.as_deref().unwrap_or(&[]))?;
-
-        let existing = self.card_review_repository.get_by_card_id(card_id).await?;
-        let now = Utc::now();
-
-        let current_memory_state = existing.as_ref().map(|review| MemoryState {
-            stability: review.stability,
-            difficulty: review.difficulty,
-        });
-        let elapsed_days = existing
-            .as_ref()
-            .and_then(|review| review.last_reviewed)
-            .map(|last_reviewed| elapsed_days_between(last_reviewed, now))
-            .unwrap_or(0);
-
-        let next_states = fsrs.next_states(
-            current_memory_state,
-            profile.desired_retention,
-            elapsed_days,
-        )?;
-
-        Ok((next_states, existing))
-    }
-}
-
-fn elapsed_days_between(last_reviewed: DateTime<Utc>, now: DateTime<Utc>) -> u32 {
-    (now - last_reviewed).num_days().max(0) as u32
-}
-
-fn interval_to_duration(interval_days: f32) -> Duration {
-    Duration::seconds((interval_days as f64 * 86400.0).round() as i64)
-}
-
-fn select_state(next_states: &NextStates, rating: Rating) -> &fsrs::ItemState {
-    match rating {
-        Rating::Again => &next_states.again,
-        Rating::Hard => &next_states.hard,
-        Rating::Good => &next_states.good,
-        Rating::Easy => &next_states.easy,
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use chrono::Duration;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
 
@@ -175,6 +95,7 @@ mod tests {
         },
         study::repositories::study_profile_repository::StudyProfileRepository,
         study::services::implementations::default_profile_resolution_service::DefaultProfileResolutionService,
+        study::value_objects::card_state::CardState,
         test_utils::create_test_injector,
     };
 
@@ -233,31 +154,55 @@ mod tests {
         card_id
     }
 
+    fn scheduled_review(card_id: Uuid) -> CardReview {
+        CardReview {
+            card_id,
+            due: Utc::now() + Duration::minutes(10),
+            stability: 2.31,
+            difficulty: 5.12,
+            reps: 1,
+            lapses: 0,
+            state: CardState::Learning,
+            last_reviewed: Some(Utc::now()),
+            scheduled_days: 0,
+            learning_steps: 1,
+        }
+    }
+
     #[tokio::test]
-    async fn grade_card_new_card_rated_good_transitions_to_review() {
+    async fn register_review_scheduled_review_is_stored_as_given() {
         // Arrange
 
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
         let card_id = create_test_card(&scope).await;
         let service = scope.resolve::<dyn CardGradingService>().await;
+        let review = scheduled_review(card_id);
 
         // Act
 
-        let review = service
-            .grade_card(card_id, Rating::Good, Some(1000))
+        service
+            .register_review(review.clone(), Rating::Good, Some(1000))
             .await
+            .unwrap();
+        let actual = scope
+            .resolve::<dyn CardReviewRepository>()
+            .await
+            .get_by_card_id(card_id)
+            .await
+            .unwrap()
             .unwrap();
 
         // Assert
 
-        assert_eq!(CardState::Review, review.state);
-        assert_eq!(1, review.reps);
-        assert_eq!(0, review.lapses);
+        assert_eq!(review.state, actual.state);
+        assert_eq!(review.reps, actual.reps);
+        assert_eq!(review.learning_steps, actual.learning_steps);
+        assert_eq!(review.stability, actual.stability);
     }
 
     #[tokio::test]
-    async fn grade_card_new_card_rated_again_transitions_to_learning_without_lapse() {
+    async fn scheduling_inputs_card_without_a_stored_review_returns_new_card_defaults() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -267,19 +212,42 @@ mod tests {
 
         // Act
 
-        let review = service
-            .grade_card(card_id, Rating::Again, None)
+        let (review, profile) = service.scheduling_inputs(card_id).await.unwrap();
+
+        // Assert
+
+        assert_eq!(CardState::New, review.state);
+        assert_eq!(0, review.reps);
+        assert_eq!(0, review.learning_steps);
+        assert_eq!(0.9, profile.desired_retention);
+    }
+
+    #[tokio::test]
+    async fn scheduling_inputs_card_with_a_stored_review_returns_the_stored_review() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_id = create_test_card(&scope).await;
+        let service = scope.resolve::<dyn CardGradingService>().await;
+        service
+            .register_review(scheduled_review(card_id), Rating::Good, None)
             .await
             .unwrap();
+
+        // Act
+
+        let (review, _) = service.scheduling_inputs(card_id).await.unwrap();
 
         // Assert
 
         assert_eq!(CardState::Learning, review.state);
-        assert_eq!(0, review.lapses);
+        assert_eq!(1, review.reps);
+        assert_eq!(1, review.learning_steps);
     }
 
     #[tokio::test]
-    async fn grade_card_review_card_rated_again_lapses_and_becomes_relearning() {
+    async fn reset_previously_reviewed_card_reverts_to_new_card_defaults() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -287,42 +255,16 @@ mod tests {
         let card_id = create_test_card(&scope).await;
         let service = scope.resolve::<dyn CardGradingService>().await;
         service
-            .grade_card(card_id, Rating::Good, None)
-            .await
-            .unwrap();
-
-        // Act
-
-        let review = service
-            .grade_card(card_id, Rating::Again, None)
-            .await
-            .unwrap();
-
-        // Assert
-
-        assert_eq!(CardState::Relearning, review.state);
-        assert_eq!(1, review.lapses);
-        assert_eq!(2, review.reps);
-    }
-
-    #[tokio::test]
-    async fn reset_previously_graded_card_reverts_to_new_card_defaults() {
-        // Arrange
-
-        let injector = initialize_test_injector().await;
-        let scope = injector.start_scope();
-        let card_id = create_test_card(&scope).await;
-        let service = scope.resolve::<dyn CardGradingService>().await;
-        service
-            .grade_card(card_id, Rating::Good, None)
+            .register_review(scheduled_review(card_id), Rating::Good, None)
             .await
             .unwrap();
 
         // Act
 
         service.reset(vec![card_id]).await.unwrap();
-        let card_review_repository = scope.resolve::<dyn CardReviewRepository>().await;
-        let actual = card_review_repository
+        let actual = scope
+            .resolve::<dyn CardReviewRepository>()
+            .await
             .get_by_card_id(card_id)
             .await
             .unwrap()
@@ -335,6 +277,7 @@ mod tests {
         assert_eq!(0.0, actual.difficulty);
         assert_eq!(0, actual.reps);
         assert_eq!(0, actual.lapses);
+        assert_eq!(0, actual.learning_steps);
         assert!(actual.last_reviewed.is_none());
     }
 }

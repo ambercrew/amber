@@ -15,6 +15,8 @@ pub struct CardReview {
     pub lapses: u32,
     pub state: CardState,
     pub last_reviewed: Option<DateTime<Utc>>,
+    pub scheduled_days: u32,
+    pub learning_steps: u32,
 }
 
 impl CardReview {
@@ -29,6 +31,8 @@ impl CardReview {
             lapses: 0,
             state: CardState::New,
             last_reviewed: None,
+            scheduled_days: 0,
+            learning_steps: 0,
         }
     }
 }

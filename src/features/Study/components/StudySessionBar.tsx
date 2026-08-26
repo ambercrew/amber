@@ -3,14 +3,11 @@ import { Box, Button, Group, Text, Tooltip } from "@mantine/core";
 import { useHotkeys } from "@mantine/hooks";
 import { useNavigate } from "react-router";
 import { SMALL_SCREEN_BREAKPOINT } from "../../../hooks/useIsSmallScreen";
-import {
-	previewCardReview,
-	previewNextLearningAsset,
-} from "../../../api/study/api/studyApi";
-import { CardDuePreviewDto } from "../../../api/study/dto/cardDuePreviewDto";
+import { previewNextLearningAsset } from "../../../api/study/api/studyApi";
 import { formatShortcut } from "../../../commands/formatShortcut";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
+import { useCardScheduling } from "../hooks/useCardScheduling";
 import { useElapsedSeconds } from "../hooks/useElapsedSeconds";
 import {
 	finishLearningAssetAction,
@@ -60,16 +57,17 @@ function StudySessionBar() {
 	const elapsedSeconds = useElapsedSeconds(shownAt);
 	const currentKey = current ? `${current.type}:${current.id}` : null;
 	const [trackedKey, setTrackedKey] = useState(currentKey);
-	const [cardDuePreview, setCardDuePreview] =
-		useState<CardDuePreviewDto | null>(null);
 	const [nextLearningAssetDue, setNextLearningAssetDue] = useState<
 		string | null
 	>(null);
 	const isFirstRender = useRef(true);
+	const { preview: cardDuePreview, schedule } = useCardScheduling(
+		current?.type === "card" ? current.id : null,
+		shownAt,
+	);
 
 	if (currentKey !== trackedKey) {
 		setTrackedKey(currentKey);
-		setCardDuePreview(null);
 		setNextLearningAssetDue(null);
 	}
 
@@ -86,9 +84,7 @@ function StudySessionBar() {
 			dispatch(elementShown());
 		}
 
-		if (current.type === "card") {
-			void previewCardReview(current.id).then(setCardDuePreview);
-		} else {
+		if (current.type !== "card") {
 			void previewNextLearningAsset(current).then(
 				setNextLearningAssetDue,
 			);
@@ -97,9 +93,18 @@ function StudySessionBar() {
 
 	const answerHidden = current?.type === "card" && cardPhase === "question";
 
+	const grade = (rating: Rating) => {
+		if (current?.type !== "card") return;
+		const scheduledReview = schedule(rating);
+		if (!scheduledReview) return;
+		void dispatch(
+			gradeCardAction(current.id, scheduledReview, rating, navigate),
+		);
+	};
+
 	const gradeShortcut = (rating: Rating) => () => {
-		if (current?.type !== "card" || answerHidden) return;
-		void dispatch(gradeCardAction(current.id, rating, navigate));
+		if (answerHidden) return;
+		grade(rating);
 	};
 	const learningAssetShortcut =
 		(action: (id: typeof current) => void) => () => {
@@ -168,7 +173,7 @@ function StudySessionBar() {
 							label={withShortcut(
 								cardDuePreview
 									? formatRelativeDueDate(
-											cardDuePreview[rating],
+											cardDuePreview[rating].due,
 										)
 									: null,
 								shortcut,
@@ -176,15 +181,7 @@ function StudySessionBar() {
 							<Button
 								size="sm"
 								variant="default"
-								onClick={() =>
-									void dispatch(
-										gradeCardAction(
-											current.id,
-											rating,
-											navigate,
-										),
-									)
-								}>
+								onClick={() => grade(rating)}>
 								{label}
 							</Button>
 						</Tooltip>

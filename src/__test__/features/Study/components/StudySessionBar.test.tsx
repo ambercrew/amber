@@ -3,11 +3,14 @@ import userEvent from "@testing-library/user-event";
 import StudySessionBar from "../../../../features/Study/components/StudySessionBar";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import {
-	previewCardReview,
+	getCardScheduling,
 	previewNextLearningAsset,
 } from "../../../../api/study/api/studyApi";
 import { AnyElementDto } from "../../../../api/elements/dto/anyElementDto";
 import { formatRelativeDueDate } from "../../../../utils/formatRelativeDueDate";
+import { scheduleAllRatings } from "../../../../features/Study/utils/cardScheduling";
+import { CardSchedulingDto } from "../../../../api/study/dto/cardSchedulingDto";
+import { Rating } from "../../../../types/study/rating";
 
 vi.mock(import("../../../../api/study/api/studyApi.ts"));
 
@@ -69,21 +72,46 @@ function inMs(offsetMs: number): string {
 	return new Date(Date.now() + offsetMs).toISOString();
 }
 
+// A brand new card under the default profile: ts-fsrs schedules it through its
+// learning steps. The exact intervals are covered by the cardScheduling tests.
+const CARD_SCHEDULING: CardSchedulingDto = {
+	review: {
+		cardId: cardElementId.id,
+		due: inMs(0),
+		stability: 0,
+		difficulty: 0,
+		reps: 0,
+		lapses: 0,
+		state: "new",
+		lastReviewed: null,
+		scheduledDays: 0,
+		learningSteps: 0,
+	},
+	profile: {
+		id: "profile-1",
+		createdAt: "2024-01-01T00:00:00Z",
+		modifiedAt: "2024-01-01T00:00:00Z",
+		name: "Default",
+		isDefault: true,
+		desiredRetention: 0.9,
+		fsrsParams: [],
+		initialIntervalMultiplier: 1.2,
+		initialIntervalDays: 1,
+		minIntervalDays: 1,
+	},
+};
+
 describe("StudySessionBar", () => {
 	it("Should show a due date preview in each rating button's tooltip once the preview loads", async () => {
 		// Arrange
 
 		const user = userEvent.setup();
-		const again = inMs(30 * 60_000);
-		const hard = inMs(2 * 24 * 3_600_000);
-		const good = inMs(4 * 24 * 3_600_000);
-		const easy = inMs(8 * 24 * 3_600_000);
-		vi.mocked(previewCardReview).mockResolvedValue({
-			again,
-			hard,
-			good,
-			easy,
-		});
+		vi.mocked(getCardScheduling).mockResolvedValue(CARD_SCHEDULING);
+		const scheduled = scheduleAllRatings(
+			CARD_SCHEDULING.profile,
+			CARD_SCHEDULING.review,
+			new Date(),
+		);
 
 		// Act
 
@@ -100,18 +128,19 @@ describe("StudySessionBar", () => {
 
 		// Assert
 
-		const dueByRating = {
-			Again: again,
-			Hard: hard,
-			Good: good,
-			Easy: easy,
-		};
-		for (const [name, due] of Object.entries(dueByRating)) {
+		const buttonsByRating: [string, Rating][] = [
+			["Again", "again"],
+			["Hard", "hard"],
+			["Good", "good"],
+			["Easy", "easy"],
+		];
+		for (const [name, rating] of buttonsByRating) {
 			await user.hover(screen.getByRole("button", { name }));
 			expect(
-				await screen.findByText(formatRelativeDueDate(due), {
-					exact: false,
-				}),
+				await screen.findByText(
+					formatRelativeDueDate(scheduled[rating].due),
+					{ exact: false },
+				),
 			).toBeInTheDocument();
 			await user.unhover(screen.getByRole("button", { name }));
 		}
@@ -121,7 +150,7 @@ describe("StudySessionBar", () => {
 		// Arrange
 
 		const user = userEvent.setup();
-		vi.mocked(previewCardReview).mockReturnValue(
+		vi.mocked(getCardScheduling).mockReturnValue(
 			new Promise(() => {
 				// Never resolves; asserting the pre-load state.
 			}),

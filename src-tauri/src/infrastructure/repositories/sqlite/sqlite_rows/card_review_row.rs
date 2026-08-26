@@ -13,6 +13,8 @@ pub struct CardReviewRow {
     pub lapses: i64,
     pub state: String,
     pub last_reviewed: Option<DateTime<Utc>>,
+    pub scheduled_days: i64,
+    pub learning_steps: i64,
 }
 
 impl From<CardReviewRow> for CardReview {
@@ -26,6 +28,8 @@ impl From<CardReviewRow> for CardReview {
             lapses: row.lapses as u32,
             state: CardState::from(row.state.as_str()),
             last_reviewed: row.last_reviewed,
+            scheduled_days: row.scheduled_days as u32,
+            learning_steps: row.learning_steps as u32,
         }
     }
 }

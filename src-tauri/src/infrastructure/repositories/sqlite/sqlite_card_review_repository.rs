@@ -35,7 +35,9 @@ impl CardReviewRepository for SqliteCardReviewRepository {
                 reps,
                 lapses,
                 state,
-                last_reviewed as "last_reviewed: _"
+                last_reviewed as "last_reviewed: _",
+                scheduled_days,
+                learning_steps
             FROM card_reviews
             WHERE card_id = $1"#,
             card_id.hyphenated()
@@ -54,8 +56,9 @@ impl CardReviewRepository for SqliteCardReviewRepository {
 
         sqlx::query!(
             r#"INSERT INTO card_reviews
-                (card_id, due, stability, difficulty, reps, lapses, state, last_reviewed)
-            VALUES ($1, datetime($2), $3, $4, $5, $6, $7, datetime($8))
+                (card_id, due, stability, difficulty, reps, lapses, state, last_reviewed,
+                 scheduled_days, learning_steps)
+            VALUES ($1, datetime($2), $3, $4, $5, $6, $7, datetime($8), $9, $10)
             ON CONFLICT (card_id) DO UPDATE SET
                 due = excluded.due,
                 stability = excluded.stability,
@@ -63,7 +66,9 @@ impl CardReviewRepository for SqliteCardReviewRepository {
                 reps = excluded.reps,
                 lapses = excluded.lapses,
                 state = excluded.state,
-                last_reviewed = excluded.last_reviewed"#,
+                last_reviewed = excluded.last_reviewed,
+                scheduled_days = excluded.scheduled_days,
+                learning_steps = excluded.learning_steps"#,
             review.card_id.hyphenated(),
             review.due,
             review.stability,
@@ -72,6 +77,8 @@ impl CardReviewRepository for SqliteCardReviewRepository {
             review.lapses,
             state,
             review.last_reviewed,
+            review.scheduled_days,
+            review.learning_steps,
         )
         .execute(&mut *tx)
         .await?;
@@ -166,6 +173,8 @@ mod tests {
             lapses: 0,
             state: CardState::Learning,
             last_reviewed: Some(Utc::now()),
+            scheduled_days: 1,
+            learning_steps: 0,
         }
     }
 

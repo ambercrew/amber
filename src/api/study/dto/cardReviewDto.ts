@@ -9,4 +9,6 @@ export interface CardReviewDto {
 	lapses: number;
 	state: CardState;
 	lastReviewed: string | null;
+	scheduledDays: number;
+	learningSteps: number;
 }

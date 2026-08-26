@@ -106,6 +106,12 @@ function ReviewDetails({ element, details }: ReviewDetailsProps) {
 						{cardReview ? formatNumber(cardReview.difficulty) : "—"}
 					</Text>
 				</InfoField>
+				<InfoField label="Interval (days)">
+					<Text size="sm">{cardReview?.scheduledDays ?? "—"}</Text>
+				</InfoField>
+				<InfoField label="Learning step">
+					<Text size="sm">{cardReview?.learningSteps ?? "—"}</Text>
+				</InfoField>
 				<InfoField label="Reps">
 					<Text size="sm">{cardReview?.reps ?? "—"}</Text>
 				</InfoField>

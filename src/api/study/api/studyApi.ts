@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { ElementId } from "../../../types/elements/elementId";
 import { Rating } from "../../../types/study/rating";
-import { CardDuePreviewDto } from "../dto/cardDuePreviewDto";
 import { CardReviewDto } from "../dto/cardReviewDto";
+import { CardSchedulingDto } from "../dto/cardSchedulingDto";
 import { DueElementDto } from "../dto/dueElementDto";
 import { LearningAssetReviewDto } from "../dto/learningAssetReviewDto";
 
@@ -10,16 +10,16 @@ export function getDueElements(): Promise<DueElementDto[]> {
 	return invoke("get_due_elements");
 }
 
-export function gradeCard(
-	cardId: string,
+export function registerCardReview(
+	review: CardReviewDto,
 	rating: Rating,
 	durationMs: number | null,
 ): Promise<CardReviewDto> {
-	return invoke("grade_card", { cardId, rating, durationMs });
+	return invoke("register_card_review", { review, rating, durationMs });
 }
 
-export function previewCardReview(cardId: string): Promise<CardDuePreviewDto> {
-	return invoke("preview_card_review", { cardId });
+export function getCardScheduling(cardId: string): Promise<CardSchedulingDto> {
+	return invoke("get_card_scheduling", { cardId });
 }
 
 export function nextLearningAsset(

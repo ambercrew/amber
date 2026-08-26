@@ -1,11 +1,12 @@
 import { NavigateFunction } from "react-router";
 import {
-	gradeCard,
+	registerCardReview,
 	getDueElements,
 	finishLearningAsset,
 	nextLearningAsset,
 } from "../../api/study/api/studyApi";
 import { paths } from "../../paths";
+import { CardReviewDto } from "../../api/study/dto/cardReviewDto";
 import { ElementId } from "../../types/elements/elementId";
 import { Rating } from "../../types/study/rating";
 import { StudySessionLocationState } from "../../types/study/studySessionLocationState";
@@ -37,6 +38,7 @@ export function startStudySession(navigate: NavigateFunction) {
 
 export function gradeCardAction(
 	cardId: string,
+	scheduledReview: CardReviewDto,
 	rating: Rating,
 	navigate: NavigateFunction,
 ) {
@@ -46,7 +48,11 @@ export function gradeCardAction(
 		const elementId: ElementId = { type: "card", id: cardId };
 		const currentIndex = selectStudyIndex(getState());
 
-		const review = await gradeCard(cardId, rating, durationMs);
+		const review = await registerCardReview(
+			scheduledReview,
+			rating,
+			durationMs,
+		);
 		dispatch(cardGraded());
 
 		const dueInMs = new Date(review.due).getTime() - Date.now();

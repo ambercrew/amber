@@ -59,7 +59,20 @@ function CollapsibleSidebar({
 	return (
 		<AppShell.Section
 			grow
-			style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				minHeight: 0,
+				/*
+				 * The sidebar is always a scroll container, even when nothing
+				 * overflows, so that `overscroll-behavior` can keep wheel
+				 * events from chaining to the window scroller. Its own
+				 * scrollbar is hidden since the panels scroll themselves.
+				 */
+				overflowY: "scroll",
+				overscrollBehavior: "contain",
+				scrollbarWidth: "none",
+			}}>
 			<Tabs
 				value={activeValue}
 				onChange={v => v && setValue(v)}
@@ -124,7 +137,13 @@ function CollapsibleSidebar({
 							{tab.scrollable === false ? (
 								content
 							) : (
-								<ScrollArea style={{ flex: 1 }}>
+								<ScrollArea
+									style={{ flex: 1 }}
+									styles={{
+										viewport: {
+											overscrollBehavior: "contain",
+										},
+									}}>
 									{content}
 								</ScrollArea>
 							)}

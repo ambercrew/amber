@@ -11,7 +11,7 @@ import { StudyState } from "../../../stores/study/studyReducer";
 import {
 	finishLearningAsset,
 	getDueElements,
-	gradeCard,
+	registerCardReview,
 	nextLearningAsset,
 } from "../../../api/study/api/studyApi";
 import { DueElementDto } from "../../../api/study/dto/dueElementDto";
@@ -83,8 +83,14 @@ function makeCardReview(due: string): CardReviewDto {
 		lapses: 0,
 		state: "review",
 		lastReviewed: null,
+		scheduledDays: 1,
+		learningSteps: 0,
 	};
 }
+
+// The review the caller schedules with ts-fsrs before dispatching; the action
+// only forwards it, so its contents don't affect these tests.
+const SCHEDULED_REVIEW = makeCardReview("2024-02-01T00:00:00Z");
 
 const LEARNING_ASSET_REVIEW: LearningAssetReviewDto = {
 	elementId: { type: "learningAsset", id: "1" },
@@ -161,7 +167,9 @@ describe("gradeCardAction", () => {
 	it("Should remove the graded card and move forward to the next element", async () => {
 		// Arrange
 
-		vi.mocked(gradeCard).mockResolvedValue(makeCardReview(IN_TWO_DAYS()));
+		vi.mocked(registerCardReview).mockResolvedValue(
+			makeCardReview(IN_TWO_DAYS()),
+		);
 		const navigate = vi.fn() as unknown as NavigateFunction;
 		const store = setupStore({
 			study: {
@@ -177,7 +185,9 @@ describe("gradeCardAction", () => {
 
 		// Act
 
-		await store.dispatch(gradeCardAction("1", "good", navigate));
+		await store.dispatch(
+			gradeCardAction("1", SCHEDULED_REVIEW, "good", navigate),
+		);
 
 		// Assert
 
@@ -193,7 +203,9 @@ describe("gradeCardAction", () => {
 	it("Should requeue the card instead of removing it when due again within the session horizon", async () => {
 		// Arrange
 
-		vi.mocked(gradeCard).mockResolvedValue(makeCardReview(IN_ONE_MINUTE()));
+		vi.mocked(registerCardReview).mockResolvedValue(
+			makeCardReview(IN_ONE_MINUTE()),
+		);
 		const navigate = vi.fn() as unknown as NavigateFunction;
 		const queue = Array.from({ length: 10 }, (_, i) =>
 			cardQueueItem(`${i}`),
@@ -205,7 +217,9 @@ describe("gradeCardAction", () => {
 
 		// Act
 
-		await store.dispatch(gradeCardAction("0", "again", navigate));
+		await store.dispatch(
+			gradeCardAction("0", SCHEDULED_REVIEW, "again", navigate),
+		);
 
 		// Assert
 
@@ -221,7 +235,9 @@ describe("gradeCardAction", () => {
 	it("Should wrap around to the front of the queue when the last element is completed and others remain", async () => {
 		// Arrange
 
-		vi.mocked(gradeCard).mockResolvedValue(makeCardReview(IN_TWO_DAYS()));
+		vi.mocked(registerCardReview).mockResolvedValue(
+			makeCardReview(IN_TWO_DAYS()),
+		);
 		const navigate = vi.fn() as unknown as NavigateFunction;
 		const store = setupStore({
 			study: {
@@ -237,7 +253,9 @@ describe("gradeCardAction", () => {
 
 		// Act
 
-		await store.dispatch(gradeCardAction("3", "good", navigate));
+		await store.dispatch(
+			gradeCardAction("3", SCHEDULED_REVIEW, "good", navigate),
+		);
 
 		// Assert
 
@@ -252,7 +270,9 @@ describe("gradeCardAction", () => {
 	it("Should end the session and set the summary once the last pending element is completed", async () => {
 		// Arrange
 
-		vi.mocked(gradeCard).mockResolvedValue(makeCardReview(IN_TWO_DAYS()));
+		vi.mocked(registerCardReview).mockResolvedValue(
+			makeCardReview(IN_TWO_DAYS()),
+		);
 		const navigate = vi.fn() as unknown as NavigateFunction;
 		const store = setupStore({
 			study: { ...BASE_STUDY_STATE, queue: [cardQueueItem("1")] },
@@ -261,7 +281,9 @@ describe("gradeCardAction", () => {
 
 		// Act
 
-		await store.dispatch(gradeCardAction("1", "good", navigate));
+		await store.dispatch(
+			gradeCardAction("1", SCHEDULED_REVIEW, "good", navigate),
+		);
 
 		// Assert
 

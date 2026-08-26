@@ -680,6 +680,8 @@ mod tests {
                 lapses: 0,
                 state: CardState::New,
                 last_reviewed: None,
+                scheduled_days: 0,
+                learning_steps: 0,
             })
             .await
             .unwrap();
@@ -1224,6 +1226,8 @@ mod tests {
                 lapses: 0,
                 state: CardState::New,
                 last_reviewed: None,
+                scheduled_days: 0,
+                learning_steps: 0,
             })
             .await
             .unwrap();
@@ -1237,6 +1241,8 @@ mod tests {
                 lapses: 0,
                 state: CardState::New,
                 last_reviewed: None,
+                scheduled_days: 0,
+                learning_steps: 0,
             })
             .await
             .unwrap();
@@ -1289,6 +1295,8 @@ mod tests {
                 lapses: 0,
                 state: CardState::New,
                 last_reviewed: None,
+                scheduled_days: 0,
+                learning_steps: 0,
             })
             .await
             .unwrap();
@@ -1302,6 +1310,8 @@ mod tests {
                 lapses: 0,
                 state: CardState::New,
                 last_reviewed: None,
+                scheduled_days: 0,
+                learning_steps: 0,
             })
             .await
             .unwrap();

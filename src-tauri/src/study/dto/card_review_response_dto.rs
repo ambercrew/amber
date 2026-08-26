@@ -16,6 +16,8 @@ pub struct CardReviewResponseDto {
     pub lapses: u32,
     pub state: CardState,
     pub last_reviewed: Option<DateTime<Utc>>,
+    pub scheduled_days: u32,
+    pub learning_steps: u32,
 }
 
 impl From<CardReview> for CardReviewResponseDto {
@@ -29,6 +31,8 @@ impl From<CardReview> for CardReviewResponseDto {
             lapses: review.lapses,
             state: review.state,
             last_reviewed: review.last_reviewed,
+            scheduled_days: review.scheduled_days,
+            learning_steps: review.learning_steps,
         }
     }
 }

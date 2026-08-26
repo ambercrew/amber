@@ -389,6 +389,8 @@ mod tests {
                 lapses: 0,
                 state: CardState::Review,
                 last_reviewed: Some(Utc::now()),
+                scheduled_days: 0,
+                learning_steps: 0,
             })
             .await
             .unwrap();
