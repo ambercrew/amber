@@ -63,7 +63,7 @@ const ASIDE_DEFAULT = 320;
 
 function App() {
 	const [mainElement, setMainElement] = useState<HTMLElement | null>(null);
-	const pinned = useElementHeadroom({
+	const { pinned } = useElementHeadroom({
 		element: mainElement,
 		fixedAt: HEADROOM_FIXED_AT,
 	});

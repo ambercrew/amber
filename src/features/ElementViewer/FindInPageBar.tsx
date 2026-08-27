@@ -48,7 +48,7 @@ export default function FindInPageBar() {
 	const onPrevious = () => dispatch(goToPreviousMatch());
 	// Mirrors App.tsx's headroom: collapsing the header doesn't change
 	// --app-shell-header-height, so this needs the same pinned state.
-	const headerPinned = useElementHeadroom({
+	const { pinned: headerPinned } = useElementHeadroom({
 		element: useMainScrollElement(),
 		fixedAt: HEADROOM_FIXED_AT,
 	});
