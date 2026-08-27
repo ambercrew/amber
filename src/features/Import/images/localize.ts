@@ -1,4 +1,8 @@
 import { fetchImage } from "../../../api/import/api/importApi";
+import {
+	compressDataUri,
+	estimateDataUriBytes,
+} from "./compressImage";
 
 export type LocalizedImage =
 	{ ok: true; src: string } | { ok: false; originalUrl: string };
@@ -15,7 +19,7 @@ export async function localizeImage(
 		if (absoluteUrl.startsWith("data:image/svg+xml")) {
 			return { ok: false, originalUrl: absoluteUrl };
 		}
-		return { ok: true, src: absoluteUrl };
+		return finalizeLocalizedImage(absoluteUrl, absoluteUrl);
 	}
 
 	try {
@@ -25,13 +29,29 @@ export async function localizeImage(
 			return { ok: false, originalUrl: absoluteUrl };
 		}
 
-		const approxBytes = (bytesBase64.length * 3) / 4;
-		if (approxBytes > MAX_DATA_URI_BYTES) {
-			return { ok: false, originalUrl: absoluteUrl };
-		}
-
-		return { ok: true, src: `data:${mime};base64,${bytesBase64}` };
+		const dataUri = `data:${mime};base64,${bytesBase64}`;
+		return finalizeLocalizedImage(dataUri, absoluteUrl);
 	} catch {
 		return { ok: false, originalUrl: absoluteUrl };
 	}
+}
+
+async function finalizeLocalizedImage(
+	dataUri: string,
+	originalUrl: string,
+): Promise<LocalizedImage> {
+	const compressed = await compressDataUri(dataUri, MAX_DATA_URI_BYTES);
+	if (compressed.ok) {
+		return { ok: true, src: compressed.src };
+	}
+
+	if (compressed.reason === "too-large") {
+		return { ok: false, originalUrl };
+	}
+
+	if (estimateDataUriBytes(dataUri) > MAX_DATA_URI_BYTES) {
+		return { ok: false, originalUrl };
+	}
+
+	return { ok: true, src: dataUri };
 }
