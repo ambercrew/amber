@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet } from "react-router";
-import { AppShell, Box } from "@mantine/core";
+import { AppShell, Box, ScrollArea } from "@mantine/core";
 import { useSplitter } from "@mantine/hooks";
 import { Notifications } from "@mantine/notifications";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -79,7 +79,16 @@ function App() {
 	);
 	const mobile = isMobile();
 	const safeAreaTop = safeAreaTopStyle();
-	const footerCollapsed = studyStatus !== "studying" || !pinned;
+	const studying = studyStatus === "studying";
+	const footerCollapsed = !studying || !pinned;
+
+	// Chrome floats above the scroll viewport; these reserve the space it covers
+	// via the fixed *-height variables (not *-offset), so hiding it never reflows
+	// the content.
+	const headerSpace = "var(--app-shell-header-height, 0px)";
+	const footerSpace = studying
+		? `calc(var(--app-shell-footer-height, 0px) + ${SAFE_AREA_BOTTOM})`
+		: "0px";
 
 	const splitter = useSplitter({
 		panels: [
@@ -187,10 +196,12 @@ function App() {
 								? TRASHED_ELEMENT_BANNER_HEIGHT
 								: 0),
 					collapsed: !pinned,
+					offset: false,
 				}}
 				footer={{
 					height: HEADER_AND_FOOTER_HEIGHT,
 					collapsed: footerCollapsed,
+					offset: false,
 				}}
 				padding="md">
 				{!mobile && <Updater />}
@@ -240,22 +251,41 @@ function App() {
 				</AppShell.Navbar>
 
 				<AppShell.Main
-					ref={setMainElement}
-					p="var(--app-shell-padding)"
+					p={0}
 					style={{
 						position: "fixed",
 						minHeight: 0,
-						top: "var(--app-shell-header-offset, 0rem)",
-						bottom: "var(--app-shell-footer-offset, 0rem)",
+						top: 0,
+						bottom: 0,
 						insetInlineStart:
 							"var(--app-shell-navbar-offset, 0rem)",
 						insetInlineEnd: "var(--app-shell-aside-offset, 0rem)",
-						overflowY: "auto",
-						overflowX: "hidden",
 						transitionProperty:
-							"top, bottom, inset-inline-start, inset-inline-end",
+							"inset-inline-start, inset-inline-end",
 					}}>
-					<Outlet />
+					<ScrollArea
+						h="100%"
+						type="auto"
+						scrollbars="y"
+						viewportRef={setMainElement}
+						viewportProps={{
+							style: {
+								paddingInline: "var(--app-shell-padding)",
+								paddingTop: `calc(${headerSpace} + var(--app-shell-padding))`,
+								paddingBottom: `calc(${footerSpace} + var(--app-shell-padding))`,
+								scrollPaddingTop: headerSpace,
+								scrollPaddingBottom: footerSpace,
+							},
+						}}
+						styles={{
+							scrollbar: {
+								top: headerSpace,
+								bottom: footerSpace,
+							},
+							content: { display: "block" },
+						}}>
+						<Outlet />
+					</ScrollArea>
 				</AppShell.Main>
 
 				<AppShell.Aside style={safeAreaTop}>
