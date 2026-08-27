@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { useWindowEvent } from "@mantine/hooks";
 import { ELEMENT_CREATED_EVENT } from "../../../api/elements/events/elementCreatedEvent";
+import { ELEMENT_DUE_CHANGED_EVENT } from "../../../api/study/events/elementDueChangedEvent";
 import { getDueElements } from "../../../api/study/api/studyApi";
 import useApi from "../../../hooks/useApi";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -44,6 +45,11 @@ export function useDueElementsPreview() {
 	});
 
 	useWindowEvent(PRIORITY_CHANGED, () => {
+		if (isStudying) return;
+		refresh();
+	});
+
+	useTauriEvent(ELEMENT_DUE_CHANGED_EVENT, () => {
 		if (isStudying) return;
 		refresh();
 	});

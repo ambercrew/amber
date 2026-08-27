@@ -72,6 +72,20 @@ export function resetRepetitionsBulk(elementIds: ElementId[]): Promise<void> {
 	return invoke("reset_repetitions_bulk", { elementIds });
 }
 
+export function setElementDue(
+	elementId: ElementId,
+	due: string,
+): Promise<void> {
+	return invoke("set_element_due", { elementId, due });
+}
+
+export function setElementDueBulk(
+	elementIds: ElementId[],
+	due: string,
+): Promise<void> {
+	return invoke("set_element_due_bulk", { elementIds, due });
+}
+
 export function getFuzzFactor(): Promise<number> {
 	return invoke("get_fuzz_factor");
 }

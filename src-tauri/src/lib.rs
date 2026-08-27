@@ -213,6 +213,8 @@ pub async fn run() {
             unfinish_learning_asset,
             finish_learning_assets_bulk,
             unfinish_learning_assets_bulk,
+            set_element_due,
+            set_element_due_bulk,
             reset_repetitions_bulk,
             get_fuzz_factor,
             set_fuzz_factor,

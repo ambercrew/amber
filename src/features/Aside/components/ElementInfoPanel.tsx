@@ -14,6 +14,7 @@ import { selectCurrentElement } from "../../../stores/elements/elementsSelectors
 import { updateElementTags } from "../../../api/elements/api/elementsApi";
 import { renameElementAction } from "../../../stores/elements/elementsActions";
 import { selectCurrentElementDetails } from "../../../stores/elementDetails/elementDetailsSelectors";
+import { loadElementDetailsAction } from "../../../stores/elementDetails/elementDetailsActions";
 import { selectElementRefreshCount } from "../../../stores/sync/syncSelector";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import { formatPriorityPercentage } from "../../../utils/formatPriorityPercentage";
@@ -22,32 +23,32 @@ import { ElementDetailsResponseDto } from "../../../api/elements/dto/elementDeta
 import { openPriorityModal } from "../../../stores/app/appReducer";
 import { commandIcon } from "../../../commands/commandIcon";
 import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
+import { useTauriEvent } from "../../../hooks/useTauriEvent";
+import { ELEMENT_DUE_CHANGED_EVENT } from "../../../api/study/events/elementDueChangedEvent";
 import ElementProfileRow from "../../Study/components/ElementProfileRow";
+import DueDateInput from "../../Study/components/DueDateInput";
+import FinishedSwitch from "../../Study/components/FinishedSwitch";
 import InfoField from "./InfoField";
 import InfoGroup from "./InfoGroup";
 import ReviewDetails from "./ReviewDetails";
 import OriginSection from "./OriginSection";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
-function formatDue(due: string | null, finished: boolean): string {
-	if (finished) return "Finished";
-	if (!due) return "New";
-	return formatRelativeDueDate(due);
+function dueIsoFor(details: ElementDetailsResponseDto | null): string | null {
+	if (!details) return null;
+	return details.cardReview?.due ?? details.learningAssetReview?.due ?? null;
 }
 
-function computeDueState(
-	elementType: string,
-	details: ElementDetailsResponseDto | null,
-): string | null {
-	if (!details) return null;
-	if (elementType === "card") {
-		return formatDue(details.cardReview?.due ?? null, false);
-	}
-	if (elementType === "learningAsset" || elementType === "extract") {
-		const finished = Boolean(details.learningAssetReview?.finishedAt);
-		return formatDue(details.learningAssetReview?.due ?? null, finished);
-	}
-	return null;
+function hasFinished(elementType: string): boolean {
+	return elementType === "learningAsset" || elementType === "extract";
+}
+
+function hasDue(elementType: string): boolean {
+	return (
+		elementType === "card" ||
+		elementType === "learningAsset" ||
+		elementType === "extract"
+	);
 }
 
 function ElementInfoPanel() {
@@ -82,6 +83,11 @@ function ElementInfoPanel() {
 		setName(storedName);
 	}, [storedName]);
 
+	useTauriEvent(ELEMENT_DUE_CHANGED_EVENT, () => {
+		if (!storedMeta) return;
+		void dispatch(loadElementDetailsAction(storedMeta.elementId));
+	});
+
 	if (!storedMeta) {
 		return (
 			<Text size="sm" c="dimmed" ta="center" py="xl">
@@ -90,7 +96,9 @@ function ElementInfoPanel() {
 		);
 	}
 
-	const dueState = computeDueState(storedMeta.elementId.type, details);
+	const elementType = storedMeta.elementId.type;
+	const dueIso = dueIsoFor(details);
+	const finished = Boolean(details?.learningAssetReview?.finishedAt);
 
 	return (
 		<Stack gap="lg">
@@ -152,9 +160,27 @@ function ElementInfoPanel() {
 						details={details}
 					/>
 				</InfoField>
-				<InfoField label="Due">
-					<Text size="sm">{dueState ?? "—"}</Text>
-				</InfoField>
+				{hasDue(elementType) && (
+					<InfoField label="Due">
+						<DueDateInput
+							elementId={storedMeta.elementId}
+							due={dueIso}
+							description={
+								dueIso
+									? formatRelativeDueDate(dueIso)
+									: undefined
+							}
+						/>
+					</InfoField>
+				)}
+				{hasFinished(elementType) && (
+					<InfoField label="Finished">
+						<FinishedSwitch
+							elementId={storedMeta.elementId}
+							finished={finished}
+						/>
+					</InfoField>
+				)}
 			</InfoGroup>
 
 			{currentElement &&

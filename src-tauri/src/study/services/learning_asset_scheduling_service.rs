@@ -51,6 +51,12 @@ pub trait LearningAssetSchedulingService: Send + Sync {
         &self,
         element_ids: Vec<ElementId>,
     ) -> Result<(), LearningAssetSchedulingError>;
+
+    async fn set_due(
+        &self,
+        element_id: ElementId,
+        due: DateTime<Utc>,
+    ) -> Result<LearningAssetReview, LearningAssetSchedulingError>;
 }
 
 #[derive(Debug, Error)]
@@ -63,4 +69,7 @@ pub enum LearningAssetSchedulingError {
 
     #[error("element has never been reviewed")]
     NeverReviewed,
+
+    #[error("element cannot be scheduled")]
+    NotSchedulable,
 }

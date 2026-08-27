@@ -3,6 +3,7 @@ import {
 	ArrowCounterClockwiseIcon,
 	ArrowUUpLeftIcon,
 	BookOpenIcon,
+	CalendarBlankIcon,
 	CalendarIcon,
 	CardsIcon,
 	CaretDownIcon,
@@ -29,6 +30,7 @@ import useAppDispatch from "../../../../hooks/useAppDispatch";
 import { loadElementTree } from "../../../../stores/elements/elementsActions";
 import { BulkCallApi } from "./bulkCallApi";
 import ResetRepetitionsConfirmModal from "./modals/ResetRepetitionsConfirmModal";
+import SetDueDateModal from "./modals/SetDueDateModal";
 import SetStudyProfileModal from "./modals/SetStudyProfileModal";
 import AddTagModal from "./modals/AddTagModal";
 import RemoveTagModal from "./modals/RemoveTagModal";
@@ -36,7 +38,14 @@ import SetSourceModal from "./modals/SetSourceModal";
 import DeleteElementsConfirmModal from "./modals/DeleteElementsConfirmModal";
 
 type OpenModal =
-	"reset" | "profile" | "addTag" | "removeTag" | "source" | "delete" | null;
+	| "reset"
+	| "due"
+	| "profile"
+	| "addTag"
+	| "removeTag"
+	| "source"
+	| "delete"
+	| null;
 
 interface BulkActionsBarProps {
 	selectedIds: ElementId[];
@@ -60,6 +69,8 @@ export default function BulkActionsBar({
 	const dispatch = useAppDispatch();
 
 	const hasSelection = selectedIds.length > 0;
+	const firstDueDate =
+		selectedResults.find(result => result.due)?.due ?? null;
 
 	const bulkCallApi: BulkCallApi = cb =>
 		callApi(cb, () => dispatch(loadElementTree()));
@@ -177,6 +188,13 @@ export default function BulkActionsBar({
 								</Menu.Sub>
 								<Menu.Item
 									leftSection={
+										<CalendarBlankIcon size={16} />
+									}
+									onClick={() => setOpenModal("due")}>
+									Set due date
+								</Menu.Item>
+								<Menu.Item
+									leftSection={
 										<GraduationCapIcon size={16} />
 									}
 									onClick={() => setOpenModal("profile")}>
@@ -226,6 +244,14 @@ export default function BulkActionsBar({
 				callApi={bulkCallApi}
 				onClose={closeModal}
 				onSuccess={() => handleSuccess("Repetitions reset")}
+			/>
+			<SetDueDateModal
+				opened={openModal === "due"}
+				elementIds={selectedIds}
+				defaultDue={firstDueDate}
+				callApi={bulkCallApi}
+				onClose={closeModal}
+				onSuccess={() => handleSuccess("Due date updated")}
 			/>
 			<SetStudyProfileModal
 				opened={openModal === "profile"}

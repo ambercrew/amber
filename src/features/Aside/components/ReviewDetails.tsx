@@ -31,7 +31,6 @@ function ReviewDetails({ element, details }: ReviewDetailsProps) {
 	);
 
 	if (element.type === "learningAsset" || element.type === "extract") {
-		const finished = Boolean(learningAssetReview?.finishedAt);
 		return (
 			<InfoGroup
 				title="Scheduling"
@@ -69,11 +68,11 @@ function ReviewDetails({ element, details }: ReviewDetailsProps) {
 						)}
 					</Text>
 				</InfoField>
-				<InfoField label="Finished">
+				<InfoField label="Finished at">
 					<Text size="sm">
-						{finished
-							? `Yes · ${formatDateTime(learningAssetReview?.finishedAt ?? null)}`
-							: "No"}
+						{formatDateTime(
+							learningAssetReview?.finishedAt ?? null,
+						)}
 					</Text>
 				</InfoField>
 			</InfoGroup>

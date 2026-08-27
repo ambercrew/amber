@@ -7,11 +7,13 @@ use chrono::{DateTime, Duration, Utc};
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
 
+use crate::common::event_manager::EventManager;
 use crate::elements::repositories::extract_repository::ExtractRepository;
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::study::entities::learning_asset_review::LearningAssetReview;
 use crate::study::entities::learning_asset_review_log::LearningAssetReviewLog;
+use crate::study::events::element_due_changed_event::emit_element_due_changed;
 use crate::study::repositories::learning_asset_review_log_repository::LearningAssetReviewLogRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::services::learning_asset_scheduling_service::{
@@ -28,6 +30,7 @@ pub struct DefaultLearningAssetSchedulingService {
     profile_resolution_service: Arc<dyn ProfileResolutionService>,
     learning_asset_repository: Arc<dyn LearningAssetRepository>,
     extract_repository: Arc<dyn ExtractRepository>,
+    event_manager: Arc<dyn EventManager>,
 }
 
 #[async_trait]
@@ -102,6 +105,7 @@ impl LearningAssetSchedulingService for DefaultLearningAssetSchedulingService {
             .await?;
         self.append_log(element_id, now, LearningAssetAction::Finish)
             .await?;
+        emit_element_due_changed(&self.event_manager).await;
 
         Ok(review)
     }
@@ -135,6 +139,7 @@ impl LearningAssetSchedulingService for DefaultLearningAssetSchedulingService {
         self.learning_asset_review_repository
             .upsert(&review)
             .await?;
+        emit_element_due_changed(&self.event_manager).await;
 
         Ok(review)
     }
@@ -150,6 +155,46 @@ impl LearningAssetSchedulingService for DefaultLearningAssetSchedulingService {
             }
         }
         Ok(())
+    }
+
+    async fn set_due(
+        &self,
+        element_id: ElementId,
+        due: DateTime<Utc>,
+    ) -> Result<LearningAssetReview, LearningAssetSchedulingError> {
+        if !matches!(
+            element_id,
+            ElementId::LearningAsset(_) | ElementId::Extract(_)
+        ) {
+            return Err(LearningAssetSchedulingError::NotSchedulable);
+        }
+
+        let existing = self
+            .learning_asset_review_repository
+            .get_by_element_id(element_id.id())
+            .await?;
+
+        let review = match existing {
+            Some(review) => LearningAssetReview {
+                due,
+                finished_at: None,
+                ..review
+            },
+            None => LearningAssetReview {
+                element_id,
+                due,
+                interval_days: 0.0,
+                last_reviewed: None,
+                finished_at: None,
+            },
+        };
+
+        self.learning_asset_review_repository
+            .upsert(&review)
+            .await?;
+        emit_element_due_changed(&self.event_manager).await;
+
+        Ok(review)
     }
 }
 
@@ -528,5 +573,96 @@ mod tests {
         // Assert
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn set_due_existing_review_updates_due_without_changing_finished_or_interval() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let element_id = create_test_learning_asset(&scope).await;
+        let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
+        let before = service.next(element_id).await.unwrap();
+        let due = Utc::now() + Duration::days(10);
+
+        // Act
+
+        let after = service.set_due(element_id, due).await.unwrap();
+
+        // Assert
+
+        assert_eq!(due.timestamp(), after.due.timestamp());
+        assert_eq!(before.interval_days, after.interval_days);
+        assert_eq!(before.finished_at, after.finished_at);
+        assert_eq!(
+            before.last_reviewed.map(|t| t.timestamp()),
+            after.last_reviewed.map(|t| t.timestamp())
+        );
+    }
+
+    #[tokio::test]
+    async fn set_due_finished_element_clears_finished_at() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let element_id = create_test_learning_asset(&scope).await;
+        let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
+        service.next(element_id).await.unwrap();
+        service.finish(element_id).await.unwrap();
+        let due = Utc::now() + Duration::days(3);
+
+        // Act
+
+        let after = service.set_due(element_id, due).await.unwrap();
+
+        // Assert
+
+        assert_eq!(due.timestamp(), after.due.timestamp());
+        assert!(after.finished_at.is_none());
+    }
+
+    #[tokio::test]
+    async fn set_due_never_reviewed_element_creates_a_review_with_the_given_due() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let element_id = create_test_learning_asset(&scope).await;
+        let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
+        let due = Utc::now() + Duration::days(5);
+
+        // Act
+
+        let after = service.set_due(element_id, due).await.unwrap();
+
+        // Assert
+
+        assert_eq!(due.timestamp(), after.due.timestamp());
+        assert_eq!(0.0, after.interval_days);
+        assert!(after.last_reviewed.is_none());
+        assert!(after.finished_at.is_none());
+    }
+
+    #[tokio::test]
+    async fn set_due_folder_returns_not_schedulable() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
+        let folder_id = ElementId::Folder(Uuid::new_v4());
+
+        // Act
+
+        let result = service.set_due(folder_id, Utc::now()).await;
+
+        // Assert
+
+        assert!(matches!(
+            result,
+            Err(LearningAssetSchedulingError::NotSchedulable)
+        ));
     }
 }

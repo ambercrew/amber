@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -29,6 +30,12 @@ pub trait CardGradingService: Send + Sync {
 
     // Resets the cards review as if it was newly created.
     async fn reset(&self, card_ids: Vec<Uuid>) -> Result<(), GradeCardError>;
+
+    async fn set_due(
+        &self,
+        card_id: Uuid,
+        due: DateTime<Utc>,
+    ) -> Result<CardReview, GradeCardError>;
 }
 
 #[derive(Debug, Error)]

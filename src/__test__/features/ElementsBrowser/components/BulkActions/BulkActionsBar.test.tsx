@@ -134,6 +134,25 @@ describe("BulkActionsBar", () => {
 		).toBeInTheDocument();
 	});
 
+	it("Should open the set due date modal when Set due date is clicked", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		render();
+
+		// Act
+
+		await openActionsMenu(user);
+		await openSubmenu("Reschedule");
+		fireEvent.click(await screen.findByText("Set due date"));
+
+		// Assert
+
+		expect(
+			await screen.findByRole("heading", { name: "Set due date" }),
+		).toBeInTheDocument();
+	});
+
 	it("Should open the set study profile modal when Set study profile is clicked", async () => {
 		// Arrange
 

@@ -21,7 +21,9 @@ use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::services::card_grading_service::CardGradingService;
 use crate::study::services::due_elements_service::DueElementsService;
-use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
+use crate::study::services::learning_asset_scheduling_service::{
+    LearningAssetSchedulingError, LearningAssetSchedulingService,
+};
 use crate::study::value_objects::fuzz_factor_configuration::{
     FUZZ_FACTOR_CONFIGURATION_NAME, FuzzFactorConfiguration,
 };
@@ -237,6 +239,61 @@ pub async fn unfinish_learning_assets_bulk(
         .await
         .unfinish_many(element_ids)
         .await?;
+    scope.save_changes().await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_element_due(
+    injector: State<'_, Arc<Injector>>,
+    element_id: ElementId,
+    due: DateTime<Utc>,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    match element_id {
+        ElementId::Card(card_id) => {
+            scope
+                .resolve::<dyn CardGradingService>()
+                .await
+                .set_due(card_id, due)
+                .await?;
+        }
+        _ => match scope
+            .resolve::<dyn LearningAssetSchedulingService>()
+            .await
+            .set_due(element_id, due)
+            .await
+        {
+            Ok(_) | Err(LearningAssetSchedulingError::NotSchedulable) => {}
+            Err(err) => return Err(err.into()),
+        },
+    }
+    scope.save_changes().await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_element_due_bulk(
+    injector: State<'_, Arc<Injector>>,
+    element_ids: Vec<ElementId>,
+    due: DateTime<Utc>,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    let card_service = scope.resolve::<dyn CardGradingService>().await;
+    let learning_asset_service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
+
+    for element_id in element_ids {
+        match element_id {
+            ElementId::Card(card_id) => {
+                card_service.set_due(card_id, due).await?;
+            }
+            _ => match learning_asset_service.set_due(element_id, due).await {
+                Ok(_) | Err(LearningAssetSchedulingError::NotSchedulable) => {}
+                Err(err) => return Err(err.into()),
+            },
+        }
+    }
+
     scope.save_changes().await?;
     Ok(())
 }

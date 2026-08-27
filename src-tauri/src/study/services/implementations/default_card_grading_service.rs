@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
 
+use crate::common::event_manager::EventManager;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::study::entities::card_review::CardReview;
 use crate::study::entities::card_review_log::CardReviewLog;
 use crate::study::entities::study_profile::StudyProfile;
+use crate::study::events::element_due_changed_event::emit_element_due_changed;
 use crate::study::repositories::card_review_log_repository::CardReviewLogRepository;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::services::card_grading_service::{CardGradingService, GradeCardError};
@@ -20,6 +22,7 @@ pub struct DefaultCardGradingService {
     card_review_repository: Arc<dyn CardReviewRepository>,
     card_review_log_repository: Arc<dyn CardReviewLogRepository>,
     profile_resolution_service: Arc<dyn ProfileResolutionService>,
+    event_manager: Arc<dyn EventManager>,
 }
 
 #[async_trait]
@@ -70,7 +73,20 @@ impl CardGradingService for DefaultCardGradingService {
             let review = CardReview::new_for_profile(card_id, &profile);
             self.card_review_repository.upsert(&review).await?;
         }
+        emit_element_due_changed(&self.event_manager).await;
         Ok(())
+    }
+
+    async fn set_due(
+        &self,
+        card_id: Uuid,
+        due: DateTime<Utc>,
+    ) -> Result<CardReview, GradeCardError> {
+        let (mut review, _) = self.scheduling_inputs(card_id).await?;
+        review.due = due;
+        self.card_review_repository.upsert(&review).await?;
+        emit_element_due_changed(&self.event_manager).await;
+        Ok(review)
     }
 }
 
@@ -279,5 +295,61 @@ mod tests {
         assert_eq!(0, actual.lapses);
         assert_eq!(0, actual.learning_steps);
         assert!(actual.last_reviewed.is_none());
+    }
+
+    #[tokio::test]
+    async fn set_due_reviewed_card_updates_due_without_changing_fsrs_fields() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_id = create_test_card(&scope).await;
+        let service = scope.resolve::<dyn CardGradingService>().await;
+        let review = scheduled_review(card_id);
+        service
+            .register_review(review.clone(), Rating::Good, None)
+            .await
+            .unwrap();
+        let due = Utc::now() + Duration::days(7);
+
+        // Act
+
+        let actual = service.set_due(card_id, due).await.unwrap();
+
+        // Assert
+
+        assert_eq!(due.timestamp(), actual.due.timestamp());
+        assert_eq!(review.reps, actual.reps);
+        assert_eq!(review.state, actual.state);
+        assert_eq!(review.stability, actual.stability);
+        assert_eq!(review.difficulty, actual.difficulty);
+    }
+
+    #[tokio::test]
+    async fn set_due_card_without_a_stored_review_creates_a_review_with_the_given_due() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_id = create_test_card(&scope).await;
+        let service = scope.resolve::<dyn CardGradingService>().await;
+        let due = Utc::now() + Duration::days(3);
+
+        // Act
+
+        let actual = service.set_due(card_id, due).await.unwrap();
+        let stored = scope
+            .resolve::<dyn CardReviewRepository>()
+            .await
+            .get_by_card_id(card_id)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(due.timestamp(), actual.due.timestamp());
+        assert_eq!(due.timestamp(), stored.due.timestamp());
+        assert_eq!(CardState::New, stored.state);
     }
 }
