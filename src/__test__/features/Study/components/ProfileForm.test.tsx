@@ -30,6 +30,8 @@ function makeProfile(
 		isDefault: false,
 		desiredRetention: 0.9,
 		fsrsParams: Array.from({ length: 21 }, (_, index) => index * 0.1),
+		learningSteps: [],
+		relearningSteps: [],
 		initialIntervalMultiplier: 1.2,
 		initialIntervalDays: 1,
 		minIntervalDays: 1,
@@ -226,6 +228,48 @@ describe("ProfileForm", () => {
 			await screen.findByText("Enter exactly 21 comma-separated numbers"),
 		).toBeVisible();
 		expect(updateStudyProfile).not.toHaveBeenCalled();
+	});
+
+	it("Should show the learning steps placeholder when the profile has no custom steps", () => {
+		// Arrange
+
+		const profile = makeProfile({ learningSteps: [] });
+
+		// Act
+
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Assert
+
+		expect(screen.getByPlaceholderText("1m, 10m")).toBeVisible();
+	});
+
+	it("Should hide the learning steps placeholder when the profile already has custom steps", () => {
+		// Arrange
+
+		const profile = makeProfile({ learningSteps: ["5m", "15m"] });
+
+		// Act
+
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Assert
+
+		expect(
+			screen.queryByPlaceholderText("1m, 10m"),
+		).not.toBeInTheDocument();
 	});
 
 	it("Should call cloneStudyProfile and only onSaved when Clone is clicked", async () => {

@@ -3,6 +3,7 @@ import {
 	Group,
 	NumberInput,
 	Stack,
+	TagsInput,
 	Text,
 	Textarea,
 	TextInput,
@@ -21,6 +22,7 @@ import {
 	StudyProfileRequestDto,
 } from "../../../api/study/dto/studyProfileDto";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import FieldLabel from "../../../components/FieldLabel/FieldLabel";
 
 interface ProfileFormProps {
 	profile: StudyProfileDto | null;
@@ -58,12 +60,22 @@ function isValidFsrsParams(raw: string): boolean {
 	);
 }
 
+// Matches ts-fsrs's StepUnit: a positive number followed by a time unit
+// (minutes, hours or days), e.g. "1m", "10m", "1d".
+const STEP_UNIT_PATTERN = /^\d+(\.\d+)?[mhd]$/;
+
+function isValidSteps(steps: string[]): boolean {
+	return steps.every(step => STEP_UNIT_PATTERN.test(step));
+}
+
 function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 	const form = useForm<ProfileFormValues>({
 		initialValues: {
 			name: profile?.name ?? "New profile",
 			desiredRetention: profile?.desiredRetention ?? 0.9,
 			fsrsParams: (profile?.fsrsParams ?? DEFAULT_FSRS_PARAMS).join(", "),
+			learningSteps: profile?.learningSteps ?? [],
+			relearningSteps: profile?.relearningSteps ?? [],
 			initialIntervalMultiplier:
 				profile?.initialIntervalMultiplier ?? 1.2,
 			initialIntervalDays: profile?.initialIntervalDays ?? 1,
@@ -74,6 +86,14 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 				isValidFsrsParams(value)
 					? null
 					: `Enter exactly ${FSRS_PARAM_COUNT} comma-separated numbers`,
+			learningSteps: value =>
+				isValidSteps(value)
+					? null
+					: "Each step must be a number followed by m, h or d (e.g. 1m, 10m, 1d)",
+			relearningSteps: value =>
+				isValidSteps(value)
+					? null
+					: "Each step must be a number followed by m, h or d (e.g. 1m, 10m, 1d)",
 		},
 	});
 
@@ -125,62 +145,101 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 	return (
 		<form onSubmit={form.onSubmit(values => void handleSubmit(values))}>
 			<Stack gap="sm">
-				<AppTooltip label="A label to identify this profile." multiline>
-					<TextInput label="Name" {...form.getInputProps("name")} />
-				</AppTooltip>
-				<AppTooltip
-					label="The probability of recall FSRS aims for when scheduling cards. Higher retention means more frequent reviews."
-					multiline>
-					<NumberInput
-						label="Desired retention"
-						min={0.7}
-						max={0.99}
-						step={0.01}
-						decimalScale={2}
-						{...form.getInputProps("desiredRetention")}
-					/>
-				</AppTooltip>
-				<AppTooltip
-					label="Advanced: the FSRS model weights used to schedule cards. Leave as-is unless you know what you're doing."
-					multiline>
-					<Textarea
-						label="FSRS weights"
-						autosize
-						minRows={2}
-						{...form.getInputProps("fsrsParams")}
-					/>
-				</AppTooltip>
-				<AppTooltip
-					label="Starting multiplier applied to the interval each time an incremental learning asset or extract is revisited. Copied onto each learning asset/extract when it's created; editing this afterwards only affects newly created ones."
-					multiline>
-					<NumberInput
-						label="Initial interval multiplier"
-						min={0}
-						step={0.1}
-						decimalScale={2}
-						{...form.getInputProps("initialIntervalMultiplier")}
-					/>
-				</AppTooltip>
-				<AppTooltip
-					label="Days until the first due date for learning assets, extracts and cards created under this profile."
-					multiline>
-					<NumberInput
-						label="Initial interval (days)"
-						min={0}
-						step={1}
-						{...form.getInputProps("initialIntervalDays")}
-					/>
-				</AppTooltip>
-				<AppTooltip
-					label="Floor applied to computed intervals, so incremental learning asset items are never scheduled sooner than this."
-					multiline>
-					<NumberInput
-						label="Min interval (days)"
-						min={0}
-						step={1}
-						{...form.getInputProps("minIntervalDays")}
-					/>
-				</AppTooltip>
+				<TextInput
+					label={
+						<FieldLabel
+							label="Name"
+							tooltip="A label to identify this profile."
+						/>
+					}
+					{...form.getInputProps("name")}
+				/>
+				<NumberInput
+					label={
+						<FieldLabel
+							label="Desired retention"
+							tooltip="The probability of recall FSRS aims for when scheduling cards. Higher retention means more frequent reviews."
+						/>
+					}
+					min={0.7}
+					max={0.99}
+					step={0.01}
+					decimalScale={2}
+					{...form.getInputProps("desiredRetention")}
+				/>
+				<Textarea
+					label={
+						<FieldLabel
+							label="FSRS weights"
+							tooltip="Advanced: the FSRS model weights used to schedule cards. Leave as-is unless you know what you're doing."
+						/>
+					}
+					autosize
+					minRows={2}
+					{...form.getInputProps("fsrsParams")}
+				/>
+				<TagsInput
+					label={
+						<FieldLabel
+							label="Learning steps"
+							tooltip="Same-day intervals a new card repeats before entering the long-term review schedule (e.g. 1m, 10m). Leave empty to use the default steps."
+						/>
+					}
+					placeholder={
+						form.values.learningSteps.length === 0
+							? "1m, 10m"
+							: undefined
+					}
+					{...form.getInputProps("learningSteps")}
+				/>
+				<TagsInput
+					label={
+						<FieldLabel
+							label="Relearning steps"
+							tooltip="Same-day intervals a card repeats after being rated Again before returning to the long-term review schedule (e.g. 10m). Leave empty to use the default steps."
+						/>
+					}
+					placeholder={
+						form.values.relearningSteps.length === 0
+							? "10m"
+							: undefined
+					}
+					{...form.getInputProps("relearningSteps")}
+				/>
+				<NumberInput
+					label={
+						<FieldLabel
+							label="Initial interval multiplier"
+							tooltip="Starting multiplier applied to the interval each time an incremental learning asset or extract is revisited. Copied onto each learning asset/extract when it's created; editing this afterwards only affects newly created ones."
+						/>
+					}
+					min={0}
+					step={0.1}
+					decimalScale={2}
+					{...form.getInputProps("initialIntervalMultiplier")}
+				/>
+				<NumberInput
+					label={
+						<FieldLabel
+							label="Initial interval (days)"
+							tooltip="Days until the first due date for learning assets, extracts and cards created under this profile."
+						/>
+					}
+					min={0}
+					step={1}
+					{...form.getInputProps("initialIntervalDays")}
+				/>
+				<NumberInput
+					label={
+						<FieldLabel
+							label="Min interval (days)"
+							tooltip="Floor applied to computed intervals, so incremental learning asset items are never scheduled sooner than this."
+						/>
+					}
+					min={0}
+					step={1}
+					{...form.getInputProps("minIntervalDays")}
+				/>
 
 				<Group justify="space-between" mt="sm">
 					<Group gap={4}>

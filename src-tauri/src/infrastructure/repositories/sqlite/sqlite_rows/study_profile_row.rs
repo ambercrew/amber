@@ -11,6 +11,8 @@ pub struct StudyProfileRow {
     pub is_default: bool,
     pub desired_retention: f64,
     pub fsrs_params: Option<String>,
+    pub learning_steps: Option<String>,
+    pub relearning_steps: Option<String>,
     pub initial_interval_multiplier: f64,
     pub initial_interval_days: f64,
     pub min_interval_days: f64,
@@ -28,6 +30,12 @@ impl From<StudyProfileRow> for StudyProfile {
             fsrs_params: row
                 .fsrs_params
                 .map(|json| serde_json::from_str(&json).expect("Invalid fsrs_params JSON")),
+            learning_steps: row
+                .learning_steps
+                .map(|json| serde_json::from_str(&json).expect("Invalid learning_steps JSON")),
+            relearning_steps: row
+                .relearning_steps
+                .map(|json| serde_json::from_str(&json).expect("Invalid relearning_steps JSON")),
             initial_interval_multiplier: row.initial_interval_multiplier as f32,
             initial_interval_days: row.initial_interval_days as f32,
             min_interval_days: row.min_interval_days as f32,

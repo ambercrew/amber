@@ -5,6 +5,7 @@ import {
 	State as FsrsState,
 	type Card as FsrsCard,
 	type Grade,
+	type Steps,
 } from "ts-fsrs";
 import { CardReviewDto } from "../../../api/study/dto/cardReviewDto";
 import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
@@ -43,6 +44,14 @@ export function createScheduler(profile: StudyProfileDto): FSRS {
 		generatorParameters({
 			w: profile.fsrsParams.length > 0 ? profile.fsrsParams : undefined,
 			request_retention: profile.desiredRetention,
+			learning_steps:
+				profile.learningSteps.length > 0
+					? (profile.learningSteps as Steps)
+					: undefined,
+			relearning_steps:
+				profile.relearningSteps.length > 0
+					? (profile.relearningSteps as Steps)
+					: undefined,
 		}),
 	);
 }

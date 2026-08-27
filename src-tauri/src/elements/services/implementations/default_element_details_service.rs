@@ -225,6 +225,8 @@ mod tests {
             is_default,
             desired_retention: 0.9,
             fsrs_params: None,
+            learning_steps: None,
+            relearning_steps: None,
             initial_interval_multiplier: 1.2,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,

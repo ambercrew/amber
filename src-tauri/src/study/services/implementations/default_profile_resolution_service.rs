@@ -12,11 +12,27 @@ use crate::study::repositories::study_profile_repository::StudyProfileRepository
 use crate::study::services::profile_resolution_service::{
     EffectiveProfile, ProfileResolutionError, ProfileResolutionService, ProfileSource,
 };
+use crate::study::value_objects::step_unit::StepUnit;
 
 const DEFAULT_DESIRED_RETENTION: f32 = 0.9;
 const DEFAULT_INTERVAL_MULTIPLIER: f32 = 1.2;
 const DEFAULT_INITIAL_INTERVAL_DAYS: f32 = 1.0;
 const DEFAULT_MIN_INTERVAL_DAYS: f32 = 1.0;
+
+/// Mirrors ts-fsrs's own `default_learning_steps`/`default_relearning_steps`.
+fn default_learning_steps() -> Vec<StepUnit> {
+    ["1m", "10m"]
+        .into_iter()
+        .map(|value| StepUnit::try_from(value.to_string()).expect("valid default step"))
+        .collect()
+}
+
+fn default_relearning_steps() -> Vec<StepUnit> {
+    ["10m"]
+        .into_iter()
+        .map(|value| StepUnit::try_from(value.to_string()).expect("valid default step"))
+        .collect()
+}
 
 #[derive(ScopeInjectable)]
 pub struct DefaultProfileResolutionService {
@@ -100,6 +116,8 @@ impl DefaultProfileResolutionService {
             is_default: true,
             desired_retention: DEFAULT_DESIRED_RETENTION,
             fsrs_params: Some(fsrs::DEFAULT_PARAMETERS.to_vec()),
+            learning_steps: Some(default_learning_steps()),
+            relearning_steps: Some(default_relearning_steps()),
             initial_interval_multiplier: DEFAULT_INTERVAL_MULTIPLIER,
             initial_interval_days: DEFAULT_INITIAL_INTERVAL_DAYS,
             min_interval_days: DEFAULT_MIN_INTERVAL_DAYS,

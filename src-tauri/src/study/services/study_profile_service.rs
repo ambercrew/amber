@@ -5,6 +5,7 @@ use uuid::Uuid;
 use crate::common::repository_error::RepositoryError;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::study::entities::study_profile::StudyProfile;
+use crate::study::value_objects::step_unit::StepUnit;
 
 /// FSRS models are trained on exactly this many weights.
 pub const FSRS_PARAM_COUNT: usize = 21;
@@ -18,6 +19,8 @@ pub struct StudyProfileFields {
     /// `None` means "use the default weights" on create, or "leave
     /// unchanged" on update.
     pub fsrs_params: Option<Vec<f32>>,
+    pub learning_steps: Option<Vec<StepUnit>>,
+    pub relearning_steps: Option<Vec<StepUnit>>,
     pub initial_interval_multiplier: f32,
     pub initial_interval_days: f32,
     pub min_interval_days: f32,

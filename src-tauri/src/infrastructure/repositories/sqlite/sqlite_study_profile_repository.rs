@@ -25,11 +25,19 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             .fsrs_params
             .as_ref()
             .map(|params| serde_json::to_string(params).expect("Cannot serialize fsrs_params"));
+        let learning_steps = profile
+            .learning_steps
+            .as_ref()
+            .map(|steps| serde_json::to_string(steps).expect("Cannot serialize learning_steps"));
+        let relearning_steps = profile
+            .relearning_steps
+            .as_ref()
+            .map(|steps| serde_json::to_string(steps).expect("Cannot serialize relearning_steps"));
 
         sqlx::query!(
             r#"INSERT INTO study_profiles
-                (id, created_at, modified_at, name, is_default, desired_retention, fsrs_params, initial_interval_multiplier, initial_interval_days, min_interval_days)
-            VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8, $9, $10)"#,
+                (id, created_at, modified_at, name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, initial_interval_multiplier, initial_interval_days, min_interval_days)
+            VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8, $9, $10, $11, $12)"#,
             profile.id.hyphenated(),
             profile.created_at,
             profile.modified_at,
@@ -37,6 +45,8 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             profile.is_default,
             profile.desired_retention,
             fsrs_params,
+            learning_steps,
+            relearning_steps,
             profile.initial_interval_multiplier,
             profile.initial_interval_days,
             profile.min_interval_days,
@@ -55,6 +65,14 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             .fsrs_params
             .as_ref()
             .map(|params| serde_json::to_string(params).expect("Cannot serialize fsrs_params"));
+        let learning_steps = profile
+            .learning_steps
+            .as_ref()
+            .map(|steps| serde_json::to_string(steps).expect("Cannot serialize learning_steps"));
+        let relearning_steps = profile
+            .relearning_steps
+            .as_ref()
+            .map(|steps| serde_json::to_string(steps).expect("Cannot serialize relearning_steps"));
 
         sqlx::query!(
             r#"UPDATE study_profiles SET
@@ -62,14 +80,18 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 is_default = $2,
                 desired_retention = $3,
                 fsrs_params = $4,
-                initial_interval_multiplier = $5,
-                initial_interval_days = $6,
-                min_interval_days = $7
-            WHERE id = $8"#,
+                learning_steps = $5,
+                relearning_steps = $6,
+                initial_interval_multiplier = $7,
+                initial_interval_days = $8,
+                min_interval_days = $9
+            WHERE id = $10"#,
             profile.name,
             profile.is_default,
             profile.desired_retention,
             fsrs_params,
+            learning_steps,
+            relearning_steps,
             profile.initial_interval_multiplier,
             profile.initial_interval_days,
             profile.min_interval_days,
@@ -107,6 +129,8 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 is_default as "is_default: bool",
                 desired_retention,
                 fsrs_params,
+                learning_steps,
+                relearning_steps,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days
@@ -134,6 +158,8 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 is_default as "is_default: bool",
                 desired_retention,
                 fsrs_params,
+                learning_steps,
+                relearning_steps,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days
@@ -169,6 +195,8 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 is_default as "is_default: bool",
                 desired_retention,
                 fsrs_params,
+                learning_steps,
+                relearning_steps,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days
@@ -188,9 +216,14 @@ mod tests {
     use chrono::Utc;
     use injector::{injector::Injector, register_scope};
 
+    use crate::study::value_objects::step_unit::StepUnit;
     use crate::test_utils::create_test_injector;
 
     use super::*;
+
+    fn step(value: &str) -> StepUnit {
+        StepUnit::try_from(value.to_string()).unwrap()
+    }
 
     async fn initialize_test_injector() -> Injector {
         let mut injector = create_test_injector().await;
@@ -212,6 +245,8 @@ mod tests {
             is_default,
             desired_retention: 0.9,
             fsrs_params: Some(vec![0.1, 0.2]),
+            learning_steps: Some(vec![step("1m"), step("10m")]),
+            relearning_steps: Some(vec![step("10m")]),
             initial_interval_multiplier: 1.2,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
@@ -236,6 +271,8 @@ mod tests {
 
         assert_eq!(profile.id, actual.id);
         assert_eq!(profile.fsrs_params, actual.fsrs_params);
+        assert_eq!(profile.learning_steps, actual.learning_steps);
+        assert_eq!(profile.relearning_steps, actual.relearning_steps);
     }
 
     #[tokio::test]

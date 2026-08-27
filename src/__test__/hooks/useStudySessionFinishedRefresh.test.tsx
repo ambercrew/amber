@@ -49,6 +49,8 @@ const PROFILE: StudyProfileDto = {
 	isDefault: true,
 	desiredRetention: 0.9,
 	fsrsParams: [],
+	learningSteps: [],
+	relearningSteps: [],
 	initialIntervalMultiplier: 1.2,
 	initialIntervalDays: 1,
 	minIntervalDays: 1,

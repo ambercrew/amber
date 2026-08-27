@@ -13,9 +13,18 @@ const PROFILE: StudyProfileDto = {
 	desiredRetention: 0.9,
 	// Empty means "use the FSRS defaults".
 	fsrsParams: [],
+	learningSteps: [],
+	relearningSteps: [],
 	initialIntervalMultiplier: 1.2,
 	initialIntervalDays: 1,
 	minIntervalDays: 1,
+};
+
+const CUSTOM_STEPS_PROFILE: StudyProfileDto = {
+	...PROFILE,
+	id: "profile-2",
+	learningSteps: ["5m", "15m"],
+	relearningSteps: ["30m"],
 };
 
 const NEW_CARD: CardReviewDto = {
@@ -146,5 +155,43 @@ describe("scheduleAllRatings", () => {
 		expect(
 			Object.values(actual).map(scheduled => scheduled.cardId),
 		).toEqual(["card-1", "card-1", "card-1", "card-1"]);
+	});
+
+	it("Should use the profile's learning steps instead of the ts-fsrs defaults when rated Again", () => {
+		// Arrange
+
+		const review = NEW_CARD;
+
+		// Act
+
+		const actual = scheduleAllRatings(
+			CUSTOM_STEPS_PROFILE,
+			review,
+			NOW,
+		).again;
+
+		// Assert
+
+		expect(actual.state).toBe("learning");
+		expect(minutesUntilDue(actual.due)).toBe(5);
+	});
+
+	it("Should use the profile's relearning steps instead of the ts-fsrs defaults when a review card is rated Again", () => {
+		// Arrange
+
+		const review = REVIEW_CARD;
+
+		// Act
+
+		const actual = scheduleAllRatings(
+			CUSTOM_STEPS_PROFILE,
+			review,
+			NOW,
+		).again;
+
+		// Assert
+
+		expect(actual.state).toBe("relearning");
+		expect(minutesUntilDue(actual.due)).toBe(30);
 	});
 });
