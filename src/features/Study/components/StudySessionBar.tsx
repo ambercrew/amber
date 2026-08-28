@@ -152,7 +152,7 @@ function StudySessionBar() {
 			</Box>
 
 			{answerHidden ? (
-				<AppTooltip shortcut={SHOW_ANSWER_SHORTCUT}>
+				<AppTooltip touch shortcut={SHOW_ANSWER_SHORTCUT}>
 					<Button
 						variant="default"
 						size="sm"
@@ -165,6 +165,7 @@ function StudySessionBar() {
 					{RATINGS.map(({ rating, label, shortcut }) => (
 						<AppTooltip
 							key={rating}
+							touch
 							label={
 								cardDuePreview &&
 								formatRelativeDueDate(
@@ -184,6 +185,7 @@ function StudySessionBar() {
 			) : (
 				<Group gap="xs" wrap="nowrap" align="flex-end">
 					<AppTooltip
+						touch
 						label="Move to the end of the queue"
 						shortcut="1">
 						<Button
@@ -198,6 +200,7 @@ function StudySessionBar() {
 						</Button>
 					</AppTooltip>
 					<AppTooltip
+						touch
 						label={
 							nextLearningAssetDue &&
 							formatRelativeDueDate(nextLearningAssetDue)
@@ -214,7 +217,7 @@ function StudySessionBar() {
 							Next
 						</Button>
 					</AppTooltip>
-					<AppTooltip label="Won't repeat" shortcut="3">
+					<AppTooltip touch label="Won't repeat" shortcut="3">
 						<Button
 							variant="default"
 							size="sm"

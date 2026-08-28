@@ -19,6 +19,7 @@ function FieldLabel({ label, tooltip }: FieldLabelProps) {
 				label={tooltip}
 				multiline
 				w={260}
+				touch
 				events={{ focus: true }}>
 				<InfoIcon />
 			</AppTooltip>

@@ -10,7 +10,7 @@ Amber is a Tauri 2 desktop app (React 19 frontend, Rust backend) for incremental
 
 - Use **Mantine** (`@mantine/core`, `@mantine/hooks`) components for all UI. Prefer built-in Mantine components over building custom ones.
 - Use **`@phosphor-icons/react`** for icons.
-- Use **`AppTooltip`** (`src/components/AppTooltip/AppTooltip.tsx`) instead of Mantine's `Tooltip` — it takes the same props, but it also opens on tap (Mantine's tooltips are hover-only, so touch users can never read them) and accepts a `shortcut` prop (raw `useHotkeys` notation, e.g. `"mod+K"`). Never hand-append a shortcut to a tooltip label.
+- Use **`AppTooltip`** (`src/components/AppTooltip/AppTooltip.tsx`) instead of Mantine's `Tooltip` — it takes the same props and accepts a `shortcut` prop (raw `useHotkeys` notation, e.g. `"mod+K"`). Never hand-append a shortcut to a tooltip label. Pass `touch` to also open on tap, but only on targets whose meaning is otherwise unreachable on touch (info icons, study session buttons) — not on action buttons whose label is already visible.
 - **Never display a keyboard shortcut on touch input** — there's no keyboard to press it with. Every shortcut shown in the UI must be rendered through `useShortcutDisplay()` (`src/commands/useShortcutDisplay.ts`), which formats it and yields `undefined` on a coarse pointer; `AppTooltip`'s `shortcut` prop and `useCommandShortcut(id)` already go through it. Never call `formatShortcut` directly from a component.
 - Avoid custom CSS. Use Mantine's built-in style props (`p`, `px`, `h`, `w`, `gap`, `justify`, `align`) and inline `style` objects only when Mantine props are insufficient. Do not create `.module.css` files for layout or cosmetic concerns that Mantine already covers.
 
