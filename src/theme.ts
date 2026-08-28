@@ -206,7 +206,10 @@ const lightVariantColors = Object.fromEntries(
 );
 
 export const cssVariablesResolver: CSSVariablesResolver = () => ({
-	variables: {},
+	variables: {
+		"--selection-bg": "var(--mantine-color-blue-8)",
+		"--selection-color": "var(--mantine-color-white)",
+	},
 	light: {
 		"--mantine-color-body": lighten("var(--mantine-color-gray-0)", 0.8),
 		"--sidebar-bg": lighten("var(--mantine-color-gray-0)", 0.1),

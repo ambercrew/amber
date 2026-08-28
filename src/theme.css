@@ -1,0 +1,6 @@
+/* Wired from `--selection-*` in theme.ts; ::selection cannot be set via
+   Mantine style props. */
+::selection {
+	background-color: var(--selection-bg);
+	color: var(--selection-color);
+}
