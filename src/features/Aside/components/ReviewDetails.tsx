@@ -4,6 +4,7 @@ import { updateIntervalMultiplier } from "../../../api/elements/api/elementsApi"
 import { AnyElementDto } from "../../../api/elements/dto/anyElementDto";
 import { ElementDetailsResponseDto } from "../../../api/elements/dto/elementDetailsDto";
 import { ElementId } from "../../../types/elements/elementId";
+import ResetRepetitionsButton from "../../Study/components/ResetRepetitionsButton";
 import InfoField from "./InfoField";
 import InfoGroup from "./InfoGroup";
 
@@ -122,6 +123,7 @@ function ReviewDetails({ element, details }: ReviewDetailsProps) {
 						{formatDateTime(cardReview?.lastReviewed ?? null)}
 					</Text>
 				</InfoField>
+				<ResetRepetitionsButton elementId={elementId} />
 			</InfoGroup>
 		);
 	}
