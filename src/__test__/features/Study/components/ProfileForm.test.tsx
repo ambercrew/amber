@@ -230,7 +230,7 @@ describe("ProfileForm", () => {
 		expect(updateStudyProfile).not.toHaveBeenCalled();
 	});
 
-	it("Should show the learning steps placeholder when the profile has no custom steps", () => {
+	it("Should render an empty learning steps input when the profile has no custom steps", () => {
 		// Arrange
 
 		const profile = makeProfile({ learningSteps: [] });
@@ -247,10 +247,10 @@ describe("ProfileForm", () => {
 
 		// Assert
 
-		expect(screen.getByPlaceholderText("1m, 10m")).toBeVisible();
+		expect(screen.getByPlaceholderText("1m 10m")).toHaveValue("");
 	});
 
-	it("Should hide the learning steps placeholder when the profile already has custom steps", () => {
+	it("Should render the learning steps separated by spaces when the profile has custom steps", () => {
 		// Arrange
 
 		const profile = makeProfile({ learningSteps: ["5m", "15m"] });
@@ -268,8 +268,73 @@ describe("ProfileForm", () => {
 		// Assert
 
 		expect(
-			screen.queryByPlaceholderText("1m, 10m"),
-		).not.toBeInTheDocument();
+			screen.getByRole("textbox", { name: "Learning steps" }),
+		).toHaveValue("5m 15m");
+	});
+
+	it("Should submit the steps as a list when they are typed separated by spaces", async () => {
+		// Arrange
+
+		const profile = makeProfile();
+		vi.mocked(updateStudyProfile).mockResolvedValue(profile);
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Act
+
+		await user.type(
+			screen.getByRole("textbox", { name: "Learning steps" }),
+			"1m 10m 1d",
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// Assert
+
+		await waitFor(() => {
+			expect(updateStudyProfile).toHaveBeenCalledWith(
+				profile.id,
+				expect.objectContaining({
+					learningSteps: ["1m", "10m", "1d"],
+				}),
+			);
+		});
+	});
+
+	it("Should show a validation error when a step is not a number followed by a unit", async () => {
+		// Arrange
+
+		const profile = makeProfile();
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Act
+
+		await user.type(
+			screen.getByRole("textbox", { name: "Learning steps" }),
+			"1m bogus",
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// Assert
+
+		expect(
+			await screen.findByText(
+				"Each space-separated step must be a number followed by m, h or d (e.g. 1m 10m 1d)",
+			),
+		).toBeVisible();
+		expect(updateStudyProfile).not.toHaveBeenCalled();
 	});
 
 	it("Should call cloneStudyProfile and only onSaved when Clone is clicked", async () => {

@@ -3,7 +3,6 @@ import {
 	Group,
 	NumberInput,
 	Stack,
-	TagsInput,
 	Text,
 	Textarea,
 	TextInput,
@@ -38,8 +37,13 @@ const DEFAULT_FSRS_PARAMS = [
 	0.0912, 0.0658, 0.1542,
 ];
 
-interface ProfileFormValues extends Omit<StudyProfileRequestDto, "fsrsParams"> {
+interface ProfileFormValues extends Omit<
+	StudyProfileRequestDto,
+	"fsrsParams" | "learningSteps" | "relearningSteps"
+> {
 	fsrsParams: string;
+	learningSteps: string;
+	relearningSteps: string;
 }
 
 function parseFsrsParams(raw: string): number[] {
@@ -64,8 +68,12 @@ function isValidFsrsParams(raw: string): boolean {
 // (minutes, hours or days), e.g. "1m", "10m", "1d".
 const STEP_UNIT_PATTERN = /^\d+(\.\d+)?[mhd]$/;
 
-function isValidSteps(steps: string[]): boolean {
-	return steps.every(step => STEP_UNIT_PATTERN.test(step));
+function parseSteps(raw: string): string[] {
+	return raw.split(/\s+/).filter(step => step.length > 0);
+}
+
+function isValidSteps(raw: string): boolean {
+	return parseSteps(raw).every(step => STEP_UNIT_PATTERN.test(step));
 }
 
 function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
@@ -74,8 +82,8 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 			name: profile?.name ?? "New profile",
 			desiredRetention: profile?.desiredRetention ?? 0.9,
 			fsrsParams: (profile?.fsrsParams ?? DEFAULT_FSRS_PARAMS).join(", "),
-			learningSteps: profile?.learningSteps ?? [],
-			relearningSteps: profile?.relearningSteps ?? [],
+			learningSteps: (profile?.learningSteps ?? []).join(" "),
+			relearningSteps: (profile?.relearningSteps ?? []).join(" "),
 			initialIntervalMultiplier:
 				profile?.initialIntervalMultiplier ?? 1.2,
 			initialIntervalDays: profile?.initialIntervalDays ?? 1,
@@ -89,11 +97,11 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 			learningSteps: value =>
 				isValidSteps(value)
 					? null
-					: "Each step must be a number followed by m, h or d (e.g. 1m, 10m, 1d)",
+					: "Each space-separated step must be a number followed by m, h or d (e.g. 1m 10m 1d)",
 			relearningSteps: value =>
 				isValidSteps(value)
 					? null
-					: "Each step must be a number followed by m, h or d (e.g. 1m, 10m, 1d)",
+					: "Each space-separated step must be a number followed by m, h or d (e.g. 1m 10m 1d)",
 		},
 	});
 
@@ -101,6 +109,8 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 		const payload: StudyProfileRequestDto = {
 			...values,
 			fsrsParams: parseFsrsParams(values.fsrsParams),
+			learningSteps: parseSteps(values.learningSteps),
+			relearningSteps: parseSteps(values.relearningSteps),
 		};
 		if (profile) {
 			await updateStudyProfile(profile.id, payload);
@@ -178,32 +188,24 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 					minRows={2}
 					{...form.getInputProps("fsrsParams")}
 				/>
-				<TagsInput
+				<TextInput
 					label={
 						<FieldLabel
 							label="Learning steps"
-							tooltip="Same-day intervals a new card repeats before entering the long-term review schedule (e.g. 1m, 10m). Leave empty to use the default steps."
+							tooltip="Same-day intervals a new card repeats before entering the long-term review schedule, separated by spaces (e.g. 1m 10m). Leave empty to use the default steps."
 						/>
 					}
-					placeholder={
-						form.values.learningSteps.length === 0
-							? "1m, 10m"
-							: undefined
-					}
+					placeholder="1m 10m"
 					{...form.getInputProps("learningSteps")}
 				/>
-				<TagsInput
+				<TextInput
 					label={
 						<FieldLabel
 							label="Relearning steps"
-							tooltip="Same-day intervals a card repeats after being rated Again before returning to the long-term review schedule (e.g. 10m). Leave empty to use the default steps."
+							tooltip="Same-day intervals a card repeats after being rated Again before returning to the long-term review schedule, separated by spaces (e.g. 10m). Leave empty to use the default steps."
 						/>
 					}
-					placeholder={
-						form.values.relearningSteps.length === 0
-							? "10m"
-							: undefined
-					}
+					placeholder="10m"
 					{...form.getInputProps("relearningSteps")}
 				/>
 				<NumberInput
