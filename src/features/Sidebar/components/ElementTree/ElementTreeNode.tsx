@@ -51,6 +51,7 @@ function ElementTreeNode({
 	const { type, childrenCount } = node.nodeProps as ElementNodeProps;
 	const id = node.value;
 	const label = typeof node.label === "string" ? node.label : node.value;
+	const labelWithCount = `${label} (${childrenCount})`;
 	const [isHovered, setIsHovered] = useState(false);
 	const coarsePointer = useIsCoarsePointer();
 	// Only controls the menu with three dots.
@@ -112,13 +113,13 @@ function ElementTreeNode({
 						onClose={onRenameClose}
 					/>
 				) : (
-					<AppTooltip label={label} openDelay={500}>
+					<AppTooltip label={labelWithCount} openDelay={500}>
 						<Highlight
 							highlight={search}
 							flex={1}
 							truncate="end"
 							aria-label={label}>
-							{`${label} (${childrenCount})`}
+							{labelWithCount}
 						</Highlight>
 					</AppTooltip>
 				)}
