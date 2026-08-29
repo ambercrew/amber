@@ -3,6 +3,8 @@ pub mod engine;
 pub mod errors;
 pub mod hlc;
 pub mod implementations;
+pub mod post_sync_task;
+pub mod post_sync_tasks;
 pub mod sql_functions;
 pub mod store;
 pub mod sync_api;

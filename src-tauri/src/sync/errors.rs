@@ -2,6 +2,7 @@ use thiserror::Error;
 
 use crate::backend::clients::amber_backend_client::AmberBackendClientError;
 use crate::database::transaction_manager::TransactionManagerError;
+use crate::sync::post_sync_task::PostSyncTaskError;
 
 #[derive(Debug, Error)]
 pub enum SyncError {
@@ -60,6 +61,9 @@ pub enum SyncError {
 
     #[error("Sync request to the backend failed: {0}")]
     Backend(#[from] AmberBackendClientError),
+
+    #[error("A post-sync task failed: {0}")]
+    PostSyncTask(#[from] PostSyncTaskError),
 
     #[error("Failed to commit sync progress")]
     Transaction(#[from] TransactionManagerError),

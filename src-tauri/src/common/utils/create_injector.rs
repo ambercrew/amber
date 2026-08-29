@@ -76,6 +76,8 @@ use crate::secrets::repositories::secrets_repository::SecretsRepository;
 use crate::settings::entities::settings::Settings;
 use crate::settings::repositories::settings_repository::SettingsRepository;
 use crate::sync::engine::SyncEngine;
+use crate::sync::post_sync_task::PostSyncTask;
+use crate::sync::post_sync_tasks::PostSyncTasks;
 use crate::sync::store::SyncStore;
 #[cfg(not(test))]
 use crate::settings::value_objects::settings_profile::SettingsProfile;
@@ -100,6 +102,7 @@ use crate::study::services::implementations::default_due_elements_service::Defau
 use crate::study::services::implementations::default_profile_resolution_service::DefaultProfileResolutionService;
 use crate::study::services::implementations::default_learning_asset_scheduling_service::DefaultLearningAssetSchedulingService;
 use crate::study::services::implementations::default_study_profile_service::DefaultStudyProfileService;
+use crate::study::services::implementations::single_default_profile_post_sync_task::SingleDefaultProfilePostSyncTask;
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
 use crate::study::services::study_profile_service::StudyProfileService;
@@ -221,6 +224,7 @@ pub async fn create_injector<R: tauri::Runtime>(
         dyn SyncEngine,
         crate::sync::implementations::default_sync_engine::DefaultSyncEngine
     );
+    register_post_sync_tasks(&mut injector);
 
     // Elements
 
@@ -375,6 +379,18 @@ pub async fn create_injector<R: tauri::Runtime>(
     injector.register_singleton(Arc::new(app_data_directory.clone()));
 
     injector
+}
+
+fn register_post_sync_tasks(injector: &mut Injector) {
+    register_scope!(injector, SingleDefaultProfilePostSyncTask);
+
+    injector.register_scope_factory::<PostSyncTasks>(|scope| {
+        Box::pin(async move {
+            let tasks: Vec<Arc<dyn PostSyncTask>> =
+                vec![scope.resolve::<SingleDefaultProfilePostSyncTask>().await];
+            Arc::new(PostSyncTasks::new(tasks))
+        })
+    });
 }
 
 pub fn register_scoped_tx(injector: &mut Injector) {

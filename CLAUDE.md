@@ -107,6 +107,8 @@ The `SyncEngine` (`sync/engine.rs`, impl: `sync/implementations/default_sync_eng
 
 **BLOB primary keys are incompatible with sync** — a synced table's primary key is serialized as JSON text for the cell's `row_id`, so BLOB-affinity PKs are rejected at registration (`SyncError::InvalidPrimaryKey`, `sync/implementations/sqlite_sync_store/column_info.rs`). Keep synced PKs TEXT-affinity (e.g. hyphenated UUID strings).
 
+**Invariants spanning rows** (only one default study profile, say) survive cell-level LWW as a `PostSyncTask` (`sync/post_sync_task.rs`) implemented in the owning module and registered in `create_injector.rs`'s `register_post_sync_tasks`; the engine runs them between applying remote cells and pushing. Each must be deterministic — decide from `created_at`/`id`, never local time or `modified_at`.
+
 ### Naming Conventions
 
 - DTOs: `*RequestDto`, `*ResponseDto` (used at the API boundary)

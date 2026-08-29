@@ -10,6 +10,7 @@ use crate::generated_code::ChangeBatch;
 use crate::sync::engine::SyncEngine;
 use crate::sync::errors::SyncError;
 use crate::sync::hlc::Hlc;
+use crate::sync::post_sync_tasks::PostSyncTasks;
 use crate::sync::store::SyncStore;
 use crate::sync::sync_lock::SyncLock;
 
@@ -20,6 +21,7 @@ pub struct DefaultSyncEngine {
     connection_manager: Arc<dyn DatabaseConnectionManager>,
     transaction_manager: Arc<dyn TransactionManager>,
     sync_lock: Arc<SyncLock>,
+    post_sync_tasks: Arc<PostSyncTasks>,
 }
 
 #[async_trait]
@@ -97,6 +99,8 @@ impl DefaultSyncEngine {
             }
         }
 
+        self.run_post_sync_tasks().await?;
+
         let batch = self.store.changes_since_last_push().await?;
         let up_to_hlc = batch
             .cells
@@ -106,6 +110,15 @@ impl DefaultSyncEngine {
         if let Some(up_to_hlc) = up_to_hlc {
             self.backend_client.push_changes(batch).await?;
             self.store.mark_pushed(&up_to_hlc).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn run_post_sync_tasks(&self) -> Result<(), SyncError> {
+        for task in self.post_sync_tasks.iter() {
+            log::debug!("Running post-sync task '{}'", task.name());
+            task.run().await?;
         }
 
         Ok(())
@@ -125,6 +138,7 @@ mod tests {
     use crate::generated_code::{CellChange, PullResponse};
     use crate::infrastructure::value_objects::db_transaction::DbTransaction;
     use crate::sync::hlc::DeviceId;
+    use crate::sync::post_sync_task::MockPostSyncTask;
     use crate::sync::utils::merge;
     use crate::sync::value_objects::fk_constraint::FkConstraint;
     use crate::sync::value_objects::fk_policy::FkPolicy;
@@ -552,5 +566,54 @@ mod tests {
                 .any(|cell| cell.tbl == "children" && cell.col == merge::DELETED_COL),
             "{pushed:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn sync_registered_post_sync_task_runs_it_before_pushing_local_changes() {
+        // Arrange
+
+        let mut sequence = Sequence::new();
+        let mut backend_client = MockAmberBackendClient::new();
+        backend_client.expect_pull_changes().returning(|_| {
+            Ok(PullResponse {
+                cells: vec![],
+                next_server_seq: 0,
+                has_more: false,
+            })
+        });
+
+        let mut task = MockPostSyncTask::new();
+        task.expect_name().returning(|| "test task");
+        task.expect_run()
+            .times(1)
+            .in_sequence(&mut sequence)
+            .returning(|| Ok(()));
+        backend_client
+            .expect_push_changes()
+            .times(1)
+            .in_sequence(&mut sequence)
+            .returning(|_| Ok(()));
+
+        let mut injector = initialize_test_injector(backend_client).await;
+        let task: Arc<dyn crate::sync::post_sync_task::PostSyncTask> = Arc::new(task);
+        injector.register_scope_factory::<PostSyncTasks>(move |_| {
+            let task = task.clone();
+            Box::pin(async move { Arc::new(PostSyncTasks::new(vec![task])) })
+        });
+
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        create_notes_table(&tx).await;
+        let store = scope.resolve::<dyn SyncStore>().await;
+        store
+            .register_table("notes", Granularity::Row, &[])
+            .await
+            .unwrap();
+        insert_note(&tx, "1", "Local", "Body").await;
+        let engine = scope.resolve::<DefaultSyncEngine>().await;
+
+        // Act & Assert
+
+        engine.sync().await.unwrap();
     }
 }

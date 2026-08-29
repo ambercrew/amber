@@ -4,6 +4,7 @@ use thiserror::Error;
 use crate::common::repository_error::RepositoryError;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::study::entities::study_profile::StudyProfile;
+use crate::sync::errors::SyncError;
 
 #[async_trait]
 pub trait ProfileResolutionService: Send + Sync {
@@ -43,4 +44,7 @@ pub enum ProfileSource {
 pub enum ProfileResolutionError {
     #[error(transparent)]
     Repository(#[from] RepositoryError),
+
+    #[error(transparent)]
+    Sync(#[from] SyncError),
 }
