@@ -62,9 +62,9 @@ const studySlice = createSlice({
 		cardGraded: state => {
 			state.counts.cards += 1;
 		},
-		// Repositions a card that still needs revisiting later this session,
-		// rather than removing it from the pending queue.
-		cardRequeued: (
+		// Repositions an element that still needs revisiting later this
+		// session, rather than removing it from the pending queue.
+		elementRequeued: (
 			state,
 			action: PayloadAction<{ elementId: ElementId }>,
 		) => {
@@ -172,7 +172,7 @@ export const {
 	sessionStarted,
 	answerShown,
 	cardGraded,
-	cardRequeued,
+	elementRequeued,
 	learningAssetAdvanced,
 	learningAssetFinished,
 	learningAssetSkipped,

@@ -1,7 +1,10 @@
+import { notifications } from "@mantine/notifications";
 import { NavigateFunction } from "react-router";
 import {
 	registerCardReview,
+	getCardReview,
 	getDueElements,
+	getLearningAssetReview,
 	finishLearningAsset,
 	nextLearningAsset,
 } from "../../api/study/api/studyApi";
@@ -13,7 +16,7 @@ import { StudySessionLocationState } from "../../types/study/studySessionLocatio
 import { AppDispatch, RootState } from "../store";
 import {
 	cardGraded,
-	cardRequeued,
+	elementRequeued,
 	learningAssetAdvanced,
 	learningAssetFinished,
 	learningAssetSkipped,
@@ -23,6 +26,7 @@ import {
 } from "./studyReducer";
 import { selectStudyIndex } from "./studySelectors";
 import { STUDY_SESSION_FINISHED } from "../../types/events/studySessionFinishedEvent";
+import errorToString from "../../utils/errorToString";
 
 // A same-day relearning card is re-queued rather than dropped until "later
 // today" only if its new due time still falls within the live session.
@@ -60,17 +64,99 @@ export function gradeCardAction(
 		const dueInMs = new Date(review.due).getTime() - Date.now();
 		const needsRequeue = dueInMs <= SESSION_HORIZON_MS;
 		if (needsRequeue) {
-			dispatch(cardRequeued({ elementId }));
+			dispatch(elementRequeued({ elementId }));
 		}
 
 		advanceSession(
 			dispatch,
 			getState,
 			navigate,
-			needsRequeue ? null : elementId,
+			elementId,
+			!needsRequeue,
 			currentIndex,
 		);
 	};
+}
+
+// The backend announces every out-of-session schedule change (a due date set
+// by hand, an element finished, repetitions reset) with a single payload-less
+// event, so the session asks for the current element's own schedule before
+// deciding. Nothing to do while it is still due — an unrelated bulk change
+// elsewhere leaves it exactly as it was. Once it has been moved into the
+// future (or finished) it leaves the session the same way reviewing it would:
+// far enough out it's done for today, otherwise re-queued to come back later
+// this session. Either way the session moves on, so the chosen due date isn't
+// immediately overwritten by grading the very same element again.
+//
+// Only the element being viewed is reconciled: the event carries no payload,
+// so a change to some other queued element (a bulk reschedule, say) can't be
+// told apart from one that leaves the queue valid. Those elements keep their
+// place until the session reaches them.
+export function applyScheduleChangeAction(navigate: NavigateFunction) {
+	return async (dispatch: AppDispatch, getState: () => RootState) => {
+		const before = currentSessionElement(getState());
+		if (!before) return;
+
+		let schedule;
+		try {
+			schedule = await currentSchedule(before);
+		} catch (e) {
+			// No component owns this listener, so the failure is reported the
+			// same way the sync thunk reports its own.
+			// eslint-disable-next-line no-console
+			console.error(e);
+			notifications.show({ message: errorToString(e), color: "red" });
+			return;
+		}
+		if (!schedule) return;
+
+		// The session may have moved on while the schedule was being read.
+		const after = currentSessionElement(getState());
+		if (!after || !isSameElement(after.elementId, before.elementId)) return;
+
+		const dueInMs = new Date(schedule.due).getTime() - Date.now();
+		if (!schedule.finished && dueInMs <= 0) return;
+
+		const needsRequeue =
+			!schedule.finished && dueInMs <= SESSION_HORIZON_MS;
+		if (needsRequeue) {
+			dispatch(elementRequeued({ elementId: after.elementId }));
+		}
+
+		advanceSession(
+			dispatch,
+			getState,
+			navigate,
+			after.elementId,
+			!needsRequeue,
+			after.index,
+		);
+	};
+}
+
+// The element the session is on, which is always the one being viewed.
+function currentSessionElement(
+	state: RootState,
+): { elementId: ElementId; index: number } | null {
+	if (state.study.status !== "studying") return null;
+
+	const index = selectStudyIndex(state);
+	const elementId = state.study.queue[index]?.elementId;
+	return elementId ? { elementId, index } : null;
+}
+
+async function currentSchedule(current: {
+	elementId: ElementId;
+}): Promise<{ due: string; finished: boolean } | null> {
+	if (current.elementId.type === "card") {
+		const review = await getCardReview(current.elementId.id);
+		return review ? { due: review.due, finished: false } : null;
+	}
+
+	const review = await getLearningAssetReview(current.elementId);
+	return review
+		? { due: review.due, finished: review.finishedAt !== null }
+		: null;
 }
 
 export function nextLearningAssetAction(
@@ -81,7 +167,14 @@ export function nextLearningAssetAction(
 		const currentIndex = selectStudyIndex(getState());
 		await nextLearningAsset(elementId);
 		dispatch(learningAssetAdvanced({ elementType: elementId.type }));
-		advanceSession(dispatch, getState, navigate, elementId, currentIndex);
+		advanceSession(
+			dispatch,
+			getState,
+			navigate,
+			elementId,
+			true,
+			currentIndex,
+		);
 	};
 }
 
@@ -92,7 +185,14 @@ export function skipLearningAssetAction(
 	return (dispatch: AppDispatch, getState: () => RootState) => {
 		const currentIndex = selectStudyIndex(getState());
 		dispatch(learningAssetSkipped({ elementId }));
-		advanceSession(dispatch, getState, navigate, null, currentIndex);
+		advanceSession(
+			dispatch,
+			getState,
+			navigate,
+			elementId,
+			false,
+			currentIndex,
+		);
 	};
 }
 
@@ -104,7 +204,14 @@ export function finishLearningAssetAction(
 		const currentIndex = selectStudyIndex(getState());
 		await finishLearningAsset(elementId);
 		dispatch(learningAssetFinished({ elementType: elementId.type }));
-		advanceSession(dispatch, getState, navigate, elementId, currentIndex);
+		advanceSession(
+			dispatch,
+			getState,
+			navigate,
+			elementId,
+			true,
+			currentIndex,
+		);
 	};
 }
 
@@ -116,10 +223,15 @@ function advanceSession(
 	dispatch: AppDispatch,
 	getState: () => RootState,
 	navigate: NavigateFunction,
-	completedElementId: ElementId | null,
+	handledElementId: ElementId,
+	completed: boolean,
 	currentIndex: number,
 ) {
-	dispatch(sessionAdvanced({ completedElementId }));
+	dispatch(
+		sessionAdvanced({
+			completedElementId: completed ? handledElementId : null,
+		}),
+	);
 
 	const { queue } = getState().study;
 	if (queue.length === 0) {
@@ -127,8 +239,25 @@ function advanceSession(
 		return;
 	}
 
-	const nextIndex = currentIndex >= queue.length ? 0 : currentIndex;
+	let nextIndex = currentIndex >= queue.length ? 0 : currentIndex;
+
+	// An element that was only re-queued or skipped stays in the queue, and
+	// when it sat at the very end there is no slot further back to move it
+	// to — it keeps the slot the session is about to show. Wrap around
+	// instead, so the session moves on to the elements ahead of it rather
+	// than presenting the same one again.
+	if (
+		queue.length > 1 &&
+		isSameElement(queue[nextIndex].elementId, handledElementId)
+	) {
+		nextIndex = nextIndex === 0 ? 1 : 0;
+	}
+
 	navigateToElement(queue[nextIndex]?.elementId, navigate);
+}
+
+function isSameElement(a: ElementId, b: ElementId): boolean {
+	return a.type === b.type && a.id === b.id;
 }
 
 export function stopStudySessionAction() {

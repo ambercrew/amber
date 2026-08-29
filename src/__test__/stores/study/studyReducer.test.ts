@@ -1,7 +1,7 @@
 import studyReducer, {
 	answerShown,
 	cardGraded,
-	cardRequeued,
+	elementRequeued,
 	learningAssetAdvanced,
 	learningAssetFinished,
 	sessionAdvanced,
@@ -192,7 +192,7 @@ describe("studyReducer", () => {
 		expect(actual.counts.learningAssets).toBe(0);
 	});
 
-	describe("cardRequeued", () => {
+	describe("elementRequeued", () => {
 		it("Should move the card later in the queue without removing it", () => {
 			// Arrange
 
@@ -205,7 +205,7 @@ describe("studyReducer", () => {
 
 			const actual = studyReducer(
 				state,
-				cardRequeued({ elementId: { type: "card", id: "0" } }),
+				elementRequeued({ elementId: { type: "card", id: "0" } }),
 			);
 
 			// Assert
@@ -239,7 +239,7 @@ describe("studyReducer", () => {
 
 			const actual = studyReducer(
 				state,
-				cardRequeued({ elementId: { type: "card", id: "0" } }),
+				elementRequeued({ elementId: { type: "card", id: "0" } }),
 			);
 
 			// Assert
@@ -261,7 +261,7 @@ describe("studyReducer", () => {
 
 			const actual = studyReducer(
 				state,
-				cardRequeued({ elementId: { type: "card", id: "missing" } }),
+				elementRequeued({ elementId: { type: "card", id: "missing" } }),
 			);
 
 			// Assert

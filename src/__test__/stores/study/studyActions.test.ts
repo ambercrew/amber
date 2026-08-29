@@ -1,8 +1,10 @@
+import { notifications } from "@mantine/notifications";
 import { NavigateFunction } from "react-router";
 import { setupStore } from "../../../stores/store";
 import {
 	finishLearningAssetAction,
 	gradeCardAction,
+	applyScheduleChangeAction,
 	nextLearningAssetAction,
 	skipLearningAssetAction,
 	startStudySession,
@@ -12,7 +14,9 @@ import { STUDY_SESSION_FINISHED } from "../../../types/events/studySessionFinish
 import { StudyState } from "../../../stores/study/studyReducer";
 import {
 	finishLearningAsset,
+	getCardReview,
 	getDueElements,
+	getLearningAssetReview,
 	registerCardReview,
 	nextLearningAsset,
 } from "../../../api/study/api/studyApi";
@@ -548,6 +552,39 @@ describe("skipLearningAssetAction", () => {
 			expect.objectContaining({ state: { studySessionNav: true } }),
 		);
 	});
+
+	it("Should wrap around to the front of the queue when the last learning asset in the queue is skipped", () => {
+		// Arrange
+
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [
+					learningAssetQueueItem("1"),
+					learningAssetQueueItem("2"),
+					learningAssetQueueItem("3"),
+				],
+			},
+			elements: elementsStateFor(learningAssetElement("3")),
+		});
+
+		// Act
+
+		store.dispatch(
+			skipLearningAssetAction(
+				{ type: "learningAsset", id: "3" },
+				navigate,
+			),
+		);
+
+		// Assert
+
+		expect(navigate).toHaveBeenCalledWith(
+			"/learningAsset/1",
+			expect.objectContaining({ state: { studySessionNav: true } }),
+		);
+	});
 });
 
 describe("finishLearningAssetAction", () => {
@@ -617,5 +654,272 @@ describe("finishLearningAssetAction", () => {
 			extracts: 1,
 			finished: 1,
 		});
+	});
+});
+
+describe("applyScheduleChangeAction", () => {
+	it("Should drop the current element and move forward when it was rescheduled beyond the session", async () => {
+		// Arrange
+
+		vi.mocked(getCardReview).mockResolvedValue(
+			makeCardReview(IN_TWO_DAYS()),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("1"), cardQueueItem("2")],
+			},
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.queue.map(item => item.elementId.id)).toEqual(["2"]);
+		expect(navigate).toHaveBeenCalledWith(
+			"/card/2",
+			expect.objectContaining({ state: { studySessionNav: true } }),
+		);
+	});
+
+	it("Should keep the current element in the queue but move on when it was rescheduled within the session", async () => {
+		// Arrange
+
+		vi.mocked(getLearningAssetReview).mockResolvedValue({
+			...LEARNING_ASSET_REVIEW,
+			due: IN_ONE_MINUTE(),
+		});
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [
+					learningAssetQueueItem("1"),
+					cardQueueItem("2"),
+					cardQueueItem("3"),
+				],
+			},
+			elements: elementsStateFor(learningAssetElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.queue.map(item => item.elementId.id)).toEqual([
+			"2",
+			"3",
+			"1",
+		]);
+		expect(navigate).toHaveBeenCalledWith(
+			"/card/2",
+			expect.objectContaining({ state: { studySessionNav: true } }),
+		);
+	});
+
+	it("Should drop the current element and move forward when it was finished", async () => {
+		// Arrange
+
+		vi.mocked(getLearningAssetReview).mockResolvedValue({
+			...LEARNING_ASSET_REVIEW,
+			due: inMs(-60_000),
+			finishedAt: "2024-01-01T00:00:00Z",
+		});
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [learningAssetQueueItem("1"), cardQueueItem("2")],
+			},
+			elements: elementsStateFor(learningAssetElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+
+		// Assert
+
+		expect(
+			store.getState().study.queue.map(item => item.elementId.id),
+		).toEqual(["2"]);
+		expect(navigate).toHaveBeenCalledWith(
+			"/card/2",
+			expect.objectContaining({ state: { studySessionNav: true } }),
+		);
+	});
+
+	it("Should finish the session when the rescheduled element was the last one in the queue", async () => {
+		// Arrange
+
+		vi.mocked(getCardReview).mockResolvedValue(
+			makeCardReview(IN_TWO_DAYS()),
+		);
+		const finished = vi.fn();
+		window.addEventListener(STUDY_SESSION_FINISHED, finished);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: { ...BASE_STUDY_STATE, queue: [cardQueueItem("1")] },
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+		window.removeEventListener(STUDY_SESSION_FINISHED, finished);
+
+		// Assert
+
+		expect(finished).toHaveBeenCalledTimes(1);
+		expect(store.getState().study.status).toBe("editing");
+	});
+
+	it("Should leave the session untouched when the current element is still due", async () => {
+		// Arrange
+
+		vi.mocked(getCardReview).mockResolvedValue(
+			makeCardReview(inMs(-60_000)),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("1"), cardQueueItem("2")],
+			},
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+
+		// Assert
+
+		expect(
+			store.getState().study.queue.map(item => item.elementId.id),
+		).toEqual(["1", "2"]);
+		expect(navigate).not.toHaveBeenCalled();
+	});
+
+	it("Should do nothing when no study session is running", async () => {
+		// Arrange
+
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				status: "editing",
+				queue: [cardQueueItem("1"), cardQueueItem("2")],
+			},
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+
+		// Assert
+
+		expect(getCardReview).not.toHaveBeenCalled();
+		expect(navigate).not.toHaveBeenCalled();
+	});
+
+	it("Should wrap around to the front of the queue when the last element in the queue is rescheduled within the session", async () => {
+		// Arrange
+
+		vi.mocked(getLearningAssetReview).mockResolvedValue({
+			...LEARNING_ASSET_REVIEW,
+			elementId: { type: "learningAsset", id: "3" },
+			due: IN_ONE_MINUTE(),
+		});
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [
+					cardQueueItem("1"),
+					cardQueueItem("2"),
+					learningAssetQueueItem("3"),
+				],
+			},
+			elements: elementsStateFor(learningAssetElement("3")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.queue.map(item => item.elementId.id)).toEqual([
+			"1",
+			"2",
+			"3",
+		]);
+		expect(navigate).toHaveBeenCalledWith(
+			"/card/1",
+			expect.objectContaining({ state: { studySessionNav: true } }),
+		);
+	});
+
+	it("Should show a notification and leave the session untouched when reading the schedule fails", async () => {
+		// Arrange
+
+		const show = vi
+			.spyOn(notifications, "show")
+			.mockImplementation(() => "");
+		vi.mocked(getCardReview).mockRejectedValue(
+			new Error("Database is busy"),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("1"), cardQueueItem("2")],
+			},
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+
+		// Assert
+
+		expect(show).toHaveBeenCalledWith(
+			expect.objectContaining({ color: "red" }),
+		);
+		expect(
+			store.getState().study.queue.map(item => item.elementId.id),
+		).toEqual(["1", "2"]);
+		expect(navigate).not.toHaveBeenCalled();
+	});
+
+	it("Should do nothing when the viewed element is not part of the session queue", async () => {
+		// Arrange
+
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: { ...BASE_STUDY_STATE, queue: [cardQueueItem("1")] },
+			elements: elementsStateFor(cardElement("2")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+
+		// Assert
+
+		expect(getCardReview).not.toHaveBeenCalled();
+		expect(navigate).not.toHaveBeenCalled();
 	});
 });

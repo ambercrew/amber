@@ -14,6 +14,7 @@ import { useElementSyncRefresh } from "../../../hooks/useElementSyncRefresh";
 import { useStudySessionFinishedRefresh } from "../../../hooks/useStudySessionFinishedRefresh";
 import { usePostSyncRefresh } from "../../../hooks/usePostSyncRefresh";
 import { useCloseSidebarOnSmallScreenNavigation } from "../../../hooks/useCloseSidebarOnSmallScreenNavigation";
+import { useSessionScheduleChanges } from "../../Study/hooks/useSessionScheduleChanges";
 import { useStudySessionGuard } from "../../Study/hooks/useStudySessionGuard";
 import { useStudySessionSummaryToast } from "../../Study/hooks/useStudySessionSummaryToast";
 import Updater from "../../Updater/components/Updater";
@@ -134,6 +135,7 @@ function App() {
 	useStudySessionFinishedRefresh();
 	usePostSyncRefresh();
 	useStudySessionGuard();
+	useSessionScheduleChanges();
 	useStudySessionSummaryToast();
 	useLexicalConversionBridge();
 	useWheelZoom();
