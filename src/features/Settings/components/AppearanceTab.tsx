@@ -1,12 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-	Box,
-	Select,
-	SegmentedControl,
-	Slider,
-	Stack,
-	Text,
-} from "@mantine/core";
+import { Box, Select, SegmentedControl, Slider, Stack } from "@mantine/core";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import useApi from "../../../hooks/useApi";
@@ -129,7 +122,10 @@ function AppearanceTab() {
 	return (
 		<Stack gap="lg" pt="md">
 			<Stack gap="xs">
-				<Text size="sm">Theme</Text>
+				<FieldLabel
+					label="Theme"
+					tooltip="The color scheme used across the app. Follow system matches your operating system's light or dark setting."
+				/>
 				<SegmentedControl
 					value={settings.theme}
 					onChange={handleThemeChange}
@@ -174,7 +170,10 @@ function AppearanceTab() {
 			{/* Zoom is a no-op inside the mobile webview, so hide it there. */}
 			{!isMobile() && (
 				<Stack gap="xs">
-					<Text size="sm">Zoom</Text>
+					<FieldLabel
+						label="Zoom"
+						tooltip="Scales the whole interface up or down. The same setting is changed by the zoom in and zoom out shortcuts."
+					/>
 					<Box px="md">
 						<Slider
 							min={ZOOM_MIN}

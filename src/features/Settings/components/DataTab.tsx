@@ -1,11 +1,13 @@
 import { useNavigate } from "react-router";
-import { Button, Group, NumberInput, Stack, Switch, Text } from "@mantine/core";
+import { Button, Group, NumberInput, Stack, Switch } from "@mantine/core";
 import { FolderOpenIcon } from "@phosphor-icons/react";
 import { open } from "@tauri-apps/plugin-dialog";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectSettings } from "../../../stores/settings/settingsSelector";
 import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
+import FieldLabel from "../../../components/FieldLabel/FieldLabel";
+import FieldInfoIcon from "../../../components/FieldLabel/FieldInfoIcon";
 import { changeDatabaseDirectory } from "../../../stores/app/appActions";
 import { saveSettings } from "../../../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../../../api/settings/dto/updateSettingsRequestDto";
@@ -50,15 +52,12 @@ function DataTab() {
 	return (
 		<Stack gap="lg" pt="md">
 			<Stack gap="xs">
-                {!isMobile() && (
-                    <>
-                    <Text size="sm">Database directory</Text>
-                    <Text size="xs" c="dimmed">
-                            Where your data is stored. Changing this reconnects the
-                            database.
-                        </Text>
-                        </>
-                    )}
+				{!isMobile() && (
+					<FieldLabel
+						label="Database directory"
+						tooltip="The folder where your database file is stored. Changing it reconnects the app to a database in the new location."
+					/>
+				)}
 				<Group align="flex-end" gap="sm" wrap="nowrap">
 					<AutosizeTextInput
 						readOnly
@@ -75,11 +74,10 @@ function DataTab() {
 			</Stack>
 
 			<Stack gap="xs">
-				<Text size="sm">Keep trashed elements for</Text>
-				<Text size="xs" c="dimmed">
-					Elements in the trash are permanently deleted once they have
-					been there this long.
-				</Text>
+				<FieldLabel
+					label="Keep trashed elements for"
+					tooltip="How long deleted elements stay in the trash. Once they have been there this long they are permanently deleted."
+				/>
 				<NumberInput
 					value={settings.trashRetentionDays}
 					onChange={handleRetentionChange}
@@ -91,7 +89,7 @@ function DataTab() {
 				/>
 			</Stack>
 
-			<Stack gap="xs">
+			<Group gap={4}>
 				<Switch
 					label="Sync on start and close"
 					checked={settings.autoSync}
@@ -99,11 +97,8 @@ function DataTab() {
 						handleAutoSyncChange(e.currentTarget.checked)
 					}
 				/>
-				<Text size="xs" c="dimmed">
-					Automatically syncs with the cloud when the app starts and
-					before it closes.
-				</Text>
-			</Stack>
+				<FieldInfoIcon tooltip="Automatically syncs with the cloud when the app starts and before it closes." />
+			</Group>
 		</Stack>
 	);
 }

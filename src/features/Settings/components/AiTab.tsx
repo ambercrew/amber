@@ -1,10 +1,10 @@
 import { useState } from "react";
 import {
+	Group,
 	PasswordInput,
 	SegmentedControl,
 	Stack,
 	Switch,
-	Text,
 	TextInput,
 } from "@mantine/core";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -12,6 +12,8 @@ import useAppSelector from "../../../hooks/useAppSelector";
 import { selectSettings } from "../../../stores/settings/settingsSelector";
 import { saveSettings } from "../../../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../../../api/settings/dto/updateSettingsRequestDto";
+import FieldLabel from "../../../components/FieldLabel/FieldLabel";
+import FieldInfoIcon from "../../../components/FieldLabel/FieldInfoIcon";
 import {
 	AiProvider,
 	AiProviderSettings,
@@ -68,7 +70,7 @@ function AiTab() {
 
 	return (
 		<Stack gap="lg" pt="md">
-			<Stack gap="xs">
+			<Group gap={4}>
 				<Switch
 					label="Enable AI"
 					checked={settings.enableAi}
@@ -76,16 +78,16 @@ function AiTab() {
 						handleEnableAiChange(e.currentTarget.checked)
 					}
 				/>
-				<Text size="xs" c="dimmed">
-					Disabling AI hides it everywhere in the app, including the
-					chat panel and its commands.
-				</Text>
-			</Stack>
+				<FieldInfoIcon tooltip="Turns the AI features on. Disabling AI hides it everywhere in the app, including the chat panel and its commands." />
+			</Group>
 
 			{settings.enableAi && (
 				<>
 					<Stack gap="xs">
-						<Text size="sm">Provider</Text>
+						<FieldLabel
+							label="Provider"
+							tooltip="Which service runs the AI models. Ollama runs them locally on this machine, OpenAI runs them in the cloud with your API key."
+						/>
 						<SegmentedControl
 							value={settings.aiProvider}
 							onChange={handleProviderChange}
@@ -97,7 +99,10 @@ function AiTab() {
 					</Stack>
 
 					<Stack gap="xs">
-						<Text size="sm">Model name</Text>
+						<FieldLabel
+							label="Model name"
+							tooltip="The model used for chat and other AI features. It must be available from the selected provider."
+						/>
 						<TextInput
 							key={`model-${settings.aiProvider}`}
 							placeholder={
@@ -115,11 +120,10 @@ function AiTab() {
 					</Stack>
 
 					<Stack gap="xs">
-						<Text size="sm">Embeddings model name</Text>
-						<Text size="xs" c="dimmed">
-							Used to semantically search documents you upload to
-							a chat.
-						</Text>
+						<FieldLabel
+							label="Embeddings model name"
+							tooltip="The model used to semantically search documents you upload to a chat. It must be available from the selected provider."
+						/>
 						<TextInput
 							key={`embeddings-${settings.aiProvider}`}
 							placeholder={
@@ -141,7 +145,10 @@ function AiTab() {
 
 					{settings.aiProvider === "openAI" && (
 						<Stack gap="xs">
-							<Text size="sm">API key</Text>
+							<FieldLabel
+								label="API key"
+								tooltip="Your OpenAI API key, used to authenticate requests. It is stored securely in your operating system's secret store."
+							/>
 							<PasswordInput
 								placeholder={
 									settings.openaiApiKeyIsSet

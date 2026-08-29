@@ -1,6 +1,5 @@
 import { Group, Text } from "@mantine/core";
-import { InfoIcon } from "@phosphor-icons/react";
-import AppTooltip from "../AppTooltip/AppTooltip";
+import FieldInfoIcon from "./FieldInfoIcon";
 
 interface FieldLabelProps {
 	label: string;
@@ -15,14 +14,7 @@ function FieldLabel({ label, tooltip }: FieldLabelProps) {
 	return (
 		<Group gap={4}>
 			<Text size="sm">{label}</Text>
-			<AppTooltip
-				label={tooltip}
-				multiline
-				w={260}
-				touch
-				events={{ focus: true }}>
-				<InfoIcon />
-			</AppTooltip>
+			<FieldInfoIcon tooltip={tooltip} />
 		</Group>
 	);
 }
