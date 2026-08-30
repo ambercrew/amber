@@ -4,6 +4,7 @@ import {
 } from "../../../stores/sync/managers/syncEventManager";
 import { sync } from "../../../stores/sync/syncActions";
 import { setIsSyncing } from "../../../stores/sync/syncReducer";
+import { setOnline } from "../../../stores/user/userReducer";
 import { sync as syncApi } from "../../../api/sync/api/syncApi";
 import { RootState } from "../../../stores/store";
 
@@ -13,13 +14,16 @@ vi.mock("../../../api/sync/api/syncApi.ts");
 const createGetState = ({
 	isSignedIn,
 	isEmailVerified,
+	isOffline = false,
 }: {
 	isSignedIn: boolean;
 	isEmailVerified: boolean;
+	isOffline?: boolean;
 }) => {
 	const state = {
 		user: {
 			isSignedIn,
+			isOffline,
 			userInformation: {
 				isEmailVerified,
 			},
@@ -64,7 +68,8 @@ describe("sync", () => {
 
 		expect(syncApi).toHaveBeenCalled();
 		expect(dispatch).toHaveBeenNthCalledWith(1, setIsSyncing(true));
-		expect(dispatch).toHaveBeenNthCalledWith(2, setIsSyncing(false));
+		expect(dispatch).toHaveBeenCalledWith(setOnline());
+		expect(dispatch).toHaveBeenLastCalledWith(setIsSyncing(false));
 	});
 
 	it("Should not sync when email is not verified", async () => {
@@ -107,5 +112,51 @@ describe("sync", () => {
 		// Assert
 
 		expect(syncApi).not.toHaveBeenCalled();
+	});
+
+	it("Should skip attempting sync when already known offline and skipIfKnownOffline is set", async () => {
+		// Arrange
+
+		const dispatch = vi.fn();
+
+		// Act
+
+		const cb = sync({ skipIfKnownOffline: true });
+		await cb(
+			dispatch,
+			createGetState({
+				isEmailVerified: true,
+				isSignedIn: true,
+				isOffline: true,
+			}),
+		);
+
+		// Assert
+
+		expect(syncApi).not.toHaveBeenCalled();
+	});
+
+	it("Should still attempt sync when known offline but skipIfKnownOffline is not set", async () => {
+		// Arrange
+
+		const dispatch = vi.fn();
+		vi.mocked(defaultGlobalSyncEventManager).notifyListeners = vi.fn();
+
+		// Act
+
+		const cb = sync();
+		await cb(
+			dispatch,
+			createGetState({
+				isEmailVerified: true,
+				isSignedIn: true,
+				isOffline: true,
+			}),
+		);
+
+		// Assert
+
+		expect(syncApi).toHaveBeenCalled();
+		expect(dispatch).toHaveBeenCalledWith(setOnline());
 	});
 });

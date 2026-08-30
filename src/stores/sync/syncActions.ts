@@ -7,14 +7,32 @@ import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
 } from "./managers/syncEventManager";
-import { selectIsSignedIn, selectUserInformation } from "../user/userSelectors";
+import {
+	selectIsOffline,
+	selectIsSignedIn,
+	selectUserInformation,
+} from "../user/userSelectors";
+import { setOnline } from "../user/userReducer";
 
-export function sync() {
+export interface SyncOptions {
+	skipIfKnownOffline?: boolean;
+}
+
+export function sync(options?: SyncOptions) {
 	return async function (dispatch: AppDispatch, getState: () => RootState) {
 		if (
 			!selectIsSignedIn(getState()) ||
 			!selectUserInformation(getState())?.isEmailVerified
 		) {
+			return;
+		}
+
+		if (options?.skipIfKnownOffline && selectIsOffline(getState())) {
+			notifications.show({
+				message:
+					"You're offline — sync will resume once you're back online.",
+				color: "yellow",
+			});
 			return;
 		}
 
@@ -24,6 +42,7 @@ export function sync() {
 			);
 			dispatch(setIsSyncing(true));
 			await syncApi();
+			dispatch(setOnline());
 			notifications.show({ message: "Sync complete", autoClose: 1000 });
 		} catch (e) {
 			// eslint-disable-next-line no-console

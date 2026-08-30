@@ -6,6 +6,7 @@ import { sync } from "../sync/syncActions";
 import { loadUserState } from "../user/userActions";
 import { UserInformationDto } from "../../api/backend/dto/userInformationDto";
 import { setUserInformation } from "../user/userReducer";
+import { saveCachedUserInformation } from "../user/userInformationCache";
 import { selectStartedInitialStateLoading } from "./appSelectors";
 import { markStartLoadingOfInitialState } from "./appReducer";
 import { loadElementTree } from "../elements/elementsActions";
@@ -59,15 +60,6 @@ async function loadAppState(
 ) {
 	const settings = await dispatch(loadSettings());
 
-	if (userInformationDto) {
-		dispatch(setUserInformation(userInformationDto));
-	} else {
-		await dispatch(loadUserState());
-	}
-
-	// Sync on app close is registered as an event by the SettingsSync component.
-	if (settings?.autoSync) await dispatch(sync());
-
 	if (navigate) {
 		// The previously open element may not exist in the reloaded state
 		// (e.g. after switching database directories), so clear it.
@@ -75,5 +67,24 @@ async function loadAppState(
 		await navigate("/");
 	}
 
-	await dispatch(loadElementTree());
+	// Load elements in parallel with the user/sync calls below, so a slow or
+	// unreachable backend never delays showing the user's local content.
+	const elementTreePromise = dispatch(loadElementTree());
+
+	if (userInformationDto) {
+		saveCachedUserInformation(userInformationDto);
+		dispatch(setUserInformation(userInformationDto));
+	} else {
+		await dispatch(loadUserState());
+	}
+
+	// Sync on app close is registered as an event by the SettingsSync component.
+	if (settings?.autoSync) await dispatch(sync({ skipIfKnownOffline: true }));
+
+	// Re-check the user's profile once more now that sync may have confirmed
+	// connectivity, so a transient offline state at startup doesn't linger
+	// for the rest of the session.
+	if (!userInformationDto) await dispatch(loadUserState());
+
+	await elementTreePromise;
 }

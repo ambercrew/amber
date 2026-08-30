@@ -16,17 +16,37 @@ import {
 } from "../../api/backend/api/userApi";
 import { reloadApplicationState } from "../app/appActions";
 import { AppDispatch } from "../store";
-import { setLoggedOf, setUserInformation } from "./userReducer";
+import {
+	setLoggedOf,
+	setOfflineUserInformation,
+	setUserInformation,
+} from "./userReducer";
 import SignUpRequestDto from "../../api/backend/dto/signUpRequestDto";
 import { notifications } from "@mantine/notifications";
 import errorToString from "../../utils/errorToString";
+import {
+	clearCachedUserInformation,
+	loadCachedUserInformation,
+	saveCachedUserInformation,
+} from "./userInformationCache";
 
 export function loadUserState() {
 	return async function (dispatch: AppDispatch): Promise<void> {
+		const isSignedIn = await isSignedInApi();
+		if (!isSignedIn) {
+			clearCachedUserInformation();
+			return;
+		}
+
+		// Show the last known profile right away (as offline) so the user isn't
+		// left looking signed-out while the network call below — which can take
+		// a while to fail through its retry/backoff chain — is still pending.
+		const cached = loadCachedUserInformation();
+		if (cached) dispatch(setOfflineUserInformation(cached));
+
 		try {
-			const isSignedIn = await isSignedInApi();
-			if (!isSignedIn) return;
 			const userInformation = await getUserInformation();
+			saveCachedUserInformation(userInformation);
 			dispatch(setUserInformation(userInformation));
 		} catch (e) {
 			// eslint-disable-next-line no-console
@@ -70,6 +90,7 @@ export function signOut(navigate: NavigateFunction) {
 			notifications.show({ message: errorToString(e), color: "red" });
 			return;
 		}
+		clearCachedUserInformation();
 		dispatch(setLoggedOf());
 		await dispatch(reloadApplicationState(navigate));
 	};
@@ -79,6 +100,7 @@ export function verifyEmail(verificationCode: string) {
 	return async function (dispatch: AppDispatch): Promise<void> {
 		await verifyUserEmailApi(verificationCode);
 		const userInformation = await getUserInformation();
+		saveCachedUserInformation(userInformation);
 		dispatch(setUserInformation(userInformation));
 	};
 }
@@ -93,6 +115,7 @@ export function updateUserInformation(firstName: string, lastName: string) {
 	return async function (dispatch: AppDispatch): Promise<void> {
 		await updateUserInformationApi(firstName, lastName);
 		const userInformation = await getUserInformation();
+		saveCachedUserInformation(userInformation);
 		dispatch(setUserInformation(userInformation));
 	};
 }
@@ -106,6 +129,7 @@ export function updateUserPassword(oldPassword: string, newPassword: string) {
 export function deleteAccount(navigate: NavigateFunction) {
 	return async function (dispatch: AppDispatch): Promise<void> {
 		await deleteUserApi();
+		clearCachedUserInformation();
 		dispatch(setLoggedOf());
 		await dispatch(reloadApplicationState(navigate));
 	};

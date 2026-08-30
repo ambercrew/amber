@@ -28,6 +28,7 @@ describe("VerifyEmailModal", () => {
 			preloadedState: {
 				user: {
 					isSignedIn: true,
+					isOffline: false,
 					userInformation: makeUserInformation({
 						isEmailVerified: false,
 					}),
@@ -50,6 +51,7 @@ describe("VerifyEmailModal", () => {
 			preloadedState: {
 				user: {
 					isSignedIn: true,
+					isOffline: false,
 					userInformation: makeUserInformation({
 						isEmailVerified: true,
 					}),
@@ -72,6 +74,7 @@ describe("VerifyEmailModal", () => {
 			preloadedState: {
 				user: {
 					isSignedIn: false,
+					isOffline: false,
 					userInformation: null,
 				},
 			},
@@ -90,6 +93,7 @@ describe("VerifyEmailModal", () => {
 			preloadedState: {
 				user: {
 					isSignedIn: true,
+					isOffline: false,
 					userInformation: makeUserInformation({
 						isEmailVerified: false,
 					}),

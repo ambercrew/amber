@@ -17,12 +17,14 @@ import {
 } from "../../../stores/app/appReducer";
 import { signOut } from "../../../stores/user/userActions";
 import {
+	selectIsOffline,
 	selectIsSignedIn,
 	selectUserInformation,
 } from "../../../stores/user/userSelectors";
 
 function AccountMenu() {
 	const isSignedIn = useAppSelector(selectIsSignedIn);
+	const isOffline = useAppSelector(selectIsOffline);
 	const userInformation = useAppSelector(selectUserInformation);
 	const dispatch = useAppDispatch();
 	const navigate = useNavigate();
@@ -39,7 +41,7 @@ function AccountMenu() {
 					<Group gap={4} wrap="nowrap" miw={0}>
 						<Text truncate="end">
 							{isSignedIn && userInformation
-								? `${userInformation.firstName} ${userInformation.lastName}`
+								? `${userInformation.firstName} ${userInformation.lastName}${isOffline ? " (offline)" : ""}`
 								: "Sign in"}
 						</Text>
 						<CaretDownIcon size={12} />

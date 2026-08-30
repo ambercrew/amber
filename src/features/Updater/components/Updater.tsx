@@ -16,15 +16,23 @@ function Updater() {
 	const [updatePercentage, setUpdatePercentage] = useState("0");
 
 	useEffect(() => {
-		void callApi(async () => {
-			if (await isStoreInstalled()) return;
+		void (async () => {
+			try {
+				if (await isStoreInstalled()) return;
 
-			const update = await check();
-			if (!update) return;
+				const update = await check();
+				if (!update) return;
 
-			setPendingUpdate(update);
-		});
-	}, [callApi]);
+				setPendingUpdate(update);
+			} catch (e) {
+				// Passive background check — don't interrupt the user over a
+				// network hiccup or being offline. A real failure during an
+				// install still surfaces via handleConfirm below.
+				// eslint-disable-next-line no-console
+				console.error(e);
+			}
+		})();
+	}, []);
 
 	async function installUpdate(update: Update) {
 		setIsUpdating(true);
