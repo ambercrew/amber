@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { ActionIcon, Group, Paper, Text, Transition } from "@mantine/core";
-import { useDebouncedCallback, useHotkeys } from "@mantine/hooks";
+import { useDebouncedCallback } from "@mantine/hooks";
 import {
 	CaretDownIcon,
 	CaretUpIcon,
@@ -10,6 +10,7 @@ import {
 } from "@phosphor-icons/react";
 import AutosizeTextInput from "../../components/AutosizeTextInput/AutosizeTextInput";
 import { FIND_IN_PAGE_SHORTCUT } from "../../commands/commands";
+import { useAppHotkeys } from "../../commands/useAppHotkeys";
 import useAppDispatch from "../../hooks/useAppDispatch";
 import useAppSelector from "../../hooks/useAppSelector";
 import {
@@ -65,7 +66,7 @@ export default function FindInPageBar() {
 
 	// GlobalHotkeys already opens the bar on mod+F; this only refocuses the
 	// input when the bar is already open, since opening it doesn't remount it.
-	useHotkeys(
+	useAppHotkeys(
 		[
 			[
 				FIND_IN_PAGE_SHORTCUT,

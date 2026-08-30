@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { Box, Button, Group, Text } from "@mantine/core";
-import { useHotkeys } from "@mantine/hooks";
 import { useNavigate } from "react-router";
 import { SMALL_SCREEN_BREAKPOINT } from "../../../hooks/useIsSmallScreen";
 import { previewNextLearningAsset } from "../../../api/study/api/studyApi";
@@ -25,6 +24,7 @@ import {
 import { Rating } from "../../../types/study/rating";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import { useAppHotkeys } from "../../../commands/useAppHotkeys";
 
 const SHOW_ANSWER_SHORTCUT = "space";
 
@@ -107,7 +107,7 @@ function StudySessionBar() {
 			action(current);
 		};
 
-	useHotkeys([
+	useAppHotkeys([
 		[
 			SHOW_ANSWER_SHORTCUT,
 			() => {

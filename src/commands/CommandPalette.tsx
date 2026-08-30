@@ -4,6 +4,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import GlobalHotkeys from "./GlobalHotkeys";
 import { useSpotlightActions } from "./useSpotlightActions";
 import { SPOTLIGHT_SHORTCUT } from "./commands";
+import { useAppHotkeys } from "./useAppHotkeys";
 import useBackButtonPress from "../hooks/useBackButtonPress";
 import { BackButtonPriority } from "../managers/backButtonManager";
 
@@ -15,6 +16,10 @@ function CommandPalette() {
 	// rather than navigate.
 	useBackButtonPress(spotlight.close, opened, BackButtonPriority.Medium);
 
+	// Registered here rather than through Spotlight's own `shortcut` prop so it
+	// goes through the layout-tolerant matcher too.
+	useAppHotkeys([[SPOTLIGHT_SHORTCUT, spotlight.open]], [], true);
+
 	return (
 		<>
 			<GlobalHotkeys />
@@ -25,7 +30,6 @@ function CommandPalette() {
 					refresh();
 				}}
 				onSpotlightClose={() => setOpened(false)}
-				shortcut={SPOTLIGHT_SHORTCUT}
 				overlayProps={{ blur: 0 }}
 				nothingFound="No matching commands"
 				searchProps={{

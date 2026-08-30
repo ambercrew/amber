@@ -1,14 +1,14 @@
-import { useHotkeys } from "@mantine/hooks";
 import { commands } from "./commands";
+import { AppHotkeyItem, useAppHotkeys } from "./useAppHotkeys";
 import { useRunCommand } from "./useRunCommand";
 
 function GlobalHotkeys() {
 	const run = useRunCommand();
 
-	useHotkeys(
+	useAppHotkeys(
 		commands
 			.filter(c => c.shortcut)
-			.map(c => [c.shortcut!, () => run(c.id)] as [string, () => void]),
+			.map(c => [c.shortcut!, () => run(c.id)] as AppHotkeyItem),
 		[],
 		true,
 	);
