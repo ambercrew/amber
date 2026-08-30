@@ -131,6 +131,38 @@ impl TrashRepository for SqliteTrashRepository {
             .collect())
     }
 
+    async fn trash_descendants_of_trashed(&self) -> Result<Vec<ElementId>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query!(
+            r#"WITH RECURSIVE cascade(element_id, trashed_at) AS (
+                SELECT child.element_id, parent.trashed_at
+                FROM meta child
+                JOIN meta parent ON child.parent_id = parent.element_id
+                WHERE child.trashed_at IS NULL AND parent.trashed_at IS NOT NULL
+                UNION ALL
+                SELECT child.element_id, c.trashed_at
+                FROM meta child JOIN cascade c ON child.parent_id = c.element_id
+                WHERE child.trashed_at IS NULL
+            )
+            UPDATE meta
+            SET trashed_at = (
+                    SELECT c.trashed_at FROM cascade c WHERE c.element_id = meta.element_id
+                ),
+                trashed_root = 0
+            WHERE element_id IN (SELECT element_id FROM cascade)
+            RETURNING element_id as "element_id: uuid::fmt::Hyphenated", element_type"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.element_id.into_uuid(), row.element_type).into_element_id())
+            .collect())
+    }
+
     async fn is_trashed(&self, id: ElementId) -> Result<bool, RepositoryError> {
         let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;

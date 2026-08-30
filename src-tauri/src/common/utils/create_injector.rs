@@ -103,6 +103,7 @@ use crate::study::services::implementations::default_profile_resolution_service:
 use crate::study::services::implementations::default_learning_asset_scheduling_service::DefaultLearningAssetSchedulingService;
 use crate::study::services::implementations::default_study_profile_service::DefaultStudyProfileService;
 use crate::study::services::implementations::single_default_profile_post_sync_task::SingleDefaultProfilePostSyncTask;
+use crate::trash::services::implementations::trashed_subtree_post_sync_task::TrashedSubtreePostSyncTask;
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
 use crate::study::services::study_profile_service::StudyProfileService;
@@ -383,11 +384,14 @@ pub async fn create_injector<R: tauri::Runtime>(
 
 fn register_post_sync_tasks(injector: &mut Injector) {
     register_scope!(injector, SingleDefaultProfilePostSyncTask);
+    register_scope!(injector, TrashedSubtreePostSyncTask);
 
     injector.register_scope_factory::<PostSyncTasks>(|scope| {
         Box::pin(async move {
-            let tasks: Vec<Arc<dyn PostSyncTask>> =
-                vec![scope.resolve::<SingleDefaultProfilePostSyncTask>().await];
+            let tasks: Vec<Arc<dyn PostSyncTask>> = vec![
+                scope.resolve::<SingleDefaultProfilePostSyncTask>().await,
+                scope.resolve::<TrashedSubtreePostSyncTask>().await,
+            ];
             Arc::new(PostSyncTasks::new(tasks))
         })
     });

@@ -26,6 +26,8 @@ pub trait TrashRepository: Send + Sync {
         cutoff: DateTime<Utc>,
     ) -> Result<Vec<ElementId>, RepositoryError>;
 
+    async fn trash_descendants_of_trashed(&self) -> Result<Vec<ElementId>, RepositoryError>;
+
     async fn is_trashed(&self, id: ElementId) -> Result<bool, RepositoryError>;
 
     async fn has_live_ancestry(&self, id: ElementId) -> Result<bool, RepositoryError>;
