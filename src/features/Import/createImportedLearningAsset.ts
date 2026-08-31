@@ -20,6 +20,7 @@ export async function createImportedLearningAsset(
 				origin: { type: "custom", bibliographicalSourceId },
 			},
 			splits: splitContent(content).map(html => htmlToLexicalJson(html)),
+			initialPriorityRank: ctx.priorityRank,
 		}),
 	);
 	await ctx.navigate(paths.element("learningAsset", id));

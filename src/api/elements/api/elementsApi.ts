@@ -154,6 +154,10 @@ export function setElementPriorityByPercentage(
 	});
 }
 
+export function getPriorityQueueSize(): Promise<number> {
+	return invoke("get_priority_queue_size");
+}
+
 export function clearDerivedFrom(elementId: ElementId): Promise<void> {
 	return invoke("clear_derived_from", { elementId });
 }

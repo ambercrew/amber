@@ -2,8 +2,10 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import ImportModal from "../../../../features/Import/components/ImportModal";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { runFileImport } from "../../../../features/Import/flows/file";
+import { getPriorityQueueSize } from "../../../../api/elements/api/elementsApi";
 
 vi.mock(import("../../../../features/Import/flows/file"));
+vi.mock(import("../../../../api/elements/api/elementsApi.ts"));
 
 function pdfFile(name: string) {
 	return new File(["%PDF-1.4"], name, { type: "application/pdf" });
@@ -38,6 +40,10 @@ function renderOpenedModal() {
 }
 
 describe("ImportModal", () => {
+	beforeEach(() => {
+		vi.mocked(getPriorityQueueSize).mockResolvedValue(9);
+	});
+
 	it("Should stage the file without starting import when a file is pasted", () => {
 		// Arrange
 
@@ -118,6 +124,27 @@ describe("ImportModal", () => {
 
 		expect(screen.queryByText("first.pdf")).not.toBeInTheDocument();
 		expect(screen.getByText("second.pdf")).toBeInTheDocument();
+	});
+
+	it("Should show the error message immediately while a failed file is still staged", async () => {
+		// Arrange
+
+		vi.mocked(runFileImport).mockResolvedValue({ kind: "no-text-layer" });
+		renderOpenedModal();
+		const input = screen.getByPlaceholderText("Paste a link or content");
+		const file = pdfFile("article.pdf");
+		pasteFiles(input, [file]);
+
+		// Act
+
+		fireEvent.click(screen.getByRole("button", { name: "Import" }));
+
+		// Assert
+
+		expect(
+			await screen.findByText("This PDF has no selectable text."),
+		).toBeInTheDocument();
+		expect(screen.getByText("article.pdf")).toBeInTheDocument();
 	});
 
 	it("Should revert to the link input when the last staged file is removed", () => {
