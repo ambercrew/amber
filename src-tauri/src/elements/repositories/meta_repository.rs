@@ -110,10 +110,11 @@ pub trait MetaRepository: Send + Sync {
     async fn get_all_ordered_by_priority(&self) -> Result<Vec<Meta>, RepositoryError>;
 
     /// The element at the given zero-based offset in priority order,
-    /// excluding `excluding`, or `None` if the offset is out of range.
+    /// excluding `excluding` (if any — `None` when scanning for a not-yet-created
+    /// element), or `None` if the offset is out of range.
     async fn get_at_priority_offset(
         &self,
-        excluding: ElementId,
+        excluding: Option<ElementId>,
         offset: i64,
     ) -> Result<Option<Meta>, RepositoryError>;
 

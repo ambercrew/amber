@@ -109,6 +109,20 @@ impl PriorityService for DefaultPriorityService {
             .clamp(1.0, total as f64) as i64;
         self.set_priority_by_rank(id, rank).await
     }
+
+    async fn get_priority_for_rank(&self, rank: i64) -> Result<FractionalIndex, PriorityError> {
+        match self.try_get_priority_for_rank(rank).await {
+            Err(PriorityError::PriorityExhausted) => {
+                self.rebalance_priorities().await?;
+                self.try_get_priority_for_rank(rank).await
+            }
+            other => other,
+        }
+    }
+
+    async fn get_queue_size(&self) -> Result<i64, PriorityError> {
+        Ok(self.meta_repository.count_all().await?)
+    }
 }
 
 impl DefaultPriorityService {
@@ -151,14 +165,14 @@ impl DefaultPriorityService {
 
         let before = if index > 0 {
             self.meta_repository
-                .get_at_priority_offset(id, index - 1)
+                .get_at_priority_offset(Some(id), index - 1)
                 .await?
         } else {
             None
         };
         let after = self
             .meta_repository
-            .get_at_priority_offset(id, index)
+            .get_at_priority_offset(Some(id), index)
             .await?;
 
         let new_priority = match (&before, &after) {
@@ -173,6 +187,43 @@ impl DefaultPriorityService {
 
         self.meta_repository.set_priority(id, new_priority).await?;
         Ok(())
+    }
+
+    /// Same placement math as `try_set_priority_by_rank`, but for an element
+    /// that doesn't exist yet: nothing needs excluding, and the result is
+    /// returned rather than persisted.
+    async fn try_get_priority_for_rank(&self, rank: i64) -> Result<FractionalIndex, PriorityError> {
+        let total = self.meta_repository.count_all().await?;
+        if total == 0 {
+            return Ok(FractionalIndex::default());
+        }
+        // The new element isn't counted yet, so it can take any rank from 1
+        // (the front) up to total + 1 (the very back).
+        let index = rank.clamp(1, total + 1) - 1;
+
+        let before = if index > 0 {
+            self.meta_repository
+                .get_at_priority_offset(None, index - 1)
+                .await?
+        } else {
+            None
+        };
+        let after = self
+            .meta_repository
+            .get_at_priority_offset(None, index)
+            .await?;
+
+        let new_priority = match (&before, &after) {
+            (Some(before), Some(after)) => {
+                FractionalIndex::new_between(&before.priority, &after.priority)
+                    .ok_or(PriorityError::PriorityExhausted)?
+            }
+            (Some(before), None) => FractionalIndex::new_after(&before.priority),
+            (None, Some(after)) => FractionalIndex::new_before(&after.priority),
+            (None, None) => FractionalIndex::default(),
+        };
+
+        Ok(new_priority)
     }
 
     /// Splits the gap between the live neighbors of the batch's old range.
@@ -571,6 +622,150 @@ mod tests {
 
         let info = service.get_priority_info(a_id).await.unwrap();
         assert_eq!(2, info.rank);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_rank_empty_queue_returns_default() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+
+        // Act
+
+        let actual = service.get_priority_for_rank(1).await.unwrap();
+
+        // Assert
+
+        assert_eq!(FractionalIndex::default(), actual);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_rank_middle_rank_lands_between_the_middle_two() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+
+        let pos_a = FractionalIndex::default();
+        let pos_b = FractionalIndex::new_after(&pos_a);
+        let pos_c = FractionalIndex::new_after(&pos_b);
+        let pos_d = FractionalIndex::new_after(&pos_c);
+        folder_repo
+            .create(make_folder(pos_a.clone()))
+            .await
+            .unwrap();
+        folder_repo
+            .create(make_folder(pos_b.clone()))
+            .await
+            .unwrap();
+        folder_repo
+            .create(make_folder(pos_c.clone()))
+            .await
+            .unwrap();
+        folder_repo
+            .create(make_folder(pos_d.clone()))
+            .await
+            .unwrap();
+
+        // Act — rank 3 of the resulting 5 lands between the 2nd and 3rd
+        // existing elements.
+
+        let actual = service.get_priority_for_rank(3).await.unwrap();
+
+        // Assert
+
+        assert!(actual > pos_b);
+        assert!(actual < pos_c);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_rank_beyond_the_end_clamps_to_the_back() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+
+        let pos_a = FractionalIndex::default();
+        let pos_b = FractionalIndex::new_after(&pos_a);
+        folder_repo.create(make_folder(pos_a)).await.unwrap();
+        folder_repo
+            .create(make_folder(pos_b.clone()))
+            .await
+            .unwrap();
+
+        // Act — only 2 elements exist, so rank 100 clamps to rank 3 (the back).
+
+        let actual = service.get_priority_for_rank(100).await.unwrap();
+
+        // Assert
+
+        assert!(actual > pos_b);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_rank_does_not_move_existing_elements() {
+        // Arrange — inserting a brand new element must never touch anyone
+        // else's priority, unlike set_priority_by_rank which relocates the
+        // moved element out from among the others.
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let meta_repo = scope.resolve::<dyn MetaRepository>().await;
+
+        let pos_a = FractionalIndex::default();
+        let pos_b = FractionalIndex::new_after(&pos_a);
+        let a = make_folder(pos_a.clone());
+        let b = make_folder(pos_b.clone());
+        let a_id = a.meta.element_id;
+        let b_id = b.meta.element_id;
+        folder_repo.create(a).await.unwrap();
+        folder_repo.create(b).await.unwrap();
+
+        // Act
+
+        service.get_priority_for_rank(2).await.unwrap();
+
+        // Assert
+
+        assert_eq!(
+            pos_a,
+            meta_repo.get_by_id(a_id.id()).await.unwrap().priority
+        );
+        assert_eq!(
+            pos_b,
+            meta_repo.get_by_id(b_id.id()).await.unwrap().priority
+        );
+    }
+
+    #[tokio::test]
+    async fn get_queue_size_matches_count_all() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+
+        folder_repo
+            .create(make_folder(FractionalIndex::default()))
+            .await
+            .unwrap();
+
+        // Act
+
+        let actual = service.get_queue_size().await.unwrap();
+
+        // Assert
+
+        assert_eq!(1, actual);
     }
 
     #[tokio::test]

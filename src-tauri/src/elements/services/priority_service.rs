@@ -58,6 +58,14 @@ pub trait PriorityService: Send + Sync {
         id: ElementId,
         percentage: f64,
     ) -> Result<(), PriorityError>;
+
+    /// Priority for a brand new element inserted at the given 1-based rank
+    /// (clamped to 1..=queue size + 1, since the new element hasn't been
+    /// counted yet), rather than at the front.
+    async fn get_priority_for_rank(&self, rank: i64) -> Result<FractionalIndex, PriorityError>;
+
+    /// Current size of the priority queue (number of live elements).
+    async fn get_queue_size(&self) -> Result<i64, PriorityError>;
 }
 
 #[derive(Debug, Error)]

@@ -9,4 +9,5 @@ pub struct CreateLearningAssetDto {
     pub id: Uuid,
     pub meta: CreateMetaDto,
     pub splits: Vec<String>,
+    pub initial_priority_rank: Option<i64>,
 }

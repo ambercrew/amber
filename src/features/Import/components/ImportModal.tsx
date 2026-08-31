@@ -26,6 +26,8 @@ import { importRawPage, runUrlImport, UrlImportError } from "../flows/url";
 import { FileImportError, runFileImport } from "../flows/file";
 import { PdfProgress } from "../pdf/extract";
 import { ImportContext } from "../importContext";
+import ImportPrioritySection from "./ImportPrioritySection";
+import { useImportPriority } from "../hooks/useImportPriority";
 
 const CLICKABLE_STYLE = { pointerEvents: "all" as const };
 
@@ -72,14 +74,16 @@ function ImportModal() {
 	const [value, setValue] = useState("");
 	const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
 	const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+	const priority = useImportPriority(opened);
 	const openRef = useRef<() => void>(null);
 	const cancelledRef = useRef(false);
 
-	function context(): ImportContext {
+	async function context(): Promise<ImportContext> {
 		return {
 			dispatch,
 			navigate,
 			parent: currentElement?.data.meta.elementId ?? null,
+			priorityRank: await priority.resolveRank(),
 		};
 	}
 
@@ -87,6 +91,7 @@ function ImportModal() {
 		setValue("");
 		setPendingFiles(null);
 		setPhase({ kind: "idle" });
+		priority.reset();
 	}
 
 	function handleClose() {
@@ -104,7 +109,7 @@ function ImportModal() {
 		cancelledRef.current = false;
 		setPhase({ kind: "importing", label: "Fetching…" });
 
-		const error = await runUrlImport(url, context());
+		const error = await runUrlImport(url, await context());
 		if (cancelledRef.current) return;
 
 		if (error) {
@@ -120,7 +125,7 @@ function ImportModal() {
 		setPhase({ kind: "importing", label: "Importing…" });
 
 		try {
-			await runContentImport(input, context());
+			await runContentImport(input, await context());
 			if (cancelledRef.current) return;
 			handleSuccess();
 		} catch (err) {
@@ -133,7 +138,7 @@ function ImportModal() {
 		cancelledRef.current = false;
 		setPhase({ kind: "importing", label: "Extracting…" });
 
-		const error = await runFileImport(files, context(), progress => {
+		const error = await runFileImport(files, await context(), progress => {
 			if (cancelledRef.current) return;
 			setPhase({ kind: "importing", label: "Extracting…", progress });
 		});
@@ -152,7 +157,7 @@ function ImportModal() {
 		setPhase({ kind: "importing", label: "Importing…" });
 
 		try {
-			await importRawPage(rawHtml, sourceUrl, context());
+			await importRawPage(rawHtml, sourceUrl, await context());
 			if (cancelledRef.current) return;
 			handleSuccess();
 		} catch (err) {
@@ -204,7 +209,7 @@ function ImportModal() {
 			opened={opened}
 			onClose={handleClose}
 			title="Import"
-			size="md"
+			size="lg"
 			withCloseButton={!isImporting}
 			closeOnClickOutside={!isImporting}
 			closeOnEscape={!isImporting}>
@@ -320,6 +325,11 @@ function ImportModal() {
 									}}
 								/>
 							)}
+							{pendingFiles && phase.kind === "error" && (
+								<Text size="sm" c="red">
+									{phase.message}
+								</Text>
+							)}
 							{phase.kind === "error" &&
 								phase.rawHtml &&
 								phase.sourceUrl && (
@@ -351,6 +361,13 @@ function ImportModal() {
 									</Anchor>
 								</Text>
 							)}
+							<div style={CLICKABLE_STYLE}>
+								<ImportPrioritySection
+									total={priority.total}
+									rank={priority.rank}
+									onRankChange={priority.handleRankChange}
+								/>
+							</div>
 							<Group justify="flex-end">
 								<Button
 									type="submit"
