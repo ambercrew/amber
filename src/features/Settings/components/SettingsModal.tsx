@@ -54,7 +54,7 @@ function SettingsModal() {
 			title="Settings"
 			navAriaLabel="Open settings navigation"
 			sections={SECTIONS}
-			size="lg"
+			size="xl"
 		/>
 	);
 }
