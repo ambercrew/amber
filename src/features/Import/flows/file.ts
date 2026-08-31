@@ -5,6 +5,7 @@ import { normalize } from "../normalize";
 import { createImportedLearningAsset } from "../createImportedLearningAsset";
 import { createBibliographicalSourceAction } from "../../../stores/bibliographicalSources/bibliographicalSourcesActions";
 import { ImportContext } from "../importContext";
+import errorToString from "../../../utils/errorToString";
 
 export type FileImportError =
 	| { kind: "unsupported-file" }
@@ -58,10 +59,11 @@ export async function runFileImport(
 				bibliographicalSource.id,
 			);
 		} catch (err) {
-			if (err instanceof Error && err.message === "no-text-layer") {
+			const message = errorToString(err);
+			if (message === "no-text-layer") {
 				return { kind: "no-text-layer" };
 			}
-			if (err instanceof Error && err.message === "no-content") {
+			if (message === "no-content") {
 				return { kind: "no-content" };
 			}
 			return {
@@ -70,7 +72,7 @@ export async function runFileImport(
 					: isEpub
 						? "epub-failed"
 						: "markdown-failed",
-				message: err instanceof Error ? err.message : String(err),
+				message,
 			};
 		}
 	}

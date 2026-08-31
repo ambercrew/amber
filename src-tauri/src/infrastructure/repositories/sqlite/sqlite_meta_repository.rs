@@ -554,10 +554,10 @@ impl MetaRepository for SqliteMetaRepository {
 
     async fn get_at_priority_offset(
         &self,
-        excluding: ElementId,
+        excluding: Option<ElementId>,
         offset: i64,
     ) -> Result<Option<Meta>, RepositoryError> {
-        let uuid = excluding.id().hyphenated();
+        let uuid = excluding.map(|e| e.id().hyphenated().to_string());
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
@@ -578,7 +578,7 @@ impl MetaRepository for SqliteMetaRepository {
                 created_at as "created_at: _",
                 modified_at as "modified_at: _"
             FROM meta
-            WHERE element_id != $1 AND trashed_at IS NULL
+            WHERE (element_id != $1 OR $1 IS NULL) AND trashed_at IS NULL
             ORDER BY priority
             LIMIT 1 OFFSET $2"#,
             uuid,

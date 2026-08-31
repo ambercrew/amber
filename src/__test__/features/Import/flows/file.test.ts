@@ -47,6 +47,7 @@ function makeCtx(): ImportContext {
 		dispatch,
 		navigate: vi.fn() as unknown as ImportContext["navigate"],
 		parent: null,
+		priorityRank: 5,
 	};
 }
 
@@ -180,10 +181,11 @@ describe("runFileImport", () => {
 		);
 	});
 
-	it("Should return no-text-layer when extraction throws that specific error", async () => {
-		// Arrange
+	it("Should return no-text-layer when extraction rejects with that specific error", async () => {
+		// Arrange — Tauri's `invoke` rejects with the backend's raw error
+		// string, not an `Error` instance.
 
-		vi.mocked(extractPdf).mockRejectedValue(new Error("no-text-layer"));
+		vi.mocked(extractPdf).mockRejectedValue("no-text-layer");
 		const ctx = makeCtx();
 
 		// Act
@@ -195,10 +197,10 @@ describe("runFileImport", () => {
 		expect(actual).toEqual({ kind: "no-text-layer" });
 	});
 
-	it("Should return pdf-failed with the error message when extraction throws any other error", async () => {
+	it("Should return pdf-failed with the error message when extraction rejects with any other error", async () => {
 		// Arrange
 
-		vi.mocked(extractPdf).mockRejectedValue(new Error("corrupt file"));
+		vi.mocked(extractPdf).mockRejectedValue("corrupt file");
 		const ctx = makeCtx();
 
 		// Act
@@ -271,10 +273,11 @@ describe("runFileImport", () => {
 		);
 	});
 
-	it("Should return no-content when epub extraction reports no readable content", async () => {
-		// Arrange
+	it("Should return no-content when epub extraction rejects with that specific error", async () => {
+		// Arrange — Tauri's `invoke` rejects with the backend's raw error
+		// string, not an `Error` instance.
 
-		vi.mocked(extractEpub).mockRejectedValue(new Error("no-content"));
+		vi.mocked(extractEpub).mockRejectedValue("no-content");
 		const ctx = makeCtx();
 
 		// Act
@@ -286,10 +289,10 @@ describe("runFileImport", () => {
 		expect(actual).toEqual({ kind: "no-content" });
 	});
 
-	it("Should return epub-failed with the error message when epub extraction throws any other error", async () => {
+	it("Should return epub-failed with the error message when epub extraction rejects with any other error", async () => {
 		// Arrange
 
-		vi.mocked(extractEpub).mockRejectedValue(new Error("corrupt epub"));
+		vi.mocked(extractEpub).mockRejectedValue("corrupt epub");
 		const ctx = makeCtx();
 
 		// Act

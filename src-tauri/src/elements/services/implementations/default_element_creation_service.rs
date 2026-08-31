@@ -93,7 +93,10 @@ impl ElementCreationService for DefaultElementCreationService {
         let element_id = ElementId::LearningAsset(dto.id);
         let parent = dto.meta.parent;
         let position = self.index_service.get_new_last_index(parent).await?;
-        let priority = self.priority_service.get_new_first_priority().await?;
+        let priority = match dto.initial_priority_rank {
+            Some(rank) => self.priority_service.get_priority_for_rank(rank).await?,
+            None => self.priority_service.get_new_first_priority().await?,
+        };
         let now = Utc::now();
         let profile = self
             .profile_resolution_service
@@ -482,6 +485,7 @@ mod tests {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
             splits: Vec::new(),
+            initial_priority_rank: None,
         };
         let element_id = ElementId::LearningAsset(dto.id);
 
@@ -499,6 +503,45 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(due_from_today(3.0), review.due);
+    }
+
+    #[tokio::test]
+    async fn create_learning_asset_with_initial_priority_rank_does_not_take_the_front() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile(&scope, 1.0).await;
+        let service = create_service(&scope).await;
+        let priority_service = scope.resolve::<dyn PriorityService>().await;
+        let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+
+        // An existing element already sits at the front of the queue.
+        let existing_dto = CreateLearningAssetDto {
+            id: Uuid::new_v4(),
+            meta: dto_meta(None),
+            splits: Vec::new(),
+            initial_priority_rank: None,
+        };
+        service.create_learning_asset(existing_dto).await.unwrap();
+
+        let dto = CreateLearningAssetDto {
+            id: Uuid::new_v4(),
+            meta: dto_meta(None),
+            splits: Vec::new(),
+            initial_priority_rank: Some(2),
+        };
+        let element_id = ElementId::LearningAsset(dto.id);
+
+        // Act — rank 2 of the resulting 2 elements, i.e. the back.
+
+        service.create_learning_asset(dto).await.unwrap();
+
+        // Assert
+
+        let created = meta_repository.get_by_id(element_id.id()).await.unwrap();
+        let front = priority_service.get_new_first_priority().await.unwrap();
+        assert!(created.priority > front);
     }
 
     #[tokio::test]
@@ -599,6 +642,7 @@ mod tests {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
             splits: Vec::new(),
+            initial_priority_rank: None,
         };
         let learning_asset_id = dto.id;
 
@@ -691,6 +735,7 @@ mod tests {
             id: Uuid::new_v4(),
             meta: dto_meta(Some(parent_id)),
             splits: Vec::new(),
+            initial_priority_rank: None,
         };
         let element_id = ElementId::LearningAsset(dto.id);
 

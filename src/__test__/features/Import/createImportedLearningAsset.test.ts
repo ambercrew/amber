@@ -25,6 +25,7 @@ describe("createImportedLearningAsset", () => {
 			dispatch: dispatch as unknown as ImportContext["dispatch"],
 			navigate: navigate as unknown as ImportContext["navigate"],
 			parent,
+			priorityRank: 4,
 		};
 
 		// Act
@@ -42,6 +43,7 @@ describe("createImportedLearningAsset", () => {
 		});
 		expect(htmlToLexicalJson).toHaveBeenCalledWith("<p>content</p>");
 		expect(dto.splits).toEqual(['{"root":"json"}']);
+		expect(dto.initialPriorityRank).toBe(4);
 		expect(dispatch).toHaveBeenCalledWith(thunk);
 	});
 
@@ -59,6 +61,7 @@ describe("createImportedLearningAsset", () => {
 			dispatch: dispatch as unknown as ImportContext["dispatch"],
 			navigate: navigate as unknown as ImportContext["navigate"],
 			parent: null,
+			priorityRank: 5,
 		};
 
 		// Act
