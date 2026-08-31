@@ -1,5 +1,9 @@
 import { useEffect } from "react";
-import { MantineColorScheme, useMantineColorScheme } from "@mantine/core";
+import {
+	MantineColorScheme,
+	useComputedColorScheme,
+	useMantineColorScheme,
+} from "@mantine/core";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { AppDispatch } from "../../../stores/store";
@@ -9,6 +13,7 @@ import { sync } from "../../../stores/sync/syncActions";
 import { defaultCloseRequestedEventManager } from "../../../managers/closeRequestedEventManager";
 import { tryGetCurrentWebView, isMobile } from "../../../utils/tauriUtils";
 import { applyFontVariable } from "./fontCssUtils";
+import { applySystemChrome, syncThemeColorMeta } from "./systemChrome";
 
 const SETTINGS_CLOSE_REQUESTED_HANDLER_NAME = "Settings handler";
 
@@ -19,10 +24,11 @@ const THEME_TO_COLOR_SCHEME: Record<Theme, MantineColorScheme> = {
 };
 
 /**
- * Applies the user's settings to the environment: Mantine's color scheme, the
- * webview theme + zoom, and the body classes. Also (re)registers the
- * sync-on-close handler. Mantine components and the `light-dark()` CSS resolve
- * off `data-mantine-color-scheme`, so the setting must flow into Mantine here.
+ * Applies the user's settings to the environment: Mantine's color scheme, OS
+ * chrome (title/status bar), webview zoom, and the body classes. Also
+ * (re)registers the sync-on-close handler. Mantine components and the
+ * `light-dark()` CSS resolve off `data-mantine-color-scheme`, so the setting
+ * must flow into Mantine here.
  */
 async function applySettings(
 	settings: SettingsDto,
@@ -44,22 +50,7 @@ async function applySettings(
 			settings.fontMonospace,
 		);
 
-		if (settings.theme === "FollowSystem") {
-			// Making the window follow the operating system so that the next check is correct.
-			await tryGetCurrentWebView()?.window.setTheme(null);
-		}
-
-		if (
-			settings.theme === "Dark" ||
-			(settings.theme === "FollowSystem" &&
-				window.matchMedia?.("(prefers-color-scheme: dark)").matches)
-		) {
-			await tryGetCurrentWebView()?.window.setTheme("dark");
-			document.body.classList.add("dark");
-		} else {
-			await tryGetCurrentWebView()?.window.setTheme("light");
-			document.body.classList.remove("dark");
-		}
+		await applySystemChrome(settings);
 
 		if (isMobile()) {
 			document.body.classList.add("mobile");
@@ -98,11 +89,18 @@ function SettingsSync() {
 	const settings = useAppSelector(selectSettings);
 	const dispatch = useAppDispatch();
 	const { setColorScheme } = useMantineColorScheme();
+	const computedColorScheme = useComputedColorScheme("light");
 
 	useEffect(() => {
 		if (!settings) return;
 		void applySettings(settings, dispatch, setColorScheme);
 	}, [settings, dispatch, setColorScheme]);
+
+	useEffect(() => {
+		document.body.classList.toggle("dark", computedColorScheme === "dark");
+		const frame = requestAnimationFrame(syncThemeColorMeta);
+		return () => cancelAnimationFrame(frame);
+	}, [computedColorScheme]);
 
 	return null;
 }

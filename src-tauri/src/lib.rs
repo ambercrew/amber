@@ -15,6 +15,7 @@ mod secrets;
 mod settings;
 mod study;
 mod sync;
+mod system_chrome;
 #[cfg(test)]
 mod test_utils;
 mod trash;
@@ -37,6 +38,7 @@ use settings::settings_api::*;
 use study::study_api::*;
 use study::study_profile_api::*;
 use sync::sync_api::*;
+use system_chrome::system_chrome_api::set_system_chrome_theme;
 use trash::trash_api::*;
 
 #[cfg(desktop)]
@@ -96,7 +98,8 @@ pub async fn run() {
     tauri_builder = tauri_builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_os::init());
+        .plugin(tauri_plugin_os::init())
+        .plugin(system_chrome::plugin::init());
 
     #[cfg(desktop)]
     {
@@ -254,6 +257,7 @@ pub async fn run() {
             extract_epub,
             // App Info
             is_store_installed,
+            set_system_chrome_theme,
             // AI
             create_ai_chat,
             stream_ai_response,
