@@ -30,6 +30,7 @@ import {
 import { HEADROOM_FIXED_AT } from "../App/components/App";
 import { useMainScrollElement } from "../App/context/mainScrollContext";
 import { useElementHeadroom } from "../../hooks/useElementHeadroom";
+import { SAFE_AREA_TOP } from "../../utils/safeArea";
 
 const QUERY_DEBOUNCE_IN_MILLISECONDS = 400;
 
@@ -128,7 +129,7 @@ export default function FindInPageBar() {
 					top={
 						headerPinned
 							? "calc(var(--app-shell-header-height) + 4px)"
-							: "4px"
+							: `calc(${SAFE_AREA_TOP} + 4px)`
 					}
 					left={{ base: 8, sm: "auto" }}
 					right={{
