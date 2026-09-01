@@ -28,13 +28,9 @@ export default function SetDueDateModal({
 	onClose,
 	onSuccess,
 }: SetDueDateModalProps) {
-	const [value, setValue] = useState<string | null>(null);
-	const [wasOpened, setWasOpened] = useState(false);
-
-	if (opened !== wasOpened) {
-		setWasOpened(opened);
-		if (opened) setValue(toDateInputValue(defaultDue));
-	}
+	const [value, setValue] = useState<string | null>(() =>
+		toDateInputValue(defaultDue),
+	);
 
 	function handleSave() {
 		if (!value) return;

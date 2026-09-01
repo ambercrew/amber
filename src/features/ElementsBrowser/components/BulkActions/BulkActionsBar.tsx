@@ -15,7 +15,7 @@ import {
 	TagIcon,
 	TrashIcon,
 } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { notifications } from "@mantine/notifications";
 import {
 	finishLearningAssetsBulk,
@@ -65,6 +65,7 @@ export default function BulkActionsBar({
 	onActionComplete,
 }: BulkActionsBarProps) {
 	const [openModal, setOpenModal] = useState<OpenModal>(null);
+	const [openSeq, setOpenSeq] = useState(0);
 	const { callApi, errorMessage, clearErrorMessage } = useApi();
 	const dispatch = useAppDispatch();
 
@@ -80,6 +81,11 @@ export default function BulkActionsBar({
 		notifications.show({ message: errorMessage, color: "red" });
 		clearErrorMessage();
 	}, [errorMessage, clearErrorMessage]);
+
+	function openBulkModal(type: OpenModal) {
+		setOpenModal(type);
+		setOpenSeq(seq => seq + 1);
+	}
 
 	function closeModal() {
 		setOpenModal(null);
@@ -154,7 +160,7 @@ export default function BulkActionsBar({
 												/>
 											}
 											onClick={() =>
-												setOpenModal("reset")
+												openBulkModal("reset")
 											}>
 											Reset repetitions
 										</Menu.Item>
@@ -190,14 +196,14 @@ export default function BulkActionsBar({
 									leftSection={
 										<CalendarBlankIcon size={16} />
 									}
-									onClick={() => setOpenModal("due")}>
+									onClick={() => openBulkModal("due")}>
 									Set due date
 								</Menu.Item>
 								<Menu.Item
 									leftSection={
 										<GraduationCapIcon size={16} />
 									}
-									onClick={() => setOpenModal("profile")}>
+									onClick={() => openBulkModal("profile")}>
 									Set study profile
 								</Menu.Item>
 							</Menu.Sub.Dropdown>
@@ -212,12 +218,12 @@ export default function BulkActionsBar({
 							<Menu.Sub.Dropdown>
 								<Menu.Item
 									leftSection={<PlusIcon size={16} />}
-									onClick={() => setOpenModal("addTag")}>
+									onClick={() => openBulkModal("addTag")}>
 									Add tag
 								</Menu.Item>
 								<Menu.Item
 									leftSection={<MinusIcon size={16} />}
-									onClick={() => setOpenModal("removeTag")}>
+									onClick={() => openBulkModal("removeTag")}>
 									Remove tag
 								</Menu.Item>
 							</Menu.Sub.Dropdown>
@@ -225,72 +231,74 @@ export default function BulkActionsBar({
 						<Menu.Divider />
 						<Menu.Item
 							leftSection={<BookOpenIcon size={16} />}
-							onClick={() => setOpenModal("source")}>
+							onClick={() => openBulkModal("source")}>
 							Set source
 						</Menu.Item>
 						<Menu.Item
 							color="red"
 							leftSection={<TrashIcon size={16} />}
-							onClick={() => setOpenModal("delete")}>
+							onClick={() => openBulkModal("delete")}>
 							Delete elements
 						</Menu.Item>
 					</Menu.Dropdown>
 				</Menu>
 			</Group>
 
-			<ResetRepetitionsConfirmModal
-				opened={openModal === "reset"}
-				elementIds={selectedIds}
-				callApi={bulkCallApi}
-				onClose={closeModal}
-				onSuccess={() => handleSuccess("Repetitions reset")}
-			/>
-			<SetDueDateModal
-				opened={openModal === "due"}
-				elementIds={selectedIds}
-				defaultDue={firstDueDate}
-				callApi={bulkCallApi}
-				onClose={closeModal}
-				onSuccess={() => handleSuccess("Due date updated")}
-			/>
-			<SetStudyProfileModal
-				opened={openModal === "profile"}
-				elementIds={selectedIds}
-				profiles={profiles}
-				callApi={bulkCallApi}
-				onClose={closeModal}
-				onSuccess={() => handleSuccess("Study profile updated")}
-			/>
-			<AddTagModal
-				opened={openModal === "addTag"}
-				elementIds={selectedIds}
-				callApi={bulkCallApi}
-				onClose={closeModal}
-				onSuccess={() => handleSuccess("Tags added")}
-			/>
-			<RemoveTagModal
-				opened={openModal === "removeTag"}
-				elementIds={selectedIds}
-				selectedResults={selectedResults}
-				callApi={bulkCallApi}
-				onClose={closeModal}
-				onSuccess={() => handleSuccess("Tags removed")}
-			/>
-			<SetSourceModal
-				opened={openModal === "source"}
-				elementIds={selectedIds}
-				sources={sources}
-				callApi={bulkCallApi}
-				onClose={closeModal}
-				onSuccess={() => handleSuccess("Source updated")}
-			/>
-			<DeleteElementsConfirmModal
-				opened={openModal === "delete"}
-				elementIds={selectedIds}
-				callApi={bulkCallApi}
-				onClose={closeModal}
-				onSuccess={() => handleSuccess("Elements deleted")}
-			/>
+			<Fragment key={openSeq}>
+				<ResetRepetitionsConfirmModal
+					opened={openModal === "reset"}
+					elementIds={selectedIds}
+					callApi={bulkCallApi}
+					onClose={closeModal}
+					onSuccess={() => handleSuccess("Repetitions reset")}
+				/>
+				<SetDueDateModal
+					opened={openModal === "due"}
+					elementIds={selectedIds}
+					defaultDue={firstDueDate}
+					callApi={bulkCallApi}
+					onClose={closeModal}
+					onSuccess={() => handleSuccess("Due date updated")}
+				/>
+				<SetStudyProfileModal
+					opened={openModal === "profile"}
+					elementIds={selectedIds}
+					profiles={profiles}
+					callApi={bulkCallApi}
+					onClose={closeModal}
+					onSuccess={() => handleSuccess("Study profile updated")}
+				/>
+				<AddTagModal
+					opened={openModal === "addTag"}
+					elementIds={selectedIds}
+					callApi={bulkCallApi}
+					onClose={closeModal}
+					onSuccess={() => handleSuccess("Tags added")}
+				/>
+				<RemoveTagModal
+					opened={openModal === "removeTag"}
+					elementIds={selectedIds}
+					selectedResults={selectedResults}
+					callApi={bulkCallApi}
+					onClose={closeModal}
+					onSuccess={() => handleSuccess("Tags removed")}
+				/>
+				<SetSourceModal
+					opened={openModal === "source"}
+					elementIds={selectedIds}
+					sources={sources}
+					callApi={bulkCallApi}
+					onClose={closeModal}
+					onSuccess={() => handleSuccess("Source updated")}
+				/>
+				<DeleteElementsConfirmModal
+					opened={openModal === "delete"}
+					elementIds={selectedIds}
+					callApi={bulkCallApi}
+					onClose={closeModal}
+					onSuccess={() => handleSuccess("Elements deleted")}
+				/>
+			</Fragment>
 		</>
 	);
 }
