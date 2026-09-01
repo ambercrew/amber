@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import ImportModal from "../../../../features/Import/components/ImportModal";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { runFileImport } from "../../../../features/Import/flows/file";
@@ -20,8 +20,8 @@ function pasteFiles(input: HTMLElement, files: File[]) {
 	});
 }
 
-function renderOpenedModal() {
-	return renderWithProviders(<ImportModal />, {
+async function renderOpenedModal() {
+	const result = renderWithProviders(<ImportModal />, {
 		preloadedState: {
 			app: {
 				startedInitialStateLoading: false,
@@ -38,6 +38,14 @@ function renderOpenedModal() {
 			},
 		},
 	});
+
+	// The modal reads the priority-queue size as soon as it opens; let that
+	// settle here so the state update it triggers doesn't land outside act().
+	await act(async () => {
+		/* Empty */
+	});
+
+	return result;
 }
 
 describe("ImportModal", () => {
@@ -45,10 +53,10 @@ describe("ImportModal", () => {
 		vi.mocked(getPriorityQueueSize).mockResolvedValue(9);
 	});
 
-	it("Should stage the file without starting import when a file is pasted", () => {
+	it("Should stage the file without starting import when a file is pasted", async () => {
 		// Arrange
 
-		renderOpenedModal();
+		await renderOpenedModal();
 		const input = screen.getByPlaceholderText("Paste a link or content");
 		const file = pdfFile("article.pdf");
 
@@ -65,7 +73,7 @@ describe("ImportModal", () => {
 	it("Should start file import only when Import is clicked", async () => {
 		// Arrange
 
-		renderOpenedModal();
+		await renderOpenedModal();
 		const input = screen.getByPlaceholderText("Paste a link or content");
 		const file = pdfFile("article.pdf");
 		pasteFiles(input, [file]);
@@ -85,10 +93,10 @@ describe("ImportModal", () => {
 		});
 	});
 
-	it("Should show one row per file when multiple files are pasted", () => {
+	it("Should show one row per file when multiple files are pasted", async () => {
 		// Arrange
 
-		renderOpenedModal();
+		await renderOpenedModal();
 		const input = screen.getByPlaceholderText("Paste a link or content");
 		const files = [pdfFile("first.pdf"), pdfFile("second.pdf")];
 
@@ -108,10 +116,10 @@ describe("ImportModal", () => {
 		).toBeInTheDocument();
 	});
 
-	it("Should remove only the targeted file when its remove button is clicked", () => {
+	it("Should remove only the targeted file when its remove button is clicked", async () => {
 		// Arrange
 
-		renderOpenedModal();
+		await renderOpenedModal();
 		const input = screen.getByPlaceholderText("Paste a link or content");
 		pasteFiles(input, [pdfFile("first.pdf"), pdfFile("second.pdf")]);
 
@@ -131,7 +139,7 @@ describe("ImportModal", () => {
 		// Arrange
 
 		vi.mocked(runFileImport).mockResolvedValue({ kind: "no-text-layer" });
-		renderOpenedModal();
+		await renderOpenedModal();
 		const input = screen.getByPlaceholderText("Paste a link or content");
 		const file = pdfFile("article.pdf");
 		pasteFiles(input, [file]);
@@ -148,10 +156,10 @@ describe("ImportModal", () => {
 		expect(screen.getByText("article.pdf")).toBeInTheDocument();
 	});
 
-	it("Should revert to the link input when the last staged file is removed", () => {
+	it("Should revert to the link input when the last staged file is removed", async () => {
 		// Arrange
 
-		renderOpenedModal();
+		await renderOpenedModal();
 		const input = screen.getByPlaceholderText("Paste a link or content");
 		pasteFiles(input, [pdfFile("article.pdf")]);
 

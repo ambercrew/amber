@@ -877,6 +877,10 @@ describe("applyScheduleChangeAction", () => {
 		const show = vi
 			.spyOn(notifications, "show")
 			.mockImplementation(() => "");
+		// The thunk logs the failure it reports; keep it out of the test output.
+		const logError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
 		vi.mocked(getCardReview).mockRejectedValue(
 			new Error("Database is busy"),
 		);
@@ -898,6 +902,7 @@ describe("applyScheduleChangeAction", () => {
 		expect(show).toHaveBeenCalledWith(
 			expect.objectContaining({ color: "red" }),
 		);
+		expect(logError).toHaveBeenCalled();
 		expect(
 			store.getState().study.queue.map(item => item.elementId.id),
 		).toEqual(["1", "2"]);
