@@ -267,7 +267,6 @@ function App() {
 					}}>
 					<ScrollArea
 						h="100%"
-						type="auto"
 						scrollbars="y"
 						viewportRef={setMainElement}
 						viewportProps={{
