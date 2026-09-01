@@ -15,6 +15,7 @@ function pasteFiles(input: HTMLElement, files: File[]) {
 	fireEvent.paste(input, {
 		clipboardData: {
 			files,
+			types: ["Files"],
 			getData: () => "",
 		},
 	});
