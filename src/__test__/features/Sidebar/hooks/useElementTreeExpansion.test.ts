@@ -246,4 +246,98 @@ describe("useElementTreeExpansion", () => {
 
 		expect(result.current.treeController.expandedState).toEqual({});
 	});
+
+	it("Should expand ancestors of the selected node while studying", async () => {
+		// Arrange / Act — cell-card is selected during a study session
+
+		const { result } = renderHook(() =>
+			useElementTreeExpansion(DATA, "cell-card", true),
+		);
+		await flushMicrotasks();
+
+		// Assert — the path to cell-card is revealed
+
+		expect(
+			result.current.treeController.expandedState["science-folder"],
+		).toBe(true);
+		expect(
+			result.current.treeController.expandedState[
+				"biology-learningAsset"
+			],
+		).toBe(true);
+	});
+
+	it("Should collapse ancestors that were not previously expanded once study moves to a sibling", async () => {
+		// Arrange — nothing expanded beforehand; study reveals cell-card's ancestors
+
+		const { result, rerender } = renderHook<
+			ReturnType<typeof useElementTreeExpansion>,
+			{ selectedId: string | null }
+		>(({ selectedId }) => useElementTreeExpansion(DATA, selectedId, true), {
+			initialProps: { selectedId: "cell-card" },
+		});
+		await flushMicrotasks();
+		expect(
+			result.current.treeController.expandedState["science-folder"],
+		).toBe(true);
+
+		// Act — study moves on to a node with no shared ancestors
+
+		rerender({ selectedId: "art-folder" });
+		await flushMicrotasks();
+
+		// Assert — the auto-expanded ancestor collapses again since nothing else needs it open
+
+		expect(
+			result.current.treeController.expandedState["science-folder"],
+		).toBeFalsy();
+		expect(
+			result.current.treeController.expandedState[
+				"biology-learningAsset"
+			],
+		).toBeFalsy();
+	});
+
+	it("Should keep an ancestor expanded after study moves past it when it was already expanded beforehand", async () => {
+		// Arrange — science-folder is manually expanded before studying starts
+
+		const { result, rerender } = renderHook<
+			ReturnType<typeof useElementTreeExpansion>,
+			{ selectedId: string | null }
+		>(({ selectedId }) => useElementTreeExpansion(DATA, selectedId, true), {
+			initialProps: { selectedId: null },
+		});
+		act(() => result.current.treeController.expand("science-folder"));
+		await flushMicrotasks();
+
+		rerender({ selectedId: "cell-card" });
+		await flushMicrotasks();
+
+		// Act — study moves on to a node outside science-folder
+
+		rerender({ selectedId: "art-folder" });
+		await flushMicrotasks();
+
+		// Assert — science-folder stays expanded since it wasn't auto-expanded by study
+
+		expect(
+			result.current.treeController.expandedState["science-folder"],
+		).toBe(true);
+	});
+
+	it("Should not persist study auto-expansion to storage", async () => {
+		// Arrange / Act — cell-card is revealed while studying
+
+		renderHook(() => useElementTreeExpansion(DATA, "cell-card", true));
+		await flushMicrotasks();
+
+		// Assert — a fresh, non-studying instance does not see the ancestors as expanded
+
+		const { result: freshResult } = renderHook(() =>
+			useElementTreeExpansion(DATA),
+		);
+		expect(
+			freshResult.current.treeController.expandedState["science-folder"],
+		).toBeFalsy();
+	});
 });

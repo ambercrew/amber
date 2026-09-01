@@ -30,10 +30,12 @@ import TrashElementModal from "../TrashElementModal";
 import ElementTreeMenuItems from "./ElementTreeMenuItems";
 import ElementTreeNode from "./ElementTreeNode";
 import useAppDispatch from "../../../../hooks/useAppDispatch";
+import useAppSelector from "../../../../hooks/useAppSelector";
 import {
 	loadElementTree,
 	moveElementAction,
 } from "../../../../stores/elements/elementsActions";
+import { selectStudyStatus } from "../../../../stores/study/studySelectors";
 
 interface ElementTreeProps {
 	tree: NodeDto[];
@@ -54,8 +56,9 @@ function ElementTree({ tree }: ElementTreeProps) {
 		null,
 	);
 
+	const isStudying = useAppSelector(selectStudyStatus) === "studying";
 	const { treeController, filteredData, search, handleSearchChange } =
-		useElementTreeExpansion(data, selected?.id ?? null);
+		useElementTreeExpansion(data, selected?.id ?? null, isStudying);
 
 	useTauriEvent<ElementCreatedEventDto>(ELEMENT_CREATED_EVENT, payload => {
 		void dispatch(loadElementTree());

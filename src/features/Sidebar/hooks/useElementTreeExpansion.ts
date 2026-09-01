@@ -11,6 +11,7 @@ import { getAncestorsOf } from "../utils/elementTreeUtils";
 export function useElementTreeExpansion(
 	data: TreeNodeData[],
 	selectedId: string | null = null,
+	isStudying = false,
 ) {
 	const [persistedExpandedState, setPersistedExpandedState] = useLocalStorage<
 		Record<string, boolean>
@@ -37,10 +38,30 @@ export function useElementTreeExpansion(
 		}
 	}, [data, persistedExpandedState, treeController]);
 
+	// Ancestor ids that were auto-expanded to reveal the current study element but
+	// were not expanded beforehand — collapsed again once study moves past them.
+	const studyAutoExpandedRef = useRef<string[]>([]);
+
 	// Reveal the selected element by expanding its ancestors whenever navigation changes it.
 	useEffect(() => {
 		if (!selectedId || data.length === 0) return;
 		const ancestors = getAncestorsOf(data, selectedId) ?? [];
+
+		if (isStudying) {
+			const current = { ...treeController.expandedState };
+			for (const id of studyAutoExpandedRef.current) {
+				current[id] = false;
+			}
+			const newlyExpanded = ancestors.filter(id => !current[id]);
+			for (const id of ancestors) {
+				current[id] = true;
+			}
+			treeController.setExpandedState(current);
+			studyAutoExpandedRef.current = newlyExpanded;
+			return;
+		}
+
+		studyAutoExpandedRef.current = [];
 		if (ancestors.length === 0) return;
 		const extra = Object.fromEntries(ancestors.map(id => [id, true]));
 		setPersistedExpandedState(prev => ({ ...prev, ...extra }));
@@ -49,7 +70,7 @@ export function useElementTreeExpansion(
 			...extra,
 		});
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- The rest are not important.
-	}, [selectedId, data]);
+	}, [selectedId, data, isStudying]);
 
 	const [search, setSearch] = useState("");
 	const preSearchExpandedState = useRef<Record<string, boolean> | null>(null);
