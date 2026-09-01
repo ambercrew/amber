@@ -28,7 +28,7 @@ export interface UseElementHeadroomReturnValue {
 export function useElementHeadroom({
 	element,
 	fixedAt = 0,
-	scrollDistance = 100,
+	scrollDistance = 70,
 }: UseElementHeadroomInput): UseElementHeadroomReturnValue {
 	const [scrollProgress, setScrollProgress] = useState(1);
 
