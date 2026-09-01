@@ -25,6 +25,7 @@ function SyncButton() {
 				variant="subtle"
 				color="gray"
 				loading={isSyncing}
+				size="lg"
 				disabled={isSyncing}
 				onClick={() => run("sync")}
 				aria-label="Sync">
