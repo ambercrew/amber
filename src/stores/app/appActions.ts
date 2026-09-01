@@ -7,8 +7,15 @@ import { loadUserState } from "../user/userActions";
 import { UserInformationDto } from "../../api/backend/dto/userInformationDto";
 import { setUserInformation } from "../user/userReducer";
 import { saveCachedUserInformation } from "../user/userInformationCache";
-import { selectStartedInitialStateLoading } from "./appSelectors";
-import { markStartLoadingOfInitialState } from "./appReducer";
+import {
+	selectIsVirtualKeyboardSuppressed,
+	selectStartedInitialStateLoading,
+} from "./appSelectors";
+import {
+	markStartLoadingOfInitialState,
+	setVirtualKeyboardSuppressed,
+} from "./appReducer";
+import { saveVirtualKeyboardSuppressed } from "./virtualKeyboardStorage";
 import { loadElementTree } from "../elements/elementsActions";
 import { setCurrentElement } from "../elements/elementsReducer";
 
@@ -50,6 +57,22 @@ export function changeDatabaseDirectory(
 			),
 		);
 		await dispatch(reloadApplicationState(navigate));
+	};
+}
+
+/** Turns the on-screen keyboard suppression on or off, remembering the choice
+ * for the next time the app starts on this device. */
+export function setVirtualKeyboardSuppressedAction(suppressed: boolean) {
+	return function (dispatch: AppDispatch, getState: () => RootState): void {
+		if (selectIsVirtualKeyboardSuppressed(getState()) === suppressed)
+			return;
+		// Drop focus as well, so a keyboard that is already up goes away at
+		// once instead of lingering until the user taps elsewhere.
+		if (suppressed) {
+			(document.activeElement as HTMLElement | null)?.blur();
+		}
+		saveVirtualKeyboardSuppressed(suppressed);
+		dispatch(setVirtualKeyboardSuppressed(suppressed));
 	};
 }
 

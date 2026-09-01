@@ -90,6 +90,7 @@ describe("StudyProfileModal", () => {
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
 					manageAccountModalOpened: false,
+					virtualKeyboardSuppressed: false,
 				},
 			},
 		});
@@ -117,6 +118,7 @@ describe("StudyProfileModal", () => {
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
 					manageAccountModalOpened: false,
+					virtualKeyboardSuppressed: false,
 				},
 			},
 		});
@@ -154,6 +156,7 @@ describe("StudyProfileModal", () => {
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
 					manageAccountModalOpened: false,
+					virtualKeyboardSuppressed: false,
 				},
 				elements: elementsStateFor(cardElement("1")),
 			},
@@ -197,6 +200,7 @@ describe("StudyProfileModal", () => {
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
 					manageAccountModalOpened: false,
+					virtualKeyboardSuppressed: false,
 				},
 				elements: elementsStateFor(null),
 			},
@@ -229,6 +233,7 @@ describe("StudyProfileModal", () => {
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
 					manageAccountModalOpened: false,
+					virtualKeyboardSuppressed: false,
 				},
 			},
 		});
@@ -267,6 +272,7 @@ describe("StudyProfileModal", () => {
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
 					manageAccountModalOpened: false,
+					virtualKeyboardSuppressed: false,
 				},
 			},
 		});
@@ -305,6 +311,7 @@ describe("StudyProfileModal", () => {
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
 					manageAccountModalOpened: false,
+					virtualKeyboardSuppressed: false,
 				},
 			},
 		});
@@ -342,6 +349,7 @@ describe("StudyProfileModal", () => {
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
 					manageAccountModalOpened: false,
+					virtualKeyboardSuppressed: false,
 				},
 			},
 		});
@@ -377,6 +385,7 @@ describe("StudyProfileModal", () => {
 					authModalInitialTab: "sign-in",
 					verifyEmailModalOpened: false,
 					manageAccountModalOpened: false,
+					virtualKeyboardSuppressed: false,
 				},
 			},
 		});

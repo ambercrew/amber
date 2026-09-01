@@ -84,6 +84,7 @@ function appStateFor(priorityModalOpened: boolean): AppState {
 		authModalInitialTab: "sign-in",
 		verifyEmailModalOpened: false,
 		manageAccountModalOpened: false,
+		virtualKeyboardSuppressed: false,
 	};
 }
 

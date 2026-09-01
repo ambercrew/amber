@@ -29,3 +29,6 @@ export const selectIsVerifyEmailModalOpened = (state: RootState) =>
 
 export const selectIsManageAccountModalOpened = (state: RootState) =>
 	state.app.manageAccountModalOpened;
+
+export const selectIsVirtualKeyboardSuppressed = (state: RootState) =>
+	state.app.virtualKeyboardSuppressed;

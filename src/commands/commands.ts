@@ -10,6 +10,7 @@ import {
 	EraserIcon,
 	FadersHorizontalIcon,
 	GearIcon,
+	KeyboardIcon,
 	MagnifyingGlassIcon,
 	MagnifyingGlassMinusIcon,
 	MagnifyingGlassPlusIcon,
@@ -20,6 +21,7 @@ import {
 	UploadSimpleIcon,
 } from "@phosphor-icons/react";
 import { AppDispatch, RootState } from "../stores/store";
+import { setVirtualKeyboardSuppressedAction } from "../stores/app/appActions";
 import {
 	openImportModal,
 	openPriorityModal,
@@ -48,6 +50,8 @@ import { READ_POINT_MANUAL_SET_REQUESTED } from "../types/events/readPointManual
 import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../types/events/readPointManualClearRequestedEvent";
 import { READ_POINT_MANUAL_GOTO_REQUESTED } from "../types/events/readPointManualGotoRequestedEvent";
 import { isMobile } from "../utils/tauriUtils";
+import { isCoarsePointer } from "../utils/pointer";
+import { selectIsVirtualKeyboardSuppressed } from "../stores/app/appSelectors";
 import { ZOOM_STEP, clampZoom } from "../utils/zoom";
 
 export const SPOTLIGHT_SHORTCUT = "mod+K";
@@ -78,6 +82,8 @@ export const commandIds = [
 	"zoom-in",
 	"zoom-out",
 	"reset-zoom",
+	"disable-virtual-keyboard",
+	"enable-virtual-keyboard",
 ] as const;
 export type CommandId = (typeof commandIds)[number];
 
@@ -268,6 +274,27 @@ export const commandsById: Record<CommandId, Command> = {
 				),
 			);
 		},
+	},
+	"disable-virtual-keyboard": {
+		id: "disable-virtual-keyboard",
+		group: "Settings",
+		label: "Disable on-screen keyboard",
+		icon: createElement(KeyboardIcon),
+		enabled: state =>
+			isCoarsePointer() && !selectIsVirtualKeyboardSuppressed(state),
+		execute: dispatch => dispatch(setVirtualKeyboardSuppressedAction(true)),
+	},
+	"enable-virtual-keyboard": {
+		id: "enable-virtual-keyboard",
+		group: "Settings",
+		label: "Enable on-screen keyboard",
+		icon: createElement(KeyboardIcon),
+		// Deliberately not gated on the pointer type: suppression outlives a
+		// restart, so this has to stay reachable even if the device stops
+		// reporting a coarse pointer (a tablet with a keyboard case attached).
+		enabled: state => selectIsVirtualKeyboardSuppressed(state),
+		execute: dispatch =>
+			dispatch(setVirtualKeyboardSuppressedAction(false)),
 	},
 	"reset-zoom": {
 		id: "reset-zoom",

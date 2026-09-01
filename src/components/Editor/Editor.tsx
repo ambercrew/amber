@@ -23,6 +23,8 @@ import {
 } from "./editorExtension";
 import styles from "./Editor.module.css";
 import { useIsCoarsePointer } from "../../hooks/useIsCoarsePointer";
+import useAppSelector from "../../hooks/useAppSelector";
+import { selectIsVirtualKeyboardSuppressed } from "../../stores/app/appSelectors";
 
 // @lexical/code-shiki bakes the Shiki theme used at highlight time into
 // each CodeNode's serialized JSON, and only re-highlights with the
@@ -57,6 +59,10 @@ export default function Editor({
 	// The floating selection menu already covers this with a coarse pointer.
 	const coarsePointer = useIsCoarsePointer();
 	const contextMenuDisabled = !contextMenuItems || coarsePointer;
+	const keyboardSuppressed = useAppSelector(
+		selectIsVirtualKeyboardSuppressed,
+	);
+	const suppressKeyboard = keyboardSuppressed && coarsePointer;
 
 	const editorExtension = useMemo(
 		() =>
@@ -96,6 +102,9 @@ export default function Editor({
 						<Box className={styles.anchor}>
 							<ContentEditable
 								className={styles["content-editable"]}
+								inputMode={
+									suppressKeyboard ? "none" : undefined
+								}
 								aria-label="Rich text editor"
 								aria-placeholder="Type '/' for commands..."
 								placeholder={

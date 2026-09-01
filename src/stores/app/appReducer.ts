@@ -1,4 +1,5 @@
 import { PayloadAction, createSlice } from "@reduxjs/toolkit";
+import { loadVirtualKeyboardSuppressed } from "./virtualKeyboardStorage";
 
 export type AuthModalTab = "sign-in" | "sign-up";
 
@@ -13,6 +14,9 @@ export interface AppState {
 	authModalInitialTab: AuthModalTab;
 	verifyEmailModalOpened: boolean;
 	manageAccountModalOpened: boolean;
+	/** When true the editor never asks for the on-screen keyboard, so a touch
+	 * user can select text and make extracts without it covering the page. */
+	virtualKeyboardSuppressed: boolean;
 }
 
 const initialState: AppState = {
@@ -26,6 +30,7 @@ const initialState: AppState = {
 	authModalInitialTab: "sign-in",
 	verifyEmailModalOpened: false,
 	manageAccountModalOpened: false,
+	virtualKeyboardSuppressed: loadVirtualKeyboardSuppressed(),
 };
 
 const appSlice = createSlice({
@@ -87,6 +92,12 @@ const appSlice = createSlice({
 		closeManageAccountModal: state => {
 			state.manageAccountModalOpened = false;
 		},
+		setVirtualKeyboardSuppressed: (
+			state,
+			action: PayloadAction<boolean>,
+		) => {
+			state.virtualKeyboardSuppressed = action.payload;
+		},
 	},
 });
 
@@ -110,4 +121,5 @@ export const {
 	closeVerifyEmailModal,
 	openManageAccountModal,
 	closeManageAccountModal,
+	setVirtualKeyboardSuppressed,
 } = appSlice.actions;

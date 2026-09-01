@@ -34,6 +34,7 @@ function renderOpenedModal() {
 				authModalInitialTab: "sign-in",
 				verifyEmailModalOpened: false,
 				manageAccountModalOpened: false,
+				virtualKeyboardSuppressed: false,
 			},
 		},
 	});
