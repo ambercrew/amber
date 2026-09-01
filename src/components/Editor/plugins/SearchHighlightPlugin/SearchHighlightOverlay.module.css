@@ -1,0 +1,15 @@
+.box {
+	position: fixed;
+	pointer-events: none;
+	border-radius: 2px;
+	opacity: 0.45;
+}
+
+.all {
+	background-color: var(--mantine-color-violet-2);
+}
+
+.current {
+	background-color: var(--mantine-color-violet-5);
+	opacity: 0.6;
+}

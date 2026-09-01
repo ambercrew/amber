@@ -4,6 +4,7 @@ import ExtractElementViewer from "./ExtractElementViewer";
 import FindInPageBar from "./FindInPageBar";
 import FolderView from "./FolderView";
 import LearningAssetView from "./LearningAssetView/LearningAssetView";
+import SearchHighlightOverlay from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightOverlay";
 import useAppSelector from "../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../stores/elements/elementsSelectors";
 import { selectStudyStatus } from "../../stores/study/studySelectors";
@@ -69,6 +70,7 @@ export default function ElementViewer() {
 	return (
 		<>
 			<FindInPageBar />
+			<SearchHighlightOverlay />
 			{currentElement.type === "card" && (
 				<CardElementViewer
 					elementId={elementId}
