@@ -109,7 +109,7 @@ jobs:
       - name: cache tauri CLI (ubuntu only)
         if: matrix.platform == 'ubuntu-24.04'
         id: tauri-cli-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/cargo-tauri
           key: cargo-tauri-${{ runner.os }}-${{ env.TAURI_CLI_REV }}
@@ -121,9 +121,11 @@ jobs:
             --rev "$TAURI_CLI_REV" tauri-cli --locked
 
       - name: install protoc
-        uses: arduino/setup-protoc@v3
+        uses: taiki-e/install-action@v2
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          tool: protoc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: install frontend dependencies
         run: npm ci
@@ -178,7 +180,7 @@ jobs:
 
       # - name: upload snap to release
       #   if: matrix.platform == 'ubuntu-24.04'
-      #   uses: softprops/action-gh-release@v2
+      #   uses: softprops/action-gh-release@v3
       #   with:
       #     tag_name: v${{ needs.create-release.outputs.version }}
       #     draft: true
@@ -233,7 +235,7 @@ jobs:
           node-version: lts/*
 
       - name: setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
@@ -249,7 +251,7 @@ jobs:
           workspaces: "./src-tauri -> target"
 
       - name: setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: install NDK
         run: sdkmanager "ndk;27.0.12077973"
@@ -260,9 +262,11 @@ jobs:
           echo "$ANDROID_SDK_ROOT/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
 
       - name: install protoc
-        uses: arduino/setup-protoc@v3
+        uses: taiki-e/install-action@v2
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          tool: protoc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: install frontend dependencies
         run: npm ci
@@ -279,7 +283,7 @@ jobs:
         run: npm run android:build -- --apk --aab
 
       - name: upload Android artifacts to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
           draft: true
@@ -316,7 +320,7 @@ jobs:
           git push origin latest --force
 
       - name: Upload latest.json to latest tag
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: latest
           draft: false
