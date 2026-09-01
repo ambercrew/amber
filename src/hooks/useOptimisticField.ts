@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import useApi from "./useApi";
 
 export default function useOptimisticField<T>(source: T) {
 	const { callApi, errorMessage } = useApi();
 	const [value, setValue] = useState(source);
+	const [lastSource, setLastSource] = useState(source);
 
-	useEffect(() => {
+	if (source !== lastSource) {
+		setLastSource(source);
 		setValue(source);
-	}, [source]);
+	}
 
 	function persist(next: T, action: () => Promise<unknown>) {
 		setValue(next);

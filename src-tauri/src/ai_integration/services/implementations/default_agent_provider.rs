@@ -6,7 +6,6 @@ use rig::agent::Agent;
 use rig::client::AgentClientExt;
 use uuid::Uuid;
 
-use crate::ai_integration::clients::multi_client::multi_completion_model::MultiCompletionModel;
 use crate::ai_integration::entities::message::{Message, MessageContent};
 use crate::ai_integration::prompts::{format_context_snippets, preamble};
 use crate::ai_integration::services::agent_provider::{AgentProvider, AgentProviderError};
@@ -86,7 +85,7 @@ impl AgentProvider for DefaultAgentProvider {
         messages: &[Message],
         element_id: Option<ElementId>,
         context_snippets: &[String],
-    ) -> Result<Agent<MultiCompletionModel>, AgentProviderError> {
+    ) -> Result<Agent, AgentProviderError> {
         let client = self.ai_client_provider.get_client().await?;
         let completion_model_name = self.ai_client_provider.get_completion_model_name().await?;
         let context = self.build_context(element_id, context_snippets).await?;
@@ -128,7 +127,6 @@ pub mod tests {
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
     use rig::{
-        OneOrMany,
         completion::{CompletionResponse, Prompt, Usage},
         message::{AssistantContent, Message as RigMessage},
     };
@@ -138,7 +136,7 @@ pub mod tests {
     use crate::{
         ai_integration::{
             ai_state::AiState,
-            clients::{mock_client::MockClient, multi_client::multi_response::MultiResponse},
+            clients::mock_client::{MOCK_PROVIDER, MockClient},
             entities::message::{DocumentContent, Message, MessageContent},
             services::implementations::default_ai_client_provider::DefaultAiClientProvider,
         },
@@ -279,13 +277,12 @@ pub mod tests {
         injector
     }
 
-    fn mock_response_with_text(text: &str) -> CompletionResponse<MultiResponse> {
-        CompletionResponse {
-            choice: OneOrMany::one(AssistantContent::text(text)),
-            raw_response: MultiResponse::Mock,
-            usage: Usage::default(),
-            message_id: None,
-        }
+    fn mock_response_with_text(text: &str) -> CompletionResponse {
+        CompletionResponse::new(
+            vec![AssistantContent::text(text)],
+            Usage::default(),
+            MOCK_PROVIDER,
+        )
     }
 
     #[tokio::test]

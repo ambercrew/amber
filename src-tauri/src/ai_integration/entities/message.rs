@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use rig::{
-    OneOrMany,
     agent::Text,
-    message::{AssistantContent, UserContent},
+    message::{AssistantContent, ProviderCallId, ToolCallId, UserContent},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -70,44 +69,49 @@ impl Message {
                     None => content,
                 };
                 Ok(rig::message::Message::User {
-                    content: OneOrMany::one(UserContent::text(text)),
+                    content: vec![UserContent::text(text)],
                 })
             }
             MessageContent::Document(DocumentContent { file_name }) => {
                 Ok(rig::message::Message::User {
-                    content: OneOrMany::one(UserContent::text(format!(
+                    content: vec![UserContent::text(format!(
                         "I have uploaded the following file: {file_name}"
-                    ))),
+                    ))],
                 })
             }
             MessageContent::Assistant(content) => Ok(rig::message::Message::Assistant {
                 id: None,
-                content: OneOrMany::one(AssistantContent::Text(Text {
+                content: vec![AssistantContent::Text(Text {
                     text: content,
                     additional_params: None,
-                })),
+                })],
             }),
             MessageContent::ToolCall(ToolCallContent {
                 id,
                 name,
                 arguments,
-            }) => Ok(rig::message::Message::Assistant {
-                id: None,
-                content: OneOrMany::one(AssistantContent::ToolCall(rig::message::ToolCall {
-                    id,
-                    call_id: None,
-                    function: rig::message::ToolFunction { name, arguments },
-                    signature: None,
-                    additional_params: None,
-                })),
-            }),
-            MessageContent::ToolResult(ToolResultContent { id, text }) => {
+            }) => {
+                let provider = ProviderCallId::new(id);
+                Ok(rig::message::Message::Assistant {
+                    id: None,
+                    content: vec![AssistantContent::ToolCall(rig::message::ToolCall {
+                        id: ToolCallId::for_provider(provider.as_ref()),
+                        provider,
+                        function: rig::message::ToolFunction { name, arguments },
+                        signature: None,
+                        additional_params: None,
+                    })],
+                })
+            }
+            MessageContent::ToolResult(ToolResultContent { id, name, text }) => {
+                let provider = ProviderCallId::new(id);
                 Ok(rig::message::Message::User {
-                    content: OneOrMany::one(UserContent::ToolResult(rig::message::ToolResult {
-                        id,
-                        call_id: None,
-                        content: OneOrMany::one(rig::message::ToolResultContent::text(text)),
-                    })),
+                    content: vec![UserContent::ToolResult(rig::message::ToolResult {
+                        call: ToolCallId::for_provider(provider.as_ref()),
+                        provider,
+                        name,
+                        content: vec![rig::message::ToolResultContent::text(text)],
+                    })],
                 })
             }
         }
@@ -142,13 +146,15 @@ pub struct ToolCallContent {
 #[serde(rename_all = "camelCase")]
 pub struct ToolResultContent {
     pub(in crate::ai_integration) id: String,
+    #[serde(default)]
+    pub(in crate::ai_integration) name: String,
     pub(in crate::ai_integration) text: String,
 }
 
 impl From<rig::message::ToolCall> for ToolCallContent {
     fn from(tool_call: rig::message::ToolCall) -> Self {
         Self {
-            id: tool_call.id,
+            id: provider_or_handle(tool_call.provider, tool_call.id),
             name: tool_call.function.name,
             arguments: tool_call.function.arguments,
         }
@@ -170,10 +176,19 @@ impl From<rig::message::ToolResult> for ToolResultContent {
             .unwrap_or_else(|| "Tool called successfully".to_string());
 
         Self {
-            id: tool_result.id,
+            id: provider_or_handle(tool_result.provider, tool_result.call),
+            name: tool_result.name,
             text,
         }
     }
+}
+
+/// The identifier to persist for a tool call or its result: the provider's own
+/// id when it issued one, otherwise rig's minted correlation handle.
+fn provider_or_handle(provider: Option<ProviderCallId>, handle: ToolCallId) -> String {
+    provider
+        .map(|provider| provider.call_id)
+        .unwrap_or_else(|| handle.into_string())
 }
 
 #[derive(Debug)]
@@ -206,7 +221,7 @@ mod tests {
         let rig::message::Message::User { content } = actual else {
             panic!("Expected a user message");
         };
-        let UserContent::Text(text) = content.first() else {
+        let Some(UserContent::Text(text)) = content.first() else {
             panic!("Expected text content");
         };
         assert!(text.text.contains("What does this mean?"));
@@ -232,7 +247,7 @@ mod tests {
         let rig::message::Message::User { content } = actual else {
             panic!("Expected a user message");
         };
-        let UserContent::Text(text) = content.first() else {
+        let Some(UserContent::Text(text)) = content.first() else {
             panic!("Expected text content");
         };
         assert_eq!(text.text, "What does this mean?");

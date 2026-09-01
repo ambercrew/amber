@@ -2,23 +2,15 @@ use std::sync::Arc;
 
 use async_stream::stream;
 use rig::{
-    completion::{self, CompletionError, CompletionModel, CompletionRequest, CompletionResponse},
+    completion::{CompletionError, CompletionModel, CompletionRequest, CompletionResponse, Usage},
     embeddings::EmbeddingModel,
-    streaming::{RawStreamingChoice, StreamingCompletionResponse},
+    streaming::{RawStreamingChoice, StreamFinal, StreamingCompletionResponse},
 };
 
-use crate::ai_integration::clients::multi_client::{
-    multi_response::MultiResponse, multi_streaming_response::MultiStreamingResponse,
-};
+type CompletionFn = dyn Send + Sync + Fn(CompletionRequest) -> CompletionResponse;
 
-type CompletionFn =
-    dyn Send + Sync + Fn(CompletionRequest) -> completion::CompletionResponse<MultiResponse>;
-
-type StreamFn = dyn Send
-    + Sync
-    + Fn(
-        CompletionRequest,
-    ) -> Result<Option<RawStreamingChoice<MultiStreamingResponse>>, CompletionError>;
+type StreamFn =
+    dyn Send + Sync + Fn(CompletionRequest) -> Result<Option<RawStreamingChoice>, CompletionError>;
 
 type EmbedTextsFn = dyn Send
     + Sync
@@ -37,23 +29,14 @@ pub struct MockClient {
 
 pub const DEFAULT_MOCK_EMBEDDINGS_DIMS: usize = 2560;
 
+/// Stable provider descriptor reported by streams this mock opens.
+pub const MOCK_PROVIDER: &str = "mock";
+
 impl CompletionModel for MockClient {
-    type Response = MultiResponse;
-
-    type StreamingResponse = MultiStreamingResponse;
-
-    type Client = MockClient;
-
-    fn make(client: &Self::Client, model: impl Into<String>) -> Self {
-        let mut new_client = client.clone();
-        new_client.model = Some(model.into());
-        new_client
-    }
-
     async fn completion(
         &self,
         request: rig::completion::CompletionRequest,
-    ) -> Result<CompletionResponse<Self::Response>, CompletionError> {
+    ) -> Result<CompletionResponse, CompletionError> {
         match &*self.completion_fn {
             Some(completion_fn) => Ok(completion_fn(request)),
             None => panic!("No completion function provided!"),
@@ -63,7 +46,7 @@ impl CompletionModel for MockClient {
     async fn stream(
         &self,
         request: CompletionRequest,
-    ) -> Result<StreamingCompletionResponse<Self::StreamingResponse>, CompletionError> {
+    ) -> Result<StreamingCompletionResponse, CompletionError> {
         if self.stream_fn.is_none() {
             panic!("No streaming function provided!");
         }
@@ -79,12 +62,19 @@ impl CompletionModel for MockClient {
                     yield Err(err);
                     break;
                 } else {
+                    yield Ok(RawStreamingChoice::FinalResponse(StreamFinal::new(
+                        MOCK_PROVIDER,
+                        Usage::default(),
+                    )));
                     break;
                 }
             }
         };
 
-        Ok(StreamingCompletionResponse::stream(Box::pin(stream)))
+        Ok(StreamingCompletionResponse::stream(
+            MOCK_PROVIDER,
+            Box::pin(stream),
+        ))
     }
 }
 

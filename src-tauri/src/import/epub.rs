@@ -96,10 +96,10 @@ fn find_opf_path(container_xml: &str) -> Option<String> {
     loop {
         match reader.read_event() {
             Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
-                if e.local_name().as_ref() == b"rootfile" {
+                if e.local_name().as_ref() == "rootfile" {
                     for attr in e.attributes().flatten() {
-                        if attr.key.local_name().as_ref() == b"full-path" {
-                            return Some(String::from_utf8_lossy(&attr.value).into_owned());
+                        if attr.key.local_name().as_ref() == "full-path" {
+                            return Some(attr.value.into_owned());
                         }
                     }
                 }
@@ -125,23 +125,21 @@ fn parse_opf(opf_xml: &str) -> Option<OpfPackage> {
     loop {
         match reader.read_event() {
             Ok(Event::Start(e)) => match e.local_name().as_ref() {
-                b"title" => capture = Some("title"),
-                b"creator" => capture = Some("creator"),
-                b"date" => capture = Some("date"),
-                b"item" => process_manifest_item(&e, &mut manifest),
-                b"itemref" => process_spine_itemref(&e, &mut spine),
+                "title" => capture = Some("title"),
+                "creator" => capture = Some("creator"),
+                "date" => capture = Some("date"),
+                "item" => process_manifest_item(&e, &mut manifest),
+                "itemref" => process_spine_itemref(&e, &mut spine),
                 _ => {}
             },
             Ok(Event::Empty(e)) => match e.local_name().as_ref() {
-                b"item" => process_manifest_item(&e, &mut manifest),
-                b"itemref" => process_spine_itemref(&e, &mut spine),
+                "item" => process_manifest_item(&e, &mut manifest),
+                "itemref" => process_spine_itemref(&e, &mut spine),
                 _ => {}
             },
             Ok(Event::Text(e)) => {
-                if let Some(kind) = capture
-                    && let Ok(text) = e.decode()
-                {
-                    let text = text.into_owned();
+                if let Some(kind) = capture {
+                    let text = e.to_string();
                     match kind {
                         "title" => title = Some(text),
                         "creator" => creators.push(text),
@@ -151,7 +149,7 @@ fn parse_opf(opf_xml: &str) -> Option<OpfPackage> {
                 }
             }
             Ok(Event::End(e)) => {
-                if matches!(e.local_name().as_ref(), b"title" | b"creator" | b"date") {
+                if matches!(e.local_name().as_ref(), "title" | "creator" | "date") {
                     capture = None;
                 }
             }
@@ -184,9 +182,9 @@ fn process_manifest_item(
 
     for attr in e.attributes().flatten() {
         match attr.key.local_name().as_ref() {
-            b"id" => id = Some(String::from_utf8_lossy(&attr.value).into_owned()),
-            b"href" => href = Some(String::from_utf8_lossy(&attr.value).into_owned()),
-            b"media-type" => media_type = Some(String::from_utf8_lossy(&attr.value).into_owned()),
+            "id" => id = Some(attr.value.into_owned()),
+            "href" => href = Some(attr.value.into_owned()),
+            "media-type" => media_type = Some(attr.value.into_owned()),
             _ => {}
         }
     }
@@ -204,8 +202,8 @@ fn process_manifest_item(
 
 fn process_spine_itemref(e: &quick_xml::events::BytesStart, spine: &mut Vec<String>) {
     for attr in e.attributes().flatten() {
-        if attr.key.local_name().as_ref() == b"idref" {
-            spine.push(String::from_utf8_lossy(&attr.value).into_owned());
+        if attr.key.local_name().as_ref() == "idref" {
+            spine.push(attr.value.into_owned());
         }
     }
 }

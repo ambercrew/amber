@@ -23,6 +23,25 @@ pub enum MultiClient {
 
 impl CompletionClient for MultiClient {
     type CompletionModel = MultiCompletionModel;
+
+    fn completion_model(&self, model: impl Into<String>) -> Self::CompletionModel {
+        match self {
+            #[cfg(not(test))]
+            MultiClient::Ollama(client) => {
+                MultiCompletionModel::Ollama(client.completion_model(model))
+            }
+            #[cfg(not(test))]
+            MultiClient::OpenAI(client) => {
+                MultiCompletionModel::OpenAI(client.completion_model(model))
+            }
+            #[cfg(test)]
+            MultiClient::Mock(client) => {
+                let mut client = client.clone();
+                client.model = Some(model.into());
+                MultiCompletionModel::Mock(client)
+            }
+        }
+    }
 }
 
 impl EmbeddingsClient for MultiClient {

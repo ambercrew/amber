@@ -54,7 +54,6 @@ impl ChatCreator for DefaultChatCreator {
 pub mod tests {
     use injector::{injector::Injector, register_scope};
     use rig::{
-        OneOrMany,
         completion::{CompletionResponse, Usage},
         message::{AssistantContent, Message as RigMessage, UserContent},
     };
@@ -62,7 +61,7 @@ pub mod tests {
 
     use crate::{
         ai_integration::{
-            clients::{mock_client::MockClient, multi_client::multi_response::MultiResponse},
+            clients::mock_client::{MOCK_PROVIDER, MockClient},
             services::implementations::default_ai_client_provider::DefaultAiClientProvider,
         },
         infrastructure::repositories::disk::disk_settings_repository::DiskSettingsRepository,
@@ -98,8 +97,8 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(|request| {
-                if let RigMessage::User { content } = request.chat_history.last()
-                    && let UserContent::Text(text) = content.last()
+                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                    && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User message: User prompt"
                 {
                     let tool_call = AssistantContent::tool_call(
@@ -110,12 +109,11 @@ pub mod tests {
                         })
                         .unwrap(),
                     );
-                    return CompletionResponse {
-                        choice: OneOrMany::one(tool_call),
-                        raw_response: MultiResponse::Mock,
-                        usage: Usage::default(),
-                        message_id: None,
-                    };
+                    return CompletionResponse::new(
+                        vec![tool_call],
+                        Usage::default(),
+                        MOCK_PROVIDER,
+                    );
                 }
 
                 panic!()

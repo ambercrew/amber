@@ -1,5 +1,5 @@
 import { DateTimePicker } from "@mantine/dates";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import ConfirmModal from "../../../../../components/AppModal/ConfirmModal";
 import { setElementDueBulk } from "../../../../../api/study/api/studyApi";
 import { ElementId } from "../../../../../types/elements/elementId";
@@ -29,11 +29,12 @@ export default function SetDueDateModal({
 	onSuccess,
 }: SetDueDateModalProps) {
 	const [value, setValue] = useState<string | null>(null);
+	const [wasOpened, setWasOpened] = useState(false);
 
-	useEffect(() => {
+	if (opened !== wasOpened) {
+		setWasOpened(opened);
 		if (opened) setValue(toDateInputValue(defaultDue));
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [opened]);
+	}
 
 	function handleSave() {
 		if (!value) return;

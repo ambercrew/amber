@@ -11,7 +11,9 @@ describe("useElementHeadroom", () => {
 	/** Moves the scroller to `scrollTop` and lets the hook observe it. */
 	function scrollTo(scrollTop: number) {
 		element.scrollTop = scrollTop;
-		act(() => element.dispatchEvent(new Event("scroll")));
+		act(() => {
+			element.dispatchEvent(new Event("scroll"));
+		});
 	}
 
 	function render(fixedAt = 100, scrollDistance = 100) {
@@ -141,7 +143,9 @@ describe("useElementHeadroom", () => {
 
 		// Act
 
-		act(() => window.dispatchEvent(new Event("resize")));
+		act(() => {
+			window.dispatchEvent(new Event("resize"));
+		});
 		scrollTo(400);
 
 		// Assert
@@ -154,11 +158,15 @@ describe("useElementHeadroom", () => {
 
 		vi.useFakeTimers();
 		const { result } = render();
-		act(() => window.dispatchEvent(new Event("resize")));
+		act(() => {
+			window.dispatchEvent(new Event("resize"));
+		});
 
 		// Act
 
-		act(() => vi.advanceTimersByTime(300));
+		act(() => {
+			vi.advanceTimersByTime(300);
+		});
 		scrollTo(400);
 
 		// Assert

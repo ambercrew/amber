@@ -39,10 +39,11 @@ function applyHighlightAttributes(
 	element.setAttribute(HIGHLIGHT_COLOR_ATTRIBUTE, color);
 }
 
-// MarkNode's static importDOM() is typed to always return null (it never
-// round-trips through HTML); HighlightNode intentionally returns a real
-// DOMConversionMap so highlights survive this app's HTML-based persistence.
-// @ts-expect-error -- static-side variance on importDOM(), see comment above
+// HighlightNode returns a real DOMConversionMap from importDOM() so highlights
+// survive this app's HTML-based persistence. MarkNode used to declare its own
+// importDOM() typed to always return null, which needed a @ts-expect-error for
+// the static-side variance; since @lexical/mark 0.49 it inherits LexicalNode's
+// signature instead and the override is well-typed.
 export class HighlightNode extends MarkNode {
 	__color: MantineColor;
 

@@ -3,7 +3,6 @@ use rig::agent::Agent;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::ai_integration::clients::multi_client::multi_completion_model::MultiCompletionModel;
 use crate::ai_integration::entities::message::Message;
 use crate::ai_integration::services::ai_client_provider::AiClientProviderError;
 use crate::common::repository_error::RepositoryError;
@@ -25,5 +24,5 @@ pub trait AgentProvider: Send + Sync {
         messages: &[Message],
         element_id: Option<ElementId>,
         context_snippets: &[String],
-    ) -> Result<Agent<MultiCompletionModel>, AgentProviderError>;
+    ) -> Result<Agent, AgentProviderError>;
 }

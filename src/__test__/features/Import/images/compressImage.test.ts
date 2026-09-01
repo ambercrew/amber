@@ -74,9 +74,7 @@ describe("compressDataUri", () => {
 					queueMicrotask(() => this.onload?.());
 				}
 
-				get result() {
-					return "data:image/webp;base64,compressed";
-				}
+				readonly result = "data:image/webp;base64,compressed";
 			},
 		);
 
@@ -140,7 +138,9 @@ describe("compressDataUri", () => {
 			}),
 		);
 		vi.mocked(imageCompression).mockResolvedValue(
-			new File(["compressed"], "import-image.webp", { type: "image/webp" }),
+			new File(["compressed"], "import-image.webp", {
+				type: "image/webp",
+			}),
 		);
 		vi.stubGlobal(
 			"FileReader",
@@ -152,9 +152,7 @@ describe("compressDataUri", () => {
 					queueMicrotask(() => this.onload?.());
 				}
 
-				get result() {
-					return "data:image/webp;base64,compressed";
-				}
+				readonly result = "data:image/webp;base64,compressed";
 			},
 		);
 
@@ -187,7 +185,9 @@ describe("compressDataUri", () => {
 			}),
 		);
 		vi.mocked(imageCompression).mockResolvedValue(
-			new File(["compressed"], "import-image.webp", { type: "image/webp" }),
+			new File(["compressed"], "import-image.webp", {
+				type: "image/webp",
+			}),
 		);
 		vi.stubGlobal(
 			"FileReader",
@@ -199,9 +199,7 @@ describe("compressDataUri", () => {
 					queueMicrotask(() => this.onload?.());
 				}
 
-				get result() {
-					return "data:image/webp;base64,compressed";
-				}
+				readonly result = "data:image/webp;base64,compressed";
 			},
 		);
 

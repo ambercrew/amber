@@ -22,12 +22,12 @@ tokio = { version = "1.53.1", features = ["full"] }
 
 [dependencies]
 async-stream = "0.3.6"
-async-trait = "0.1.91"
-base64 = "0.23.0"
+async-trait = "0.1.92"
+base64 = "0.23.1"
 chrono = { version = "0.4.45", features = ["serde"] }
 injector = { path = "./injector" }
 injector_derive = { path = "./injector_derive" }
-log = "0.4.33"
+log = "0.4.34"
 markdown = "1.0.0"
 pdf_oxide = "0.3.77"
 prost = "0.14.4"
@@ -47,21 +47,21 @@ tauri-plugin-dialog = "2.7.1"
 tauri-plugin-opener = "2.5.4"
 tauri-plugin-os = "2"
 tauri-plugin-process = "2.3.1"
-thiserror = "2.0.19"
-tokio = { version = "1.51.0", features = ["full"] }
+thiserror = "2.0.20"
+tokio = { version = "1.53.1", features = ["full"] }
 tokio-stream = "0.1.19"
-uuid = { version = "1.24.0", features = [ "v4", "serde" ] }
+uuid = { version = "1.26.0", features = [ "v4", "serde" ] }
 fractional_index = "2.0.2"
-fsrs = "6.6.1"
-rig = { version = "=0.41.0", default-features = false, features = ["pdf", "derive", "native-tls", "sqlite", "agent"] }
+fsrs = "6.6.2"
+rig = { version = "=0.42.0", default-features = false, features = ["pdf", "derive", "native-tls", "sqlite", "agent"] }
 schemars = "1.2.2"
 text-splitter = "0.32.0"
 sqlite-vec = "0.1.9"
 tokio-rusqlite = "0.6.0"
-fontdb = "0.23.0"
+fontdb = "0.24.0"
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
-quick-xml = "0.41.0"
-sha2 = "0.10.9"
+quick-xml = "0.42.0"
+sha2 = "0.11.0"
 
 # No default runtime feature on purpose: every platform states its runtime
 # explicitly via its own tauri.<platform>.conf.json ("build.features"),

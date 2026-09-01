@@ -116,7 +116,7 @@ pub mod tests {
     use std::iter;
 
     use injector::{injector::Injector, register_scope};
-    use rig::{OneOrMany, embeddings::Embedding};
+    use rig::embeddings::Embedding;
     use tokio::sync::Mutex;
 
     use crate::{
@@ -151,25 +151,20 @@ pub mod tests {
         injector
     }
 
-    fn create_embedding(
-        chat_id: Uuid,
-        label: &str,
-        x: f64,
-        y: f64,
-    ) -> (Document, OneOrMany<Embedding>) {
+    fn create_embedding(chat_id: Uuid, label: &str, x: f64, y: f64) -> (Document, Vec<Embedding>) {
         (
             Document {
                 chat_id,
                 id: Uuid::new_v4().to_string(),
                 content: label.to_string(),
             },
-            OneOrMany::one(Embedding {
+            vec![Embedding {
                 document: String::new(),
                 vec: [x, y]
                     .into_iter()
                     .chain(iter::repeat_n(0f64, DEFAULT_MOCK_EMBEDDINGS_DIMS - 2))
                     .collect(),
-            }),
+            }],
         )
     }
 
@@ -189,7 +184,7 @@ pub mod tests {
             embed_texts_fn: Arc::new(Some(Box::new(move |request| {
                 if request.len() == 1 && request[0] == "request" {
                     return Ok(vec![
-                        create_embedding(chat_id, "query", 1f64, 1f64).1.first(),
+                        create_embedding(chat_id, "query", 1f64, 1f64).1.remove(0),
                     ]);
                 }
                 unreachable!()
@@ -211,7 +206,7 @@ pub mod tests {
             .await
             .unwrap();
 
-        let embeddings: Vec<(Document, OneOrMany<Embedding>)> = vec![
+        let embeddings: Vec<(Document, Vec<Embedding>)> = vec![
             create_embedding(chat_id, "close-direction", 1f64, 0f64),
             create_embedding(chat_id, "same-direction", 2f64, 2f64),
             create_embedding(chat_id, "opposite-direction", -1f64, -1f64),

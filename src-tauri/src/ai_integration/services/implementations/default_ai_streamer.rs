@@ -292,7 +292,6 @@ pub mod tests {
 
     use injector::{injector::Injector, register_scope};
     use rig::{
-        OneOrMany,
         completion::{CompletionError, CompletionResponse, Usage},
         message::{AssistantContent, Message as RigMessage, UserContent},
         streaming::RawStreamingChoice,
@@ -301,7 +300,7 @@ pub mod tests {
     use crate::{
         ai_integration::{
             ai_state::AiState,
-            clients::{mock_client::MockClient, multi_client::multi_response::MultiResponse},
+            clients::mock_client::{MOCK_PROVIDER, MockClient},
             entities::{chat::Chat, message::MessageContent},
             json_schemas::generate_title::GenerateTitle,
             repositories::ai_repository::AiRepository,
@@ -474,8 +473,8 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(|request| {
-                if let RigMessage::User { content } = request.chat_history.last()
-                    && let UserContent::Text(text) = content.last()
+                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                    && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User message: User prompt"
                 {
                     let tool_call = AssistantContent::tool_call(
@@ -486,19 +485,18 @@ pub mod tests {
                         })
                         .unwrap(),
                     );
-                    return CompletionResponse {
-                        choice: OneOrMany::one(tool_call),
-                        raw_response: MultiResponse::Mock,
-                        usage: Usage::default(),
-                        message_id: None,
-                    };
+                    return CompletionResponse::new(
+                        vec![tool_call],
+                        Usage::default(),
+                        MOCK_PROVIDER,
+                    );
                 }
 
                 panic!()
             }))),
             stream_fn: Arc::new(Some(Box::new(move |request| {
-                if let RigMessage::User { content } = request.chat_history.last()
-                    && let UserContent::Text(text) = content.last()
+                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                    && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User prompt"
                     && !sent_stream_answer.load(Ordering::Relaxed)
                 {
@@ -665,16 +663,11 @@ pub mod tests {
                     })
                     .unwrap(),
                 );
-                CompletionResponse {
-                    choice: OneOrMany::one(tool_call),
-                    raw_response: MultiResponse::Mock,
-                    usage: Usage::default(),
-                    message_id: None,
-                }
+                CompletionResponse::new(vec![tool_call], Usage::default(), MOCK_PROVIDER)
             }))),
             stream_fn: Arc::new(Some(Box::new(move |request| {
-                if let RigMessage::User { content } = request.chat_history.last()
-                    && let UserContent::Text(text) = content.last()
+                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                    && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User prompt"
                     // search_documents plus the always-on create_card tool.
                     && request.tools.len() == 2
@@ -738,8 +731,8 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(|request| {
-                if let RigMessage::User { content } = request.chat_history.last()
-                    && let UserContent::Text(text) = content.last()
+                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                    && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User message: User prompt"
                 {
                     let tool_call = AssistantContent::tool_call(
@@ -750,19 +743,18 @@ pub mod tests {
                         })
                         .unwrap(),
                     );
-                    return CompletionResponse {
-                        choice: OneOrMany::one(tool_call),
-                        raw_response: MultiResponse::Mock,
-                        usage: Usage::default(),
-                        message_id: None,
-                    };
+                    return CompletionResponse::new(
+                        vec![tool_call],
+                        Usage::default(),
+                        MOCK_PROVIDER,
+                    );
                 }
 
                 panic!()
             }))),
             stream_fn: Arc::new(Some(Box::new(move |request| {
-                if let RigMessage::User { content } = request.chat_history.last()
-                    && let UserContent::Text(text) = content.last()
+                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                    && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User prompt"
                 {
                     let current = last_sent_message.load(Ordering::Relaxed);
@@ -820,8 +812,8 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(move |request| {
-                if let RigMessage::User { content } = request.chat_history.last()
-                    && let UserContent::Text(text) = content.last()
+                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                    && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User message: User prompt"
                 {
                     ai_state_clone.cancel_generation();
@@ -834,12 +826,11 @@ pub mod tests {
                         })
                         .unwrap(),
                     );
-                    return CompletionResponse {
-                        choice: OneOrMany::one(tool_call),
-                        raw_response: MultiResponse::Mock,
-                        usage: Usage::default(),
-                        message_id: None,
-                    };
+                    return CompletionResponse::new(
+                        vec![tool_call],
+                        Usage::default(),
+                        MOCK_PROVIDER,
+                    );
                 }
 
                 panic!()
@@ -892,8 +883,8 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(|request| {
-                if let RigMessage::User { content } = request.chat_history.last()
-                    && let UserContent::Text(text) = content.last()
+                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                    && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User message: User prompt"
                 {
                     let tool_call = AssistantContent::tool_call(
@@ -904,19 +895,18 @@ pub mod tests {
                         })
                         .unwrap(),
                     );
-                    return CompletionResponse {
-                        choice: OneOrMany::one(tool_call),
-                        raw_response: MultiResponse::Mock,
-                        usage: Usage::default(),
-                        message_id: None,
-                    };
+                    return CompletionResponse::new(
+                        vec![tool_call],
+                        Usage::default(),
+                        MOCK_PROVIDER,
+                    );
                 }
 
                 panic!()
             }))),
             stream_fn: Arc::new(Some(Box::new(move |request| {
-                if let RigMessage::User { content } = request.chat_history.last()
-                    && let UserContent::Text(text) = content.last()
+                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                    && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User prompt"
                 {
                     if sent_stream_answer.load(Ordering::Relaxed) {
@@ -996,12 +986,7 @@ pub mod tests {
                     })
                     .unwrap(),
                 );
-                CompletionResponse {
-                    choice: OneOrMany::one(tool_call),
-                    raw_response: MultiResponse::Mock,
-                    usage: Usage::default(),
-                    message_id: None,
-                }
+                CompletionResponse::new(vec![tool_call], Usage::default(), MOCK_PROVIDER)
             }))),
             stream_fn: Arc::new(Some(Box::new(move |_| {
                 match call_count_clone.fetch_add(1, Ordering::Relaxed) {
@@ -1114,12 +1099,7 @@ pub mod tests {
                     })
                     .unwrap(),
                 );
-                CompletionResponse {
-                    choice: OneOrMany::one(tool_call),
-                    raw_response: MultiResponse::Mock,
-                    usage: Usage::default(),
-                    message_id: None,
-                }
+                CompletionResponse::new(vec![tool_call], Usage::default(), MOCK_PROVIDER)
             }))),
             stream_fn: Arc::new(Some(Box::new(move |_| {
                 match call_count_clone.fetch_add(1, Ordering::Relaxed) {
@@ -1235,49 +1215,52 @@ pub mod tests {
 
         let messages = vec![
             RigMessage::User {
-                content: OneOrMany::one(UserContent::text("Make three cards")),
+                content: vec![UserContent::text("Make three cards")],
             },
             RigMessage::Assistant {
                 id: None,
-                content: OneOrMany::one(AssistantContent::tool_call(
+                content: vec![AssistantContent::tool_call(
                     "call-1",
                     "create_card",
                     serde_json::json!({}),
-                )),
+                )],
             },
             RigMessage::Assistant {
                 id: None,
-                content: OneOrMany::one(AssistantContent::tool_call(
+                content: vec![AssistantContent::tool_call(
                     "call-2",
                     "create_card",
                     serde_json::json!({}),
-                )),
+                )],
             },
             RigMessage::Assistant {
                 id: None,
-                content: OneOrMany::one(AssistantContent::tool_call(
+                content: vec![AssistantContent::tool_call(
                     "call-3",
                     "create_card",
                     serde_json::json!({}),
-                )),
+                )],
             },
             RigMessage::User {
-                content: OneOrMany::one(UserContent::tool_result(
+                content: vec![UserContent::tool_result(
                     "call-1",
-                    OneOrMany::one(rig::message::ToolResultContent::text("ok")),
-                )),
+                    "create_card",
+                    vec![rig::message::ToolResultContent::text("ok")],
+                )],
             },
             RigMessage::User {
-                content: OneOrMany::one(UserContent::tool_result(
+                content: vec![UserContent::tool_result(
                     "call-2",
-                    OneOrMany::one(rig::message::ToolResultContent::text("ok")),
-                )),
+                    "create_card",
+                    vec![rig::message::ToolResultContent::text("ok")],
+                )],
             },
             RigMessage::User {
-                content: OneOrMany::one(UserContent::tool_result(
+                content: vec![UserContent::tool_result(
                     "call-3",
-                    OneOrMany::one(rig::message::ToolResultContent::text("ok")),
-                )),
+                    "create_card",
+                    vec![rig::message::ToolResultContent::text("ok")],
+                )],
             },
         ];
 
@@ -1296,7 +1279,7 @@ pub mod tests {
             let AssistantContent::ToolCall(tool_call) = item else {
                 panic!("Expected a tool call");
             };
-            assert_eq!(expected_id, tool_call.id);
+            assert_eq!(expected_id, tool_call.id.as_str());
         }
     }
 
@@ -1306,11 +1289,11 @@ pub mod tests {
 
         let messages = vec![
             RigMessage::User {
-                content: OneOrMany::one(UserContent::text("Hi")),
+                content: vec![UserContent::text("Hi")],
             },
             RigMessage::Assistant {
                 id: None,
-                content: OneOrMany::one(AssistantContent::text("Hello")),
+                content: vec![AssistantContent::text("Hello")],
             },
         ];
 
