@@ -45,6 +45,7 @@ function useCreateHandlers(
 						parent: elementId,
 						origin: { type: "custom" },
 					},
+					type: "extracted",
 					// A new learning asset is a single empty split (seq 0) so it can be
 					// edited immediately.
 					splits: [""],

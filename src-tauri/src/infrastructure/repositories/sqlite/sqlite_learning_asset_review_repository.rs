@@ -126,7 +126,10 @@ mod tests {
 
     use crate::{
         elements::{
-            entities::{extract::Extract, learning_asset::LearningAsset},
+            entities::{
+                extract::Extract,
+                learning_asset::{LearningAsset, LearningAssetContent},
+            },
             repositories::{
                 extract_repository::ExtractRepository,
                 learning_asset_repository::LearningAssetRepository,
@@ -198,11 +201,12 @@ mod tests {
         learning_asset_repo
             .create(
                 LearningAsset {
+                    r#type: Default::default(),
                     interval_multiplier: 1.2,
                     meta: make_meta(learning_asset_id),
                     read_point: ReadPoint::default(),
                 },
-                Vec::new(),
+                LearningAssetContent::Extracted(Vec::new()),
             )
             .await
             .unwrap();
@@ -237,11 +241,12 @@ mod tests {
         learning_asset_repo
             .create(
                 LearningAsset {
+                    r#type: Default::default(),
                     interval_multiplier: 1.2,
                     meta: make_meta(new_learning_asset_id),
                     read_point: ReadPoint::default(),
                 },
-                Vec::new(),
+                LearningAssetContent::Extracted(Vec::new()),
             )
             .await
             .unwrap();
@@ -266,11 +271,12 @@ mod tests {
         learning_asset_repo
             .create(
                 LearningAsset {
+                    r#type: Default::default(),
                     interval_multiplier: 1.2,
                     meta: make_meta(finished_learning_asset_id),
                     read_point: ReadPoint::default(),
                 },
-                Vec::new(),
+                LearningAssetContent::Extracted(Vec::new()),
             )
             .await
             .unwrap();

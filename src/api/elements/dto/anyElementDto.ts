@@ -18,8 +18,11 @@ export interface FolderResponseDto {
 	meta: MetaResponseDto;
 }
 
+export type LearningAssetType = "pdf" | "extracted";
+
 export interface LearningAssetResponseDto {
 	meta: MetaResponseDto;
+	type: LearningAssetType;
 	readPoint: ReadPoint;
 	intervalMultiplier: number;
 }

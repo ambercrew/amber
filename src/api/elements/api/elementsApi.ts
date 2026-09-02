@@ -72,6 +72,12 @@ export function updateReadPoint(dto: UpdateReadPointDto): Promise<void> {
 	return invoke("update_read_point", { dto });
 }
 
+export function getPdfBytes(
+	learningAssetId: string,
+): Promise<{ bytesBase64: string }> {
+	return invoke("get_pdf_bytes", { learningAssetId });
+}
+
 export function updateExtract(dto: UpdateExtractDto): Promise<void> {
 	return invoke("update_extract", { dto });
 }

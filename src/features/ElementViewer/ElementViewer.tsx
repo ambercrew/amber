@@ -4,6 +4,7 @@ import ExtractElementViewer from "./ExtractElementViewer";
 import FindInPageBar from "./FindInPageBar";
 import FolderView from "./FolderView";
 import LearningAssetView from "./LearningAssetView/LearningAssetView";
+import PdfLearningAssetView from "./PdfView/components/PdfLearningAssetView";
 import SearchHighlightOverlay from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightOverlay";
 import useAppSelector from "../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../stores/elements/elementsSelectors";
@@ -65,6 +66,21 @@ export default function ElementViewer() {
 
 	if (!currentElement || !elementId || currentElement.type === "folder") {
 		return <FolderView />;
+	}
+
+	const isPdf =
+		currentElement.type === "learningAsset" &&
+		currentElement.data.type === "pdf";
+
+	if (isPdf && currentElement.type === "learningAsset") {
+		return (
+			<PdfLearningAssetView
+				key={`pdf-${elementId.id}`}
+				learningAssetId={elementId.id}
+				readPoint={currentElement.data.readPoint}
+				meta={currentElement.data.meta}
+			/>
+		);
 	}
 
 	return (

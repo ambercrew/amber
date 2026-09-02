@@ -2,6 +2,7 @@ import Defuddle from "defuddle";
 import { fetchPage } from "../../../api/import/api/importApi";
 import { createBibliographicalSourceAction } from "../../../stores/bibliographicalSources/bibliographicalSourcesActions";
 import errorToString from "../../../utils/errorToString";
+import { base64ToArrayBuffer } from "../../../utils/base64ToArrayBuffer";
 import { normalize } from "../normalize";
 import { hydrateLazyImages } from "../normalize/hydrateLazyImages";
 import { deriveTitle } from "../deriveTitle";
@@ -32,7 +33,9 @@ export async function runUrlImport(
 		const file = new File([bytes], filenameFromUrl(resolvedUrl), {
 			type: "application/pdf",
 		});
-		return runFileImport([file], ctx, undefined, resolvedUrl);
+		// URL-imported PDFs have no import-modal toggle to opt out of extraction,
+		// so they always convert to an editable document as before.
+		return runFileImport([file], ctx, true, undefined, resolvedUrl);
 	}
 
 	if (page.kind === "other") {
@@ -134,11 +137,4 @@ function hasContent(html: string): boolean {
 function filenameFromUrl(url: string): string {
 	const last = url.split("/").filter(Boolean).pop() ?? "document.pdf";
 	return last.toLowerCase().endsWith(".pdf") ? last : `${last}.pdf`;
-}
-
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
-	const binary = atob(base64);
-	const bytes = new Uint8Array(binary.length);
-	for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-	return bytes.buffer;
 }

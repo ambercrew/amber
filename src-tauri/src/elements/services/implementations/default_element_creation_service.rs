@@ -2,6 +2,7 @@ use crate::elements::value_objects::read_point::ReadPoint;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, Duration, Utc};
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
@@ -14,7 +15,9 @@ use crate::elements::dto::create_learning_asset_dto::CreateLearningAssetDto;
 use crate::elements::entities::card::Card;
 use crate::elements::entities::extract::Extract;
 use crate::elements::entities::folder::Folder;
-use crate::elements::entities::learning_asset::{LearningAsset, LearningAssetSplit};
+use crate::elements::entities::learning_asset::{
+    LearningAsset, LearningAssetContent, LearningAssetSplit, LearningAssetType,
+};
 use crate::elements::events::element_created_event::{
     ELEMENT_CREATED_EVENT, ElementCreatedEventDto,
 };
@@ -106,6 +109,7 @@ impl ElementCreationService for DefaultElementCreationService {
             self.resolve_origin(parent, dto.meta.origin).await?;
 
         let learning_asset = LearningAsset {
+            r#type: dto.r#type,
             meta: Meta {
                 element_id,
                 name: dto.meta.name,
@@ -121,17 +125,31 @@ impl ElementCreationService for DefaultElementCreationService {
             read_point: ReadPoint::default(),
             interval_multiplier: profile.initial_interval_multiplier,
         };
-        let splits = dto
-            .splits
-            .into_iter()
-            .enumerate()
-            .map(|(seq, content)| LearningAssetSplit {
-                seq: seq as u32,
-                content,
-            })
-            .collect();
+        let content = match dto.r#type {
+            LearningAssetType::Pdf => {
+                let bytes = dto
+                    .pdf_bytes_base64
+                    .as_deref()
+                    .and_then(|b| general_purpose::STANDARD.decode(b).ok())
+                    .ok_or(ElementCreationError::InvalidPdfBytes)?;
+                let page_count = dto
+                    .pdf_page_count
+                    .ok_or(ElementCreationError::InvalidPdfBytes)?;
+                LearningAssetContent::Pdf { bytes, page_count }
+            }
+            LearningAssetType::Extracted => LearningAssetContent::Extracted(
+                dto.splits
+                    .into_iter()
+                    .enumerate()
+                    .map(|(seq, content)| LearningAssetSplit {
+                        seq: seq as u32,
+                        content,
+                    })
+                    .collect(),
+            ),
+        };
         self.learning_asset_repository
-            .create(learning_asset, splits)
+            .create(learning_asset, content)
             .await?;
         self.ensure_learning_asset_review(element_id, profile)
             .await?;
@@ -484,6 +502,9 @@ mod tests {
         let dto = CreateLearningAssetDto {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
+            r#type: LearningAssetType::Extracted,
+            pdf_bytes_base64: None,
+            pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_rank: None,
         };
@@ -520,6 +541,9 @@ mod tests {
         let existing_dto = CreateLearningAssetDto {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
+            r#type: LearningAssetType::Extracted,
+            pdf_bytes_base64: None,
+            pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_rank: None,
         };
@@ -528,6 +552,9 @@ mod tests {
         let dto = CreateLearningAssetDto {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
+            r#type: LearningAssetType::Extracted,
+            pdf_bytes_base64: None,
+            pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_rank: Some(2),
         };
@@ -641,6 +668,9 @@ mod tests {
         let dto = CreateLearningAssetDto {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
+            r#type: LearningAssetType::Extracted,
+            pdf_bytes_base64: None,
+            pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_rank: None,
         };
@@ -734,6 +764,9 @@ mod tests {
         let dto = CreateLearningAssetDto {
             id: Uuid::new_v4(),
             meta: dto_meta(Some(parent_id)),
+            r#type: LearningAssetType::Extracted,
+            pdf_bytes_base64: None,
+            pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_rank: None,
         };

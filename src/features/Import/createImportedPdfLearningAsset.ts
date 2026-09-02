@@ -1,13 +1,12 @@
-import { htmlToLexicalJson } from "../../components/Editor/lexicalJsonConversion";
 import { paths } from "../../paths";
 import { createLearningAssetAction } from "../../stores/elements/elementsActions";
 import { ImportContext } from "./importContext";
-import { splitContent } from "./splitContent";
 
-export async function createImportedLearningAsset(
+export async function createImportedPdfLearningAsset(
 	ctx: ImportContext,
 	name: string,
-	content: string,
+	pdfBytesBase64: string,
+	pdfPageCount: number,
 	bibliographicalSourceId?: string | null,
 ): Promise<void> {
 	const id = crypto.randomUUID();
@@ -19,8 +18,10 @@ export async function createImportedLearningAsset(
 				parent: ctx.parent,
 				origin: { type: "custom", bibliographicalSourceId },
 			},
-			type: "extracted",
-			splits: splitContent(content).map(html => htmlToLexicalJson(html)),
+			type: "pdf",
+			pdfBytesBase64,
+			pdfPageCount,
+			splits: [],
 			initialPriorityRank: ctx.priorityRank,
 		}),
 	);

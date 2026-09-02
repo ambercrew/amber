@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::entities::learning_asset::{
-    LearningAsset, LearningAssetSplit, LearningAssetSplitId, LearningAssetSplitMeta,
+    LearningAsset, LearningAssetContent, LearningAssetSplitId, LearningAssetSplitMeta,
     LearningAssetSplitText,
 };
 use crate::elements::value_objects::read_point::ReadPoint;
@@ -15,7 +15,7 @@ pub trait LearningAssetRepository: Send + Sync {
     async fn create(
         &self,
         learning_asset: LearningAsset,
-        splits: Vec<LearningAssetSplit>,
+        content: LearningAssetContent,
     ) -> Result<(), RepositoryError>;
     /// Lightweight per-split metadata (`seq` + content length), ordered by `seq`.
     /// Does not load split content — used to lay out the learning asset view.
@@ -49,4 +49,5 @@ pub trait LearningAssetRepository: Send + Sync {
         learning_asset_id: Uuid,
         interval_multiplier: f32,
     ) -> Result<(), RepositoryError>;
+    async fn get_pdf_bytes(&self, learning_asset_id: Uuid) -> Result<Vec<u8>, RepositoryError>;
 }

@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use uuid::fmt::Hyphenated;
 
-use crate::elements::entities::learning_asset::LearningAsset;
+use crate::elements::entities::learning_asset::{LearningAsset, LearningAssetType};
 use crate::elements::extensions::into_element_id_ext::IntoOptionalElementIdExt;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::meta::Meta;
@@ -24,11 +24,16 @@ pub struct LearningAssetRow {
     pub readpoint_split: i64,
     pub readpoint_block: i64,
     pub interval_multiplier: f64,
+    pub r#type: String,
 }
 
 impl From<LearningAssetRow> for LearningAsset {
     fn from(row: LearningAssetRow) -> Self {
         LearningAsset {
+            r#type: row
+                .r#type
+                .parse::<LearningAssetType>()
+                .expect("Invalid learning asset type"),
             meta: Meta {
                 element_id: ElementId::LearningAsset(row.id.into_uuid()),
                 name: row.name,

@@ -80,6 +80,7 @@ function learningAssetElement(id: string): AnyElementDto {
 				name: `LearningAsset ${id}`,
 				...META_FIELDS,
 			},
+			type: "extracted",
 			readPoint: { split: 0, block: 0 },
 			intervalMultiplier: 1.2,
 		},

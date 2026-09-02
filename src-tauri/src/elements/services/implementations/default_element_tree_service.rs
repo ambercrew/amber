@@ -219,7 +219,10 @@ mod tests {
     use crate::{
         elements::{
             entities::{
-                card::Card, extract::Extract, folder::Folder, learning_asset::LearningAsset,
+                card::Card,
+                extract::Extract,
+                folder::Folder,
+                learning_asset::{LearningAsset, LearningAssetContent},
             },
             repositories::{
                 card_repository::CardRepository, extract_repository::ExtractRepository,
@@ -396,6 +399,7 @@ mod tests {
         };
         let folder_id = folder.meta.element_id;
         let learning_asset = LearningAsset {
+            r#type: Default::default(),
             interval_multiplier: 1.2,
             meta: Meta {
                 name: "Photosynthesis".to_string(),
@@ -435,7 +439,7 @@ mod tests {
         scope
             .resolve::<dyn LearningAssetRepository>()
             .await
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
         scope
@@ -492,6 +496,7 @@ mod tests {
             .unwrap();
 
         let learning_asset_first = LearningAsset {
+            r#type: Default::default(),
             interval_multiplier: 1.2,
             meta: Meta {
                 name: "First".to_string(),
@@ -502,6 +507,7 @@ mod tests {
             read_point: ReadPoint::default(),
         };
         let learning_asset_second = LearningAsset {
+            r#type: Default::default(),
             interval_multiplier: 1.2,
             meta: Meta {
                 name: "Second".to_string(),
@@ -519,11 +525,17 @@ mod tests {
         // Insert in reverse position order to verify sorting
         let learning_asset_repo = scope.resolve::<dyn LearningAssetRepository>().await;
         learning_asset_repo
-            .create(learning_asset_second, Vec::new())
+            .create(
+                learning_asset_second,
+                LearningAssetContent::Extracted(Vec::new()),
+            )
             .await
             .unwrap();
         learning_asset_repo
-            .create(learning_asset_first, Vec::new())
+            .create(
+                learning_asset_first,
+                LearningAssetContent::Extracted(Vec::new()),
+            )
             .await
             .unwrap();
 
@@ -595,6 +607,7 @@ mod tests {
         let service = scope.resolve::<dyn ElementTreeService>().await;
 
         let learning_asset = LearningAsset {
+            r#type: Default::default(),
             interval_multiplier: 1.2,
             meta: Meta {
                 name: "Orphan LearningAsset".to_string(),
@@ -606,7 +619,7 @@ mod tests {
         scope
             .resolve::<dyn LearningAssetRepository>()
             .await
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
 
@@ -634,6 +647,7 @@ mod tests {
         let pos_third = FractionalIndex::new_after(&pos_second);
 
         let learning_asset = LearningAsset {
+            r#type: Default::default(),
             interval_multiplier: 1.2,
             meta: Meta {
                 name: "LearningAsset".to_string(),
@@ -665,7 +679,7 @@ mod tests {
         scope
             .resolve::<dyn LearningAssetRepository>()
             .await
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
         scope

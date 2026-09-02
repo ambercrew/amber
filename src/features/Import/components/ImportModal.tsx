@@ -23,10 +23,11 @@ import { closeImportModal } from "../../../stores/app/appReducer";
 import { asUrl, classifyPaste } from "../classify";
 import { PastedContent, runContentImport } from "../flows/content";
 import { importRawPage, runUrlImport, UrlImportError } from "../flows/url";
-import { FileImportError, runFileImport } from "../flows/file";
+import { FileImportError, hasPdfMagic, runFileImport } from "../flows/file";
 import { PdfProgress } from "../pdf/extract";
 import { ImportContext } from "../importContext";
 import ImportPrioritySection from "./ImportPrioritySection";
+import ImportPdfExtractionSection from "./ImportPdfExtractionSection";
 import { useImportPriority } from "../hooks/useImportPriority";
 
 const CLICKABLE_STYLE = { pointerEvents: "all" as const };
@@ -73,10 +74,23 @@ function ImportModal() {
 
 	const [value, setValue] = useState("");
 	const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
+	const [isPdf, setIsPdf] = useState(false);
+	const [extractPdfContent, setExtractPdfContent] = useState(false);
 	const [phase, setPhase] = useState<Phase>({ kind: "idle" });
 	const priority = useImportPriority(opened);
 	const openRef = useRef<() => void>(null);
 	const cancelledRef = useRef(false);
+
+	function updatePendingFiles(files: File[] | null) {
+		setPendingFiles(files);
+		if (!files || files.length === 0) {
+			setIsPdf(false);
+			return;
+		}
+		void Promise.all(files.map(file => file.arrayBuffer())).then(buffers =>
+			setIsPdf(buffers.some(hasPdfMagic)),
+		);
+	}
 
 	async function context(): Promise<ImportContext> {
 		return {
@@ -89,7 +103,8 @@ function ImportModal() {
 
 	function reset() {
 		setValue("");
-		setPendingFiles(null);
+		updatePendingFiles(null);
+		setExtractPdfContent(false);
 		setPhase({ kind: "idle" });
 		priority.reset();
 	}
@@ -136,12 +151,21 @@ function ImportModal() {
 
 	async function startFileImport(files: File[]) {
 		cancelledRef.current = false;
-		setPhase({ kind: "importing", label: "Extracting…" });
-
-		const error = await runFileImport(files, await context(), progress => {
-			if (cancelledRef.current) return;
-			setPhase({ kind: "importing", label: "Extracting…", progress });
+		const willExtract = !isPdf || extractPdfContent;
+		setPhase({
+			kind: "importing",
+			label: willExtract ? "Extracting…" : "Importing…",
 		});
+
+		const error = await runFileImport(
+			files,
+			await context(),
+			extractPdfContent,
+			progress => {
+				if (cancelledRef.current) return;
+				setPhase({ kind: "importing", label: "Extracting…", progress });
+			},
+		);
 		if (cancelledRef.current) return;
 
 		if (error) {
@@ -194,7 +218,7 @@ function ImportModal() {
 				return;
 			case "file":
 				e.preventDefault();
-				setPendingFiles(input.files);
+				updatePendingFiles(input.files);
 				return;
 			case "content":
 				e.preventDefault();
@@ -222,7 +246,7 @@ function ImportModal() {
 				activateOnClick={false}
 				disabled={isImporting}
 				openRef={openRef}
-				onDrop={files => setPendingFiles(files)}
+				onDrop={files => updatePendingFiles(files)}
 				onReject={() =>
 					setPhase({
 						kind: "error",
@@ -286,9 +310,11 @@ function ImportModal() {
 												size="sm"
 												aria-label={`Remove ${file.name}`}
 												onClick={() =>
-													setPendingFiles(prev =>
-														prev && prev.length > 1
-															? prev.filter(
+													updatePendingFiles(
+														pendingFiles &&
+															pendingFiles.length >
+																1
+															? pendingFiles.filter(
 																	(_, i) =>
 																		i !==
 																		index,
@@ -361,6 +387,13 @@ function ImportModal() {
 									</Anchor>
 								</Text>
 							)}
+							<div style={CLICKABLE_STYLE}>
+								<ImportPdfExtractionSection
+									isPdf={isPdf}
+									extract={extractPdfContent}
+									onExtractChange={setExtractPdfContent}
+								/>
+							</div>
 							<div style={CLICKABLE_STYLE}>
 								<ImportPrioritySection
 									total={priority.total}

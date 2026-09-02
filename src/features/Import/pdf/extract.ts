@@ -1,4 +1,7 @@
-import { extractPdf as invokeExtractPdf } from "../../../api/import/api/importApi";
+import {
+	extractPdf as invokeExtractPdf,
+	getPdfPageCount as invokeGetPdfPageCount,
+} from "../../../api/import/api/importApi";
 import { bytesToBase64 } from "../bytesToBase64";
 
 export interface PdfExtraction {
@@ -20,4 +23,9 @@ export async function extractPdf(
 ): Promise<PdfExtraction> {
 	const bytesBase64 = bytesToBase64(new Uint8Array(bytes));
 	return invokeExtractPdf(bytesBase64, onProgress);
+}
+
+export async function getPdfPageCount(bytes: ArrayBuffer): Promise<number> {
+	const bytesBase64 = bytesToBase64(new Uint8Array(bytes));
+	return invokeGetPdfPageCount(bytesBase64);
 }

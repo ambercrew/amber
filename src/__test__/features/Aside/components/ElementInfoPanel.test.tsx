@@ -56,6 +56,7 @@ function learningAsset(): AnyElementDto {
 				bibliographicalSourceId: null,
 				derivedFrom: null,
 			},
+			type: "extracted",
 			readPoint: { split: 0, block: 0 },
 			intervalMultiplier: 1.2,
 		},

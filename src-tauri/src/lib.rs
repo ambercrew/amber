@@ -195,6 +195,7 @@ pub async fn run() {
             get_learning_asset_split_manifest,
             get_learning_asset_split_content,
             get_learning_asset_split_texts,
+            get_pdf_bytes,
             update_extract,
             update_card,
             update_interval_multiplier,
@@ -255,6 +256,8 @@ pub async fn run() {
             fetch_image,
             extract_pdf,
             extract_epub,
+            get_pdf_page_count,
+            get_pdf_page_html,
             // App Info
             is_store_installed,
             set_system_chrome_theme,

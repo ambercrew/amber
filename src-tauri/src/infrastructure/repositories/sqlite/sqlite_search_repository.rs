@@ -461,7 +461,9 @@ mod tests {
     use crate::bibliographical_sources::value_objects::bibliographical_source_type::BibliographicalSourceType;
     use crate::elements::entities::card::Card;
     use crate::elements::entities::folder::Folder;
-    use crate::elements::entities::learning_asset::{LearningAsset, LearningAssetSplit};
+    use crate::elements::entities::learning_asset::{
+        LearningAsset, LearningAssetContent, LearningAssetSplit,
+    };
     use crate::elements::repositories::card_repository::CardRepository;
     use crate::elements::repositories::folder_repository::FolderRepository;
     use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
@@ -573,6 +575,7 @@ mod tests {
 
     fn make_learning_asset(name: &str, priority: FractionalIndex) -> LearningAsset {
         LearningAsset {
+            r#type: Default::default(),
             meta: Meta {
                 element_id: ElementId::LearningAsset(Uuid::new_v4()),
                 name: name.into(),
@@ -1513,10 +1516,10 @@ mod tests {
         learning_asset_repository
             .create(
                 learning_asset,
-                vec![LearningAssetSplit {
+                LearningAssetContent::Extracted(vec![LearningAssetSplit {
                     seq: 0,
                     content: "content".into(),
-                }],
+                }]),
             )
             .await
             .unwrap();

@@ -271,7 +271,7 @@ mod tests {
 
     use crate::{
         elements::{
-            entities::learning_asset::LearningAsset,
+            entities::learning_asset::{LearningAsset, LearningAssetContent},
             repositories::{
                 extract_repository::ExtractRepository,
                 learning_asset_repository::LearningAssetRepository,
@@ -346,6 +346,7 @@ mod tests {
         learning_asset_repo
             .create(
                 LearningAsset {
+                    r#type: Default::default(),
                     interval_multiplier,
                     meta: Meta {
                         element_id,
@@ -361,7 +362,7 @@ mod tests {
                     },
                     read_point: ReadPoint::default(),
                 },
-                Vec::new(),
+                LearningAssetContent::Extracted(Vec::new()),
             )
             .await
             .unwrap();

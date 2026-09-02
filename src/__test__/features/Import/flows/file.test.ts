@@ -1,9 +1,13 @@
 import { runFileImport } from "../../../../features/Import/flows/file";
-import { extractPdf } from "../../../../features/Import/pdf/extract";
+import {
+	extractPdf,
+	getPdfPageCount,
+} from "../../../../features/Import/pdf/extract";
 import { extractEpub } from "../../../../features/Import/epub/extract";
 import { extractMarkdown } from "../../../../features/Import/markdown/extract";
 import { normalize } from "../../../../features/Import/normalize";
 import { createImportedLearningAsset } from "../../../../features/Import/createImportedLearningAsset";
+import { createImportedPdfLearningAsset } from "../../../../features/Import/createImportedPdfLearningAsset";
 import { createBibliographicalSource } from "../../../../api/bibliographicalSources/api/bibliographicalSourcesApi";
 import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { ImportContext } from "../../../../features/Import/importContext";
@@ -16,6 +20,7 @@ vi.mock(import("../../../../features/Import/epub/extract"));
 vi.mock(import("../../../../features/Import/markdown/extract"));
 vi.mock(import("../../../../features/Import/normalize"));
 vi.mock(import("../../../../features/Import/createImportedLearningAsset"));
+vi.mock(import("../../../../features/Import/createImportedPdfLearningAsset"));
 vi.mock(
 	import("../../../../api/bibliographicalSources/api/bibliographicalSourcesApi"),
 );
@@ -77,12 +82,37 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([nonPdfFile()], ctx);
+		const actual = await runFileImport([nonPdfFile()], ctx, true);
 
 		// Assert
 
 		expect(actual).toEqual({ kind: "unsupported-file" });
 		expect(extractPdf).not.toHaveBeenCalled();
+	});
+
+	it("Should create a pdf-type learning asset without extraction when extractPdfContent is false", async () => {
+		// Arrange
+
+		vi.mocked(getPdfPageCount).mockResolvedValue(3);
+		const source = makeSource({ id: "source-1" });
+		vi.mocked(createBibliographicalSource).mockResolvedValue(source);
+		const ctx = makeCtx();
+
+		// Act
+
+		const actual = await runFileImport([pdfFile("report.pdf")], ctx, false);
+
+		// Assert
+
+		expect(actual).toBeNull();
+		expect(extractPdf).not.toHaveBeenCalled();
+		expect(createImportedPdfLearningAsset).toHaveBeenCalledWith(
+			ctx,
+			"report",
+			expect.any(String),
+			3,
+			"source-1",
+		);
 	});
 
 	it("Should extract, normalize, and create a learning asset for a valid pdf", async () => {
@@ -102,7 +132,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([pdfFile()], ctx);
+		const actual = await runFileImport([pdfFile()], ctx, true);
 
 		// Assert
 
@@ -141,7 +171,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		await runFileImport([pdfFile("report.pdf")], ctx);
+		await runFileImport([pdfFile("report.pdf")], ctx, true);
 
 		// Assert
 
@@ -169,7 +199,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		await runFileImport([pdfFile("myfile.pdf")], ctx);
+		await runFileImport([pdfFile("myfile.pdf")], ctx, true);
 
 		// Assert
 
@@ -190,7 +220,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([pdfFile()], ctx);
+		const actual = await runFileImport([pdfFile()], ctx, true);
 
 		// Assert
 
@@ -205,7 +235,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([pdfFile()], ctx);
+		const actual = await runFileImport([pdfFile()], ctx, true);
 
 		// Assert
 
@@ -232,7 +262,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		await runFileImport([pdfFile()], ctx, onProgress);
+		await runFileImport([pdfFile()], ctx, true, onProgress);
 
 		// Assert
 
@@ -256,7 +286,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([epubFile()], ctx);
+		const actual = await runFileImport([epubFile()], ctx, true);
 
 		// Assert
 
@@ -282,7 +312,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([epubFile()], ctx);
+		const actual = await runFileImport([epubFile()], ctx, true);
 
 		// Assert
 
@@ -297,7 +327,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([epubFile()], ctx);
+		const actual = await runFileImport([epubFile()], ctx, true);
 
 		// Assert
 
@@ -323,7 +353,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([markdownFile()], ctx);
+		const actual = await runFileImport([markdownFile()], ctx, true);
 
 		// Assert
 
@@ -351,7 +381,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([markdownFile()], ctx);
+		const actual = await runFileImport([markdownFile()], ctx, true);
 
 		// Assert
 
@@ -368,7 +398,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([markdownFile()], ctx);
+		const actual = await runFileImport([markdownFile()], ctx, true);
 
 		// Assert
 

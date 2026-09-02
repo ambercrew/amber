@@ -52,6 +52,7 @@ const learningAssetCurrentElement: AnyElementDto = {
 			name: "LearningAsset 1",
 			...META_FIELDS,
 		},
+		type: "extracted",
 		readPoint: { split: 0, block: 0 },
 		intervalMultiplier: 1.2,
 	},

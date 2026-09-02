@@ -6,7 +6,7 @@ use crate::elements::dto::tag_dto::TagResponseDto;
 use crate::elements::entities::card::Card;
 use crate::elements::entities::extract::Extract;
 use crate::elements::entities::folder::Folder;
-use crate::elements::entities::learning_asset::LearningAsset;
+use crate::elements::entities::learning_asset::{LearningAsset, LearningAssetType};
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::meta::Meta;
 use crate::elements::value_objects::read_point::ReadPoint;
@@ -51,6 +51,7 @@ pub struct FolderResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct LearningAssetResponseDto {
     pub meta: MetaResponseDto,
+    pub r#type: LearningAssetType,
     /// Where the user last read up to. The split index and per-split content are
     /// fetched separately (lazily) rather than inlined here.
     pub read_point: ReadPoint,
@@ -107,6 +108,7 @@ impl From<LearningAsset> for AnyElementDto {
         // commands, so only the learning asset's position and metadata are returned here.
         AnyElementDto::LearningAsset(LearningAssetResponseDto {
             meta: learning_asset.meta.into(),
+            r#type: learning_asset.r#type,
             read_point: learning_asset.read_point,
             interval_multiplier: learning_asset.interval_multiplier,
         })
