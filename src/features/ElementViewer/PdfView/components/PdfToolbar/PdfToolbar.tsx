@@ -4,22 +4,24 @@ import {
 	Divider,
 	Group,
 	NumberInput,
+	Popover,
 	Text,
 	TextInput,
 } from "@mantine/core";
-import { MinusIcon, PlusIcon } from "@phosphor-icons/react";
+import { ListBulletsIcon, MinusIcon, PlusIcon } from "@phosphor-icons/react";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
-import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
+import AppTooltip from "../../../../../components/AppTooltip/AppTooltip";
 import {
 	AppHotkeyItem,
 	useAppHotkeys,
-} from "../../../../commands/useAppHotkeys";
+} from "../../../../../commands/useAppHotkeys";
 import {
 	RESET_ZOOM_SHORTCUT,
 	ZOOM_IN_SHORTCUT,
 	ZOOM_OUT_SHORTCUT,
-} from "../../../../commands/commands";
+} from "../../../../../commands/commands";
+import PdfOutline from "../PdfOutline/PdfOutline";
 
 interface PdfToolbarProps {
 	documentId: string;
@@ -29,6 +31,13 @@ interface PdfToolbarProps {
 export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 	const { state: zoomState, provides: zoom } = useZoom(documentId);
 	const { state: scrollState, provides: scroll } = useScroll(documentId);
+	const [outlineOpened, setOutlineOpened] = useState(false);
+
+	const [prevPinned, setPrevPinned] = useState(pinned);
+	if (pinned !== prevPinned) {
+		setPrevPinned(pinned);
+		if (!pinned) setOutlineOpened(false);
+	}
 
 	useAppHotkeys(
 		[
@@ -95,6 +104,30 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 					transitionProperty: "transform",
 					transitionDuration: "var(--app-shell-transition-duration)",
 				}}>
+				<Popover
+					opened={outlineOpened}
+					onChange={setOutlineOpened}
+					position="top-start"
+					shadow="md"
+					withArrow>
+					<Popover.Target>
+						<AppTooltip label="Table of contents">
+							<ActionIcon
+								variant={outlineOpened ? "light" : "subtle"}
+								size="lg"
+								onClick={() => setOutlineOpened(o => !o)}>
+								<ListBulletsIcon size={18} />
+							</ActionIcon>
+						</AppTooltip>
+					</Popover.Target>
+					<Popover.Dropdown p={0}>
+						<PdfOutline
+							documentId={documentId}
+							onNavigate={() => setOutlineOpened(false)}
+						/>
+					</Popover.Dropdown>
+				</Popover>
+				<Divider orientation="vertical" />
 				<Group gap={4} wrap="nowrap">
 					<TextInput
 						size="xs"

@@ -10,7 +10,7 @@ import { SelectionLayer } from "@embedpdf/plugin-selection/react";
 import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import { HEADROOM_FIXED_AT } from "../../../App/components/App";
 import { usePdfToolbarHeadroom } from "../hooks/usePdfToolbarHeadroom";
-import PdfToolbar from "./PdfToolbar";
+import PdfToolbar from "./PdfToolbar/PdfToolbar";
 
 /** Renders nothing. `usePdfToolbarHeadroom` needs `<Viewport>`'s React
  * context, but `PdfToolbar` renders as a sibling outside `<Viewport>` (its
