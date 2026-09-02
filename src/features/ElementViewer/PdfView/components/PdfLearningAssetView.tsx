@@ -29,7 +29,8 @@ interface PdfLearningAssetViewProps {
 // 1. Let extract and cloze be part of a floating menu like on the editor and make them work
 // 2. Let the search use the same component as find in page appearing from top
 // 3. Fix readpoints
-// 4. Let shortcuts for zooming work on the pdf
+// 4. Remember zoom percentage in local storage
+// 5. Optional/feature: add table of content
 export default function PdfLearningAssetView({
 	learningAssetId,
 	readPoint,

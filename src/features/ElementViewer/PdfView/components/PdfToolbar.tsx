@@ -1,24 +1,44 @@
 import { useState } from "react";
-import { ActionIcon, Group, Text, TextInput } from "@mantine/core";
+import {
+	ActionIcon,
+	Divider,
+	Group,
+	NumberInput,
+	Text,
+	TextInput,
+} from "@mantine/core";
 import { MinusIcon, PlusIcon } from "@phosphor-icons/react";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
 import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
+import {
+	AppHotkeyItem,
+	useAppHotkeys,
+} from "../../../../commands/useAppHotkeys";
+import {
+	RESET_ZOOM_SHORTCUT,
+	ZOOM_IN_SHORTCUT,
+	ZOOM_OUT_SHORTCUT,
+} from "../../../../commands/commands";
 
 interface PdfToolbarProps {
 	documentId: string;
 	pinned: boolean;
 }
 
-/** Floats over the PDF viewport as a rounded zoom panel near the bottom
- * edge, sliding out of view on scroll-down and back in on scroll-up —
- * mirroring the app header's headroom behavior, but as a footer.
- * Positioned absolutely (over the viewport, not in flex flow) so it never
- * affects the viewport's layout size, which would upset `Scroller`'s
- * virtualized page layout (see PdfViewportScrollWatcher). */
 export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 	const { state: zoomState, provides: zoom } = useZoom(documentId);
 	const { state: scrollState, provides: scroll } = useScroll(documentId);
+
+	useAppHotkeys(
+		[
+			[ZOOM_IN_SHORTCUT, () => zoom?.zoomIn()],
+			[ZOOM_OUT_SHORTCUT, () => zoom?.zoomOut()],
+			[RESET_ZOOM_SHORTCUT, () => zoom?.requestZoom(1)],
+		] satisfies AppHotkeyItem[],
+		[],
+		true,
+	);
 
 	const [pageInput, setPageInput] = useState("");
 	const [editingPage, setEditingPage] = useState(false);
@@ -35,6 +55,18 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 		setEditingPage(false);
 	}
 
+	const [zoomInput, setZoomInput] = useState("");
+	const [editingZoom, setEditingZoom] = useState(false);
+	const currentZoomPercentage = Math.round(zoomState.currentZoomLevel * 100);
+
+	function commitZoomInput() {
+		const zoomPercentage = Number(zoomInput);
+		if (Number.isFinite(zoomPercentage)) {
+			zoom?.requestZoom(zoomPercentage / 100);
+		}
+		setEditingZoom(false);
+	}
+
 	return (
 		<div
 			style={{
@@ -47,9 +79,9 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 				zIndex: 1,
 			}}>
 			<Group
-				gap="lg"
-				px="md"
-				py="sm"
+				gap="md"
+				px="sm"
+				py="xs"
 				wrap="nowrap"
 				style={{
 					pointerEvents: "auto",
@@ -88,7 +120,8 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 						/ {scrollState.totalPages}
 					</Text>
 				</Group>
-				<Group gap={0} wrap="nowrap">
+				<Divider orientation="vertical" />
+				<Group gap={2} wrap="nowrap">
 					<AppTooltip label="Zoom out">
 						<ActionIcon
 							variant="subtle"
@@ -97,9 +130,24 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 							<MinusIcon size={18} />
 						</ActionIcon>
 					</AppTooltip>
-					<Text size="sm" w={48} ta="center">
-						{Math.round(zoomState.currentZoomLevel * 100)}%
-					</Text>
+					<NumberInput
+						size="xs"
+						w={48}
+						hideControls
+						suffix="%"
+						styles={{ input: { textAlign: "center", padding: 0 } }}
+						value={editingZoom ? zoomInput : currentZoomPercentage}
+						onChange={value => setZoomInput(String(value))}
+						onFocus={e => {
+							setEditingZoom(true);
+							setZoomInput(String(currentZoomPercentage));
+							e.currentTarget.select();
+						}}
+						onBlur={commitZoomInput}
+						onKeyDown={e => {
+							if (e.key === "Enter") e.currentTarget.blur();
+						}}
+					/>
 					<AppTooltip label="Zoom in">
 						<ActionIcon
 							variant="subtle"

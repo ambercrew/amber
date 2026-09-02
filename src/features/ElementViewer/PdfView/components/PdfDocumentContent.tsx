@@ -65,13 +65,13 @@ export default function PdfDocumentContent() {
 				overflow: "hidden",
 				position: "relative",
 			}}>
-			<ZoomGestureWrapper
+			<Viewport
 				documentId={activeDocumentId}
 				style={{ width: "100%", height: "100%" }}>
-				<Viewport
+				<ScrollWatcher onPinnedChange={setPinned} />
+				<ZoomGestureWrapper
 					documentId={activeDocumentId}
 					style={{ width: "100%", height: "100%" }}>
-					<ScrollWatcher onPinnedChange={setPinned} />
 					<Scroller
 						documentId={activeDocumentId}
 						renderPage={({ pageIndex }) => (
@@ -89,8 +89,8 @@ export default function PdfDocumentContent() {
 							</PagePointerProvider>
 						)}
 					/>
-				</Viewport>
-			</ZoomGestureWrapper>
+				</ZoomGestureWrapper>
+			</Viewport>
 			<PdfToolbar documentId={activeDocumentId} pinned={pinned} />
 		</div>
 	);
