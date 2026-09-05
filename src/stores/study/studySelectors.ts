@@ -2,6 +2,8 @@ import { RootState } from "../store";
 
 export const selectStudyStatus = (state: RootState) => state.study.status;
 export const selectStudyQueue = (state: RootState) => state.study.queue;
+export const selectStudyTotalCount = (state: RootState) =>
+	state.study.totalCount;
 
 // The queue has no index of its own — "current" is whichever queue item
 // matches the element actually being viewed, so it can never point at a

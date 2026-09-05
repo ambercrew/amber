@@ -17,9 +17,9 @@ import { answerShown, elementShown } from "../../../stores/study/studyReducer";
 import {
 	selectStudyCardPhase,
 	selectStudyCurrentElement,
-	selectStudyIndex,
 	selectStudyQueue,
 	selectStudyShownAt,
+	selectStudyTotalCount,
 } from "../../../stores/study/studySelectors";
 import { Rating } from "../../../types/study/rating";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
@@ -45,8 +45,8 @@ function StudySessionBar() {
 	const dispatch = useAppDispatch();
 	const navigate = useNavigate();
 	const current = useAppSelector(selectStudyCurrentElement);
-	const index = useAppSelector(selectStudyIndex);
 	const queue = useAppSelector(selectStudyQueue);
+	const totalCount = useAppSelector(selectStudyTotalCount);
 	const cardPhase = useAppSelector(selectStudyCardPhase);
 	const shownAt = useAppSelector(selectStudyShownAt);
 	const elapsedSeconds = useElapsedSeconds(shownAt);
@@ -147,7 +147,7 @@ function StudySessionBar() {
 					size="sm"
 					c="dimmed"
 					visibleFrom={SMALL_SCREEN_BREAKPOINT}>
-					{index + 1}/{queue.length}
+					{totalCount - queue.length + 1}/{totalCount}
 				</Text>
 			</Box>
 

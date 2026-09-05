@@ -35,6 +35,7 @@ const STUDYING_STATE: StudyState = {
 		{ elementId: { type: "card", id: "1" }, title: "Card 1" },
 		{ elementId: { type: "card", id: "2" }, title: "Card 2" },
 	],
+	totalCount: 2,
 	cardPhase: "question",
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },

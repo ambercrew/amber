@@ -19,6 +19,7 @@ function queueItem(type: "card" | "learningAsset", id: string): DueElementDto {
 const BASE_STATE: StudyState = {
 	status: "editing",
 	queue: [],
+	totalCount: 0,
 	cardPhase: "question",
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },

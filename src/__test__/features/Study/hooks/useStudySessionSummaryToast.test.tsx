@@ -7,6 +7,7 @@ vi.mock(import("@mantine/notifications"));
 const BASE_STUDY_STATE = {
 	status: "editing" as const,
 	queue: [],
+	totalCount: 0,
 	cardPhase: "question" as const,
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },

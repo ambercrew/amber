@@ -35,6 +35,7 @@ describe("StudyModeToggle", () => {
 							title: "Card 1",
 						},
 					],
+					totalCount: 1,
 					cardPhase: "question",
 					shownAt: null,
 					counts: {
@@ -112,6 +113,7 @@ describe("StudyModeToggle", () => {
 							title: "Card 1",
 						},
 					],
+					totalCount: 1,
 					cardPhase: "question",
 					shownAt: null,
 					counts: {

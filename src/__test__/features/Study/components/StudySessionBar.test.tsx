@@ -59,6 +59,7 @@ const learningAssetCurrentElement: AnyElementDto = {
 
 const BASE_STUDY_STATE = {
 	status: "studying" as const,
+	totalCount: 1,
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,

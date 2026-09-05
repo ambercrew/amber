@@ -10,6 +10,7 @@ import { STUDY_SESSION_FINISHED } from "../../../../types/events/studySessionFin
 
 const BASE_STUDY_STATE = {
 	queue: [],
+	totalCount: 0,
 	cardPhase: "question" as const,
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },

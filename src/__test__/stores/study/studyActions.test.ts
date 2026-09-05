@@ -131,6 +131,7 @@ const LEARNING_ASSET_REVIEW: LearningAssetReviewDto = {
 const BASE_STUDY_STATE: StudyState = {
 	status: "studying",
 	queue: [],
+	totalCount: 0,
 	cardPhase: "question",
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
