@@ -9,6 +9,7 @@ import { StudyState } from "../../../../stores/study/studyReducer";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
 vi.mock(import("../../../../api/study/api/studyApi"));
+vi.mock(import("../../../../api/elements/api/elementsApi"));
 
 const CARD_ELEMENT: AnyElementDto = {
 	type: "card",

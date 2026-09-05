@@ -1,7 +1,5 @@
 import { useWindowEvent } from "@mantine/hooks";
-import { elementExists, getElementById } from "../api/elements/api/elementsApi";
-import { setCurrentElement } from "../stores/elements/elementsReducer";
-import { loadElementDetailsAction } from "../stores/elementDetails/elementDetailsActions";
+import { loadCurrentElementAction } from "../stores/elements/elementsActions";
 import { STUDY_SESSION_FINISHED } from "../types/events/studySessionFinishedEvent";
 import useAppDispatch from "./useAppDispatch";
 import { useElementParams } from "./useElementParams";
@@ -17,13 +15,6 @@ export function useStudySessionFinishedRefresh() {
 
 	useWindowEvent(STUDY_SESSION_FINISHED, () => {
 		if (!params) return;
-
-		void elementExists(params).then(exists => {
-			if (!exists) return;
-			void getElementById(params).then(element =>
-				dispatch(setCurrentElement(element)),
-			);
-			void dispatch(loadElementDetailsAction(params));
-		});
+		void dispatch(loadCurrentElementAction(params));
 	});
 }

@@ -21,6 +21,7 @@ import {
 	selectStudyShownAt,
 	selectStudyTotalCount,
 } from "../../../stores/study/studySelectors";
+import { ElementId } from "../../../types/elements/elementId";
 import { Rating } from "../../../types/study/rating";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
@@ -101,11 +102,10 @@ function StudySessionBar() {
 		if (answerHidden) return;
 		grade(rating);
 	};
-	const learningAssetShortcut =
-		(action: (id: typeof current) => void) => () => {
-			if (!current || current.type === "card") return;
-			action(current);
-		};
+	const learningAssetShortcut = (action: (id: ElementId) => void) => () => {
+		if (!current || current.type === "card") return;
+		action(current);
+	};
 
 	useAppHotkeys([
 		[
@@ -120,8 +120,8 @@ function StudySessionBar() {
 		["4", gradeShortcut("easy")],
 		[
 			"1",
-			learningAssetShortcut(id =>
-				dispatch(skipLearningAssetAction(id, navigate)),
+			learningAssetShortcut(
+				id => void dispatch(skipLearningAssetAction(id, navigate)),
 			),
 		],
 		[
@@ -192,7 +192,7 @@ function StudySessionBar() {
 							variant="default"
 							size="sm"
 							onClick={() =>
-								dispatch(
+								void dispatch(
 									skipLearningAssetAction(current, navigate),
 								)
 							}>

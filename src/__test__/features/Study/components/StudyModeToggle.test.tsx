@@ -9,6 +9,7 @@ import {
 import { getDueElements } from "../../../../api/study/api/studyApi";
 
 vi.mock(import("../../../../api/study/api/studyApi.ts"));
+vi.mock(import("../../../../api/elements/api/elementsApi.ts"));
 vi.mock(import("@mantine/notifications"));
 
 describe("StudyModeToggle", () => {

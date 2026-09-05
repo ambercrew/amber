@@ -10,10 +10,12 @@ import {
 } from "../../api/study/api/studyApi";
 import { paths } from "../../paths";
 import { CardReviewDto } from "../../api/study/dto/cardReviewDto";
+import { DueElementDto } from "../../api/study/dto/dueElementDto";
 import { ElementId } from "../../types/elements/elementId";
 import { Rating } from "../../types/study/rating";
 import { StudySessionLocationState } from "../../types/study/studySessionLocationState";
 import { AppDispatch, RootState } from "../store";
+import { loadCurrentElementAction } from "../elements/elementsActions";
 import {
 	cardGraded,
 	elementRequeued,
@@ -37,7 +39,7 @@ export function startStudySession(navigate: NavigateFunction) {
 		const queue = await getDueElements();
 		if (queue.length === 0) return false;
 		dispatch(sessionStarted(queue));
-		navigateToElement(queue[0]?.elementId, navigate);
+		await navigateToElement(queue[0]?.elementId, navigate, dispatch);
 		return true;
 	};
 }
@@ -67,7 +69,7 @@ export function gradeCardAction(
 			dispatch(elementRequeued({ elementId }));
 		}
 
-		advanceSession(
+		await advanceSession(
 			dispatch,
 			getState,
 			navigate,
@@ -123,7 +125,7 @@ export function applyScheduleChangeAction(navigate: NavigateFunction) {
 			dispatch(elementRequeued({ elementId: after.elementId }));
 		}
 
-		advanceSession(
+		await advanceSession(
 			dispatch,
 			getState,
 			navigate,
@@ -167,7 +169,7 @@ export function nextLearningAssetAction(
 		const currentIndex = selectStudyIndex(getState());
 		await nextLearningAsset(elementId);
 		dispatch(learningAssetAdvanced({ elementType: elementId.type }));
-		advanceSession(
+		await advanceSession(
 			dispatch,
 			getState,
 			navigate,
@@ -182,10 +184,10 @@ export function skipLearningAssetAction(
 	elementId: ElementId,
 	navigate: NavigateFunction,
 ) {
-	return (dispatch: AppDispatch, getState: () => RootState) => {
+	return async (dispatch: AppDispatch, getState: () => RootState) => {
 		const currentIndex = selectStudyIndex(getState());
 		dispatch(learningAssetSkipped({ elementId }));
-		advanceSession(
+		await advanceSession(
 			dispatch,
 			getState,
 			navigate,
@@ -204,7 +206,7 @@ export function finishLearningAssetAction(
 		const currentIndex = selectStudyIndex(getState());
 		await finishLearningAsset(elementId);
 		dispatch(learningAssetFinished({ elementType: elementId.type }));
-		advanceSession(
+		await advanceSession(
 			dispatch,
 			getState,
 			navigate,
@@ -219,7 +221,16 @@ export function finishLearningAssetAction(
 // did — only wrapping back to the front of the queue once there's nothing
 // left ahead, cycling through the remaining elements rather than ending
 // the session while some are still unreviewed.
-function advanceSession(
+//
+// The completed element isn't removed from the queue until *after* the next
+// element's content has loaded into `elements.currentElement`. Dropping it
+// first (as `sessionAdvanced` does) and only then loading the next element
+// would leave a render — however brief — where the queue no longer contains
+// a match for `currentElement`, which is exactly the flash this avoids:
+// `selectStudyCurrentElement` has nothing to resolve to until the fetch
+// finishes. The target element is still present in the pre-removal queue,
+// so loading it first means every render in between stays consistent.
+async function advanceSession(
 	dispatch: AppDispatch,
 	getState: () => RootState,
 	navigate: NavigateFunction,
@@ -227,19 +238,19 @@ function advanceSession(
 	completed: boolean,
 	currentIndex: number,
 ) {
-	dispatch(
-		sessionAdvanced({
-			completedElementId: completed ? handledElementId : null,
-		}),
-	);
+	const queueBeforeCompletion = getState().study.queue;
+	const queueAfterCompletion = completed
+		? removeElement(queueBeforeCompletion, handledElementId)
+		: queueBeforeCompletion;
 
-	const { queue } = getState().study;
-	if (queue.length === 0) {
+	if (queueAfterCompletion.length === 0) {
+		dispatch(sessionAdvanced({ completedElementId: handledElementId }));
 		window.dispatchEvent(new Event(STUDY_SESSION_FINISHED));
 		return;
 	}
 
-	let nextIndex = currentIndex >= queue.length ? 0 : currentIndex;
+	let nextIndex =
+		currentIndex >= queueAfterCompletion.length ? 0 : currentIndex;
 
 	// An element that was only re-queued or skipped stays in the queue, and
 	// when it sat at the very end there is no slot further back to move it
@@ -247,13 +258,38 @@ function advanceSession(
 	// instead, so the session moves on to the elements ahead of it rather
 	// than presenting the same one again.
 	if (
-		queue.length > 1 &&
-		isSameElement(queue[nextIndex].elementId, handledElementId)
+		queueAfterCompletion.length > 1 &&
+		isSameElement(
+			queueAfterCompletion[nextIndex].elementId,
+			handledElementId,
+		)
 	) {
 		nextIndex = nextIndex === 0 ? 1 : 0;
 	}
 
-	navigateToElement(queue[nextIndex]?.elementId, navigate);
+	const nextElement = queueAfterCompletion[nextIndex].elementId;
+
+	await dispatch(loadCurrentElementAction(nextElement));
+
+	dispatch(
+		sessionAdvanced({
+			completedElementId: completed ? handledElementId : null,
+		}),
+	);
+
+	const state: StudySessionLocationState = { studySessionNav: true };
+	void navigate(paths.element(nextElement.type, nextElement.id), { state });
+}
+
+function removeElement(
+	queue: DueElementDto[],
+	elementId: ElementId,
+): DueElementDto[] {
+	const index = queue.findIndex(item =>
+		isSameElement(item.elementId, elementId),
+	);
+	if (index === -1) return queue;
+	return [...queue.slice(0, index), ...queue.slice(index + 1)];
 }
 
 function isSameElement(a: ElementId, b: ElementId): boolean {
@@ -267,11 +303,13 @@ export function stopStudySessionAction() {
 	};
 }
 
-function navigateToElement(
+async function navigateToElement(
 	element: ElementId | undefined,
 	navigate: NavigateFunction,
+	dispatch: AppDispatch,
 ) {
 	if (!element) return;
+	await dispatch(loadCurrentElementAction(element));
 	const state: StudySessionLocationState = { studySessionNav: true };
 	void navigate(paths.element(element.type, element.id), { state });
 }

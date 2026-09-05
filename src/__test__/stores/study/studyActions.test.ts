@@ -1,6 +1,6 @@
 import { notifications } from "@mantine/notifications";
 import { NavigateFunction } from "react-router";
-import { setupStore } from "../../../stores/store";
+import { RootState, setupStore } from "../../../stores/store";
 import {
 	finishLearningAssetAction,
 	gradeCardAction,
@@ -10,6 +10,10 @@ import {
 	startStudySession,
 	stopStudySessionAction,
 } from "../../../stores/study/studyActions";
+import {
+	selectStudyCurrentElement,
+	selectStudyIndex,
+} from "../../../stores/study/studySelectors";
 import { STUDY_SESSION_FINISHED } from "../../../types/events/studySessionFinishedEvent";
 import { StudyState } from "../../../stores/study/studyReducer";
 import {
@@ -20,13 +24,19 @@ import {
 	registerCardReview,
 	nextLearningAsset,
 } from "../../../api/study/api/studyApi";
+import {
+	elementExists,
+	getElementById,
+} from "../../../api/elements/api/elementsApi";
 import { DueElementDto } from "../../../api/study/dto/dueElementDto";
 import { AnyElementDto } from "../../../api/elements/dto/anyElementDto";
+import { ElementId } from "../../../types/elements/elementId";
 import { ElementsState } from "../../../stores/elements/elementsReducer";
 import { CardReviewDto } from "../../../api/study/dto/cardReviewDto";
 import { LearningAssetReviewDto } from "../../../api/study/dto/learningAssetReviewDto";
 
 vi.mock(import("../../../api/study/api/studyApi.ts"));
+vi.mock(import("../../../api/elements/api/elementsApi.ts"));
 
 const META_FIELDS = {
 	parent: null,
@@ -99,6 +109,19 @@ function extractElement(id: string): AnyElementDto {
 			intervalMultiplier: 1.2,
 		},
 	};
+}
+
+function elementFor(elementId: ElementId): AnyElementDto {
+	switch (elementId.type) {
+		case "card":
+			return cardElement(elementId.id);
+		case "extract":
+			return extractElement(elementId.id);
+		case "learningAsset":
+			return learningAssetElement(elementId.id);
+		case "folder":
+			throw new Error("Folders are never part of a study queue");
+	}
 }
 
 function makeCardReview(due: string): CardReviewDto {
@@ -227,6 +250,54 @@ describe("gradeCardAction", () => {
 			"/card/2",
 			expect.objectContaining({ state: { studySessionNav: true } }),
 		);
+	});
+
+	it("Should load the next element into currentElement, and never leave currentElement unmatched against the queue while advancing", async () => {
+		// Arrange
+
+		vi.mocked(registerCardReview).mockResolvedValue(
+			makeCardReview(IN_TWO_DAYS()),
+		);
+		vi.mocked(elementExists).mockResolvedValue(true);
+		vi.mocked(getElementById).mockImplementation(id =>
+			Promise.resolve(elementFor(id)),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [
+					cardQueueItem("1"),
+					cardQueueItem("2"),
+					cardQueueItem("3"),
+				],
+			},
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		const statesSeen: RootState[] = [];
+		store.subscribe(() => statesSeen.push(store.getState()));
+
+		// Act
+
+		await store.dispatch(
+			gradeCardAction("1", SCHEDULED_REVIEW, "good", navigate),
+		);
+
+		// Assert
+
+		expect(store.getState().elements.currentElement).toEqual(
+			cardElement("2"),
+		);
+		for (const state of statesSeen) {
+			if (
+				state.study.status === "studying" &&
+				state.study.queue.length > 0
+			) {
+				expect(selectStudyIndex(state)).not.toBe(-1);
+				expect(selectStudyCurrentElement(state)).not.toBeNull();
+			}
+		}
 	});
 
 	it("Should not fire STUDY_SESSION_FINISHED when other elements remain in the queue", async () => {
@@ -481,7 +552,7 @@ describe("nextLearningAssetAction", () => {
 });
 
 describe("skipLearningAssetAction", () => {
-	it("Should move the skipped learning asset to the end of the queue and advance without incrementing any counts", () => {
+	it("Should move the skipped learning asset to the end of the queue and advance without incrementing any counts", async () => {
 		// Arrange
 
 		const navigate = vi.fn() as unknown as NavigateFunction;
@@ -499,7 +570,7 @@ describe("skipLearningAssetAction", () => {
 
 		// Act
 
-		store.dispatch(
+		await store.dispatch(
 			skipLearningAssetAction(
 				{ type: "learningAsset", id: "1" },
 				navigate,
@@ -522,7 +593,7 @@ describe("skipLearningAssetAction", () => {
 		);
 	});
 
-	it("Should keep the session active and revisit the same element when skipping the only learning asset in the queue", () => {
+	it("Should keep the session active and revisit the same element when skipping the only learning asset in the queue", async () => {
 		// Arrange
 
 		const navigate = vi.fn() as unknown as NavigateFunction;
@@ -536,7 +607,7 @@ describe("skipLearningAssetAction", () => {
 
 		// Act
 
-		store.dispatch(
+		await store.dispatch(
 			skipLearningAssetAction(
 				{ type: "learningAsset", id: "1" },
 				navigate,
@@ -554,7 +625,7 @@ describe("skipLearningAssetAction", () => {
 		);
 	});
 
-	it("Should wrap around to the front of the queue when the last learning asset in the queue is skipped", () => {
+	it("Should wrap around to the front of the queue when the last learning asset in the queue is skipped", async () => {
 		// Arrange
 
 		const navigate = vi.fn() as unknown as NavigateFunction;
@@ -572,7 +643,7 @@ describe("skipLearningAssetAction", () => {
 
 		// Act
 
-		store.dispatch(
+		await store.dispatch(
 			skipLearningAssetAction(
 				{ type: "learningAsset", id: "3" },
 				navigate,
