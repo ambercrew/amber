@@ -10,6 +10,7 @@ import { SelectionLayer } from "@embedpdf/plugin-selection/react";
 import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import { HEADROOM_FIXED_AT } from "../../../App/components/App";
 import { usePdfToolbarHeadroom } from "../hooks/usePdfToolbarHeadroom";
+import PdfFloatingMenu from "./PdfFloatingMenu";
 import PdfToolbar from "./PdfToolbar/PdfToolbar";
 
 /** Renders nothing. `usePdfToolbarHeadroom` needs `<Viewport>`'s React
@@ -85,6 +86,7 @@ export default function PdfDocumentContent() {
 								<SelectionLayer
 									documentId={activeDocumentId}
 									pageIndex={pageIndex}
+									selectionMenu={PdfFloatingMenu}
 								/>
 							</PagePointerProvider>
 						)}

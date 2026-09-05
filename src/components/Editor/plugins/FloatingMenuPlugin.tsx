@@ -16,16 +16,11 @@ import {
 	LexicalEditor,
 	RangeSelection,
 } from "lexical";
-import {
-	ActionIcon,
-	Button,
-	Divider,
-	Group,
-	MantineColor,
-	Paper,
-} from "@mantine/core";
+import { MantineColor } from "@mantine/core";
 import styles from "../Editor.module.css";
-import AppTooltip from "../../AppTooltip/AppTooltip";
+import FloatingMenuBar, {
+	FloatingMenuBarItem,
+} from "../../FloatingMenuBar/FloatingMenuBar";
 
 export interface FloatingMenuButton {
 	divider?: false;
@@ -251,30 +246,26 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 
 	const shouldShow = (isEditorFocused || isMenuFocused) && coords !== null;
 
-	// Only render a divider when it has a visible button on both sides,
-	// otherwise it would dangle at the start/end or next to another divider.
-	const candidates = buttons.filter(
-		item =>
-			isFloatingMenuDivider(item) || visibleState[item.name] !== false,
-	);
-	const visibleItems = candidates.filter((item, index) => {
-		if (!isFloatingMenuDivider(item)) return true;
-		const prev = candidates[index - 1];
-		const next = candidates[index + 1];
-		return (
-			!!prev &&
-			!!next &&
-			!isFloatingMenuDivider(prev) &&
-			!isFloatingMenuDivider(next)
-		);
+	const items: FloatingMenuBarItem[] = buttons.map(btn => {
+		if (isFloatingMenuDivider(btn)) return btn;
+		return {
+			name: btn.name,
+			title: btn.title,
+			label: btn.label,
+			showLabel: btn.showLabel,
+			color: btn.color,
+			Icon: btn.Icon,
+			isActive: activeState[btn.name] ?? false,
+			isVisible: visibleState[btn.name] ?? true,
+			onClick: () =>
+				btn.onClick(editor, activeState[btn.name] ?? false, closeMenu),
+		};
 	});
 
 	return (
-		<Paper
+		<FloatingMenuBar
 			ref={menuRef}
-			withBorder
-			shadow="md"
-			p={4}
+			items={items}
 			className={styles["floating-menu"]}
 			style={{
 				top: coords?.y ?? 0,
@@ -291,60 +282,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 					setCoords(null);
 					editor.focus();
 				}
-			}}>
-			<Group gap={2}>
-				{visibleItems.map(btn =>
-					isFloatingMenuDivider(btn) ? (
-						<Divider key={btn.name} mx={4} orientation="vertical" />
-					) : btn.showLabel ? (
-						<AppTooltip key={btn.name} label={btn.title}>
-							<Button
-								variant={
-									activeState[btn.name] ? "filled" : "subtle"
-								}
-								color={btn.color}
-								size="sm"
-								px="xs"
-								leftSection={<btn.Icon size={22} />}
-								aria-label={btn.title}
-								onMouseDown={(e: React.MouseEvent) =>
-									e.preventDefault()
-								}
-								onClick={() =>
-									btn.onClick(
-										editor,
-										activeState[btn.name] ?? false,
-										closeMenu,
-									)
-								}>
-								{btn.label ?? btn.title}
-							</Button>
-						</AppTooltip>
-					) : (
-						<AppTooltip key={btn.name} label={btn.title}>
-							<ActionIcon
-								variant={
-									activeState[btn.name] ? "filled" : "subtle"
-								}
-								color={btn.color}
-								size="lg"
-								aria-label={btn.title}
-								onMouseDown={(e: React.MouseEvent) =>
-									e.preventDefault()
-								}
-								onClick={() =>
-									btn.onClick(
-										editor,
-										activeState[btn.name] ?? false,
-										closeMenu,
-									)
-								}>
-								<btn.Icon size={22} />
-							</ActionIcon>
-						</AppTooltip>
-					),
-				)}
-			</Group>
-		</Paper>
+			}}
+		/>
 	);
 }

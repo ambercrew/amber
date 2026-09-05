@@ -1,13 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
-	CardsIcon,
-	ScissorsIcon,
-	EraserIcon,
-	ArrowSquareOutIcon,
-	SparkleIcon,
-} from "@phosphor-icons/react";
-import {
 	$getSelection,
 	$isRangeSelection,
 	LexicalEditor,
@@ -26,6 +19,13 @@ import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectSettings } from "../../../stores/settings/settingsSelector";
 import { addAiContextSnippet } from "../../../stores/aiContext/aiReducer";
+import {
+	ADD_AI_CONTEXT_BUTTON,
+	CLOZE_BUTTON,
+	EXTRACT_BUTTON,
+	OPEN_HIGHLIGHT_BUTTON,
+	REMOVE_HIGHLIGHT_BUTTON,
+} from "../highlightFloatingMenuButtons";
 
 export const CLOZE_COLOR = "blue";
 
@@ -70,22 +70,14 @@ export function useElementViewerButtons(): FloatingMenuItem[] {
 		() => [
 			// Create a yellow (extract) or blue (cloze) highlight.
 			{
-				name: "extract",
-				title: "Create Extract",
-				label: "Extract",
-				Icon: ScissorsIcon,
-				showLabel: true,
+				...EXTRACT_BUTTON,
 				isActive: () => false,
 				onClick: editor => {
 					editor.dispatchCommand(CREATE_HIGHLIGHT_COMMAND, "yellow");
 				},
 			},
 			{
-				name: "cloze",
-				title: "Create Cloze",
-				label: "Cloze",
-				showLabel: true,
-				Icon: CardsIcon,
+				...CLOZE_BUTTON,
 				isActive: () => false,
 				onClick: editor => {
 					editor.dispatchCommand(
@@ -101,9 +93,7 @@ export function useElementViewerButtons(): FloatingMenuItem[] {
 							divider: true as const,
 						},
 						{
-							name: "add-ai-context",
-							title: "Add to AI Context",
-							Icon: SparkleIcon,
+							...ADD_AI_CONTEXT_BUTTON,
 							isActive: () => false,
 							onClick: (
 								editor: LexicalEditor,
@@ -125,9 +115,7 @@ export function useElementViewerButtons(): FloatingMenuItem[] {
 			{ name: "create-highlight-divider", divider: true },
 			// Acts on the highlight (if any) under the current selection.
 			{
-				name: "open-highlight",
-				title: "Open",
-				Icon: ArrowSquareOutIcon,
+				...OPEN_HIGHLIGHT_BUTTON,
 				isActive: () => false,
 				isVisible: selection =>
 					!!$getHighlightNodeFromSelection(selection),
@@ -151,10 +139,7 @@ export function useElementViewerButtons(): FloatingMenuItem[] {
 				},
 			},
 			{
-				name: "remove-highlight",
-				title: "Remove Highlight",
-				Icon: EraserIcon,
-				color: "red",
+				...REMOVE_HIGHLIGHT_BUTTON,
 				isActive: () => false,
 				isVisible: selection =>
 					!!$getHighlightNodeFromSelection(selection),
