@@ -73,6 +73,12 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
                     )
                     .execute(&mut *tx)
                     .await?;
+                    sqlx::query!(
+                        "INSERT INTO learning_asset_pdf_highlights (learning_asset_id) VALUES ($1)",
+                        uuid,
+                    )
+                    .execute(&mut *tx)
+                    .await?;
                 }
             }
         }
@@ -291,7 +297,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         let row = sqlx::query!(
-            "SELECT highlights FROM learning_asset_pdfs WHERE learning_asset_id = $1",
+            "SELECT highlights FROM learning_asset_pdf_highlights WHERE learning_asset_id = $1",
             learning_asset_id.hyphenated(),
         )
         .fetch_one(&mut *tx)
@@ -307,7 +313,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
-            "UPDATE learning_asset_pdfs SET highlights = $1 WHERE learning_asset_id = $2",
+            "UPDATE learning_asset_pdf_highlights SET highlights = $1 WHERE learning_asset_id = $2",
             highlights,
             learning_asset_id.hyphenated(),
         )

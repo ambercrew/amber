@@ -109,6 +109,16 @@ fn table_configs() -> Vec<TableSyncConfig> {
             )],
         },
         TableSyncConfig {
+            name: "learning_asset_pdf_highlights",
+            granularity: Granularity::Column,
+            fk_constraints: vec![FkConstraint::new(
+                "learning_asset_id",
+                "learning_assets",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        },
+        TableSyncConfig {
             name: "extracts",
             granularity: Granularity::Row,
             fk_constraints: vec![FkConstraint::new(
