@@ -1,7 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { elementExists, getElementById } from "../api/elements/api/elementsApi";
-import { setCurrentElement } from "../stores/elements/elementsReducer";
-import { loadElementDetailsAction } from "../stores/elementDetails/elementDetailsActions";
+import { loadCurrentElementAction } from "../stores/elements/elementsActions";
 import { bumpElementRefreshCount } from "../stores/sync/syncReducer";
 import {
 	defaultGlobalSyncEventManager,
@@ -22,14 +20,8 @@ export function useElementSyncRefresh() {
 
 	const refresh = useCallback(async () => {
 		if (!params) return;
-
-		const exists = await elementExists(params);
-		if (!exists) return;
-
-		const element = await getElementById(params);
-		dispatch(setCurrentElement(element));
-		await dispatch(loadElementDetailsAction(params));
-		dispatch(bumpElementRefreshCount());
+		const loaded = await dispatch(loadCurrentElementAction(params));
+		if (loaded) dispatch(bumpElementRefreshCount());
 	}, [params, dispatch]);
 
 	useEffect(() => {

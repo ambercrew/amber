@@ -4,6 +4,8 @@ import {
 	createExtract,
 	createFolder,
 	createLearningAsset,
+	elementExists,
+	getElementById,
 	getElementTree,
 	moveElement,
 	MoveElementDto,
@@ -17,12 +19,32 @@ import { CreateLearningAssetDto } from "../../types/elements/createLearningAsset
 import { ElementId } from "../../types/elements/elementId";
 import errorToString from "../../utils/errorToString";
 import { AppDispatch } from "../store";
+import { loadElementDetailsAction } from "../elementDetails/elementDetailsActions";
 import {
+	setCurrentElement,
 	setCurrentElementMeta,
 	setTree,
 	setTreeError,
 	setTreeLoading,
 } from "./elementsReducer";
+
+// Shared by every place that needs `elements.currentElement` to reflect a
+// specific element right away (a route change, a study-session advance, a
+// post-sync refresh) rather than a later effect catching up to it. Resolves
+// to whether the element existed and was actually loaded.
+export function loadCurrentElementAction(elementId: ElementId) {
+	return async (dispatch: AppDispatch): Promise<boolean> => {
+		const exists = await elementExists(elementId);
+		if (!exists) return false;
+		await Promise.all([
+			getElementById(elementId).then(element =>
+				dispatch(setCurrentElement(element)),
+			),
+			dispatch(loadElementDetailsAction(elementId)),
+		]);
+		return true;
+	};
+}
 
 export function loadElementTree() {
 	return withTreeRefresh(() => Promise.resolve());

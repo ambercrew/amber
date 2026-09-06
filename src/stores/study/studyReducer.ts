@@ -16,6 +16,11 @@ export interface StudyCounts {
 export interface StudyState {
 	status: StudyStatus;
 	queue: DueElementDto[];
+	// The queue's length at session start — unlike queue.length, this never
+	// shrinks (elements are only ever removed from queue, never added), so
+	// it's the stable denominator for a "done so far / total" progress
+	// display.
+	totalCount: number;
 	cardPhase: CardPhase;
 	shownAt: number | null;
 	counts: StudyCounts;
@@ -29,6 +34,7 @@ const SESSION_REQUEUE_OFFSET = 8;
 const initialState: StudyState = {
 	status: "editing",
 	queue: [],
+	totalCount: 0,
 	cardPhase: "question",
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
@@ -46,6 +52,7 @@ const studySlice = createSlice({
 		sessionStarted: (state, action: PayloadAction<DueElementDto[]>) => {
 			state.status = "studying";
 			state.queue = action.payload;
+			state.totalCount = action.payload.length;
 			state.cardPhase = "question";
 			state.shownAt = Date.now();
 			state.counts = {
@@ -162,6 +169,7 @@ const studySlice = createSlice({
 function resetSession(state: StudyState) {
 	state.status = "editing";
 	state.queue = [];
+	state.totalCount = 0;
 	state.cardPhase = "question";
 	state.shownAt = null;
 }

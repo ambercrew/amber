@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { AutoFocusExtension } from "@lexical/extension";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalExtensionComposer } from "@lexical/react/LexicalExtensionComposer";
@@ -10,12 +11,15 @@ import {
 	Typography,
 	useComputedColorScheme,
 } from "@mantine/core";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { SlashMenuPlugin } from "./plugins/SlashMenuPlugin";
 import { EquationPlugin } from "./plugins/EquationPlugin/EquationPlugin";
 import { HighlightPlugin } from "./plugins/HighlightPlugin/HighlightPlugin";
 import { HighlightCreatedPayload } from "./plugins/HighlightPlugin/highlightCommands";
 import { ImagePlugin } from "./plugins/ImagePlugin/ImagePlugin";
 import { LinkClickPlugin } from "./plugins/LinkPlugin/LinkClickPlugin";
+import { LinkOpenerProvider } from "./plugins/LinkPlugin/LinkOpenerProvider";
+import { useLinkOpener } from "./plugins/LinkPlugin/linkOpenerContext";
 import {
 	editorExtensionDependencies,
 	editorNodes,
@@ -44,11 +48,18 @@ interface EditorProps {
 	autoFocus?: boolean;
 	children?: React.ReactNode;
 	onHighlightCreated?: (payload: HighlightCreatedPayload) => void;
-	/** Extra items for the editor's right-click menu, if any (e.g. `Menu.Item`/`Menu.Sub`). */
 	contextMenuItems?: React.ReactNode;
 }
 
-export default function Editor({
+export default function Editor(props: EditorProps) {
+	return (
+		<LinkOpenerProvider>
+			<EditorContent {...props} />
+		</LinkOpenerProvider>
+	);
+}
+
+function EditorContent({
 	initialContent,
 	autoFocus = false,
 	children,
@@ -56,13 +67,32 @@ export default function Editor({
 	contextMenuItems,
 }: EditorProps) {
 	const colorScheme = useComputedColorScheme("light");
+	const { openLink } = useLinkOpener();
+	const [contextMenuLinkUrl, setContextMenuLinkUrl] = useState<string | null>(
+		null,
+	);
 	// The floating selection menu already covers this with a coarse pointer.
 	const coarsePointer = useIsCoarsePointer();
-	const contextMenuDisabled = !contextMenuItems || coarsePointer;
+	const contextMenuDisabled =
+		coarsePointer || (!contextMenuItems && !contextMenuLinkUrl);
 	const keyboardSuppressed = useAppSelector(
 		selectIsVirtualKeyboardSuppressed,
 	);
 	const suppressKeyboard = keyboardSuppressed && coarsePointer;
+
+	const handleContextMenuLink = useCallback((url: string | null) => {
+		flushSync(() => setContextMenuLinkUrl(url));
+	}, []);
+
+	const handleContextMenu = (event: React.MouseEvent) => {
+		const inContent =
+			event.target instanceof Element &&
+			event.target.closest("[contenteditable]") !== null;
+		if (inContent) return;
+
+		setContextMenuLinkUrl(null);
+		if (!contextMenuItems) event.preventDefault();
+	};
 
 	const editorExtension = useMemo(
 		() =>
@@ -95,7 +125,9 @@ export default function Editor({
 	return (
 		<Menu withinPortal shadow="lg">
 			<Menu.ContextMenu disabled={contextMenuDisabled}>
-				<Typography className={styles.typography}>
+				<Typography
+					className={styles.typography}
+					onContextMenu={handleContextMenu}>
 					<LexicalExtensionComposer
 						extension={editorExtension}
 						contentEditable={null}>
@@ -118,7 +150,9 @@ export default function Editor({
 							<SlashMenuPlugin />
 							<EquationPlugin />
 							<ImagePlugin />
-							<LinkClickPlugin />
+							<LinkClickPlugin
+								onContextMenuLink={handleContextMenuLink}
+							/>
 							<HighlightPlugin
 								onHighlightCreated={onHighlightCreated}
 							/>
@@ -128,7 +162,17 @@ export default function Editor({
 				</Typography>
 			</Menu.ContextMenu>
 			{!contextMenuDisabled && (
-				<Menu.Dropdown>{contextMenuItems}</Menu.Dropdown>
+				<Menu.Dropdown>
+					{contextMenuLinkUrl && (
+						<Menu.Item
+							leftSection={<ArrowSquareOutIcon size={16} />}
+							onClick={() => openLink(contextMenuLinkUrl)}>
+							Open link
+						</Menu.Item>
+					)}
+					{contextMenuLinkUrl && contextMenuItems && <Menu.Divider />}
+					{contextMenuItems}
+				</Menu.Dropdown>
 			)}
 		</Menu>
 	);

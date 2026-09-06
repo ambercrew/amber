@@ -17,10 +17,11 @@ import { answerShown, elementShown } from "../../../stores/study/studyReducer";
 import {
 	selectStudyCardPhase,
 	selectStudyCurrentElement,
-	selectStudyIndex,
 	selectStudyQueue,
 	selectStudyShownAt,
+	selectStudyTotalCount,
 } from "../../../stores/study/studySelectors";
+import { ElementId } from "../../../types/elements/elementId";
 import { Rating } from "../../../types/study/rating";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
@@ -45,8 +46,8 @@ function StudySessionBar() {
 	const dispatch = useAppDispatch();
 	const navigate = useNavigate();
 	const current = useAppSelector(selectStudyCurrentElement);
-	const index = useAppSelector(selectStudyIndex);
 	const queue = useAppSelector(selectStudyQueue);
+	const totalCount = useAppSelector(selectStudyTotalCount);
 	const cardPhase = useAppSelector(selectStudyCardPhase);
 	const shownAt = useAppSelector(selectStudyShownAt);
 	const elapsedSeconds = useElapsedSeconds(shownAt);
@@ -101,11 +102,10 @@ function StudySessionBar() {
 		if (answerHidden) return;
 		grade(rating);
 	};
-	const learningAssetShortcut =
-		(action: (id: typeof current) => void) => () => {
-			if (!current || current.type === "card") return;
-			action(current);
-		};
+	const learningAssetShortcut = (action: (id: ElementId) => void) => () => {
+		if (!current || current.type === "card") return;
+		action(current);
+	};
 
 	useAppHotkeys([
 		[
@@ -120,8 +120,8 @@ function StudySessionBar() {
 		["4", gradeShortcut("easy")],
 		[
 			"1",
-			learningAssetShortcut(id =>
-				dispatch(skipLearningAssetAction(id, navigate)),
+			learningAssetShortcut(
+				id => void dispatch(skipLearningAssetAction(id, navigate)),
 			),
 		],
 		[
@@ -147,7 +147,7 @@ function StudySessionBar() {
 					size="sm"
 					c="dimmed"
 					visibleFrom={SMALL_SCREEN_BREAKPOINT}>
-					{index + 1}/{queue.length}
+					{totalCount - queue.length + 1}/{totalCount}
 				</Text>
 			</Box>
 
@@ -192,7 +192,7 @@ function StudySessionBar() {
 							variant="default"
 							size="sm"
 							onClick={() =>
-								dispatch(
+								void dispatch(
 									skipLearningAssetAction(current, navigate),
 								)
 							}>
