@@ -33,6 +33,7 @@ interface PdfLearningAssetViewProps {
 // 2. Fix readpoints
 // 3. Remember zoom percentage in local storage
 // 4. Let scroll hide the actuall app header and footer
+// 5. Zooming hides the floating menu down
 export default function PdfLearningAssetView({
 	learningAssetId,
 	readPoint,

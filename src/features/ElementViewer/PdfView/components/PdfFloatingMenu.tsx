@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { useNavigate } from "react-router";
 import { useRegistry } from "@embedpdf/core/react";
 import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
 import {
@@ -14,6 +15,7 @@ import FloatingMenuBar, {
 } from "../../../../components/FloatingMenuBar/FloatingMenuBar";
 import useAppDispatch from "../../../../hooks/useAppDispatch";
 import useAppSelector from "../../../../hooks/useAppSelector";
+import { paths } from "../../../../paths";
 import {
 	createCardAction,
 	createExtractAction,
@@ -31,21 +33,23 @@ import {
 	buildHighlightAnnotations,
 	CLOZE_HIGHLIGHT_COLOR,
 	EXTRACT_HIGHLIGHT_COLOR,
+	findFirstHighlightedElement,
+	findHighlightsUnderSelection,
 	flattenHighlightRects,
+	isPdfHighlightAnnotation,
 } from "./pdfHighlightAnnotations";
 
 interface PdfFloatingMenuProps extends SelectionSelectionMenuProps {
 	learningAssetId: string;
 }
 
-// TODO: wire up onClick/isActive/isVisible handlers for add-to-AI-context and
-// acting on the highlight under the current PDF text selection.
 export default function PdfFloatingMenu({
 	menuWrapperProps,
 	placement,
 	learningAssetId,
 }: PdfFloatingMenuProps) {
 	const dispatch = useAppDispatch();
+	const navigate = useNavigate();
 	const aiEnabled = useAppSelector(selectSettings)?.enableAi ?? false;
 	const { activeDocumentId } = useActiveDocument();
 	const { provides: selection } = useSelectionCapability();
@@ -56,6 +60,48 @@ export default function PdfFloatingMenu({
 		() => ({ type: "learningAsset" as const, id: learningAssetId }),
 		[learningAssetId],
 	);
+
+	const getPdfHighlights = useCallback(() => {
+		if (!annotation || !activeDocumentId) return [];
+		return annotation
+			.forDocument(activeDocumentId)
+			.getAnnotations()
+			.map(tracked => tracked.object)
+			.filter(isPdfHighlightAnnotation);
+	}, [annotation, activeDocumentId]);
+
+	const highlightUnderSelection = useMemo(() => {
+		if (!selection || !activeDocumentId) return null;
+		const selectionRects = flattenHighlightRects(
+			selection.forDocument(activeDocumentId).getHighlightRects(),
+		);
+		if (selectionRects.length === 0) return null;
+		return findFirstHighlightedElement(getPdfHighlights(), selectionRects);
+	}, [selection, activeDocumentId, getPdfHighlights]);
+
+	const handleOpenHighlight = useCallback(() => {
+		if (!highlightUnderSelection) return;
+		void navigate(
+			paths.element(
+				highlightUnderSelection.elementType,
+				highlightUnderSelection.elementId,
+			),
+		);
+	}, [highlightUnderSelection, navigate]);
+
+	const handleRemoveHighlight = useCallback(() => {
+		if (!selection || !annotation || !activeDocumentId) return;
+		const selectionRects = flattenHighlightRects(
+			selection.forDocument(activeDocumentId).getHighlightRects(),
+		);
+		if (selectionRects.length === 0) return;
+		const toDelete = findHighlightsUnderSelection(
+			getPdfHighlights(),
+			selectionRects,
+		);
+		if (toDelete.length === 0) return;
+		annotation.forDocument(activeDocumentId).deleteAnnotations(toDelete);
+	}, [selection, annotation, activeDocumentId, getPdfHighlights]);
 
 	const handleCreateExtract = useCallback(() => {
 		if (!selection || !activeDocumentId || !annotation) return;
@@ -73,6 +119,7 @@ export default function PdfFloatingMenu({
 				for (const highlight of buildHighlightAnnotations(
 					boundingRects,
 					dto.id,
+					"extract",
 					EXTRACT_HIGHLIGHT_COLOR,
 				)) {
 					annotationScope.createAnnotation(
@@ -117,6 +164,7 @@ export default function PdfFloatingMenu({
 			for (const highlight of buildHighlightAnnotations(
 				boundingRects,
 				dto.id,
+				"card",
 				CLOZE_HIGHLIGHT_COLOR,
 			)) {
 				annotationScope.createAnnotation(
@@ -149,10 +197,25 @@ export default function PdfFloatingMenu({
 					]
 				: []),
 			{ name: "create-highlight-divider", divider: true },
-			OPEN_HIGHLIGHT_BUTTON,
-			REMOVE_HIGHLIGHT_BUTTON,
+			{
+				...OPEN_HIGHLIGHT_BUTTON,
+				isVisible: !!highlightUnderSelection,
+				onClick: handleOpenHighlight,
+			},
+			{
+				...REMOVE_HIGHLIGHT_BUTTON,
+				isVisible: !!highlightUnderSelection,
+				onClick: handleRemoveHighlight,
+			},
 		],
-		[aiEnabled, handleCreateExtract, handleCreateCloze],
+		[
+			aiEnabled,
+			handleCreateExtract,
+			handleCreateCloze,
+			highlightUnderSelection,
+			handleOpenHighlight,
+			handleRemoveHighlight,
+		],
 	);
 
 	return (
