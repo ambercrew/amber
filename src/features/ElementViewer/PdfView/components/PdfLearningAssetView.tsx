@@ -7,7 +7,9 @@ import { ViewportPluginPackage } from "@embedpdf/plugin-viewport/react";
 import { ScrollPluginPackage } from "@embedpdf/plugin-scroll/react";
 import { RenderPluginPackage } from "@embedpdf/plugin-render/react";
 import { ZoomPluginPackage } from "@embedpdf/plugin-zoom/react";
+import { AnnotationPluginPackage } from "@embedpdf/plugin-annotation/react";
 import { BookmarkPluginPackage } from "@embedpdf/plugin-bookmark/react";
+import { HistoryPluginPackage } from "@embedpdf/plugin-history/react";
 import { InteractionManagerPluginPackage } from "@embedpdf/plugin-interaction-manager/react";
 import { SelectionPluginPackage } from "@embedpdf/plugin-selection/react";
 import { SearchPluginPackage } from "@embedpdf/plugin-search/react";
@@ -27,11 +29,10 @@ interface PdfLearningAssetViewProps {
 }
 
 // TODO:
-// 1. Let extract and cloze be part of a floating menu like on the editor and make them work
-// 2. Let the search use the same component as find in page appearing from top
-// 3. Fix readpoints
-// 4. Remember zoom percentage in local storage
-// 5. Let scroll hide the actuall app header and footer
+// 1. Let the search use the same component as find in page appearing from top
+// 2. Fix readpoints
+// 3. Remember zoom percentage in local storage
+// 4. Let scroll hide the actuall app header and footer
 export default function PdfLearningAssetView({
 	learningAssetId,
 	readPoint,
@@ -93,6 +94,8 @@ export default function PdfLearningAssetView({
 						),
 						createPluginRegistration(SelectionPluginPackage),
 						createPluginRegistration(SearchPluginPackage),
+						createPluginRegistration(HistoryPluginPackage),
+						createPluginRegistration(AnnotationPluginPackage),
 					]
 				: null,
 		[buffer, meta.name],
@@ -122,7 +125,7 @@ export default function PdfLearningAssetView({
 
 	return (
 		<EmbedPDF engine={engine} plugins={plugins}>
-			<PdfDocumentContent />
+			<PdfDocumentContent learningAssetId={learningAssetId} />
 		</EmbedPDF>
 	);
 }

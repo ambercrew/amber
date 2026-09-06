@@ -50,4 +50,10 @@ pub trait LearningAssetRepository: Send + Sync {
         interval_multiplier: f32,
     ) -> Result<(), RepositoryError>;
     async fn get_pdf_bytes(&self, learning_asset_id: Uuid) -> Result<Vec<u8>, RepositoryError>;
+    async fn get_pdf_highlights(&self, learning_asset_id: Uuid) -> Result<String, RepositoryError>;
+    async fn update_pdf_highlights(
+        &self,
+        learning_asset_id: Uuid,
+        highlights: String,
+    ) -> Result<(), RepositoryError>;
 }

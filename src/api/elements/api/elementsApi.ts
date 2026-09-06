@@ -7,7 +7,9 @@ import { ElementId } from "../../../types/elements/elementId";
 import { UpdateCardDto } from "../../../types/elements/updateCardDto";
 import { UpdateExtractDto } from "../../../types/elements/updateExtractDto";
 import { UpdateLearningAssetDto } from "../../../types/elements/updateLearningAssetDto";
+import { UpdatePdfHighlightsDto } from "../../../types/elements/updatePdfHighlightsDto";
 import { UpdateReadPointDto } from "../../../types/elements/updateReadPointDto";
+import { PdfHighlightsDto } from "../../../types/elements/pdfHighlightsDto";
 import { LearningAssetSplitIdDto } from "../../../types/elements/learningAssetSplitIdDto";
 import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAssetSplitMetaDto";
 import { LearningAssetSplitTextDto } from "../../../types/elements/learningAssetSplitTextDto";
@@ -76,6 +78,18 @@ export function getPdfBytes(
 	learningAssetId: string,
 ): Promise<{ bytesBase64: string }> {
 	return invoke("get_pdf_bytes", { learningAssetId });
+}
+
+export function getPdfHighlights(
+	learningAssetId: string,
+): Promise<PdfHighlightsDto> {
+	return invoke("get_pdf_highlights", { learningAssetId });
+}
+
+export function updatePdfHighlights(
+	dto: UpdatePdfHighlightsDto,
+): Promise<void> {
+	return invoke("update_pdf_highlights", { dto });
 }
 
 export function updateExtract(dto: UpdateExtractDto): Promise<void> {

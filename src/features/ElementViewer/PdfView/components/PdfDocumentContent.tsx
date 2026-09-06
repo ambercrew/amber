@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Center, Text } from "@mantine/core";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useActiveDocument } from "@embedpdf/plugin-document-manager/react";
+import { AnnotationLayer } from "@embedpdf/plugin-annotation/react";
 import { Viewport } from "@embedpdf/plugin-viewport/react";
 import { Scroller } from "@embedpdf/plugin-scroll/react";
 import { RenderLayer } from "@embedpdf/plugin-render/react";
@@ -9,6 +10,7 @@ import { PagePointerProvider } from "@embedpdf/plugin-interaction-manager/react"
 import { SelectionLayer } from "@embedpdf/plugin-selection/react";
 import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import { HEADROOM_FIXED_AT } from "../../../App/components/App";
+import { usePdfAnnotationsPersistence } from "../hooks/usePdfAnnotationsPersistence";
 import { usePdfToolbarHeadroom } from "../hooks/usePdfToolbarHeadroom";
 import PdfFloatingMenu from "./PdfFloatingMenu";
 import PdfToolbar from "./PdfToolbar/PdfToolbar";
@@ -32,9 +34,16 @@ function ScrollWatcher({
 	return null;
 }
 
-export default function PdfDocumentContent() {
+interface PdfDocumentContentProps {
+	learningAssetId: string;
+}
+
+export default function PdfDocumentContent({
+	learningAssetId,
+}: PdfDocumentContentProps) {
 	const { activeDocumentId } = useActiveDocument();
 	const documentState = useDocumentState(activeDocumentId);
+	usePdfAnnotationsPersistence(activeDocumentId, learningAssetId);
 
 	const [pinned, setPinned] = useState(true);
 
@@ -83,10 +92,19 @@ export default function PdfDocumentContent() {
 									documentId={activeDocumentId}
 									pageIndex={pageIndex}
 								/>
+								<AnnotationLayer
+									documentId={activeDocumentId}
+									pageIndex={pageIndex}
+								/>
 								<SelectionLayer
 									documentId={activeDocumentId}
 									pageIndex={pageIndex}
-									selectionMenu={PdfFloatingMenu}
+									selectionMenu={props => (
+										<PdfFloatingMenu
+											{...props}
+											learningAssetId={learningAssetId}
+										/>
+									)}
 								/>
 							</PagePointerProvider>
 						)}

@@ -10,6 +10,7 @@ pub mod learning_asset_split_meta_dto;
 pub mod learning_asset_split_text_dto;
 pub mod move_element_dto;
 pub mod pdf_bytes_dto;
+pub mod pdf_highlights_dto;
 pub mod priority_info_dto;
 pub mod tag_dto;
 pub mod tree_dto;

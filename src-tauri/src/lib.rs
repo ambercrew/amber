@@ -196,6 +196,8 @@ pub async fn run() {
             get_learning_asset_split_content,
             get_learning_asset_split_texts,
             get_pdf_bytes,
+            get_pdf_highlights,
+            update_pdf_highlights,
             update_extract,
             update_card,
             update_interval_multiplier,

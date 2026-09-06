@@ -286,6 +286,35 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
         .await?;
         Ok(row.bytes)
     }
+
+    async fn get_pdf_highlights(&self, learning_asset_id: Uuid) -> Result<String, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let row = sqlx::query!(
+            "SELECT highlights FROM learning_asset_pdfs WHERE learning_asset_id = $1",
+            learning_asset_id.hyphenated(),
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        Ok(row.highlights)
+    }
+
+    async fn update_pdf_highlights(
+        &self,
+        learning_asset_id: Uuid,
+        highlights: String,
+    ) -> Result<(), RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        sqlx::query!(
+            "UPDATE learning_asset_pdfs SET highlights = $1 WHERE learning_asset_id = $2",
+            highlights,
+            learning_asset_id.hyphenated(),
+        )
+        .execute(&mut *tx)
+        .await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -958,5 +987,102 @@ mod tests {
             .get_pdf_bytes(learning_asset.meta.element_id.id())
             .await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn create_pdf_learning_asset_defaults_highlights_to_empty_array() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let learning_asset_repo = scope.resolve::<dyn LearningAssetRepository>().await;
+
+        let folder = Folder {
+            meta: folder_meta(),
+        };
+        let learning_asset = LearningAsset {
+            r#type: crate::elements::entities::learning_asset::LearningAssetType::Pdf,
+            interval_multiplier: 1.2,
+            meta: Meta {
+                parent: Some(folder.meta.element_id),
+                ..learning_asset_meta()
+            },
+            read_point: ReadPoint::default(),
+        };
+        folder_repo.create(folder).await.unwrap();
+
+        // Act
+
+        learning_asset_repo
+            .create(
+                learning_asset.clone(),
+                LearningAssetContent::Pdf {
+                    bytes: vec![1, 2, 3],
+                    page_count: 5,
+                },
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        let highlights = learning_asset_repo
+            .get_pdf_highlights(learning_asset.meta.element_id.id())
+            .await
+            .unwrap();
+        assert_eq!("[]", highlights);
+    }
+
+    #[tokio::test]
+    async fn update_pdf_highlights_valid_learning_asset_persists_highlights() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let learning_asset_repo = scope.resolve::<dyn LearningAssetRepository>().await;
+
+        let folder = Folder {
+            meta: folder_meta(),
+        };
+        let learning_asset = LearningAsset {
+            r#type: crate::elements::entities::learning_asset::LearningAssetType::Pdf,
+            interval_multiplier: 1.2,
+            meta: Meta {
+                parent: Some(folder.meta.element_id),
+                ..learning_asset_meta()
+            },
+            read_point: ReadPoint::default(),
+        };
+        folder_repo.create(folder).await.unwrap();
+        learning_asset_repo
+            .create(
+                learning_asset.clone(),
+                LearningAssetContent::Pdf {
+                    bytes: vec![1, 2, 3],
+                    page_count: 5,
+                },
+            )
+            .await
+            .unwrap();
+
+        // Act
+
+        learning_asset_repo
+            .update_pdf_highlights(
+                learning_asset.meta.element_id.id(),
+                r#"[{"id":"h1"}]"#.into(),
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        let highlights = learning_asset_repo
+            .get_pdf_highlights(learning_asset.meta.element_id.id())
+            .await
+            .unwrap();
+        assert_eq!(r#"[{"id":"h1"}]"#, highlights);
     }
 }
