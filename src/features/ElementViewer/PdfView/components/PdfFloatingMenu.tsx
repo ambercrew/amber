@@ -41,12 +41,14 @@ import {
 
 interface PdfFloatingMenuProps extends SelectionSelectionMenuProps {
 	learningAssetId: string;
+	onHighlightCreated: (lastPageIndex: number) => void;
 }
 
 export default function PdfFloatingMenu({
 	menuWrapperProps,
 	placement,
 	learningAssetId,
+	onHighlightCreated,
 }: PdfFloatingMenuProps) {
 	const dispatch = useAppDispatch();
 	const navigate = useNavigate();
@@ -107,6 +109,7 @@ export default function PdfFloatingMenu({
 		if (!selection || !activeDocumentId || !annotation) return;
 		const scope = selection.forDocument(activeDocumentId);
 		const boundingRects = flattenHighlightRects(scope.getHighlightRects());
+		if (boundingRects.length === 0) return;
 		void scope
 			.getSelectedText()
 			.toPromise()
@@ -127,8 +130,18 @@ export default function PdfFloatingMenu({
 						highlight,
 					);
 				}
+				onHighlightCreated(
+					Math.max(...boundingRects.map(({ page }) => page)),
+				);
 			});
-	}, [selection, activeDocumentId, annotation, parent, dispatch]);
+	}, [
+		selection,
+		activeDocumentId,
+		annotation,
+		parent,
+		dispatch,
+		onHighlightCreated,
+	]);
 
 	const handleCreateCloze = useCallback(() => {
 		if (
@@ -172,6 +185,7 @@ export default function PdfFloatingMenu({
 					highlight,
 				);
 			}
+			onHighlightCreated(Math.max(...pageIndexes));
 		});
 	}, [
 		selection,
@@ -181,6 +195,7 @@ export default function PdfFloatingMenu({
 		annotation,
 		parent,
 		dispatch,
+		onHighlightCreated,
 	]);
 
 	const items = useMemo<FloatingMenuBarItem[]>(

@@ -10,7 +10,9 @@ import { PagePointerProvider } from "@embedpdf/plugin-interaction-manager/react"
 import { SelectionLayer } from "@embedpdf/plugin-selection/react";
 import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import { HEADROOM_FIXED_AT } from "../../../App/components/App";
+import { ReadPoint } from "../../../../types/elements/readPoint";
 import { usePdfAnnotationsPersistence } from "../hooks/usePdfAnnotationsPersistence";
+import { usePdfReadPoint } from "../hooks/usePdfReadPoint";
 import { usePdfToolbarHeadroom } from "../hooks/usePdfToolbarHeadroom";
 import PdfFloatingMenu from "./PdfFloatingMenu";
 import PdfToolbar from "./PdfToolbar/PdfToolbar";
@@ -36,14 +38,22 @@ function ScrollWatcher({
 
 interface PdfDocumentContentProps {
 	learningAssetId: string;
+	readPoint: ReadPoint;
 }
 
 export default function PdfDocumentContent({
 	learningAssetId,
+	readPoint,
 }: PdfDocumentContentProps) {
 	const { activeDocumentId } = useActiveDocument();
 	const documentState = useDocumentState(activeDocumentId);
+	const isLoaded = documentState?.status === "loaded";
 	usePdfAnnotationsPersistence(activeDocumentId, learningAssetId);
+	const { recordHighlightReadPoint } = usePdfReadPoint({
+		learningAssetId,
+		documentId: isLoaded ? (activeDocumentId ?? null) : null,
+		initial: readPoint,
+	});
 
 	const [pinned, setPinned] = useState(true);
 
@@ -103,6 +113,9 @@ export default function PdfDocumentContent({
 										<PdfFloatingMenu
 											{...props}
 											learningAssetId={learningAssetId}
+											onHighlightCreated={
+												recordHighlightReadPoint
+											}
 										/>
 									)}
 								/>
