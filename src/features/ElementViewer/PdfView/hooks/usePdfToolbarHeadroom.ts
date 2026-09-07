@@ -1,5 +1,6 @@
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useViewportElement } from "@embedpdf/plugin-viewport/react";
+import { useZoomCapability } from "@embedpdf/plugin-zoom/react";
 import {
 	useElementHeadroom,
 	UseElementHeadroomInput,
@@ -21,5 +22,18 @@ export function usePdfToolbarHeadroom(
 		setViewportElement(viewportRef?.current ?? null);
 	}, [viewportRef]);
 
-	return useElementHeadroom({ element: viewportElement, ...options });
+	const headroom = useElementHeadroom({
+		element: viewportElement,
+		...options,
+	});
+	const { pause } = headroom;
+
+	// Zoom recenters the viewport; don't let that scroll hide the toolbar.
+	const { provides: zoom } = useZoomCapability();
+	useEffect(() => {
+		if (!zoom) return;
+		return zoom.onZoomChange(() => pause());
+	}, [zoom, pause]);
+
+	return headroom;
 }

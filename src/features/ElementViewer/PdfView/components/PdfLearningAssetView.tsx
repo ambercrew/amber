@@ -31,8 +31,8 @@ interface PdfLearningAssetViewProps {
 // TODO:
 // 1. Let the search use the same component as find in page appearing from top
 // 2. Let scroll hide the actuall app header and footer
-// 3. Zooming hides the floating menu down
-// 4. More manual testing
+// 3. More manual testing
+// 4. Better performance
 export default function PdfLearningAssetView({
 	learningAssetId,
 	readPoint,
