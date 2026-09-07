@@ -32,7 +32,7 @@ interface PdfLearningAssetViewProps {
 // 1. Let the search use the same component as find in page appearing from top
 // 2. Let scroll hide the actuall app header and footer
 // 3. More manual testing
-// 4. Better performance
+// 4. Better performance (mesaure on big documents with many highlights)
 export default function PdfLearningAssetView({
 	learningAssetId,
 	readPoint,
@@ -95,7 +95,11 @@ export default function PdfLearningAssetView({
 						createPluginRegistration(SelectionPluginPackage),
 						createPluginRegistration(SearchPluginPackage),
 						createPluginRegistration(HistoryPluginPackage),
-						createPluginRegistration(AnnotationPluginPackage),
+						createPluginRegistration(AnnotationPluginPackage, {
+							// Skip the slow native-PDF write; we persist our own
+							// JSON blob instead (usePdfAnnotationsPersistence).
+							autoCommit: false,
+						}),
 					]
 				: null,
 		[buffer, meta.name],
