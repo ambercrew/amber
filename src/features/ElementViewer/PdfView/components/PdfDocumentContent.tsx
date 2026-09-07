@@ -14,6 +14,7 @@ import { ReadPoint } from "../../../../types/elements/readPoint";
 import { usePdfAnnotationsPersistence } from "../hooks/usePdfAnnotationsPersistence";
 import { usePdfReadPoint } from "../hooks/usePdfReadPoint";
 import { usePdfToolbarHeadroom } from "../hooks/usePdfToolbarHeadroom";
+import { usePdfZoomPersistence } from "../hooks/usePdfZoomPersistence";
 import PdfFloatingMenu from "./PdfFloatingMenu";
 import PdfToolbar from "./PdfToolbar/PdfToolbar";
 
@@ -49,6 +50,10 @@ export default function PdfDocumentContent({
 	const documentState = useDocumentState(activeDocumentId);
 	const isLoaded = documentState?.status === "loaded";
 	usePdfAnnotationsPersistence(activeDocumentId, learningAssetId);
+	usePdfZoomPersistence(
+		isLoaded ? (activeDocumentId ?? null) : null,
+		learningAssetId,
+	);
 	const { recordHighlightReadPoint } = usePdfReadPoint({
 		learningAssetId,
 		documentId: isLoaded ? (activeDocumentId ?? null) : null,
