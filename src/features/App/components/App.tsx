@@ -52,6 +52,7 @@ import useBackButtonPress from "../../../hooks/useBackButtonPress.ts";
 import { BackButtonPriority } from "../../../managers/backButtonManager.ts";
 import { useLexicalConversionBridge } from "../hooks/useLexicalConversionBridge.ts";
 import { MainScrollContext } from "../context/mainScrollContext.ts";
+import { HeadroomOverrideContext } from "../context/headroomOverrideContext.ts";
 import { useElementHeadroom } from "../../../hooks/useElementHeadroom.ts";
 import { useWheelZoom } from "../../../hooks/useWheelZoom.ts";
 
@@ -64,10 +65,12 @@ const ASIDE_DEFAULT = 320;
 
 function App() {
 	const [mainElement, setMainElement] = useState<HTMLElement | null>(null);
-	const { pinned } = useElementHeadroom({
+	const { pinned: mainScrollPinned } = useElementHeadroom({
 		element: mainElement,
 		fixedAt: HEADROOM_FIXED_AT,
 	});
+	const [pinnedOverride, setPinnedOverride] = useState<boolean | null>(null);
+	const pinned = pinnedOverride ?? mainScrollPinned;
 
 	const isSmallScreen = useIsSmallScreen();
 	const [sidebarExpanded, setSidebarExpanded] = useState(!isSmallScreen);
@@ -160,146 +163,155 @@ function App() {
 
 	return (
 		<MainScrollContext value={mainElement}>
-			<AppShell
-				// eslint-disable-next-line react-hooks/refs
-				ref={splitter.ref}
-				mode="fixed"
-				layout="alt"
-				h="100dvh"
-				style={{
-					overflow: "hidden",
-					"--app-shell-transition-duration": "calc(200ms * 2)",
-				}}
-				navbar={{
-					width: navbarWidth,
-					breakpoint: SMALL_SCREEN_BREAKPOINT,
-					collapsed: {
-						desktop: !sidebarExpanded,
-						mobile: !sidebarExpanded,
-					},
-				}}
-				aside={{
-					width: asideWidth,
-					breakpoint: SMALL_SCREEN_BREAKPOINT,
-					collapsed: {
-						desktop: !asideExpanded,
-						mobile: !asideExpanded,
-					},
-				}}
-				header={{
-					height: mobile
-						? `calc(${HEADER_AND_FOOTER_HEIGHT}px + ${SAFE_AREA_TOP}${
-								isCurrentElementTrashed
-									? ` + ${TRASHED_ELEMENT_BANNER_HEIGHT}px`
-									: ""
-							})`
-						: HEADER_AND_FOOTER_HEIGHT +
-							(isCurrentElementTrashed
-								? TRASHED_ELEMENT_BANNER_HEIGHT
-								: 0),
-					collapsed: !pinned,
-					offset: false,
-				}}
-				footer={{
-					height: HEADER_AND_FOOTER_HEIGHT,
-					collapsed: footerCollapsed,
-					offset: false,
-				}}
-				padding="md">
-				{!mobile && <Updater />}
-				<CommandPalette />
-				<ImportModal />
-				<StudyProfileModal />
-				<SettingsModal />
-				<PriorityModal />
-				<StudySessionSettingsModal />
-				<AuthModal />
-				<VerifyEmailModal />
-				<ManageAccountModal />
-				<SyncingModal />
-				<Notifications />
-				<SafeAreaTopBackdrop />
-
-				<AppShell.Header style={safeAreaTop}>
-					<Box h={HEADER_AND_FOOTER_HEIGHT}>
-						<AppHeader
-							onToggleSidebar={() => splitter.toggleCollapse(0)}
-							onToggleAside={() => setAsideExpanded(v => !v)}
-						/>
-					</Box>
-					<TrashedElementBanner />
-				</AppShell.Header>
-
-				<AppShell.Footer
-					style={
-						mobile && footerCollapsed
-							? {
-									transform: `translateY(calc(var(--app-shell-footer-height) + ${SAFE_AREA_BOTTOM}))`,
-								}
-							: undefined
-					}>
-					<StudySessionBar />
-				</AppShell.Footer>
-
-				<AppShell.Navbar style={safeAreaTop}>
-					<Sidebar onCollapse={() => splitter.collapse(0)} />
-					{!isSmallScreen && (
-						<ResizeHandle
-							side="right"
-							// eslint-disable-next-line react-hooks/refs
-							handleProps={splitter.getHandleProps({ index: 0 })}
-						/>
-					)}
-				</AppShell.Navbar>
-
-				<AppShell.Main
-					p={0}
+			<HeadroomOverrideContext value={setPinnedOverride}>
+				<AppShell
+					// eslint-disable-next-line react-hooks/refs
+					ref={splitter.ref}
+					mode="fixed"
+					layout="alt"
+					h="100dvh"
 					style={{
-						position: "fixed",
-						minHeight: 0,
-						top: 0,
-						bottom: 0,
-						insetInlineStart:
-							"var(--app-shell-navbar-offset, 0rem)",
-						insetInlineEnd: "var(--app-shell-aside-offset, 0rem)",
-						transitionProperty:
-							"inset-inline-start, inset-inline-end",
-					}}>
-					<ScrollArea
-						h="100%"
-						scrollbars="y"
-						viewportRef={setMainElement}
-						viewportProps={{
-							style: {
-								paddingInline: "var(--app-shell-padding)",
-								paddingTop: `calc(${headerSpace} + var(--app-shell-padding))`,
-								paddingBottom: `calc(${footerSpace} + var(--app-shell-padding))`,
-								scrollPaddingTop: headerSpace,
-								scrollPaddingBottom: footerSpace,
-							},
-						}}
-						styles={{
-							scrollbar: {
-								top: headerSpace,
-								bottom: footerSpace,
-							},
-							content: { display: "block" },
-						}}>
-						<Outlet />
-					</ScrollArea>
-				</AppShell.Main>
+						overflow: "hidden",
+						"--app-shell-transition-duration": "calc(200ms * 2)",
+					}}
+					navbar={{
+						width: navbarWidth,
+						breakpoint: SMALL_SCREEN_BREAKPOINT,
+						collapsed: {
+							desktop: !sidebarExpanded,
+							mobile: !sidebarExpanded,
+						},
+					}}
+					aside={{
+						width: asideWidth,
+						breakpoint: SMALL_SCREEN_BREAKPOINT,
+						collapsed: {
+							desktop: !asideExpanded,
+							mobile: !asideExpanded,
+						},
+					}}
+					header={{
+						height: mobile
+							? `calc(${HEADER_AND_FOOTER_HEIGHT}px + ${SAFE_AREA_TOP}${
+									isCurrentElementTrashed
+										? ` + ${TRASHED_ELEMENT_BANNER_HEIGHT}px`
+										: ""
+								})`
+							: HEADER_AND_FOOTER_HEIGHT +
+								(isCurrentElementTrashed
+									? TRASHED_ELEMENT_BANNER_HEIGHT
+									: 0),
+						collapsed: !pinned,
+						offset: false,
+					}}
+					footer={{
+						height: HEADER_AND_FOOTER_HEIGHT,
+						collapsed: footerCollapsed,
+						offset: false,
+					}}
+					padding="md">
+					{!mobile && <Updater />}
+					<CommandPalette />
+					<ImportModal />
+					<StudyProfileModal />
+					<SettingsModal />
+					<PriorityModal />
+					<StudySessionSettingsModal />
+					<AuthModal />
+					<VerifyEmailModal />
+					<ManageAccountModal />
+					<SyncingModal />
+					<Notifications />
+					<SafeAreaTopBackdrop />
 
-				<AppShell.Aside style={safeAreaTop}>
-					<Aside onCollapse={() => setAsideExpanded(false)} />
-					{!isSmallScreen && (
-						<ResizeHandle
-							side="left"
-							// eslint-disable-next-line react-hooks/refs
-							handleProps={splitter.getHandleProps({ index: 1 })}
-						/>
-					)}
-				</AppShell.Aside>
-			</AppShell>
+					<AppShell.Header style={safeAreaTop}>
+						<Box h={HEADER_AND_FOOTER_HEIGHT}>
+							<AppHeader
+								onToggleSidebar={() =>
+									splitter.toggleCollapse(0)
+								}
+								onToggleAside={() => setAsideExpanded(v => !v)}
+							/>
+						</Box>
+						<TrashedElementBanner />
+					</AppShell.Header>
+
+					<AppShell.Footer
+						style={
+							mobile && footerCollapsed
+								? {
+										transform: `translateY(calc(var(--app-shell-footer-height) + ${SAFE_AREA_BOTTOM}))`,
+									}
+								: undefined
+						}>
+						<StudySessionBar />
+					</AppShell.Footer>
+
+					<AppShell.Navbar style={safeAreaTop}>
+						<Sidebar onCollapse={() => splitter.collapse(0)} />
+						{!isSmallScreen && (
+							<ResizeHandle
+								side="right"
+								// eslint-disable-next-line react-hooks/refs
+								handleProps={splitter.getHandleProps({
+									index: 0,
+								})}
+							/>
+						)}
+					</AppShell.Navbar>
+
+					<AppShell.Main
+						p={0}
+						style={{
+							position: "fixed",
+							minHeight: 0,
+							top: 0,
+							bottom: 0,
+							insetInlineStart:
+								"var(--app-shell-navbar-offset, 0rem)",
+							insetInlineEnd:
+								"var(--app-shell-aside-offset, 0rem)",
+							transitionProperty:
+								"inset-inline-start, inset-inline-end",
+						}}>
+						<ScrollArea
+							h="100%"
+							scrollbars="y"
+							viewportRef={setMainElement}
+							viewportProps={{
+								style: {
+									paddingInline: "var(--app-shell-padding)",
+									paddingTop: `calc(${headerSpace} + var(--app-shell-padding))`,
+									paddingBottom: `calc(${footerSpace} + var(--app-shell-padding))`,
+									scrollPaddingTop: headerSpace,
+									scrollPaddingBottom: footerSpace,
+								},
+							}}
+							styles={{
+								scrollbar: {
+									top: headerSpace,
+									bottom: footerSpace,
+								},
+								content: { display: "block" },
+							}}>
+							<Outlet />
+						</ScrollArea>
+					</AppShell.Main>
+
+					<AppShell.Aside style={safeAreaTop}>
+						<Aside onCollapse={() => setAsideExpanded(false)} />
+						{!isSmallScreen && (
+							<ResizeHandle
+								side="left"
+								// eslint-disable-next-line react-hooks/refs
+								handleProps={splitter.getHandleProps({
+									index: 1,
+								})}
+							/>
+						)}
+					</AppShell.Aside>
+				</AppShell>
+			</HeadroomOverrideContext>
 		</MainScrollContext>
 	);
 }

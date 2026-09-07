@@ -11,6 +11,10 @@ import {
 import { ListBulletsIcon, MinusIcon, PlusIcon } from "@phosphor-icons/react";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
+import useAppSelector from "../../../../../hooks/useAppSelector";
+import { selectStudyStatus } from "../../../../../stores/study/studySelectors";
+import { SAFE_AREA_BOTTOM } from "../../../../../utils/safeArea";
+import { HEADER_AND_FOOTER_HEIGHT } from "../../../../App/components/App";
 import AppTooltip from "../../../../../components/AppTooltip/AppTooltip";
 import {
 	AppHotkeyItem,
@@ -32,6 +36,11 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 	const { state: zoomState, provides: zoom } = useZoom(documentId);
 	const { state: scrollState, provides: scroll } = useScroll(documentId);
 	const [outlineOpened, setOutlineOpened] = useState(false);
+
+	// The study session footer sits below us with the same pinned state — add
+	// its height so the toolbar floats above it instead of behind it.
+	const studying = useAppSelector(selectStudyStatus) === "studying";
+	const footerVisible = studying && pinned;
 
 	const [prevPinned, setPrevPinned] = useState(pinned);
 	if (pinned !== prevPinned) {
@@ -81,11 +90,15 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 			style={{
 				position: "absolute",
 				insetInline: 0,
-				bottom: "var(--mantine-spacing-md)",
+				bottom: footerVisible
+					? `calc(var(--mantine-spacing-md) + ${HEADER_AND_FOOTER_HEIGHT}px + ${SAFE_AREA_BOTTOM})`
+					: "var(--mantine-spacing-md)",
 				display: "flex",
 				justifyContent: "center",
 				pointerEvents: "none",
 				zIndex: 1,
+				transitionProperty: "bottom",
+				transitionDuration: "var(--app-shell-transition-duration)",
 			}}>
 			<Group
 				gap="md"

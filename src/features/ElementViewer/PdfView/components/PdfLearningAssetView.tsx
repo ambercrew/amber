@@ -30,9 +30,8 @@ interface PdfLearningAssetViewProps {
 
 // TODO:
 // 1. Let the search use the same component as find in page appearing from top
-// 2. Let scroll hide the actuall app header and footer
-// 3. More manual testing
-// 4. Better performance (mesaure on big documents with many highlights)
+// 2. More manual testing
+// 3. Better performance (mesaure on big documents with many highlights)
 export default function PdfLearningAssetView({
 	learningAssetId,
 	readPoint,

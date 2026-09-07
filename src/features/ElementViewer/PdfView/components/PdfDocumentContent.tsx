@@ -10,6 +10,7 @@ import { PagePointerProvider } from "@embedpdf/plugin-interaction-manager/react"
 import { SelectionLayer } from "@embedpdf/plugin-selection/react";
 import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import { HEADROOM_FIXED_AT } from "../../../App/components/App";
+import { useSetHeadroomOverride } from "../../../App/context/headroomOverrideContext";
 import { ReadPoint } from "../../../../types/elements/readPoint";
 import { usePdfAnnotationsPersistence } from "../hooks/usePdfAnnotationsPersistence";
 import { usePdfReadPoint } from "../hooks/usePdfReadPoint";
@@ -17,6 +18,7 @@ import { usePdfToolbarHeadroom } from "../hooks/usePdfToolbarHeadroom";
 import { usePdfZoomPersistence } from "../hooks/usePdfZoomPersistence";
 import PdfFloatingMenu from "./PdfFloatingMenu";
 import PdfToolbar from "./PdfToolbar/PdfToolbar";
+import styles from "./PdfViewport.module.css";
 
 /** Renders nothing. `usePdfToolbarHeadroom` needs `<Viewport>`'s React
  * context, but `PdfToolbar` renders as a sibling outside `<Viewport>` (its
@@ -29,10 +31,17 @@ function ScrollWatcher({
 	onPinnedChange: (pinned: boolean) => void;
 }) {
 	const { pinned } = usePdfToolbarHeadroom({ fixedAt: HEADROOM_FIXED_AT });
+	const setHeadroomOverride = useSetHeadroomOverride();
 
 	useEffect(() => {
 		onPinnedChange(pinned);
-	}, [pinned, onPinnedChange]);
+		setHeadroomOverride?.(pinned);
+	}, [pinned, onPinnedChange, setHeadroomOverride]);
+
+	// Hand control back to the main scroll area once the PDF unmounts.
+	useEffect(() => {
+		return () => setHeadroomOverride?.(null);
+	}, [setHeadroomOverride]);
 
 	return null;
 }
@@ -81,18 +90,33 @@ export default function PdfDocumentContent({
 	}
 
 	return (
+		// Fixed, always full-height, never resized by the header (a resize
+		// makes embedpdf re-fit/recenter, felt as an extra scroll) — it overlays.
 		<div
 			style={{
-				marginBlockStart: "calc(-1 * var(--app-shell-padding))",
-				marginBlockEnd: "calc(-1 * var(--app-shell-padding))",
-				marginInline: "calc(-1 * var(--app-shell-padding))",
-				height: "calc(100dvh - var(--app-shell-header-height, 0px))",
+				position: "fixed",
+				insetInlineStart: "var(--app-shell-navbar-offset, 0rem)",
+				insetInlineEnd: "var(--app-shell-aside-offset, 0rem)",
+				top: 0,
+				bottom: 0,
+				transitionProperty: "inset-inline-start, inset-inline-end",
+				transitionDuration: "var(--app-shell-transition-duration)",
+				transitionTimingFunction:
+					"var(--app-shell-transition-timing-function)",
 				overflow: "hidden",
-				position: "relative",
 			}}>
 			<Viewport
 				documentId={activeDocumentId}
-				style={{ width: "100%", height: "100%" }}>
+				className={styles.viewport}
+				style={{
+					width: "100%",
+					height: "100%",
+					// Inset the scrollbar below the header, same as the app's
+					// own ScrollArea does for its (custom-drawn) scrollbar.
+					["--pdf-viewport-scrollbar-inset-top" as string]: pinned
+						? "var(--app-shell-header-height, 0px)"
+						: "0px",
+				}}>
 				<ScrollWatcher onPinnedChange={setPinned} />
 				<ZoomGestureWrapper
 					documentId={activeDocumentId}
