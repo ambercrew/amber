@@ -30,8 +30,7 @@ interface PdfLearningAssetViewProps {
 
 // TODO:
 // 1. More manual testing
-// 2. clicking on links shows a box that is moved instead of moving there
-// 3. Better performance (mesaure on big documents with many highlights) and seraching
+// 2. Better performance (mesaure on big documents with many highlights) and seraching
 export default function PdfLearningAssetView({
 	learningAssetId,
 	readPoint,

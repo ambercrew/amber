@@ -16,6 +16,7 @@ import { ReadPoint } from "../../../../types/elements/readPoint";
 import FindInPageBar from "../../FindInPageBar";
 import { usePdfAnnotationsPersistence } from "../hooks/usePdfAnnotationsPersistence";
 import { usePdfFindInPage } from "../hooks/usePdfFindInPage";
+import { usePdfLinkNavigationRenderer } from "../hooks/usePdfLinkNavigation";
 import { usePdfReadPoint } from "../hooks/usePdfReadPoint";
 import { usePdfToolbarHeadroom } from "../hooks/usePdfToolbarHeadroom";
 import { usePdfZoomPersistence } from "../hooks/usePdfZoomPersistence";
@@ -72,6 +73,9 @@ export default function PdfDocumentContent({
 		initial: readPoint,
 	});
 	usePdfFindInPage(isLoaded ? (activeDocumentId ?? null) : null);
+	const linkRenderers = usePdfLinkNavigationRenderer(
+		isLoaded ? (activeDocumentId ?? null) : null,
+	);
 
 	const [pinned, setPinned] = useState(true);
 
@@ -138,6 +142,7 @@ export default function PdfDocumentContent({
 								<AnnotationLayer
 									documentId={activeDocumentId}
 									pageIndex={pageIndex}
+									annotationRenderers={linkRenderers}
 								/>
 								<SelectionLayer
 									documentId={activeDocumentId}
