@@ -8,11 +8,14 @@ import { Scroller } from "@embedpdf/plugin-scroll/react";
 import { RenderLayer } from "@embedpdf/plugin-render/react";
 import { PagePointerProvider } from "@embedpdf/plugin-interaction-manager/react";
 import { SelectionLayer } from "@embedpdf/plugin-selection/react";
+import { SearchLayer } from "@embedpdf/plugin-search/react";
 import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import { HEADROOM_FIXED_AT } from "../../../App/components/App";
 import { useSetHeadroomOverride } from "../../../App/context/headroomOverrideContext";
 import { ReadPoint } from "../../../../types/elements/readPoint";
+import FindInPageBar from "../../FindInPageBar";
 import { usePdfAnnotationsPersistence } from "../hooks/usePdfAnnotationsPersistence";
+import { usePdfFindInPage } from "../hooks/usePdfFindInPage";
 import { usePdfReadPoint } from "../hooks/usePdfReadPoint";
 import { usePdfToolbarHeadroom } from "../hooks/usePdfToolbarHeadroom";
 import { usePdfZoomPersistence } from "../hooks/usePdfZoomPersistence";
@@ -68,6 +71,7 @@ export default function PdfDocumentContent({
 		documentId: isLoaded ? (activeDocumentId ?? null) : null,
 		initial: readPoint,
 	});
+	usePdfFindInPage(isLoaded ? (activeDocumentId ?? null) : null);
 
 	const [pinned, setPinned] = useState(true);
 
@@ -148,11 +152,16 @@ export default function PdfDocumentContent({
 										/>
 									)}
 								/>
+								<SearchLayer
+									documentId={activeDocumentId}
+									pageIndex={pageIndex}
+								/>
 							</PagePointerProvider>
 						)}
 					/>
 				</ZoomGestureWrapper>
 			</Viewport>
+			<FindInPageBar />
 			<PdfToolbar documentId={activeDocumentId} pinned={pinned} />
 		</div>
 	);
