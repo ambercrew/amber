@@ -137,6 +137,7 @@ export default function PdfFloatingMenu({
 				onHighlightCreated(
 					Math.max(...boundingRects.map(({ page }) => page)),
 				);
+				scope.clear();
 			});
 	}, [
 		selection,
@@ -198,6 +199,7 @@ export default function PdfFloatingMenu({
 				);
 			}
 			onHighlightCreated(Math.max(...pageIndexes));
+			scope.clear();
 		});
 	}, [
 		selection,

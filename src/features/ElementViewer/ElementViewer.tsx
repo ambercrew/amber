@@ -72,7 +72,7 @@ export default function ElementViewer() {
 		currentElement.type === "learningAsset" &&
 		currentElement.data.type === "pdf";
 
-	if (isPdf && currentElement.type === "learningAsset") {
+	if (isPdf) {
 		return (
 			<PdfLearningAssetView
 				key={`pdf-${elementId.id}`}

@@ -14,6 +14,7 @@ import { createPdfiumEngine } from "@embedpdf/engines/pdfium-direct-engine";
 // racing a second one.
 let enginePromise: ReturnType<typeof createPdfiumEngine> | null = null;
 
+// TODO: write how to update this
 export function getPdfiumEngine(
 	wasmUrl: string,
 ): ReturnType<typeof createPdfiumEngine> {
