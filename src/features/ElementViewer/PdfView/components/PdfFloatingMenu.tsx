@@ -117,10 +117,14 @@ export default function PdfFloatingMenu({
 		void scope
 			.getSelectedText()
 			.toPromise()
-			.then(pages => {
+			.then(async pages => {
 				const dto = buildExtractDto(pages, parent);
 				if (!dto) return;
-				void dispatch(createExtractAction(dto));
+				// Awaited so the extract's own DB write finishes before the
+				// annotation event below triggers another one (see
+				// usePdfAnnotationsPersistence) — otherwise both commands can
+				// hit the DB concurrently and race into SQLITE_BUSY.
+				await dispatch(createExtractAction(dto));
 				const annotationScope =
 					annotation.forDocument(activeDocumentId);
 				for (const highlight of buildHighlightAnnotations(
@@ -177,7 +181,7 @@ export default function PdfFloatingMenu({
 					engine.extractText(doc, [pageIndex]).toPromise(),
 				),
 			),
-		]).then(([selectedTexts, pageTexts]) => {
+		]).then(async ([selectedTexts, pageTexts]) => {
 			const dto = buildClozeCardDto(
 				pageTexts,
 				selectedTexts,
@@ -185,7 +189,9 @@ export default function PdfFloatingMenu({
 				selectionSlices,
 			);
 			if (!dto) return;
-			void dispatch(createCardAction(dto));
+			// Awaited for the same reason as the extract path above: keep the
+			// card's DB write from racing the annotation-triggered one.
+			await dispatch(createCardAction(dto));
 			const annotationScope = annotation.forDocument(activeDocumentId);
 			for (const highlight of buildHighlightAnnotations(
 				boundingRects,
