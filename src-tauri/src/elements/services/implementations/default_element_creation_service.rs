@@ -134,7 +134,8 @@ impl ElementCreationService for DefaultElementCreationService {
                     .ok_or(ElementCreationError::InvalidPdfBytes)?;
                 let page_count = dto
                     .pdf_page_count
-                    .ok_or(ElementCreationError::InvalidPdfBytes)?;
+                    .filter(|&count| count > 0)
+                    .ok_or(ElementCreationError::InvalidPdfPageCount)?;
                 LearningAssetContent::Pdf { bytes, page_count }
             }
             LearningAssetType::Extracted => LearningAssetContent::Extracted(
@@ -524,6 +525,36 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(due_from_today(3.0), review.due);
+    }
+
+    #[tokio::test]
+    async fn create_learning_asset_pdf_with_zero_page_count_returns_invalid_pdf_page_count_error() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile(&scope, 1.0).await;
+        let service = create_service(&scope).await;
+        let dto = CreateLearningAssetDto {
+            id: Uuid::new_v4(),
+            meta: dto_meta(None),
+            r#type: LearningAssetType::Pdf,
+            pdf_bytes_base64: Some(general_purpose::STANDARD.encode(b"%PDF-1.4")),
+            pdf_page_count: Some(0),
+            splits: Vec::new(),
+            initial_priority_rank: None,
+        };
+
+        // Act
+
+        let result = service.create_learning_asset(dto).await;
+
+        // Assert
+
+        assert!(matches!(
+            result,
+            Err(ElementCreationError::InvalidPdfPageCount)
+        ));
     }
 
     #[tokio::test]

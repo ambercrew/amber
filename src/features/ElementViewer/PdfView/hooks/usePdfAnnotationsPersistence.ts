@@ -26,6 +26,9 @@ export function usePdfAnnotationsPersistence(
 ) {
 	const { provides: annotation } = useAnnotationCapability();
 	const loadedRef = useRef(false);
+	// Bumped per write attempt; a write only applies if still latest by the
+	// time its export resolves, so an earlier one can't clobber a later.
+	const writeTokenRef = useRef(0);
 
 	useEffect(() => {
 		if (!annotation || !documentId) return;
@@ -48,10 +51,12 @@ export function usePdfAnnotationsPersistence(
 		const unsubscribe = scope.onAnnotationEvent(event => {
 			if (event.type === "loaded") return;
 			if (!loadedRef.current) return;
+			const token = ++writeTokenRef.current;
 			void scope
 				.exportAnnotations()
 				.toPromise()
 				.then(exported => {
+					if (writeTokenRef.current !== token) return;
 					const highlights = exported.filter(item =>
 						isPdfHighlightAnnotation(item.annotation),
 					);

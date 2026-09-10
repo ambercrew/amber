@@ -30,7 +30,8 @@ interface PdfLearningAssetViewProps {
 
 // TODO:
 // 1. More manual testing (also test sync)
-// 2. Better performance (mesaure on big documents with many highlights) and seraching
+// 2. When making highlight/cloze hide the floating menu
+// 3. Better performance (mesaure on big documents with many highlights) and seraching
 export default function PdfLearningAssetView({
 	learningAssetId,
 	readPoint,

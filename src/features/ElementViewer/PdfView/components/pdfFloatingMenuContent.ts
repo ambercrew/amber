@@ -7,19 +7,12 @@ import {
 import { CreateCardDto } from "../../../../types/elements/createCardDto";
 import { CreateExtractDto } from "../../../../types/elements/createExtractDto";
 import { ElementId } from "../../../../types/elements/elementId";
+import { escapeHtml } from "../../../../utils/escapeHtml";
 import { sanitizeHtml } from "../../../../utils/sanitizeHtml";
 import { truncateToWords } from "../../../../utils/truncateToWords";
 
-export function escapeHtml(text: string): string {
-	const div = document.createElement("div");
-	div.textContent = text;
-	return div.innerHTML;
-}
-
-// There's no rich/styled selection API in @embedpdf's selection plugin, only
-// plain text per page — so an extract/cloze created from the PDF can't
-// preserve the source's formatting the way a Lexical-editor-derived one can.
-// Each page's text becomes its own paragraph.
+// @embedpdf's selection plugin only exposes plain text per page, so each
+// page becomes its own unstyled paragraph.
 export function selectedTextToHtml(pages: string[]): string {
 	return pages
 		.map(page => page.trim())
@@ -28,31 +21,40 @@ export function selectedTextToHtml(pages: string[]): string {
 		.join("");
 }
 
-// Builds the cloze "front" HTML: each spanned page's full text, with the
-// portion matching that page's selected text swapped for a hidden cloze
-// placeholder (imported by htmlToLexicalJson as a real ClozeHiddenNode, same
-// as the Lexical editor's own cloze front). If a page's selected text can't
-// be located verbatim in its extracted full text (extraction can normalize
-// whitespace differently than selection), that page falls back to plain,
-// un-hidden text rather than dropping it.
+export interface ClozeSelectionSlice {
+	start: number;
+	count: number;
+}
+
+// Builds the cloze "front" HTML, hiding the selected portion of each page.
+// Prefers the selection plugin's own character offsets (`slices`) over
+// `indexOf`, which would grab the wrong occurrence of a repeated phrase.
 export function clozeFrontToHtml(
 	pageTexts: string[],
 	selectedTexts: string[],
+	selectionSlices: (ClozeSelectionSlice | undefined)[] = [],
 ): string {
 	return pageTexts
 		.map((fullText, index) => {
 			const selectedText = selectedTexts[index]?.trim();
-			const matchIndex = selectedText
-				? fullText.indexOf(selectedText)
-				: -1;
+			const slice = selectionSlices[index];
+			const matchIndex = slice
+				? slice.start
+				: (selectedText?.length ?? 0) > 0
+					? fullText.indexOf(selectedText as string)
+					: -1;
+			const matchLength = slice
+				? slice.count
+				: (selectedText?.length ?? 0);
 			if (!selectedText || matchIndex === -1) {
 				return `<p>${escapeHtml(fullText)}</p>`;
 			}
 			const before = fullText.slice(0, matchIndex);
-			const after = fullText.slice(matchIndex + selectedText.length);
+			const hidden = fullText.slice(matchIndex, matchIndex + matchLength);
+			const after = fullText.slice(matchIndex + matchLength);
 			return (
 				`<p>${escapeHtml(before)}` +
-				`<${CLOZE_HIDDEN_TAG_NAME} ${CLOZE_HIDDEN_ATTRIBUTE}="${escapeHtml(selectedText)}">${CLOZE_PLACEHOLDER}</${CLOZE_HIDDEN_TAG_NAME}>` +
+				`<${CLOZE_HIDDEN_TAG_NAME} ${CLOZE_HIDDEN_ATTRIBUTE}="${escapeHtml(hidden)}">${CLOZE_PLACEHOLDER}</${CLOZE_HIDDEN_TAG_NAME}>` +
 				`${escapeHtml(after)}</p>`
 			);
 		})
@@ -85,6 +87,7 @@ export function buildClozeCardDto(
 	pageTexts: string[],
 	selectedTexts: string[],
 	parent: ElementId,
+	selectionSlices: (ClozeSelectionSlice | undefined)[] = [],
 ): CreateCardDto | null {
 	const backText = selectedTexts.join(" ").trim();
 	if (!backText) return null;
@@ -97,7 +100,9 @@ export function buildClozeCardDto(
 			origin: { type: "inherited" },
 		},
 		front: htmlToLexicalJson(
-			sanitizeHtml(clozeFrontToHtml(pageTexts, selectedTexts)),
+			sanitizeHtml(
+				clozeFrontToHtml(pageTexts, selectedTexts, selectionSlices),
+			),
 		),
 		back: htmlToLexicalJson(
 			sanitizeHtml(selectedTextToHtml(selectedTexts)),

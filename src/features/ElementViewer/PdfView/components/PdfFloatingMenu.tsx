@@ -28,7 +28,11 @@ import {
 	OPEN_HIGHLIGHT_BUTTON,
 	REMOVE_HIGHLIGHT_BUTTON,
 } from "../../highlightFloatingMenuButtons";
-import { buildClozeCardDto, buildExtractDto } from "./pdfFloatingMenuContent";
+import {
+	buildClozeCardDto,
+	buildExtractDto,
+	ClozeSelectionSlice,
+} from "./pdfFloatingMenuContent";
 import {
 	buildHighlightAnnotations,
 	CLOZE_HIGHLIGHT_COLOR,
@@ -162,6 +166,9 @@ export default function PdfFloatingMenu({
 		if (pageIndexes.length === 0 || !doc) return;
 
 		const engine = registry.getEngine();
+		const slices = scope.getState().slices;
+		const selectionSlices: (ClozeSelectionSlice | undefined)[] =
+			pageIndexes.map(pageIndex => slices[pageIndex]);
 		void Promise.all([
 			scope.getSelectedText().toPromise(),
 			Promise.all(
@@ -170,7 +177,12 @@ export default function PdfFloatingMenu({
 				),
 			),
 		]).then(([selectedTexts, pageTexts]) => {
-			const dto = buildClozeCardDto(pageTexts, selectedTexts, parent);
+			const dto = buildClozeCardDto(
+				pageTexts,
+				selectedTexts,
+				parent,
+				selectionSlices,
+			);
 			if (!dto) return;
 			void dispatch(createCardAction(dto));
 			const annotationScope = annotation.forDocument(activeDocumentId);

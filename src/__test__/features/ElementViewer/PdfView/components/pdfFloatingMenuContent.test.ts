@@ -2,11 +2,11 @@ import {
 	buildClozeCardDto,
 	buildExtractDto,
 	clozeFrontToHtml,
-	escapeHtml,
 	selectedTextToHtml,
 } from "../../../../../features/ElementViewer/PdfView/components/pdfFloatingMenuContent";
 import { type SerializedLexicalNodeTree } from "../../../../../components/Editor/lexicalJsonConversion";
 import { ElementId } from "../../../../../types/elements/elementId";
+import { escapeHtml } from "../../../../../utils/escapeHtml";
 
 const PARENT: ElementId = { type: "learningAsset", id: "learningAsset-1" };
 
@@ -156,6 +156,28 @@ describe("clozeFrontToHtml", () => {
 
 		expect(html).toContain("&lt;b&gt;Before&lt;/b&gt;");
 		expect(html).toContain("&amp; after");
+	});
+
+	it("Should hide the occurrence at the given offset rather than the first match when the selected text repeats on the page", () => {
+		// Arrange
+
+		const pageTexts = ["Selected first, Selected second"];
+		const selectedTexts = ["Selected"];
+		const selectionSlices = [{ start: 16, count: 8 }];
+
+		// Act
+
+		const html = clozeFrontToHtml(
+			pageTexts,
+			selectedTexts,
+			selectionSlices,
+		);
+
+		// Assert
+
+		expect(html).toBe(
+			'<p>Selected first, <mark data-cloze-hidden="Selected">[...]</mark> second</p>',
+		);
 	});
 });
 

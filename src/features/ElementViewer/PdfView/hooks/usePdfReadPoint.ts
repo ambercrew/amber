@@ -30,15 +30,9 @@ interface ReturnValue {
 	recordHighlightReadPoint: (lastPageIndex: number) => void;
 }
 
-/**
- * Persists the read point (current page) as the user scrolls a PDF, and
- * restores it on open. Also wires the "Set/clear/go to read point" commands.
- * Mirrors `useReadPoint` for text learning assets: three placement sources
- * compete for the same read point, in priority order — manual beats
- * highlight creation, which beats automatic scroll-tracking. Once a manual
- * or highlight placement happens, automatic tracking stops until the next
- * open.
- */
+/** Persists the read point (current page) as the user scrolls a PDF, restores
+ * it on open, and wires the "Set/clear/go to read point" commands — see
+ * `precedenceRef` for how manual, highlight and automatic placements interact. */
 export function usePdfReadPoint({
 	learningAssetId,
 	documentId,
