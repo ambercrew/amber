@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Center, Text } from "@mantine/core";
+import { Center, Loader, Stack, Text } from "@mantine/core";
 import { createPluginRegistration } from "@embedpdf/core";
 import { EmbedPDF } from "@embedpdf/core/react";
 import { DocumentManagerPluginPackage } from "@embedpdf/plugin-document-manager/react";
@@ -115,9 +115,12 @@ export default function PdfLearningAssetView({
 	if (!buffer || !plugins || !engine) {
 		return (
 			<Center h="100%">
-				<Text size="sm" c="dimmed">
-					{!engine ? "Loading PDF engine…" : "Fetching PDF…"}
-				</Text>
+				<Stack align="center" gap="xs">
+					<Loader size="md" />
+					<Text size="md" c="dimmed">
+						{!engine ? "Loading PDF engine…" : "Fetching PDF…"}
+					</Text>
+				</Stack>
 			</Center>
 		);
 	}

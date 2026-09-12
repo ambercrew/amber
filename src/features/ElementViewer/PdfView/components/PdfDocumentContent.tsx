@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Center, Text } from "@mantine/core";
+import { Center, Loader, Stack, Text } from "@mantine/core";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useActiveDocument } from "@embedpdf/plugin-document-manager/react";
 import { AnnotationLayer } from "@embedpdf/plugin-annotation/react";
@@ -90,9 +90,12 @@ export default function PdfDocumentContent({
 	if (!activeDocumentId || documentState?.status !== "loaded") {
 		return (
 			<Center h="100%">
-				<Text size="sm" c="dimmed">
-					Opening document…
-				</Text>
+				<Stack align="center" gap="xs">
+					<Loader size="md" />
+					<Text size="md" c="dimmed">
+						Opening document…
+					</Text>
+				</Stack>
 			</Center>
 		);
 	}
