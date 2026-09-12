@@ -21,6 +21,7 @@ import {
 	createExtractAction,
 } from "../../../../stores/elements/elementsActions";
 import { selectSettings } from "../../../../stores/settings/settingsSelector";
+import { addAiContextSnippet } from "../../../../stores/aiContext/aiReducer";
 import {
 	ADD_AI_CONTEXT_BUTTON,
 	CLOZE_BUTTON,
@@ -108,6 +109,20 @@ export default function PdfFloatingMenu({
 		if (toDelete.length === 0) return;
 		annotation.forDocument(activeDocumentId).deleteAnnotations(toDelete);
 	}, [selection, annotation, activeDocumentId, getPdfHighlights]);
+
+	const handleAddAiContext = useCallback(() => {
+		if (!selection || !activeDocumentId) return;
+		const scope = selection.forDocument(activeDocumentId);
+		void scope
+			.getSelectedText()
+			.toPromise()
+			.then(pages => {
+				const text = pages.join(" ").trim();
+				if (!text) return;
+				dispatch(addAiContextSnippet(text));
+				scope.clear();
+			});
+	}, [selection, activeDocumentId, dispatch]);
 
 	const handleCreateExtract = useCallback(() => {
 		if (!selection || !activeDocumentId || !annotation) return;
@@ -228,7 +243,10 @@ export default function PdfFloatingMenu({
 							name: "add-ai-context-divider",
 							divider: true as const,
 						},
-						ADD_AI_CONTEXT_BUTTON,
+						{
+							...ADD_AI_CONTEXT_BUTTON,
+							onClick: handleAddAiContext,
+						},
 					]
 				: []),
 			{ name: "create-highlight-divider", divider: true },
@@ -245,6 +263,7 @@ export default function PdfFloatingMenu({
 		],
 		[
 			aiEnabled,
+			handleAddAiContext,
 			handleCreateExtract,
 			handleCreateCloze,
 			highlightUnderSelection,

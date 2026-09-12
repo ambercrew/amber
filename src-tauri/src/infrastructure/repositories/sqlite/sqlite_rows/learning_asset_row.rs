@@ -33,7 +33,7 @@ impl From<LearningAssetRow> for LearningAsset {
             r#type: row
                 .r#type
                 .parse::<LearningAssetType>()
-                .expect("Invalid learning asset type"),
+                .unwrap_or(LearningAssetType::Extracted),
             meta: Meta {
                 element_id: ElementId::LearningAsset(row.id.into_uuid()),
                 name: row.name,

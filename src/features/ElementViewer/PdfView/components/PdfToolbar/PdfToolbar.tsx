@@ -79,7 +79,7 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 
 	function commitZoomInput() {
 		const zoomPercentage = Number(zoomInput);
-		if (Number.isFinite(zoomPercentage)) {
+		if (Number.isFinite(zoomPercentage) && zoomPercentage > 0) {
 			zoom?.requestZoom(zoomPercentage / 100);
 		}
 		setEditingZoom(false);

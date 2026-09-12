@@ -300,9 +300,10 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
             "SELECT highlights FROM learning_asset_pdf_highlights WHERE learning_asset_id = $1",
             learning_asset_id.hyphenated(),
         )
-        .fetch_one(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await?;
-        Ok(row.highlights)
+        // Sync can deliver a PDF asset before (or without) its highlights row.
+        Ok(row.map_or_else(|| "[]".to_string(), |row| row.highlights))
     }
 
     async fn update_pdf_highlights(
@@ -313,9 +314,10 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
-            "UPDATE learning_asset_pdf_highlights SET highlights = $1 WHERE learning_asset_id = $2",
-            highlights,
+            "INSERT INTO learning_asset_pdf_highlights (learning_asset_id, highlights) VALUES ($1, $2) \
+             ON CONFLICT (learning_asset_id) DO UPDATE SET highlights = excluded.highlights",
             learning_asset_id.hyphenated(),
+            highlights,
         )
         .execute(&mut *tx)
         .await?;

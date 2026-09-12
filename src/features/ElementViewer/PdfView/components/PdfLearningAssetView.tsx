@@ -13,11 +13,12 @@ import { HistoryPluginPackage } from "@embedpdf/plugin-history/react";
 import { InteractionManagerPluginPackage } from "@embedpdf/plugin-interaction-manager/react";
 import { SelectionPluginPackage } from "@embedpdf/plugin-selection/react";
 import { SearchPluginPackage } from "@embedpdf/plugin-search/react";
+import { usePdfiumEngine } from "@embedpdf/engines/react";
 import { getPdfBytes } from "../../../../api/elements/api/elementsApi";
 import { MetaResponseDto } from "../../../../api/elements/dto/anyElementDto";
+import useApi from "../../../../hooks/useApi";
 import { ReadPoint } from "../../../../types/elements/readPoint";
 import { base64ToArrayBuffer } from "../../../../utils/base64ToArrayBuffer";
-import { getPdfiumEngine } from "../utils/pdfiumEngine";
 import PdfDocumentContent from "./PdfDocumentContent";
 
 const WASM_URL = "/pdfium/pdfium.wasm";
@@ -37,40 +38,28 @@ export default function PdfLearningAssetView({
 	meta,
 }: PdfLearningAssetViewProps) {
 	const [pdfBytesBase64, setPdfBytesBase64] = useState<string | null>(null);
+	const { callApi, errorMessage } = useApi();
 
 	useEffect(() => {
 		let cancelled = false;
-		void getPdfBytes(learningAssetId).then(({ bytesBase64 }) => {
+		void callApi(async () => {
+			const { bytesBase64 } = await getPdfBytes(learningAssetId);
 			if (!cancelled) setPdfBytesBase64(bytesBase64);
 		});
 		return () => {
 			cancelled = true;
 		};
-	}, [learningAssetId]);
+	}, [learningAssetId, callApi]);
 
 	const buffer = useMemo(
 		() => (pdfBytesBase64 ? base64ToArrayBuffer(pdfBytesBase64) : null),
 		[pdfBytesBase64],
 	);
 
-	const [engine, setEngine] = useState<Awaited<
-		ReturnType<typeof getPdfiumEngine>
-	> | null>(null);
-	const [engineError, setEngineError] = useState<unknown>(null);
-
-	useEffect(() => {
-		let cancelled = false;
-		getPdfiumEngine(WASM_URL)
-			.then(loadedEngine => {
-				if (!cancelled) setEngine(loadedEngine);
-			})
-			.catch((loadError: unknown) => {
-				if (!cancelled) setEngineError(loadError);
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
+	const { engine, error: engineError } = usePdfiumEngine({
+		wasmUrl: WASM_URL,
+		worker: false,
+	});
 
 	const plugins = useMemo(
 		() =>
@@ -102,6 +91,14 @@ export default function PdfLearningAssetView({
 				: null,
 		[buffer, meta.name],
 	);
+
+	if (errorMessage) {
+		return (
+			<Center h="100%">
+				<Text c="red">Could not load the PDF: {errorMessage}</Text>
+			</Center>
+		);
+	}
 
 	if (engineError) {
 		const message =

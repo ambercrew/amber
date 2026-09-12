@@ -43,6 +43,20 @@ describe("escapeHtml", () => {
 		expect(actual).toContain("&lt;script&gt;");
 		expect(actual).toContain("&amp;");
 	});
+
+	it("Should escape quotes when given text destined for an attribute value", () => {
+		// Arrange
+
+		const text = `he called it "cloze" 'twice'`;
+
+		// Act
+
+		const actual = escapeHtml(text);
+
+		// Assert
+
+		expect(actual).toBe("he called it &quot;cloze&quot; &#39;twice&#39;");
+	});
 });
 
 describe("selectedTextToHtml", () => {
@@ -156,6 +170,23 @@ describe("clozeFrontToHtml", () => {
 
 		expect(html).toContain("&lt;b&gt;Before&lt;/b&gt;");
 		expect(html).toContain("&amp; after");
+	});
+
+	it("Should escape quotes in the hidden text so they can't terminate the attribute", () => {
+		// Arrange
+
+		const pageTexts = [`Before "quoted" after`];
+		const selectedTexts = [`"quoted"`];
+
+		// Act
+
+		const html = clozeFrontToHtml(pageTexts, selectedTexts);
+
+		// Assert
+
+		expect(html).toBe(
+			'<p>Before <mark data-cloze-hidden="&quot;quoted&quot;">[...]</mark> after</p>',
+		);
 	});
 
 	it("Should hide the occurrence at the given offset rather than the first match when the selected text repeats on the page", () => {
@@ -273,6 +304,22 @@ describe("buildClozeCardDto", () => {
 		expect(clozes[0].hiddenText).toBe("Selected");
 
 		expect(collectText(parseRoot(dto!.back))).toBe("Selected");
+	});
+
+	it("Should keep the hidden text intact when the selection contains a double quote", () => {
+		// Arrange
+
+		const pageTexts = [`Before "quoted phrase" after`];
+		const selectedTexts = [`"quoted phrase"`];
+
+		// Act
+
+		const dto = buildClozeCardDto(pageTexts, selectedTexts, PARENT);
+
+		// Assert
+
+		const clozes = collectByType(parseRoot(dto!.front), "cloze-hidden");
+		expect(clozes[0].hiddenText).toBe(`"quoted phrase"`);
 	});
 
 	it("Should name the card from the selected text joined across pages", () => {

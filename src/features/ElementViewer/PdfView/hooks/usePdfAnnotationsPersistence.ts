@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { notifications } from "@mantine/notifications";
 import {
 	AnnotationTransferItem,
 	useAnnotationCapability,
@@ -7,7 +8,17 @@ import {
 	getPdfHighlights,
 	updatePdfHighlights,
 } from "../../../../api/elements/api/elementsApi";
+import errorToString from "../../../../utils/errorToString";
 import { isPdfHighlightAnnotation } from "../components/pdfHighlightAnnotations";
+
+function showHighlightError(message: string, error: unknown) {
+	// eslint-disable-next-line no-console
+	console.error(error);
+	notifications.show({
+		message: `${message} ${errorToString(error)}`,
+		color: "red",
+	});
+}
 
 /** Loads a PDF learning asset's persisted highlight annotations into
  * `@embedpdf/plugin-annotation` once its document is ready, and writes them
@@ -36,17 +47,27 @@ export function usePdfAnnotationsPersistence(
 		const scope = annotation.forDocument(documentId);
 
 		let cancelled = false;
-		void getPdfHighlights(learningAssetId).then(({ highlightsJson }) => {
-			if (cancelled) return;
-			const items = JSON.parse(
-				highlightsJson,
-			) as AnnotationTransferItem[];
-			// `importAnnotations` dispatches straight into plugin state without
-			// emitting an event (unlike a real create), so there's nothing to
-			// echo-wait for — mark loaded once it's called.
-			scope.importAnnotations(items);
-			loadedRef.current = true;
-		});
+		void getPdfHighlights(learningAssetId)
+			.then(({ highlightsJson }) => {
+				if (cancelled) return;
+				const items = JSON.parse(
+					highlightsJson,
+				) as AnnotationTransferItem[];
+				// `importAnnotations` dispatches straight into plugin state
+				// without emitting an event (unlike a real create), so there's
+				// nothing to echo-wait for — mark loaded once it's called.
+				scope.importAnnotations(items);
+				loadedRef.current = true;
+			})
+			.catch((error: unknown) => {
+				if (cancelled) return;
+				// `loadedRef` stays false on purpose: writing back now would
+				// replace the highlights we failed to read with an empty set.
+				showHighlightError(
+					"Could not load this PDF's highlights — new highlights won't be saved.",
+					error,
+				);
+			});
 
 		const unsubscribe = scope.onAnnotationEvent(event => {
 			if (event.type === "loaded") return;
@@ -60,11 +81,17 @@ export function usePdfAnnotationsPersistence(
 					const highlights = exported.filter(item =>
 						isPdfHighlightAnnotation(item.annotation),
 					);
-					void updatePdfHighlights({
+					return updatePdfHighlights({
 						learningAssetId,
 						highlightsJson: JSON.stringify(highlights),
 					});
-				});
+				})
+				.catch((error: unknown) =>
+					showHighlightError(
+						"Could not save this PDF's highlights.",
+						error,
+					),
+				);
 		});
 
 		return () => {
