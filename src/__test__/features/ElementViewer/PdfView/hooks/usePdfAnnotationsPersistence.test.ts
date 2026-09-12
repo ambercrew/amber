@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PdfAnnotationSubtype } from "@embedpdf/models";
 import { usePdfAnnotationsPersistence } from "../../../../../features/ElementViewer/PdfView/hooks/usePdfAnnotationsPersistence";
 
 const {
@@ -141,50 +142,36 @@ describe("usePdfAnnotationsPersistence", () => {
 		expect(importAnnotations).toHaveBeenCalledWith(items);
 	});
 
-	it("Should not save when an imported annotation's own committed event echoes back", async () => {
-		// Arrange
+	it("Should save once persisted highlights have loaded and a new annotation event fires", async () => {
+		// Arrange — the annotation plugin is configured with `autoCommit: false`
+		// (see PdfLearningAssetView), so every event it ever emits — including
+		// this one — carries `committed: false`; the hook must still save.
 
-		const items = [{ annotation: { id: "a1" } }];
-		getPdfHighlightsMock.mockResolvedValue({
-			highlightsJson: JSON.stringify(items),
-		});
-		await act(async () => {
-			renderPersistence();
-		});
-
-		// Act
-
-		await act(async () => {
-			emit({
-				type: "create",
-				annotation: { id: "a1" },
-				committed: true,
-			});
-		});
-
-		// Assert
-
-		expect(updatePdfHighlightsMock).not.toHaveBeenCalled();
-	});
-
-	it("Should save a genuine change once every imported annotation has echoed back", async () => {
-		// Arrange
-
-		const items = [
-			{ annotation: { id: "a1" } },
-			{ annotation: { id: "a2" } },
+		const importedItems = [{ annotation: { id: "a1" } }];
+		const exportedItems = [
+			{
+				annotation: {
+					id: "a1",
+					type: PdfAnnotationSubtype.HIGHLIGHT,
+					custom: { elementId: "e1" },
+				},
+			},
+			{
+				annotation: {
+					id: "a2",
+					type: PdfAnnotationSubtype.HIGHLIGHT,
+					custom: { elementId: "e2" },
+				},
+			},
 		];
 		getPdfHighlightsMock.mockResolvedValue({
-			highlightsJson: JSON.stringify(items),
+			highlightsJson: JSON.stringify(importedItems),
 		});
 		exportAnnotations.mockReturnValue({
-			toPromise: () => Promise.resolve(items),
+			toPromise: () => Promise.resolve(exportedItems),
 		});
 		await act(async () => {
 			renderPersistence();
-		});
-		await act(async () => {
-			emit({ type: "create", annotation: { id: "a1" }, committed: true });
 		});
 
 		// Act
@@ -193,12 +180,7 @@ describe("usePdfAnnotationsPersistence", () => {
 			emit({
 				type: "create",
 				annotation: { id: "a2" },
-				committed: true,
-			});
-			emit({
-				type: "create",
-				annotation: { id: "a3" },
-				committed: true,
+				committed: false,
 			});
 		});
 
@@ -206,7 +188,7 @@ describe("usePdfAnnotationsPersistence", () => {
 
 		expect(updatePdfHighlightsMock).toHaveBeenCalledWith({
 			learningAssetId: LEARNING_ASSET_ID,
-			highlightsJson: JSON.stringify(items),
+			highlightsJson: JSON.stringify(exportedItems),
 		});
 	});
 
@@ -224,13 +206,13 @@ describe("usePdfAnnotationsPersistence", () => {
 			emit({
 				type: "create",
 				annotation: { id: "new" },
-				committed: true,
+				committed: false,
 			});
 		});
 
 		// Assert
 
-		expect(importAnnotations).not.toHaveBeenCalled();
+		expect(importAnnotations).toHaveBeenCalledWith([]);
 		expect(updatePdfHighlightsMock).toHaveBeenCalledWith({
 			learningAssetId: LEARNING_ASSET_ID,
 			highlightsJson: "[]",
@@ -251,7 +233,7 @@ describe("usePdfAnnotationsPersistence", () => {
 			emit({
 				type: "create",
 				annotation: { id: "new" },
-				committed: true,
+				committed: false,
 			});
 		});
 
@@ -272,29 +254,6 @@ describe("usePdfAnnotationsPersistence", () => {
 
 		await act(async () => {
 			emit({ type: "loaded" });
-		});
-
-		// Assert
-
-		expect(updatePdfHighlightsMock).not.toHaveBeenCalled();
-	});
-
-	it("Should not save an event that hasn't committed yet", async () => {
-		// Arrange
-
-		getPdfHighlightsMock.mockResolvedValue({ highlightsJson: "[]" });
-		await act(async () => {
-			renderPersistence();
-		});
-
-		// Act
-
-		await act(async () => {
-			emit({
-				type: "create",
-				annotation: { id: "new" },
-				committed: false,
-			});
 		});
 
 		// Assert
