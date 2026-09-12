@@ -4,7 +4,9 @@ use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
 
 use crate::{
-    ai_integration::services::implementations::default_ai_client_provider::OPENAI_API_KEY_SECRET,
+    ai_integration::services::implementations::default_ai_client_provider::{
+        OPENAI_API_KEY_SECRET, OPENROUTER_API_KEY_SECRET,
+    },
     database::database_connection_manager::DatabaseConnectionManager,
     secrets::repositories::secrets_repository::SecretsRepository,
     settings::{
@@ -85,6 +87,14 @@ impl SettingsUpdater for DefaultSettingsUpdater {
             settings.openai = openai;
         }
 
+        let mut openrouter_api_key_to_save = None;
+        if let Some(mut openrouter) = new_settings.openrouter {
+            // Same as the OpenAI key above: pulled out and saved via
+            // `SecretsRepository` instead of the plain-text settings file.
+            openrouter_api_key_to_save = openrouter.api_key.take();
+            settings.openrouter = openrouter;
+        }
+
         if change_database_location {
             let new_location = settings.database_location();
 
@@ -114,6 +124,11 @@ impl SettingsUpdater for DefaultSettingsUpdater {
         if let Some(api_key) = &openai_api_key_to_save {
             self.secrets_repository
                 .set_secret(OPENAI_API_KEY_SECRET, api_key)
+                .await?;
+        }
+        if let Some(api_key) = &openrouter_api_key_to_save {
+            self.secrets_repository
+                .set_secret(OPENROUTER_API_KEY_SECRET, api_key)
                 .await?;
         }
 

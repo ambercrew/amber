@@ -22,4 +22,6 @@ pub struct SettingsDto {
     pub ollama: AiProviderSettings,
     pub openai: AiProviderSettings,
     pub openai_api_key_is_set: bool,
+    pub openrouter: AiProviderSettings,
+    pub openrouter_api_key_is_set: bool,
 }

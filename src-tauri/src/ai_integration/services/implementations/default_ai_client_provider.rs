@@ -7,7 +7,7 @@ use rig::client::EmbeddingsClient;
 use rig::client::{BearerAuth, Nothing, ProviderClient};
 use rig::embeddings::EmbeddingModel;
 #[cfg(not(test))]
-use rig::providers::{ollama, openai};
+use rig::providers::{ollama, openai, openrouter};
 use rig::sqlite::SqliteVectorStore;
 use tokio::fs;
 use tokio_rusqlite::Connection;
@@ -61,6 +61,7 @@ pub struct DefaultAiClientProvider {
 }
 
 pub const OPENAI_API_KEY_SECRET: &str = "openai_api_key";
+pub const OPENROUTER_API_KEY_SECRET: &str = "openrouter_api_key";
 
 #[async_trait]
 impl AiClientProvider for DefaultAiClientProvider {
@@ -93,6 +94,20 @@ impl AiClientProvider for DefaultAiClientProvider {
                         Ok(client) => Ok(MultiClient::OpenAI(client)),
                         Err(err) => {
                             log::error!("Error creating the OpenAI client: {:?}", err);
+                            Err(AiClientProviderError::CreateClient)
+                        }
+                    }
+                }
+                AiProvider::OpenRouter => {
+                    let api_key = self
+                        .secrets_repository
+                        .get_secret(OPENROUTER_API_KEY_SECRET)
+                        .await
+                        .ok_or(AiClientProviderError::OpenRouterApiKeyNotSet)?;
+                    match openrouter::Client::from_val(BearerAuth::from(api_key)) {
+                        Ok(client) => Ok(MultiClient::OpenRouter(client)),
+                        Err(err) => {
+                            log::error!("Error creating the OpenRouter client: {:?}", err);
                             Err(AiClientProviderError::CreateClient)
                         }
                     }
@@ -146,6 +161,24 @@ impl AiClientProvider for DefaultAiClientProvider {
                     log::info!("Using the OpenAI model with name '{model_name}'.");
                     Ok(model_name)
                 }
+                AiProvider::OpenRouter => {
+                    if settings.openrouter.model_name.is_none() {
+                        return Err(AiClientProviderError::OpenRouterModelNameIsNotFilled);
+                    }
+                    let model_name = settings
+                        .openrouter
+                        .model_name
+                        .as_ref()
+                        .unwrap()
+                        .clone()
+                        .trim()
+                        .to_string();
+                    if model_name.is_empty() {
+                        return Err(AiClientProviderError::OpenRouterModelNameIsNotFilled);
+                    }
+                    log::info!("Using the OpenRouter model with name '{model_name}'.");
+                    Ok(model_name)
+                }
             }
         }
     }
@@ -197,6 +230,28 @@ impl AiClientProvider for DefaultAiClientProvider {
                         return Err(AiClientProviderError::OpenAIEmbeddingsModelNameIsNotFilled);
                     }
                     log::info!("Using the OpenAI embeddings model with name '{model_name}'.");
+                    Ok(model_name)
+                }
+                AiProvider::OpenRouter => {
+                    if settings.openrouter.embeddings_model_name.is_none() {
+                        return Err(
+                            AiClientProviderError::OpenRouterEmbeddingsModelNameIsNotFilled,
+                        );
+                    }
+                    let model_name = settings
+                        .openrouter
+                        .embeddings_model_name
+                        .as_ref()
+                        .unwrap()
+                        .clone()
+                        .trim()
+                        .to_string();
+                    if model_name.is_empty() {
+                        return Err(
+                            AiClientProviderError::OpenRouterEmbeddingsModelNameIsNotFilled,
+                        );
+                    }
+                    log::info!("Using the OpenRouter embeddings model with name '{model_name}'.");
                     Ok(model_name)
                 }
             }

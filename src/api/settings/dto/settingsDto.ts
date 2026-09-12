@@ -1,6 +1,6 @@
 export type Theme = "FollowSystem" | "Light" | "Dark";
 export type Font = { type: "systemDefault" } | { type: "named"; value: string };
-export type AiProvider = "ollama" | "openAI";
+export type AiProvider = "ollama" | "openAI" | "openRouter";
 
 export interface AiProviderSettings {
 	modelName: string | null;
@@ -24,4 +24,6 @@ export default interface SettingsDto {
 	ollama: AiProviderSettings;
 	openai: AiProviderSettings;
 	openaiApiKeyIsSet: boolean;
+	openrouter: AiProviderSettings;
+	openrouterApiKeyIsSet: boolean;
 }

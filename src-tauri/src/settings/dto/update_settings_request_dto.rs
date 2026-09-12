@@ -25,4 +25,5 @@ pub struct UpdateSettingsRequestDto {
     pub ai_provider: Option<AiProvider>,
     pub ollama: Option<AiProviderSettings>,
     pub openai: Option<AiProviderSettings>,
+    pub openrouter: Option<AiProviderSettings>,
 }

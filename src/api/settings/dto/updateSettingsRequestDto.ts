@@ -15,6 +15,7 @@ export default interface UpdateSettingsRequestDto {
 	aiProvider: AiProvider | null;
 	ollama: AiProviderSettings | null;
 	openai: AiProviderSettings | null;
+	openrouter: AiProviderSettings | null;
 }
 
 /**
@@ -38,6 +39,7 @@ export function buildUpdateSettingsRequest(
 		aiProvider: null,
 		ollama: null,
 		openai: null,
+		openrouter: null,
 		...overrides,
 	};
 }

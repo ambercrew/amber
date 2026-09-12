@@ -4,6 +4,8 @@ use rig::embeddings::EmbeddingModel;
 use rig::providers::ollama;
 #[cfg(not(test))]
 use rig::providers::openai::{GenericEmbeddingModel, OpenAICompletionsExt};
+#[cfg(not(test))]
+use rig::providers::openrouter;
 
 #[cfg(test)]
 use crate::ai_integration::clients::mock_client::MockClient;
@@ -15,6 +17,8 @@ pub enum MultiEmbeddingModel {
     Ollama(ollama::EmbeddingModel),
     #[cfg(not(test))]
     OpenAI(GenericEmbeddingModel<OpenAICompletionsExt>),
+    #[cfg(not(test))]
+    OpenRouter(openrouter::EmbeddingModel),
     #[cfg(test)]
     Mock(MockClient),
 }
@@ -38,6 +42,10 @@ impl EmbeddingModel for MultiEmbeddingModel {
                     dims.unwrap_or(0),
                 ))
             }
+            #[cfg(not(test))]
+            MultiClient::OpenRouter(client) => MultiEmbeddingModel::OpenRouter(
+                openrouter::EmbeddingModel::make(client, model, dims),
+            ),
             #[cfg(test)]
             MultiClient::Mock(client) => {
                 MultiEmbeddingModel::Mock(<MockClient as EmbeddingModel>::make(client, model, dims))
@@ -51,6 +59,8 @@ impl EmbeddingModel for MultiEmbeddingModel {
             Self::Ollama(embedding_model) => embedding_model.ndims(),
             #[cfg(not(test))]
             Self::OpenAI(embedding_model) => embedding_model.ndims(),
+            #[cfg(not(test))]
+            Self::OpenRouter(embedding_model) => embedding_model.ndims(),
             #[cfg(test)]
             MultiEmbeddingModel::Mock(embedding_model) => embedding_model.ndims(),
         }
@@ -65,6 +75,8 @@ impl EmbeddingModel for MultiEmbeddingModel {
             Self::Ollama(embedding_model) => embedding_model.embed_texts(texts).await,
             #[cfg(not(test))]
             Self::OpenAI(embedding_model) => embedding_model.embed_texts(texts).await,
+            #[cfg(not(test))]
+            Self::OpenRouter(embedding_model) => embedding_model.embed_texts(texts).await,
             #[cfg(test)]
             MultiEmbeddingModel::Mock(embedding_model) => embedding_model.embed_texts(texts).await,
         }

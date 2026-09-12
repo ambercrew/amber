@@ -44,6 +44,8 @@ pub struct Settings {
     pub ollama: AiProviderSettings,
     #[serde(default)]
     pub openai: AiProviderSettings,
+    #[serde(default)]
+    pub openrouter: AiProviderSettings,
 }
 
 fn default_trash_retention_days() -> u32 {
@@ -70,6 +72,7 @@ impl Default for Settings {
             ai_provider: AiProvider::default(),
             ollama: AiProviderSettings::default(),
             openai: AiProviderSettings::default(),
+            openrouter: AiProviderSettings::default(),
         }
     }
 }
@@ -90,6 +93,7 @@ impl Settings {
             ai_provider: AiProvider::default(),
             ollama: AiProviderSettings::default(),
             openai: AiProviderSettings::default(),
+            openrouter: AiProviderSettings::default(),
         }
     }
 
