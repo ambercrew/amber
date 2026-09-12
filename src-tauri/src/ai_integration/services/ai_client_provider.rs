@@ -28,6 +28,15 @@ pub enum AiClientProviderError {
     #[cfg(not(test))]
     #[error("OpenAI embeddings model name is not set in settings!")]
     OpenAIEmbeddingsModelNameIsNotFilled,
+    #[cfg(not(test))]
+    #[error("OpenRouter API key is not set in settings!")]
+    OpenRouterApiKeyNotSet,
+    #[cfg(not(test))]
+    #[error("OpenRouter model name is not set in settings!")]
+    OpenRouterModelNameIsNotFilled,
+    #[cfg(not(test))]
+    #[error("OpenRouter embeddings model name is not set in settings!")]
+    OpenRouterEmbeddingsModelNameIsNotFilled,
     #[error("Failed to connect to the embeddings database")]
     ConnectingToEmbeddingsDatabase(#[source] SourceError),
     #[error(transparent)]

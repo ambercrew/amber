@@ -4,6 +4,8 @@ use rig::client::{CompletionClient, EmbeddingsClient};
 use rig::providers::ollama;
 #[cfg(not(test))]
 use rig::providers::openai;
+#[cfg(not(test))]
+use rig::providers::openrouter;
 
 #[cfg(test)]
 use crate::ai_integration::clients::mock_client::MockClient;
@@ -17,6 +19,8 @@ pub enum MultiClient {
     Ollama(ollama::Client),
     #[cfg(not(test))]
     OpenAI(openai::CompletionsClient),
+    #[cfg(not(test))]
+    OpenRouter(openrouter::Client),
     #[cfg(test)]
     Mock(MockClient),
 }
@@ -33,6 +37,10 @@ impl CompletionClient for MultiClient {
             #[cfg(not(test))]
             MultiClient::OpenAI(client) => {
                 MultiCompletionModel::OpenAI(client.completion_model(model))
+            }
+            #[cfg(not(test))]
+            MultiClient::OpenRouter(client) => {
+                MultiCompletionModel::OpenRouter(client.completion_model(model))
             }
             #[cfg(test)]
             MultiClient::Mock(client) => {
@@ -57,6 +65,10 @@ impl EmbeddingsClient for MultiClient {
             MultiClient::OpenAI(client) => {
                 MultiEmbeddingModel::OpenAI(client.embedding_model(model))
             }
+            #[cfg(not(test))]
+            MultiClient::OpenRouter(client) => {
+                MultiEmbeddingModel::OpenRouter(client.embedding_model(model))
+            }
             #[cfg(test)]
             MultiClient::Mock(client) => {
                 let mut client = client.clone();
@@ -79,6 +91,10 @@ impl EmbeddingsClient for MultiClient {
             #[cfg(not(test))]
             MultiClient::OpenAI(client) => {
                 MultiEmbeddingModel::OpenAI(client.embedding_model_with_ndims(model, ndims))
+            }
+            #[cfg(not(test))]
+            MultiClient::OpenRouter(client) => {
+                MultiEmbeddingModel::OpenRouter(client.embedding_model_with_ndims(model, ndims))
             }
             #[cfg(test)]
             MultiClient::Mock(client) => {

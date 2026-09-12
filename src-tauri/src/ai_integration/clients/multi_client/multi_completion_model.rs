@@ -2,7 +2,7 @@ use rig::completion::{CompletionError, CompletionModel, CompletionRequest, Compl
 use rig::streaming::StreamingCompletionResponse;
 
 #[cfg(not(test))]
-use rig::providers::{ollama, openai};
+use rig::providers::{ollama, openai, openrouter};
 
 #[cfg(test)]
 use crate::ai_integration::clients::mock_client::MockClient;
@@ -14,6 +14,8 @@ pub enum MultiCompletionModel {
     Ollama(ollama::CompletionModel),
     #[cfg(not(test))]
     OpenAI(openai::CompletionModel),
+    #[cfg(not(test))]
+    OpenRouter(openrouter::CompletionModel),
     #[cfg(test)]
     Mock(MockClient),
 }
@@ -28,6 +30,8 @@ impl CompletionModel for MultiCompletionModel {
             Self::Ollama(completion_model) => completion_model.completion(request).await,
             #[cfg(not(test))]
             Self::OpenAI(completion_model) => completion_model.completion(request).await,
+            #[cfg(not(test))]
+            Self::OpenRouter(completion_model) => completion_model.completion(request).await,
             #[cfg(test)]
             Self::Mock(completion_model) => completion_model.completion(request).await,
         }
@@ -42,6 +46,8 @@ impl CompletionModel for MultiCompletionModel {
             Self::Ollama(completion_model) => completion_model.stream(request).await,
             #[cfg(not(test))]
             Self::OpenAI(completion_model) => completion_model.stream(request).await,
+            #[cfg(not(test))]
+            Self::OpenRouter(completion_model) => completion_model.stream(request).await,
             #[cfg(test)]
             Self::Mock(completion_model) => completion_model.stream(request).await,
         }
@@ -53,6 +59,8 @@ impl CompletionModel for MultiCompletionModel {
             Self::Ollama(completion_model) => completion_model.capabilities(),
             #[cfg(not(test))]
             Self::OpenAI(completion_model) => completion_model.capabilities(),
+            #[cfg(not(test))]
+            Self::OpenRouter(completion_model) => completion_model.capabilities(),
             #[cfg(test)]
             Self::Mock(completion_model) => completion_model.capabilities(),
         }

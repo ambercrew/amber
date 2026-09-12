@@ -20,6 +20,8 @@ const settings: SettingsDto = {
 	ollama: { modelName: null, embeddingsModelName: null },
 	openai: { modelName: null, embeddingsModelName: null },
 	openaiApiKeyIsSet: false,
+	openrouter: { modelName: null, embeddingsModelName: null },
+	openrouterApiKeyIsSet: false,
 };
 
 function renderModal(opened: boolean) {

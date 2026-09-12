@@ -6,4 +6,5 @@ pub enum AiProvider {
     #[default]
     Ollama,
     OpenAI,
+    OpenRouter,
 }

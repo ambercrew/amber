@@ -28,7 +28,11 @@ function AiTab() {
 	if (!settings) return null;
 
 	const providerSettings: AiProviderSettings =
-		settings.aiProvider === "openAI" ? settings.openai : settings.ollama;
+		settings.aiProvider === "openAI"
+			? settings.openai
+			: settings.aiProvider === "openRouter"
+				? settings.openrouter
+				: settings.ollama;
 
 	function handleEnableAiChange(checked: boolean) {
 		void dispatch(
@@ -46,7 +50,12 @@ function AiTab() {
 
 	function handleProviderSettingsChange(change: Partial<AiProviderSettings>) {
 		if (!settings) return;
-		const key = settings.aiProvider === "openAI" ? "openai" : "ollama";
+		const key =
+			settings.aiProvider === "openAI"
+				? "openai"
+				: settings.aiProvider === "openRouter"
+					? "openrouter"
+					: "ollama";
 		void dispatch(
 			saveSettings(
 				buildUpdateSettingsRequest({
@@ -58,10 +67,14 @@ function AiTab() {
 
 	function handleApiKeyBlur() {
 		if (!apiKey || !settings) return;
+		const key =
+			settings.aiProvider === "openRouter" ? "openrouter" : "openai";
+		const currentProviderSettings =
+			key === "openrouter" ? settings.openrouter : settings.openai;
 		void dispatch(
 			saveSettings(
 				buildUpdateSettingsRequest({
-					openai: { ...settings.openai, apiKey },
+					[key]: { ...currentProviderSettings, apiKey },
 				}),
 			),
 		);
@@ -86,7 +99,7 @@ function AiTab() {
 					<Stack gap="xs">
 						<FieldLabel
 							label="Provider"
-							tooltip="Which service runs the AI models. Ollama runs them locally on this machine, OpenAI runs them in the cloud with your API key."
+							tooltip="Which service runs the AI models. Ollama runs them locally on this machine, OpenAI and OpenRouter run them in the cloud with your API key."
 						/>
 						<SegmentedControl
 							value={settings.aiProvider}
@@ -94,6 +107,7 @@ function AiTab() {
 							data={[
 								{ label: "Ollama", value: "ollama" },
 								{ label: "OpenAI", value: "openAI" },
+								{ label: "OpenRouter", value: "openRouter" },
 							]}
 						/>
 					</Stack>
@@ -108,7 +122,9 @@ function AiTab() {
 							placeholder={
 								settings.aiProvider === "ollama"
 									? "e.g. llama3.1"
-									: "e.g. gpt-4o-mini"
+									: settings.aiProvider === "openRouter"
+										? "e.g. openai/gpt-4o-mini"
+										: "e.g. gpt-4o-mini"
 							}
 							defaultValue={providerSettings.modelName ?? ""}
 							onBlur={e =>
@@ -129,7 +145,9 @@ function AiTab() {
 							placeholder={
 								settings.aiProvider === "ollama"
 									? "e.g. nomic-embed-text"
-									: "e.g. text-embedding-3-small"
+									: settings.aiProvider === "openRouter"
+										? "e.g. openai/text-embedding-3-small"
+										: "e.g. text-embedding-3-small"
 							}
 							defaultValue={
 								providerSettings.embeddingsModelName ?? ""
@@ -143,17 +161,22 @@ function AiTab() {
 						/>
 					</Stack>
 
-					{settings.aiProvider === "openAI" && (
+					{(settings.aiProvider === "openAI" ||
+						settings.aiProvider === "openRouter") && (
 						<Stack gap="xs">
 							<FieldLabel
 								label="API key"
-								tooltip="Your OpenAI API key, used to authenticate requests. It is stored securely in your operating system's secret store."
+								tooltip={`Your ${settings.aiProvider === "openRouter" ? "OpenRouter" : "OpenAI"} API key, used to authenticate requests. It is stored securely in your operating system's secret store.`}
 							/>
 							<PasswordInput
 								placeholder={
-									settings.openaiApiKeyIsSet
+									(
+										settings.aiProvider === "openRouter"
+											? settings.openrouterApiKeyIsSet
+											: settings.openaiApiKeyIsSet
+									)
 										? "API key is set"
-										: "Enter your OpenAI API key"
+										: `Enter your ${settings.aiProvider === "openRouter" ? "OpenRouter" : "OpenAI"} API key`
 								}
 								value={apiKey}
 								onChange={e => setApiKey(e.currentTarget.value)}
