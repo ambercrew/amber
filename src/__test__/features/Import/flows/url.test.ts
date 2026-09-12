@@ -121,7 +121,7 @@ describe("runUrlImport", () => {
 
 		expect(actual).toBeNull();
 		expect(runFileImport).toHaveBeenCalledTimes(1);
-		const [files, passedCtx, , location] =
+		const [files, passedCtx, , , location] =
 			vi.mocked(runFileImport).mock.calls[0];
 		expect(files[0].name).toBe("doc.pdf");
 		expect(passedCtx).toBe(ctx);
@@ -146,7 +146,7 @@ describe("runUrlImport", () => {
 
 		// Assert
 
-		const [, , , location] = vi.mocked(runFileImport).mock.calls[0];
+		const [, , , , location] = vi.mocked(runFileImport).mock.calls[0];
 		expect(location).toBe("https://example.com/doc.pdf");
 	});
 

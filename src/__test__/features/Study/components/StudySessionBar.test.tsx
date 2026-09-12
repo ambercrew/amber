@@ -52,6 +52,7 @@ const learningAssetCurrentElement: AnyElementDto = {
 			name: "LearningAsset 1",
 			...META_FIELDS,
 		},
+		type: "extracted",
 		readPoint: { split: 0, block: 0 },
 		intervalMultiplier: 1.2,
 	},
@@ -66,7 +67,13 @@ const BASE_STUDY_STATE = {
 };
 
 function elementsStateFor(currentElement: AnyElementDto) {
-	return { tree: [], isLoading: false, error: null, currentElement };
+	return {
+		tree: [],
+		isLoading: false,
+		error: null,
+		currentElement,
+		zoomOwnedByCurrentView: false,
+	};
 }
 
 function inMs(offsetMs: number): string {

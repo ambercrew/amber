@@ -53,3 +53,14 @@ export async function extractPdf(
 export function extractEpub(bytesBase64: string): Promise<EpubExtractionDto> {
 	return invoke("extract_epub", { bytesBase64 });
 }
+
+export function getPdfPageCount(bytesBase64: string): Promise<number> {
+	return invoke("get_pdf_page_count", { bytesBase64 });
+}
+
+export function getPdfPageHtml(
+	bytesBase64: string,
+	pageIndex: number,
+): Promise<string> {
+	return invoke("get_pdf_page_html", { bytesBase64, pageIndex });
+}

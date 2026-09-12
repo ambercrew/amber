@@ -31,6 +31,7 @@ const PRELOADED_STATE = {
 		isLoading: false,
 		error: null,
 		currentElement: null,
+		zoomOwnedByCurrentView: false,
 	},
 };
 

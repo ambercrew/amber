@@ -1,0 +1,26 @@
+.viewport {
+	scrollbar-gutter: stable;
+}
+
+.viewport::-webkit-scrollbar {
+	width: 12px;
+}
+
+.viewport::-webkit-scrollbar-track {
+	margin-top: var(--pdf-viewport-scrollbar-inset-top, 0px);
+}
+
+.viewport::-webkit-scrollbar-thumb {
+	background-color: transparent;
+	background-clip: padding-box;
+	border: 3px solid transparent;
+	border-radius: 12px;
+}
+
+.viewport:hover::-webkit-scrollbar-thumb {
+	background-color: rgba(0, 0, 0, 0.4);
+}
+
+[data-mantine-color-scheme="dark"] .viewport:hover::-webkit-scrollbar-thumb {
+	background-color: rgba(255, 255, 255, 0.4);
+}

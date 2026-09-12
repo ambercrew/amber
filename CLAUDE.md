@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Amber is a Tauri 2 desktop app (React 19 frontend, Rust backend) for incremental learning.
 
+## Code Comments
+
+Keep comments to one or two lines. If a comment needs more than that, the code likely needs restructuring or a docs page instead.
+
 ## UI Guidelines
 
 - Use **Mantine** (`@mantine/core`, `@mantine/hooks`) components for all UI. Prefer built-in Mantine components over building custom ones.

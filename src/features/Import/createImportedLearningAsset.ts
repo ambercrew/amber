@@ -19,6 +19,7 @@ export async function createImportedLearningAsset(
 				parent: ctx.parent,
 				origin: { type: "custom", bibliographicalSourceId },
 			},
+			type: "extracted",
 			splits: splitContent(content).map(html => htmlToLexicalJson(html)),
 			initialPriorityRank: ctx.priorityRank,
 		}),

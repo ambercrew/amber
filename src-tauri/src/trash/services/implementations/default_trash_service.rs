@@ -126,7 +126,10 @@ mod tests {
 
     use crate::{
         elements::{
-            entities::{folder::Folder, learning_asset::LearningAsset},
+            entities::{
+                folder::Folder,
+                learning_asset::{LearningAsset, LearningAssetContent},
+            },
             repositories::{
                 folder_repository::FolderRepository,
                 learning_asset_repository::LearningAssetRepository,
@@ -201,6 +204,7 @@ mod tests {
 
     fn make_learning_asset(name: &str, parent: Option<ElementId>) -> LearningAsset {
         LearningAsset {
+            r#type: Default::default(),
             interval_multiplier: 1.2,
             read_point: ReadPoint::default(),
             meta: Meta {
@@ -226,7 +230,7 @@ mod tests {
         let learning_asset = make_learning_asset("Photosynthesis", Some(folder_id));
         folder_repository.create(folder).await.unwrap();
         learning_asset_repository
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
 
@@ -267,7 +271,7 @@ mod tests {
         scope
             .resolve::<dyn LearningAssetRepository>()
             .await
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
 
@@ -320,7 +324,7 @@ mod tests {
         scope
             .resolve::<dyn LearningAssetRepository>()
             .await
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
 
@@ -363,7 +367,7 @@ mod tests {
         folder_repository.create(grandparent).await.unwrap();
         folder_repository.create(parent).await.unwrap();
         learning_asset_repository
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
 
@@ -416,7 +420,7 @@ mod tests {
         scope
             .resolve::<dyn LearningAssetRepository>()
             .await
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
         service.trash_element(folder_id).await.unwrap();
@@ -449,7 +453,7 @@ mod tests {
         let learning_asset_id = learning_asset.meta.element_id;
         folder_repository.create(folder).await.unwrap();
         learning_asset_repository
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
         service.trash_element(folder_id).await.unwrap();
@@ -522,7 +526,7 @@ mod tests {
         let learning_asset_id = learning_asset.meta.element_id;
         folder_repository.create(folder).await.unwrap();
         learning_asset_repository
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
         // Give the learning asset a higher priority (later in the queue) than its
@@ -572,7 +576,7 @@ mod tests {
             .await
             .unwrap();
         learning_asset_repository
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
 
@@ -645,7 +649,7 @@ mod tests {
         scope
             .resolve::<dyn LearningAssetRepository>()
             .await
-            .create(learning_asset, Vec::new())
+            .create(learning_asset, LearningAssetContent::Extracted(Vec::new()))
             .await
             .unwrap();
         service.trash_element(folder_id).await.unwrap();

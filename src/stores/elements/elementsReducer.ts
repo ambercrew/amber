@@ -10,6 +10,9 @@ export interface ElementsState {
 	isLoading: boolean;
 	error: string | null;
 	currentElement: AnyElementDto | null;
+	/** Set by a view (e.g. the PDF viewer) that owns its own independent
+	 * zoom, so app-wide zoom shortcuts/gestures can leave it alone. */
+	zoomOwnedByCurrentView: boolean;
 }
 
 const initialState: ElementsState = {
@@ -17,6 +20,7 @@ const initialState: ElementsState = {
 	isLoading: false,
 	error: null,
 	currentElement: null,
+	zoomOwnedByCurrentView: false,
 };
 
 const elementsSlice = createSlice({
@@ -44,6 +48,10 @@ const elementsSlice = createSlice({
 			action: PayloadAction<AnyElementDto | null>,
 		) => {
 			state.currentElement = action.payload;
+			state.zoomOwnedByCurrentView = false;
+		},
+		setZoomOwnedByCurrentView: (state, action: PayloadAction<boolean>) => {
+			state.zoomOwnedByCurrentView = action.payload;
 		},
 		setCurrentElementMeta: (
 			state,
@@ -67,4 +75,5 @@ export const {
 	clearTreeError,
 	setCurrentElement,
 	setCurrentElementMeta,
+	setZoomOwnedByCurrentView,
 } = elementsSlice.actions;

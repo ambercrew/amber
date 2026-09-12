@@ -105,7 +105,10 @@ mod tests {
     use crate::{
         elements::{
             entities::{
-                card::Card, extract::Extract, folder::Folder, learning_asset::LearningAsset,
+                card::Card,
+                extract::Extract,
+                folder::Folder,
+                learning_asset::{LearningAsset, LearningAssetContent},
             },
             repositories::{
                 card_repository::CardRepository, extract_repository::ExtractRepository,
@@ -217,6 +220,7 @@ mod tests {
             meta: folder_meta(),
         };
         let learning_asset = LearningAsset {
+            r#type: Default::default(),
             interval_multiplier: 1.2,
             meta: Meta {
                 parent: Some(folder.meta.element_id),
@@ -226,7 +230,10 @@ mod tests {
         };
         folder_repo.create(folder.clone()).await.unwrap();
         learning_asset_repo
-            .create(learning_asset.clone(), Vec::new())
+            .create(
+                learning_asset.clone(),
+                LearningAssetContent::Extracted(Vec::new()),
+            )
             .await
             .unwrap();
 

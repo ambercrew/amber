@@ -2,6 +2,7 @@ import { normalize } from "../normalize";
 import { deriveTitle } from "../deriveTitle";
 import { createImportedLearningAsset } from "../createImportedLearningAsset";
 import { ImportContext } from "../importContext";
+import { escapeHtml } from "../../../utils/escapeHtml";
 
 export interface PastedContent {
 	html: string | null;
@@ -24,11 +25,4 @@ function textToParagraphs(text: string): string {
 		.split(/\n{2,}/)
 		.map(paragraph => `<p>${escapeHtml(paragraph.trim())}</p>`)
 		.join("");
-}
-
-function escapeHtml(text: string): string {
-	return text
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;");
 }

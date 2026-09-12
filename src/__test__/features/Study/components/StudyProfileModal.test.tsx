@@ -54,7 +54,13 @@ function cardElement(id: string): AnyElementDto {
 }
 
 function elementsStateFor(currentElement: AnyElementDto | null): ElementsState {
-	return { tree: [], isLoading: false, error: null, currentElement };
+	return {
+		tree: [],
+		isLoading: false,
+		error: null,
+		currentElement,
+		zoomOwnedByCurrentView: false,
+	};
 }
 
 const firstProfile = makeProfile({ id: "profile-1", name: "Default" });

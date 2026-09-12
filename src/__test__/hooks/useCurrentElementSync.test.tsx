@@ -44,7 +44,13 @@ const FOLDER_ELEMENT: AnyElementDto = {
 
 function makeStore(tree: NodeDto[] = [FOLDER_NODE]) {
 	return setupStore({
-		elements: { tree, isLoading: false, error: null, currentElement: null },
+		elements: {
+			tree,
+			isLoading: false,
+			error: null,
+			currentElement: null,
+			zoomOwnedByCurrentView: false,
+		},
 	});
 }
 

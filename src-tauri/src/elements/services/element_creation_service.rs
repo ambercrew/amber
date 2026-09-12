@@ -38,4 +38,10 @@ pub enum ElementCreationError {
 
     #[error(transparent)]
     Priority(#[from] PriorityError),
+
+    #[error("The PDF bytes for a pdf-type learning asset were missing or not valid base64")]
+    InvalidPdfBytes,
+
+    #[error("The PDF page count for a pdf-type learning asset was missing or not greater than 0")]
+    InvalidPdfPageCount,
 }

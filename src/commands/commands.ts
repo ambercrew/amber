@@ -39,7 +39,10 @@ import { saveSettings } from "../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../api/settings/dto/updateSettingsRequestDto";
 import { selectSettings } from "../stores/settings/settingsSelector";
 import { isCurrentlyDark } from "./commandUtils";
-import { selectCurrentElement } from "../stores/elements/elementsSelectors";
+import {
+	selectCanZoomAppWide,
+	selectCurrentElement,
+} from "../stores/elements/elementsSelectors";
 import { sync } from "../stores/sync/syncActions";
 import { selectIsSyncing } from "../stores/sync/syncSelector";
 import {
@@ -245,7 +248,7 @@ export const commandsById: Record<CommandId, Command> = {
 		label: "Zoom in",
 		shortcut: ZOOM_IN_SHORTCUT,
 		icon: createElement(MagnifyingGlassPlusIcon),
-		enabled: () => !isMobile(),
+		enabled: state => !isMobile() && selectCanZoomAppWide(state),
 		execute: (dispatch, getState) => {
 			const current = selectSettings(getState())?.zoomPercentage ?? 100;
 			void dispatch(
@@ -263,7 +266,7 @@ export const commandsById: Record<CommandId, Command> = {
 		label: "Zoom out",
 		shortcut: ZOOM_OUT_SHORTCUT,
 		icon: createElement(MagnifyingGlassMinusIcon),
-		enabled: () => !isMobile(),
+		enabled: state => !isMobile() && selectCanZoomAppWide(state),
 		execute: (dispatch, getState) => {
 			const current = selectSettings(getState())?.zoomPercentage ?? 100;
 			void dispatch(
@@ -302,7 +305,7 @@ export const commandsById: Record<CommandId, Command> = {
 		label: "Reset zoom",
 		shortcut: RESET_ZOOM_SHORTCUT,
 		icon: createElement(ArrowCounterClockwiseIcon),
-		enabled: () => !isMobile(),
+		enabled: state => !isMobile() && selectCanZoomAppWide(state),
 		execute: dispatch => {
 			void dispatch(
 				saveSettings(

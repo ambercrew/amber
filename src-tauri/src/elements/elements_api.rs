@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use base64::{Engine as _, engine::general_purpose};
 use tauri::State;
 use uuid::Uuid;
 
@@ -14,6 +15,8 @@ use crate::elements::dto::learning_asset_split_id_dto::LearningAssetSplitIdDto;
 use crate::elements::dto::learning_asset_split_meta_dto::LearningAssetSplitMetaDto;
 use crate::elements::dto::learning_asset_split_text_dto::LearningAssetSplitTextDto;
 use crate::elements::dto::move_element_dto::MoveElementRequestDto;
+use crate::elements::dto::pdf_bytes_dto::PdfBytesDto;
+use crate::elements::dto::pdf_highlights_dto::{PdfHighlightsDto, UpdatePdfHighlightsDto};
 use crate::elements::dto::tag_dto::TagResponseDto;
 use crate::elements::dto::tree_dto::NodeDto;
 use crate::elements::dto::update_card_dto::UpdateCardDto;
@@ -198,6 +201,51 @@ pub async fn get_learning_asset_split_content(
         .get_split_content(dto.into())
         .await?;
     Ok(content)
+}
+
+#[tauri::command]
+pub async fn get_pdf_bytes(
+    injector: State<'_, Arc<Injector>>,
+    learning_asset_id: Uuid,
+) -> Result<PdfBytesDto, ApiError> {
+    let scope = injector.start_scope();
+    let bytes = scope
+        .resolve::<dyn LearningAssetRepository>()
+        .await
+        .get_pdf_bytes(learning_asset_id)
+        .await?;
+    Ok(PdfBytesDto {
+        bytes_base64: general_purpose::STANDARD.encode(bytes),
+    })
+}
+
+#[tauri::command]
+pub async fn get_pdf_highlights(
+    injector: State<'_, Arc<Injector>>,
+    learning_asset_id: Uuid,
+) -> Result<PdfHighlightsDto, ApiError> {
+    let scope = injector.start_scope();
+    let highlights_json = scope
+        .resolve::<dyn LearningAssetRepository>()
+        .await
+        .get_pdf_highlights(learning_asset_id)
+        .await?;
+    Ok(PdfHighlightsDto { highlights_json })
+}
+
+#[tauri::command]
+pub async fn update_pdf_highlights(
+    injector: State<'_, Arc<Injector>>,
+    dto: UpdatePdfHighlightsDto,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    scope
+        .resolve::<dyn LearningAssetRepository>()
+        .await
+        .update_pdf_highlights(dto.learning_asset_id, dto.highlights_json)
+        .await?;
+    scope.save_changes().await?;
+    Ok(())
 }
 
 #[tauri::command]

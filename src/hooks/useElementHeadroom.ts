@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface UseElementHeadroomInput {
 	/** Scroll container to observe; stays pinned while it is null. */
@@ -14,6 +14,11 @@ export interface UseElementHeadroomReturnValue {
 	pinned: boolean;
 	/** Reveal progress: 0 = fully hidden, 1 = fully visible. */
 	scrollProgress: number;
+	/** Ignore scroll events (programmatic ones, e.g. from zoom recentering)
+	 * until they stop for `quietMs` — a zoom can trigger more than one
+	 * scroll adjustment (e.g. the browser clamping scrollTop as content
+	 * shrinks, then the plugin's own recenter). */
+	pause: (quietMs?: number) => void;
 }
 
 /**
@@ -37,16 +42,33 @@ export function useElementHeadroom({
 	const previouslyScrollingUp = useRef(false);
 	const directionChangeScrollTop = useRef(0);
 	const progressAtDirectionChange = useRef(1);
-	const resizing = useRef(false);
-	const resizeTimeout = useRef<number | undefined>(undefined);
+	const suppressed = useRef(false);
+	const suppressQuietMs = useRef(300);
+	const suppressTimeout = useRef<number | undefined>(undefined);
+
+	const pause = useCallback((quietMs = 300) => {
+		suppressed.current = true;
+		suppressQuietMs.current = quietMs;
+		window.clearTimeout(suppressTimeout.current);
+		suppressTimeout.current = window.setTimeout(() => {
+			suppressed.current = false;
+		}, quietMs);
+	}, []);
 
 	useEffect(() => {
 		if (!element) return;
 
 		const onScroll = () => {
-			// Mobile browsers scroll the container while the viewport resizes
-			// (address bar, keyboard); that must not read as a real gesture.
-			if (resizing.current) return;
+			// Skip programmatic scrolls (resize, or `pause` from a caller),
+			// resyncing so the next real scroll's delta starts from here.
+			if (suppressed.current) {
+				window.clearTimeout(suppressTimeout.current);
+				suppressTimeout.current = window.setTimeout(() => {
+					suppressed.current = false;
+				}, suppressQuietMs.current);
+				previousScrollTop.current = element.scrollTop;
+				return;
+			}
 
 			const { scrollTop } = element;
 			const scrollingUp = scrollTop < previousScrollTop.current;
@@ -87,13 +109,7 @@ export function useElementHeadroom({
 			);
 		};
 
-		const onResize = () => {
-			resizing.current = true;
-			window.clearTimeout(resizeTimeout.current);
-			resizeTimeout.current = window.setTimeout(() => {
-				resizing.current = false;
-			}, 300);
-		};
+		const onResize = () => pause(300);
 
 		onScroll();
 		element.addEventListener("scroll", onScroll, { passive: true });
@@ -102,15 +118,14 @@ export function useElementHeadroom({
 		return () => {
 			element.removeEventListener("scroll", onScroll);
 			window.removeEventListener("resize", onResize);
-			window.clearTimeout(resizeTimeout.current);
 		};
-	}, [element, fixedAt, scrollDistance]);
+	}, [element, fixedAt, scrollDistance, pause]);
 
 	// While there is no scroller yet nothing can be scrolled away, so the
 	// chrome reads as fully revealed regardless of the last known progress.
 	const progress = element ? scrollProgress : 1;
 
-	return { pinned: progress > 0, scrollProgress: progress };
+	return { pinned: progress > 0, scrollProgress: progress, pause };
 }
 
 /** Progress reached after scrolling from `origin` to `scrollTop`, clamped to 0..1. */

@@ -89,6 +89,7 @@ describe("ImportModal", () => {
 			expect(runFileImport).toHaveBeenCalledWith(
 				[file],
 				expect.anything(),
+				false,
 				expect.any(Function),
 			);
 		});

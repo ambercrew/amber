@@ -136,7 +136,7 @@ fn extract_pdf_html(
         if !saw_text && doc.has_text_layer(i)? {
             saw_text = true;
         }
-        html.push_str(&doc.to_html(i, &options)?);
+        html.push_str(&page_to_html(&doc, i, &options)?);
         on_progress(i + 1, page_count);
     }
 
@@ -162,6 +162,42 @@ fn extract_pdf_html(
         html,
         page_count,
     })
+}
+
+fn page_to_html(
+    doc: &PdfDocument,
+    page_index: usize,
+    options: &ConversionOptions,
+) -> Result<String, ApiError> {
+    Ok(doc.to_html(page_index, options)?)
+}
+
+#[tauri::command]
+pub async fn get_pdf_page_count(bytes_base64: String) -> Result<u32, ApiError> {
+    let bytes = general_purpose::STANDARD.decode(&bytes_base64)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let doc = PdfDocument::from_bytes(bytes)?;
+        Ok(doc.page_count()? as u32)
+    })
+    .await
+    .map_err(|e| ApiError::new(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn get_pdf_page_html(bytes_base64: String, page_index: u32) -> Result<String, ApiError> {
+    let bytes = general_purpose::STANDARD.decode(&bytes_base64)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let doc = PdfDocument::from_bytes(bytes)?;
+        let options = ConversionOptions {
+            include_images: true,
+            ..Default::default()
+        };
+        page_to_html(&doc, page_index as usize, &options)
+    })
+    .await
+    .map_err(|e| ApiError::new(e.to_string()))?
 }
 
 #[tauri::command]
@@ -244,5 +280,35 @@ mod tests {
         // Assert
 
         assert!(result.is_err());
+    }
+
+    fn fixture_bytes() -> Vec<u8> {
+        std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/example.pdf"
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn page_to_html_valid_page_returns_html_for_that_page_only() {
+        // Arrange
+
+        let doc =
+            PdfDocument::from_bytes(fixture_bytes()).expect("expected the fixture PDF to parse");
+        let options = ConversionOptions {
+            include_images: true,
+            ..Default::default()
+        };
+
+        // Act
+
+        let html = page_to_html(&doc, 0, &options)
+            .ok()
+            .expect("expected page_to_html to succeed");
+
+        // Assert
+
+        assert!(html.contains("Page 1 content"));
     }
 }

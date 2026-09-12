@@ -33,7 +33,13 @@ const CURRENT_EXTRACT: AnyElementDto = {
 
 function stateWith(tree: NodeDto[], currentElement: AnyElementDto | null) {
 	return setupStore({
-		elements: { tree, isLoading: false, error: null, currentElement },
+		elements: {
+			tree,
+			isLoading: false,
+			error: null,
+			currentElement,
+			zoomOwnedByCurrentView: false,
+		},
 	}).getState() as RootState;
 }
 

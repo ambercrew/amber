@@ -56,6 +56,7 @@ function learningAsset(): AnyElementDto {
 				bibliographicalSourceId: null,
 				derivedFrom: null,
 			},
+			type: "extracted",
 			readPoint: { split: 0, block: 0 },
 			intervalMultiplier: 1.2,
 		},
@@ -113,7 +114,13 @@ function emitTauriEvent(event: string) {
 }
 
 function elementsStateFor(currentElement: AnyElementDto): ElementsState {
-	return { tree: [], isLoading: false, error: null, currentElement };
+	return {
+		tree: [],
+		isLoading: false,
+		error: null,
+		currentElement,
+		zoomOwnedByCurrentView: false,
+	};
 }
 
 function renderPanel(currentElement: AnyElementDto, details = makeDetails()) {

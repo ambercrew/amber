@@ -7,6 +7,7 @@ import { saveSettings } from "../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../api/settings/dto/updateSettingsRequestDto";
 import { isMobile, tryGetCurrentWebView } from "../utils/tauriUtils";
 import { ZOOM_STEP, clampZoom } from "../utils/zoom";
+import { selectCanZoomAppWide } from "../stores/elements/elementsSelectors";
 
 /**
  * Ctrl/Cmd+wheel zoom. Applies each tick to the webview immediately for
@@ -22,6 +23,13 @@ export function useWheelZoom() {
 		if (settings) zoomRef.current = settings.zoomPercentage;
 	}, [settings]);
 
+	const canZoom = useAppSelector(selectCanZoomAppWide);
+	const canZoomRef = useRef(canZoom);
+
+	useEffect(() => {
+		canZoomRef.current = canZoom;
+	}, [canZoom]);
+
 	const persistZoom = useDebouncedCallback((value: number) => {
 		void dispatch(
 			saveSettings(buildUpdateSettingsRequest({ zoomPercentage: value })),
@@ -34,6 +42,7 @@ export function useWheelZoom() {
 		function onWheel(e: WheelEvent) {
 			if (!(e.ctrlKey || e.metaKey)) return;
 			e.preventDefault();
+			if (!canZoomRef.current) return;
 
 			const next = clampZoom(
 				zoomRef.current + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP),

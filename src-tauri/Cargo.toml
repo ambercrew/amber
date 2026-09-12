@@ -29,7 +29,7 @@ injector = { path = "./injector" }
 injector_derive = { path = "./injector_derive" }
 log = "0.4.34"
 markdown = "1.0.0"
-pdf_oxide = "0.3.77"
+pdf_oxide = "0.3.78"
 prost = "0.14.4"
 prost-types = "0.14.4"
 rand = "0.10.2"

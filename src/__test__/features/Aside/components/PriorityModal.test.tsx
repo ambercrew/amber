@@ -69,7 +69,13 @@ function makeDetails(
 }
 
 function elementsStateFor(currentElement: AnyElementDto | null): ElementsState {
-	return { tree: [], isLoading: false, error: null, currentElement };
+	return {
+		tree: [],
+		isLoading: false,
+		error: null,
+		currentElement,
+		zoomOwnedByCurrentView: false,
+	};
 }
 
 function appStateFor(priorityModalOpened: boolean): AppState {

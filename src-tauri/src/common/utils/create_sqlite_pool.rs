@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use sqlx::{
     SqlitePool,
@@ -35,6 +36,11 @@ pub async fn create_sqlite_pool(url: &str) -> Result<(SqlitePool, Arc<SyncClock>
         .pragma("cache_size", "-65536")
         .pragma("temp_store", "memory")
         .pragma("recursive_triggers", "true")
+        // Without this, a connection that finds the database locked by
+        // another writer (e.g. startup's sync-table registration overlapping
+        // an early frontend query) fails immediately with "database is
+        // locked" instead of waiting for the lock to clear.
+        .busy_timeout(Duration::from_secs(10))
         .create_if_missing(true);
     let pool = SqlitePoolOptions::new()
         .after_connect({
