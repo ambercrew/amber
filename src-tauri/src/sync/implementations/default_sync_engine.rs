@@ -3,16 +3,21 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
 
+use prost::Message;
+
 use crate::backend::clients::amber_backend_client::AmberBackendClient;
 use crate::database::database_connection_manager::DatabaseConnectionManager;
 use crate::database::transaction_manager::TransactionManager;
-use crate::generated_code::ChangeBatch;
+use crate::generated_code::{CellChange, ChangeBatch};
 use crate::sync::engine::SyncEngine;
 use crate::sync::errors::SyncError;
 use crate::sync::hlc::Hlc;
 use crate::sync::post_sync_tasks::PostSyncTasks;
 use crate::sync::store::SyncStore;
 use crate::sync::sync_lock::SyncLock;
+
+/// Caps a single push request's wire size; the backend rejects larger payloads.
+const MAX_PUSH_BATCH_BYTES: usize = 30 * 1024 * 1024;
 
 #[derive(ScopeInjectable)]
 pub struct DefaultSyncEngine {
@@ -102,17 +107,43 @@ impl DefaultSyncEngine {
         self.run_post_sync_tasks().await?;
 
         let batch = self.store.changes_since_last_push().await?;
-        let up_to_hlc = batch
-            .cells
-            .last()
-            .map(|cell| Hlc::parse(&cell.hlc))
-            .transpose()?;
-        if let Some(up_to_hlc) = up_to_hlc {
-            self.backend_client.push_changes(batch).await?;
+        for chunk in Self::chunk_by_size(batch.cells, MAX_PUSH_BATCH_BYTES) {
+            let up_to_hlc = chunk.last().map(|cell| Hlc::parse(&cell.hlc)).transpose()?;
+            let Some(up_to_hlc) = up_to_hlc else {
+                continue;
+            };
+            self.backend_client
+                .push_changes(ChangeBatch { cells: chunk })
+                .await?;
             self.store.mark_pushed(&up_to_hlc).await?;
         }
 
         Ok(())
+    }
+
+    /// Groups cells into batches whose encoded size stays under `max_bytes`,
+    /// preserving order. A single cell over the cap still ships alone rather
+    /// than being dropped or split.
+    fn chunk_by_size(cells: Vec<CellChange>, max_bytes: usize) -> Vec<Vec<CellChange>> {
+        let mut chunks = Vec::new();
+        let mut current = Vec::new();
+        let mut current_bytes = 0usize;
+
+        for cell in cells {
+            let cell_bytes = cell.encoded_len();
+            if !current.is_empty() && current_bytes + cell_bytes > max_bytes {
+                chunks.push(std::mem::take(&mut current));
+                current_bytes = 0;
+            }
+            current_bytes += cell_bytes;
+            current.push(cell);
+        }
+
+        if !current.is_empty() {
+            chunks.push(current);
+        }
+
+        chunks
     }
 
     async fn run_post_sync_tasks(&self) -> Result<(), SyncError> {
@@ -615,5 +646,90 @@ mod tests {
         // Act & Assert
 
         engine.sync().await.unwrap();
+    }
+
+    fn cell_with_value_len(len: usize) -> CellChange {
+        CellChange {
+            tbl: "notes".to_string(),
+            row_id: single_row_id("1"),
+            col: merge::ROW_COL.to_string(),
+            value: Some(vec![0u8; len]),
+            hlc: Hlc::new(0, 0, DeviceId::from_name("device")).format(),
+            device_id: "device".to_string(),
+        }
+    }
+
+    #[test]
+    fn chunk_by_size_single_cell_under_cap_returns_one_chunk() {
+        // Arrange
+
+        let cells = vec![cell_with_value_len(10)];
+
+        // Act
+
+        let actual = DefaultSyncEngine::chunk_by_size(cells, 1_000);
+
+        // Assert
+
+        assert_eq!(1, actual.len());
+        assert_eq!(1, actual[0].len());
+    }
+
+    #[test]
+    fn chunk_by_size_cells_exceeding_cap_together_split_into_multiple_chunks() {
+        // Arrange
+
+        let cells = vec![
+            cell_with_value_len(60),
+            cell_with_value_len(60),
+            cell_with_value_len(60),
+        ];
+
+        // Act
+
+        let actual = DefaultSyncEngine::chunk_by_size(cells, 100);
+
+        // Assert
+
+        assert_eq!(3, actual.len());
+        for chunk in &actual {
+            assert_eq!(1, chunk.len());
+        }
+    }
+
+    #[test]
+    fn chunk_by_size_single_cell_over_cap_still_returned_alone() {
+        // Arrange
+
+        let cells = vec![cell_with_value_len(200)];
+
+        // Act
+
+        let actual = DefaultSyncEngine::chunk_by_size(cells, 100);
+
+        // Assert
+
+        assert_eq!(1, actual.len());
+        assert_eq!(1, actual[0].len());
+    }
+
+    #[test]
+    fn chunk_by_size_small_cells_fitting_within_cap_grouped_into_one_chunk() {
+        // Arrange
+
+        let cells = vec![
+            cell_with_value_len(10),
+            cell_with_value_len(10),
+            cell_with_value_len(10),
+        ];
+
+        // Act
+
+        let actual = DefaultSyncEngine::chunk_by_size(cells, 1_000);
+
+        // Assert
+
+        assert_eq!(1, actual.len());
+        assert_eq!(3, actual[0].len());
     }
 }
