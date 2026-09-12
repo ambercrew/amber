@@ -77,14 +77,18 @@ export default function PdfFloatingMenu({
 			.filter(isPdfHighlightAnnotation);
 	}, [annotation, activeDocumentId]);
 
+	// Scanning all annotations is O(n) and only needs to happen when the
+	// annotation set actually changes, not on every selection-drag frame.
+	const highlights = useMemo(() => getPdfHighlights(), [getPdfHighlights]);
+
 	const highlightUnderSelection = useMemo(() => {
 		if (!selection || !activeDocumentId) return null;
 		const selectionRects = flattenHighlightRects(
 			selection.forDocument(activeDocumentId).getHighlightRects(),
 		);
 		if (selectionRects.length === 0) return null;
-		return findFirstHighlightedElement(getPdfHighlights(), selectionRects);
-	}, [selection, activeDocumentId, getPdfHighlights]);
+		return findFirstHighlightedElement(highlights, selectionRects);
+	}, [selection, activeDocumentId, highlights]);
 
 	const handleOpenHighlight = useCallback(() => {
 		if (!highlightUnderSelection) return;

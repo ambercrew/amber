@@ -67,7 +67,13 @@ const BASE_STUDY_STATE = {
 };
 
 function elementsStateFor(currentElement: AnyElementDto) {
-	return { tree: [], isLoading: false, error: null, currentElement };
+	return {
+		tree: [],
+		isLoading: false,
+		error: null,
+		currentElement,
+		zoomOwnedByCurrentView: false,
+	};
 }
 
 function inMs(offsetMs: number): string {

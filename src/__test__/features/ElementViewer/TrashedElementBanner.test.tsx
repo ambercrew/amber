@@ -41,7 +41,13 @@ const FOLDER_NODE: NodeDto = {
 function render(currentElement: AnyElementDto | null, tree: NodeDto[] = []) {
 	return renderWithProviders(<TrashedElementBanner />, {
 		preloadedState: {
-			elements: { tree, isLoading: false, error: null, currentElement },
+			elements: {
+				tree,
+				isLoading: false,
+				error: null,
+				currentElement,
+				zoomOwnedByCurrentView: false,
+			},
 		},
 	});
 }

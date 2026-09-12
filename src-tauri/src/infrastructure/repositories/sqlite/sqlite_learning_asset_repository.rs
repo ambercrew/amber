@@ -116,10 +116,12 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
         .fetch_all(&mut *tx)
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(LearningAsset::from)
-            .collect::<Vec<_>>())
+        rows.into_iter()
+            .map(|row| {
+                LearningAsset::try_from(row)
+                    .map_err(|err| RepositoryError::QueryFailed(Box::from(err)))
+            })
+            .collect::<Result<Vec<_>, _>>()
     }
 
     async fn get_by_id(&self, id: Uuid) -> Result<LearningAsset, RepositoryError> {
@@ -153,7 +155,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
         .fetch_one(&mut *tx)
         .await?;
 
-        Ok(row.into())
+        LearningAsset::try_from(row).map_err(|err| RepositoryError::QueryFailed(Box::from(err)))
     }
 
     async fn get_split_manifest(

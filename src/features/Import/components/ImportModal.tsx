@@ -80,15 +80,20 @@ function ImportModal() {
 	const priority = useImportPriority(opened);
 	const openRef = useRef<() => void>(null);
 	const cancelledRef = useRef(false);
+	const pdfDetectionTokenRef = useRef(0);
 
 	function updatePendingFiles(files: File[] | null) {
 		setPendingFiles(files);
+		const token = ++pdfDetectionTokenRef.current;
 		if (!files || files.length === 0) {
 			setIsPdf(false);
 			return;
 		}
-		void Promise.all(files.map(file => file.arrayBuffer())).then(buffers =>
-			setIsPdf(buffers.some(hasPdfMagic)),
+		void Promise.all(files.map(file => file.arrayBuffer())).then(
+			buffers => {
+				if (pdfDetectionTokenRef.current !== token) return;
+				setIsPdf(buffers.some(hasPdfMagic));
+			},
 		);
 	}
 

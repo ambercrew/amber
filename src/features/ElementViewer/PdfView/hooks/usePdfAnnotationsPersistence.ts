@@ -46,32 +46,12 @@ export function usePdfAnnotationsPersistence(
 		loadedRef.current = false;
 		const scope = annotation.forDocument(documentId);
 
-		let cancelled = false;
-		void getPdfHighlights(learningAssetId)
-			.then(({ highlightsJson }) => {
-				if (cancelled) return;
-				const items = JSON.parse(
-					highlightsJson,
-				) as AnnotationTransferItem[];
-				// `importAnnotations` dispatches straight into plugin state
-				// without emitting an event (unlike a real create), so there's
-				// nothing to echo-wait for — mark loaded once it's called.
-				scope.importAnnotations(items);
-				loadedRef.current = true;
-			})
-			.catch((error: unknown) => {
-				if (cancelled) return;
-				// `loadedRef` stays false on purpose: writing back now would
-				// replace the highlights we failed to read with an empty set.
-				showHighlightError(
-					"Could not load this PDF's highlights — new highlights won't be saved.",
-					error,
-				);
-			});
+		// A create event that fires before load resolves can't be persisted
+		// yet (see save() below); remember to save once loading finishes so
+		// it isn't silently lost.
+		let missedWriteWhileLoading = false;
 
-		const unsubscribe = scope.onAnnotationEvent(event => {
-			if (event.type === "loaded") return;
-			if (!loadedRef.current) return;
+		function save() {
 			const token = ++writeTokenRef.current;
 			void scope
 				.exportAnnotations()
@@ -92,6 +72,39 @@ export function usePdfAnnotationsPersistence(
 						error,
 					),
 				);
+		}
+
+		let cancelled = false;
+		void getPdfHighlights(learningAssetId)
+			.then(({ highlightsJson }) => {
+				if (cancelled) return;
+				const items = JSON.parse(
+					highlightsJson,
+				) as AnnotationTransferItem[];
+				// `importAnnotations` dispatches straight into plugin state
+				// without emitting an event (unlike a real create), so there's
+				// nothing to echo-wait for — mark loaded once it's called.
+				scope.importAnnotations(items);
+				loadedRef.current = true;
+				if (missedWriteWhileLoading) save();
+			})
+			.catch((error: unknown) => {
+				if (cancelled) return;
+				// `loadedRef` stays false on purpose: writing back now would
+				// replace the highlights we failed to read with an empty set.
+				showHighlightError(
+					"Could not load this PDF's highlights — new highlights won't be saved.",
+					error,
+				);
+			});
+
+		const unsubscribe = scope.onAnnotationEvent(event => {
+			if (event.type === "loaded") return;
+			if (!loadedRef.current) {
+				missedWriteWhileLoading = true;
+				return;
+			}
+			save();
 		});
 
 		return () => {

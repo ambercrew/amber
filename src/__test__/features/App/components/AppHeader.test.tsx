@@ -28,7 +28,13 @@ const folderElement: AnyElementDto = {
 };
 
 const BASE_STATE = {
-	elements: { tree: [], isLoading: false, error: null, currentElement: null },
+	elements: {
+		tree: [],
+		isLoading: false,
+		error: null,
+		currentElement: null,
+		zoomOwnedByCurrentView: false,
+	},
 };
 
 describe("AppHeader", () => {

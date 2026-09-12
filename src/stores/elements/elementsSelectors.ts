@@ -9,16 +9,12 @@ export const selectElementTreeError = (state: RootState) =>
 export const selectCurrentElement = (state: RootState) =>
 	state.elements.currentElement;
 
-/** PDFs have their own independent zoom (see `PdfToolbar`) — the app-wide
- * zoom shortcuts and ctrl/cmd+wheel gesture must leave them alone instead
- * of scaling the whole app UI underneath the PDF's own zoom. */
-export const selectCanZoomAppWide = (state: RootState) => {
-	const currentElement = state.elements.currentElement;
-	return !(
-		currentElement?.type === "learningAsset" &&
-		currentElement.data.type === "pdf"
-	);
-};
+/** A view with its own independent zoom (e.g. the PDF viewer, see
+ * `PdfToolbar`) registers itself via `setZoomOwnedByCurrentView` — the
+ * app-wide zoom shortcuts and ctrl/cmd+wheel gesture must leave it alone
+ * instead of scaling the whole app UI underneath the view's own zoom. */
+export const selectCanZoomAppWide = (state: RootState) =>
+	!state.elements.zoomOwnedByCurrentView;
 
 /** A live element always appears in the tree; trashing removes it (and its
  * whole subtree) from the tree query while leaving the row in place, so

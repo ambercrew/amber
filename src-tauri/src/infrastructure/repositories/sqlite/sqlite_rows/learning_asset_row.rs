@@ -27,13 +27,12 @@ pub struct LearningAssetRow {
     pub r#type: String,
 }
 
-impl From<LearningAssetRow> for LearningAsset {
-    fn from(row: LearningAssetRow) -> Self {
-        LearningAsset {
-            r#type: row
-                .r#type
-                .parse::<LearningAssetType>()
-                .unwrap_or(LearningAssetType::Extracted),
+impl TryFrom<LearningAssetRow> for LearningAsset {
+    type Error = String;
+
+    fn try_from(row: LearningAssetRow) -> Result<Self, Self::Error> {
+        Ok(LearningAsset {
+            r#type: row.r#type.parse::<LearningAssetType>()?,
             meta: Meta {
                 element_id: ElementId::LearningAsset(row.id.into_uuid()),
                 name: row.name,
@@ -58,6 +57,6 @@ impl From<LearningAssetRow> for LearningAsset {
                 block: row.readpoint_block as u32,
             },
             interval_multiplier: row.interval_multiplier as f32,
-        }
+        })
     }
 }

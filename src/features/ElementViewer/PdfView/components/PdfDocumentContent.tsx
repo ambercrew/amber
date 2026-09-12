@@ -13,6 +13,8 @@ import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import { HEADROOM_FIXED_AT } from "../../../App/components/App";
 import { useSetHeadroomOverride } from "../../../App/context/headroomOverrideContext";
 import { ReadPoint } from "../../../../types/elements/readPoint";
+import useAppDispatch from "../../../../hooks/useAppDispatch";
+import { setZoomOwnedByCurrentView } from "../../../../stores/elements/elementsReducer";
 import FindInPageBar from "../../FindInPageBar";
 import { usePdfAnnotationsPersistence } from "../hooks/usePdfAnnotationsPersistence";
 import { usePdfFindInPage } from "../hooks/usePdfFindInPage";
@@ -59,9 +61,18 @@ export default function PdfDocumentContent({
 	learningAssetId,
 	readPoint,
 }: PdfDocumentContentProps) {
+	const dispatch = useAppDispatch();
 	const { activeDocumentId } = useActiveDocument();
 	const documentState = useDocumentState(activeDocumentId);
 	const isLoaded = documentState?.status === "loaded";
+
+	useEffect(() => {
+		dispatch(setZoomOwnedByCurrentView(true));
+		return () => {
+			dispatch(setZoomOwnedByCurrentView(false));
+		};
+	}, [dispatch]);
+
 	usePdfAnnotationsPersistence(activeDocumentId, learningAssetId);
 	usePdfZoomPersistence(
 		isLoaded ? (activeDocumentId ?? null) : null,

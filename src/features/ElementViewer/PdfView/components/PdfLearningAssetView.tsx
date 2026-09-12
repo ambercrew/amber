@@ -37,24 +37,19 @@ export default function PdfLearningAssetView({
 	readPoint,
 	meta,
 }: PdfLearningAssetViewProps) {
-	const [pdfBytesBase64, setPdfBytesBase64] = useState<string | null>(null);
+	const [buffer, setBuffer] = useState<ArrayBuffer | null>(null);
 	const { callApi, errorMessage } = useApi();
 
 	useEffect(() => {
 		let cancelled = false;
 		void callApi(async () => {
 			const { bytesBase64 } = await getPdfBytes(learningAssetId);
-			if (!cancelled) setPdfBytesBase64(bytesBase64);
+			if (!cancelled) setBuffer(base64ToArrayBuffer(bytesBase64));
 		});
 		return () => {
 			cancelled = true;
 		};
 	}, [learningAssetId, callApi]);
-
-	const buffer = useMemo(
-		() => (pdfBytesBase64 ? base64ToArrayBuffer(pdfBytesBase64) : null),
-		[pdfBytesBase64],
-	);
 
 	const { engine, error: engineError } = usePdfiumEngine({
 		wasmUrl: WASM_URL,

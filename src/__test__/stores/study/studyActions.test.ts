@@ -163,7 +163,13 @@ const BASE_STUDY_STATE: StudyState = {
 };
 
 function elementsStateFor(currentElement: AnyElementDto): ElementsState {
-	return { tree: [], isLoading: false, error: null, currentElement };
+	return {
+		tree: [],
+		isLoading: false,
+		error: null,
+		currentElement,
+		zoomOwnedByCurrentView: false,
+	};
 }
 
 function inMs(offsetMs: number): string {

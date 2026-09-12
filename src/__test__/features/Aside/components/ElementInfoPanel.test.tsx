@@ -114,7 +114,13 @@ function emitTauriEvent(event: string) {
 }
 
 function elementsStateFor(currentElement: AnyElementDto): ElementsState {
-	return { tree: [], isLoading: false, error: null, currentElement };
+	return {
+		tree: [],
+		isLoading: false,
+		error: null,
+		currentElement,
+		zoomOwnedByCurrentView: false,
+	};
 }
 
 function renderPanel(currentElement: AnyElementDto, details = makeDetails()) {

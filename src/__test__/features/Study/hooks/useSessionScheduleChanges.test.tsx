@@ -91,6 +91,7 @@ describe("useSessionScheduleChanges", () => {
 					isLoading: false,
 					error: null,
 					currentElement: CARD_ELEMENT,
+					zoomOwnedByCurrentView: false,
 				},
 			},
 		});
@@ -124,6 +125,7 @@ describe("useSessionScheduleChanges", () => {
 					isLoading: false,
 					error: null,
 					currentElement: CARD_ELEMENT,
+					zoomOwnedByCurrentView: false,
 				},
 			},
 		});
