@@ -1,5 +1,5 @@
 export interface PriorityInfoDto {
-	rank: number;
+	position: number;
 	total: number;
-	percentile: number;
+	rank: number;
 }

@@ -11,8 +11,8 @@ describe("ImportPrioritySection", () => {
 		renderWithProviders(
 			<ImportPrioritySection
 				total={10}
-				rank={5}
-				onRankChange={vi.fn()}
+				position={5}
+				onPositionChange={vi.fn()}
 			/>,
 		);
 
@@ -29,8 +29,8 @@ describe("ImportPrioritySection", () => {
 		renderWithProviders(
 			<ImportPrioritySection
 				total={null}
-				rank={null}
-				onRankChange={vi.fn()}
+				position={null}
+				onPositionChange={vi.fn()}
 			/>,
 		);
 		fireEvent.click(screen.getByText("Priority"));
@@ -40,14 +40,14 @@ describe("ImportPrioritySection", () => {
 		expect(screen.queryByLabelText("Position")).not.toBeInTheDocument();
 	});
 
-	it("Should show the slider at the given rank once expanded", async () => {
+	it("Should show the slider at the given position once expanded", async () => {
 		// Arrange
 
 		renderWithProviders(
 			<ImportPrioritySection
 				total={10}
-				rank={5}
-				onRankChange={vi.fn()}
+				position={5}
+				onPositionChange={vi.fn()}
 			/>,
 		);
 
@@ -59,18 +59,18 @@ describe("ImportPrioritySection", () => {
 
 		expect(await screen.findByDisplayValue("44.44%")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("5")).toBeInTheDocument();
-		expect(screen.getByText("Rank 5 of 10")).toBeInTheDocument();
+		expect(screen.getByText("Position 5 of 10")).toBeInTheDocument();
 	});
 
-	it("Should report the new rank when the position input changes", async () => {
+	it("Should report the new position when the position input changes", async () => {
 		// Arrange
 
-		const onRankChange = vi.fn();
+		const onPositionChange = vi.fn();
 		renderWithProviders(
 			<ImportPrioritySection
 				total={10}
-				rank={5}
-				onRankChange={onRankChange}
+				position={5}
+				onPositionChange={onPositionChange}
 			/>,
 		);
 		fireEvent.click(screen.getByText("Priority"));
@@ -82,29 +82,29 @@ describe("ImportPrioritySection", () => {
 
 		// Assert
 
-		await waitFor(() => expect(onRankChange).toHaveBeenCalledWith(1));
+		await waitFor(() => expect(onPositionChange).toHaveBeenCalledWith(1));
 	});
 
-	it("Should report the equivalent rank when the percentile input changes", async () => {
+	it("Should report the equivalent position when the rank input changes", async () => {
 		// Arrange
 
-		const onRankChange = vi.fn();
+		const onPositionChange = vi.fn();
 		renderWithProviders(
 			<ImportPrioritySection
 				total={10}
-				rank={5}
-				onRankChange={onRankChange}
+				position={5}
+				onPositionChange={onPositionChange}
 			/>,
 		);
 		fireEvent.click(screen.getByText("Priority"));
-		const percentileInput = await screen.findByLabelText("Rank");
+		const rankInput = await screen.findByLabelText("Rank");
 
 		// Act
 
-		fireEvent.change(percentileInput, { target: { value: "0%" } });
+		fireEvent.change(rankInput, { target: { value: "0%" } });
 
 		// Assert
 
-		await waitFor(() => expect(onRankChange).toHaveBeenCalledWith(1));
+		await waitFor(() => expect(onPositionChange).toHaveBeenCalledWith(1));
 	});
 });

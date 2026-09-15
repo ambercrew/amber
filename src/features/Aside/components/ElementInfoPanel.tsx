@@ -17,7 +17,7 @@ import { selectCurrentElementDetails } from "../../../stores/elementDetails/elem
 import { loadElementDetailsAction } from "../../../stores/elementDetails/elementDetailsActions";
 import { selectElementRefreshCount } from "../../../stores/sync/syncSelector";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
-import { formatPriorityPercentile } from "../../../utils/formatPriorityPercentile";
+import { formatPriorityRank } from "../../../utils/formatPriorityRank";
 import { ElementId } from "../../../types/elements/elementId";
 import { ElementDetailsResponseDto } from "../../../api/elements/dto/elementDetailsDto";
 import { openPriorityModal } from "../../../stores/app/appReducer";
@@ -137,7 +137,7 @@ function ElementInfoPanel() {
 					<Group gap={4} wrap="nowrap" align="center">
 						<Text size="sm" flex={1}>
 							{details
-								? `${formatPriorityPercentile(details.priority.percentile)} (${details.priority.rank}/${details.priority.total})`
+								? `${formatPriorityRank(details.priority.rank)} (${details.priority.position}/${details.priority.total})`
 								: "—"}
 						</Text>
 						<AppTooltip label="Set priority">

@@ -4,7 +4,7 @@ import AppModal from "../../../components/AppModal/AppModal";
 import PrioritySlider from "../../../components/PrioritySlider/PrioritySlider";
 import { usePriorityControls } from "../../../components/PrioritySlider/usePriorityControls";
 import {
-	setElementPriorityByPercentile,
+	setElementPriorityByPosition,
 	setElementPriorityByRank,
 } from "../../../api/elements/api/elementsApi";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -20,46 +20,44 @@ import { PRIORITY_CHANGED } from "../../../types/events/priorityChangedEvent";
 interface PriorityModalBodyProps {
 	elementId: ElementId;
 	total: number;
+	initialPosition: number;
 	initialRank: number;
-	initialPercentile: number;
 	onCommitted: () => void;
 }
 
 function PriorityModalBody({
 	elementId,
 	total,
+	initialPosition,
 	initialRank,
-	initialPercentile,
 	onCommitted,
 }: PriorityModalBodyProps) {
 	const controls = usePriorityControls({
 		total,
+		initialPosition,
 		initialRank,
-		initialPercentile,
+		onPositionCommit: position => {
+			void setElementPriorityByPosition(elementId, position).then(() => {
+				window.dispatchEvent(new Event(PRIORITY_CHANGED));
+				onCommitted();
+			});
+		},
 		onRankCommit: rank => {
 			void setElementPriorityByRank(elementId, rank).then(() => {
 				window.dispatchEvent(new Event(PRIORITY_CHANGED));
 				onCommitted();
 			});
 		},
-		onPercentileCommit: percentile => {
-			void setElementPriorityByPercentile(elementId, percentile).then(
-				() => {
-					window.dispatchEvent(new Event(PRIORITY_CHANGED));
-					onCommitted();
-				},
-			);
-		},
 	});
 
 	return (
 		<PrioritySlider
 			total={total}
+			position={controls.position}
 			rank={controls.rank}
-			percentile={controls.percentile}
-			percentileStep={controls.percentileStep}
+			rankStep={controls.rankStep}
+			onPositionChange={controls.handlePositionChange}
 			onRankChange={controls.handleRankChange}
-			onPercentileChange={controls.handlePercentileChange}
 			onSliderChange={controls.handleSliderChange}
 			onSliderChangeEnd={controls.handleSliderChangeEnd}
 		/>
@@ -86,11 +84,11 @@ function PriorityModal() {
 			title="Priority">
 			{elementId && details ? (
 				<PriorityModalBody
-					key={`${elementId.id}-${details.priority.rank}-${details.priority.total}`}
+					key={`${elementId.id}-${details.priority.position}-${details.priority.total}`}
 					elementId={elementId}
 					total={details.priority.total}
+					initialPosition={details.priority.position}
 					initialRank={details.priority.rank}
-					initialPercentile={details.priority.percentile}
 					onCommitted={() =>
 						void dispatch(loadElementDetailsAction(elementId))
 					}

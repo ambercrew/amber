@@ -1,63 +1,63 @@
 import { useState } from "react";
 import {
 	clamp,
-	percentileStepFor,
-	percentileToRank,
-	rankToPercentile,
+	rankStepFor,
+	rankToPosition,
+	positionToRank,
 } from "./priorityMath";
 
 interface UsePriorityControlsOptions {
 	total: number;
+	initialPosition: number;
 	initialRank: number;
-	initialPercentile: number;
 	/** Called after the user commits a new position via the "Position" input. */
-	onRankCommit: (rank: number, percentile: number) => void;
-	/** Called after the user commits a new percentile via the "Rank"
+	onPositionCommit: (position: number, rank: number) => void;
+	/** Called after the user commits a new rank via the "Rank"
 	 * input or by releasing the slider. */
-	onPercentileCommit: (percentile: number, rank: number) => void;
+	onRankCommit: (rank: number, position: number) => void;
 }
 
-/** Shared rank/percentile conversion state behind `PrioritySlider`. Callers
+/** Shared position/rank conversion state behind `PrioritySlider`. Callers
  * decide what "commit" means — persisting immediately (`PriorityModal`) or
  * just holding the value for later (the import priority section). */
 export function usePriorityControls({
 	total,
+	initialPosition,
 	initialRank,
-	initialPercentile,
+	onPositionCommit,
 	onRankCommit,
-	onPercentileCommit,
 }: UsePriorityControlsOptions) {
+	const [position, setPosition] = useState(initialPosition);
 	const [rank, setRank] = useState(initialRank);
-	const [percentile, setPercentile] = useState(initialPercentile);
 
-	function handleRankChange(value: string | number) {
-		const newRank = clamp(Number(value) || 1, 1, total);
-		const newPercentile = rankToPercentile(total, newRank);
+	function handlePositionChange(value: string | number) {
+		const newPosition = clamp(Number(value) || 1, 1, total);
+		const newRank = positionToRank(total, newPosition);
+		setPosition(newPosition);
 		setRank(newRank);
-		setPercentile(newPercentile);
-		onRankCommit(newRank, newPercentile);
+		onPositionCommit(newPosition, newRank);
 	}
 
-	function handlePercentileChange(value: string | number) {
-		const newPercentile = clamp(Number(value) || 0, 0, 100);
-		const newRank = percentileToRank(total, newPercentile);
-		setRank(newRank);
-		setPercentile(rankToPercentile(total, newRank));
-		onPercentileCommit(newPercentile, newRank);
+	function handleRankChange(value: string | number) {
+		const newRank = clamp(Number(value) || 0, 0, 100);
+		const newPosition = rankToPosition(total, newRank);
+		setPosition(newPosition);
+		setRank(positionToRank(total, newPosition));
+		onRankCommit(newRank, newPosition);
 	}
 
 	function handleSliderChange(value: number) {
-		setPercentile(value);
-		setRank(percentileToRank(total, value));
+		setRank(value);
+		setPosition(rankToPosition(total, value));
 	}
 
 	return {
+		position,
 		rank,
-		percentile,
-		percentileStep: percentileStepFor(total),
+		rankStep: rankStepFor(total),
+		handlePositionChange,
 		handleRankChange,
-		handlePercentileChange,
 		handleSliderChange,
-		handleSliderChangeEnd: handlePercentileChange,
+		handleSliderChangeEnd: handleRankChange,
 	};
 }

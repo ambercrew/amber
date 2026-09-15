@@ -21,7 +21,7 @@ export async function createImportedLearningAsset(
 			},
 			type: "extracted",
 			splits: splitContent(content).map(html => htmlToLexicalJson(html)),
-			initialPriorityRank: ctx.priorityRank,
+			initialPriorityPosition: ctx.priorityPosition,
 		}),
 	);
 	await ctx.navigate(paths.element("learningAsset", id));

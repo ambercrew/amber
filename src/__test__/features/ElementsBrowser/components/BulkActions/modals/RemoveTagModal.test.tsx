@@ -21,7 +21,7 @@ const SELECTED_RESULTS: SearchElementResultDto[] = [
 		type: "learningAsset",
 		id: "asset-1",
 		name: "Asset one",
-		priority: { rank: 1, total: 2, percentile: 100 },
+		priority: { position: 1, total: 2, rank: 100 },
 		due: null,
 		tags: [
 			{ name: "math", ...TAG_TIMESTAMPS },
@@ -32,7 +32,7 @@ const SELECTED_RESULTS: SearchElementResultDto[] = [
 		type: "learningAsset",
 		id: "asset-2",
 		name: "Asset two",
-		priority: { rank: 2, total: 2, percentile: 50 },
+		priority: { position: 2, total: 2, rank: 50 },
 		due: null,
 		tags: [{ name: "math", ...TAG_TIMESTAMPS }],
 	},

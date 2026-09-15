@@ -5,7 +5,7 @@ import {
 import { BibliographicalSourceResponseDto } from "../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
 import { elementTypeOptions } from "./elementTypeOptions";
-import { formatPriorityPercentileRange } from "../../../utils/formatPriorityPercentile";
+import { formatPriorityRankRange } from "../../../utils/formatPriorityRank";
 
 export interface FilterDisplay {
 	operatorLabel: string;
@@ -107,10 +107,7 @@ export function describeFilter(
 		case "priority":
 			return {
 				operatorLabel: "",
-				valueLabel: formatPriorityPercentileRange(
-					filter.min,
-					filter.max,
-				),
+				valueLabel: formatPriorityRankRange(filter.min, filter.max),
 			};
 	}
 }

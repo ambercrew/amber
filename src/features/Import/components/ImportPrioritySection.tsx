@@ -10,14 +10,14 @@ import {
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import PrioritySlider from "../../../components/PrioritySlider/PrioritySlider";
 import { usePriorityControls } from "../../../components/PrioritySlider/usePriorityControls";
-import { rankToPercentile } from "../../../components/PrioritySlider/priorityMath";
+import { positionToRank } from "../../../components/PrioritySlider/priorityMath";
 
 interface ImportPrioritySectionProps {
 	/** Queue size the new element would join, including itself, or `null`
 	 * while that's still being fetched. */
 	total: number | null;
-	rank: number | null;
-	onRankChange: (rank: number) => void;
+	position: number | null;
+	onPositionChange: (position: number) => void;
 }
 
 /** Collapsible "Priority" section for the import modal — new imports default
@@ -25,8 +25,8 @@ interface ImportPrioritySectionProps {
  * lets the user override that before importing. */
 function ImportPrioritySection({
 	total,
-	rank,
-	onRankChange,
+	position,
+	onPositionChange,
 }: ImportPrioritySectionProps) {
 	const [opened, setOpened] = useState(false);
 
@@ -45,13 +45,13 @@ function ImportPrioritySection({
 				</Group>
 			</UnstyledButton>
 			<Collapse expanded={opened}>
-				{total === null || rank === null ? (
+				{total === null || position === null ? (
 					<Loader size="xs" />
 				) : (
 					<PrioritySliderControlled
 						total={total}
-						rank={rank}
-						onRankChange={onRankChange}
+						position={position}
+						onPositionChange={onPositionChange}
 					/>
 				)}
 			</Collapse>
@@ -61,33 +61,33 @@ function ImportPrioritySection({
 
 interface PrioritySliderControlledProps {
 	total: number;
-	rank: number;
-	onRankChange: (rank: number) => void;
+	position: number;
+	onPositionChange: (position: number) => void;
 }
 
-/** Bridges the create-time `total`/`rank` pair (no element id to persist
+/** Bridges the create-time `total`/`position` pair (no element id to persist
  * against yet) to the shared `PrioritySlider` controls. */
 function PrioritySliderControlled({
 	total,
-	rank,
-	onRankChange,
+	position,
+	onPositionChange,
 }: PrioritySliderControlledProps) {
 	const controls = usePriorityControls({
 		total,
-		initialRank: rank,
-		initialPercentile: rankToPercentile(total, rank),
-		onRankCommit: newRank => onRankChange(newRank),
-		onPercentileCommit: (_percentile, newRank) => onRankChange(newRank),
+		initialPosition: position,
+		initialRank: positionToRank(total, position),
+		onPositionCommit: newPosition => onPositionChange(newPosition),
+		onRankCommit: (_rank, newPosition) => onPositionChange(newPosition),
 	});
 
 	return (
 		<PrioritySlider
 			total={total}
+			position={controls.position}
 			rank={controls.rank}
-			percentile={controls.percentile}
-			percentileStep={controls.percentileStep}
+			rankStep={controls.rankStep}
+			onPositionChange={controls.handlePositionChange}
 			onRankChange={controls.handleRankChange}
-			onPercentileChange={controls.handlePercentileChange}
 			onSliderChange={controls.handleSliderChange}
 			onSliderChangeEnd={controls.handleSliderChangeEnd}
 		/>

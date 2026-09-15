@@ -59,7 +59,7 @@ const DETAILS: ElementDetailsResponseDto = {
 	},
 	profiles: [PROFILE],
 	inheritedProfileName: null,
-	priority: { rank: 1, total: 1, percentile: 0 },
+	priority: { position: 1, total: 1, rank: 0 },
 };
 
 describe("loadCurrentElementAction", () => {

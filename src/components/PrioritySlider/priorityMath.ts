@@ -2,18 +2,18 @@ export function clamp(value: number, min: number, max: number): number {
 	return Math.min(Math.max(value, min), max);
 }
 
-/** The percentile gap between two adjacent ranks, so stepping the controls
+/** The rank gap between two adjacent positions, so stepping the controls
  * moves priority by exactly one element. */
-export function percentileStepFor(total: number): number {
+export function rankStepFor(total: number): number {
 	return total <= 1 ? 1 : 100 / (total - 1);
 }
 
-export function rankToPercentile(total: number, rank: number): number {
-	return total <= 1 ? 0 : ((rank - 1) / (total - 1)) * 100;
+export function positionToRank(total: number, position: number): number {
+	return total <= 1 ? 0 : ((position - 1) / (total - 1)) * 100;
 }
 
-export function percentileToRank(total: number, percentile: number): number {
+export function rankToPosition(total: number, rank: number): number {
 	return total <= 1
 		? 1
-		: clamp(Math.round((percentile / 100) * (total - 1)) + 1, 1, total);
+		: clamp(Math.round((rank / 100) * (total - 1)) + 1, 1, total);
 }

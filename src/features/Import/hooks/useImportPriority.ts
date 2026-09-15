@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { getPriorityQueueSize } from "../../../api/elements/api/elementsApi";
-import { percentileToRank } from "../../../components/PrioritySlider/priorityMath";
-import { DEFAULT_IMPORT_PRIORITY_PERCENTILE } from "../importContext";
+import { rankToPosition } from "../../../components/PrioritySlider/priorityMath";
+import { DEFAULT_IMPORT_PRIORITY_RANK } from "../importContext";
 
-/** Queue size (including the element about to be created) and the rank
+/** Queue size (including the element about to be created) and the position
  * within it new imports will take. Fetched once per time the import modal
  * opens so the default (~50%) is ready before the user ever touches the
  * collapsible priority section. */
 export function useImportPriority(opened: boolean) {
 	const [total, setTotal] = useState<number | null>(null);
-	const [rank, setRank] = useState<number | null>(null);
+	const [position, setPosition] = useState<number | null>(null);
 	const customizedRef = useRef(false);
 	const totalFetchRef = useRef<Promise<number> | null>(null);
 
@@ -27,36 +27,30 @@ export function useImportPriority(opened: boolean) {
 		void fetchTotal().then(newTotal => {
 			setTotal(newTotal);
 			if (!customizedRef.current) {
-				setRank(
-					percentileToRank(
-						newTotal,
-						DEFAULT_IMPORT_PRIORITY_PERCENTILE,
-					),
+				setPosition(
+					rankToPosition(newTotal, DEFAULT_IMPORT_PRIORITY_RANK),
 				);
 			}
 		});
 	}, [opened]);
 
-	function handleRankChange(newRank: number) {
+	function handlePositionChange(newPosition: number) {
 		customizedRef.current = true;
-		setRank(newRank);
+		setPosition(newPosition);
 	}
 
-	async function resolveRank(): Promise<number> {
-		if (rank !== null) return rank;
+	async function resolvePosition(): Promise<number> {
+		if (position !== null) return position;
 		const resolvedTotal = await fetchTotal();
-		return percentileToRank(
-			resolvedTotal,
-			DEFAULT_IMPORT_PRIORITY_PERCENTILE,
-		);
+		return rankToPosition(resolvedTotal, DEFAULT_IMPORT_PRIORITY_RANK);
 	}
 
 	function reset() {
 		setTotal(null);
-		setRank(null);
+		setPosition(null);
 		customizedRef.current = false;
 		totalFetchRef.current = null;
 	}
 
-	return { total, rank, handleRankChange, resolveRank, reset };
+	return { total, position, handlePositionChange, resolvePosition, reset };
 }

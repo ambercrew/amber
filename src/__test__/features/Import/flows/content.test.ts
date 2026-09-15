@@ -13,7 +13,7 @@ function makeCtx(): ImportContext {
 		dispatch: vi.fn() as unknown as ImportContext["dispatch"],
 		navigate: vi.fn() as unknown as ImportContext["navigate"],
 		parent: null,
-		priorityRank: 5,
+		priorityPosition: 5,
 	};
 }
 
