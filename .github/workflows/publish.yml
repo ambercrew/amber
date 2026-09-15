@@ -252,6 +252,8 @@ jobs:
 
       - name: setup Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools"
 
       - name: install NDK
         run: sdkmanager "ndk;27.0.12077973"
@@ -292,6 +294,17 @@ jobs:
             src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # For configuring the service account:
+      # https://github.com/r0adkll/upload-google-play#configure-access-via-service-account
+      - name: Publish to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: dev.amberapp.amber
+          releaseFiles: src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+          tracks: alpha
+          status: draft
 
   update-latest-tag:
     needs: [create-release, publish-tauri, publish-tauri-android]
