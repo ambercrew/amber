@@ -10,11 +10,12 @@ use crate::elements::value_objects::element_id::ElementId;
 /// Where an element currently stands in the global priority queue.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PriorityInfo {
-    /// 1-based rank among all elements; 1 is the very front of the queue.
-    pub rank: i64,
+    /// 1-based position among all elements; 1 is the very front of the queue.
+    pub position: i64,
     pub total: i64,
-    /// 0.00 (highest priority) .. 100.00 (lowest priority).
-    pub percentage: f64,
+    /// Percentile: 0.00 (highest priority) .. 100.00 (lowest priority),
+    /// computed as (position - 1) / (total - 1) * 100.
+    pub percentile: f64,
 }
 
 #[async_trait]
@@ -48,21 +49,28 @@ pub trait PriorityService: Send + Sync {
         old_priorities_ascending: &[FractionalIndex],
     ) -> Result<Vec<FractionalIndex>, PriorityError>;
 
-    /// Moves the element to the given 1-based rank among all elements
+    /// Moves the element to the given 1-based position among all elements
     /// (clamped to the valid range).
-    async fn set_priority_by_rank(&self, id: ElementId, rank: i64) -> Result<(), PriorityError>;
-
-    /// Moves the element to the given percentage (0..100, clamped) of the queue.
-    async fn set_priority_by_percentage(
+    async fn set_priority_by_position(
         &self,
         id: ElementId,
-        percentage: f64,
+        position: i64,
     ) -> Result<(), PriorityError>;
 
-    /// Priority for a brand new element inserted at the given 1-based rank
+    /// Moves the element to the given percentile (0..100, clamped) of the queue.
+    async fn set_priority_by_percentile(
+        &self,
+        id: ElementId,
+        percentile: f64,
+    ) -> Result<(), PriorityError>;
+
+    /// Priority for a brand new element inserted at the given 1-based position
     /// (clamped to 1..=queue size + 1, since the new element hasn't been
     /// counted yet), rather than at the front.
-    async fn get_priority_for_rank(&self, rank: i64) -> Result<FractionalIndex, PriorityError>;
+    async fn get_priority_for_position(
+        &self,
+        position: i64,
+    ) -> Result<FractionalIndex, PriorityError>;
 
     /// Current size of the priority queue (number of live elements).
     async fn get_queue_size(&self) -> Result<i64, PriorityError>;

@@ -88,9 +88,9 @@ impl SearchRepository for SqliteSearchRepository {
             let priority = priority_by_element_id
                 .remove(&element_id)
                 .unwrap_or(PriorityInfo {
-                    rank: 0,
+                    position: 0,
                     total: 0,
-                    percentage: 0.0,
+                    percentile: 0.0,
                 });
             results.push(ElementSearchResult {
                 tags: tags_by_element_id
@@ -106,8 +106,8 @@ impl SearchRepository for SqliteSearchRepository {
         for filter in filters {
             if let ElementFilter::Priority { min, max, .. } = filter {
                 results.retain(|result| {
-                    let percentage = result.priority.percentage;
-                    percentage >= *min as f64 && percentage <= *max as f64
+                    let percentile = result.priority.percentile;
+                    percentile >= *min as f64 && percentile <= *max as f64
                 });
             }
         }
@@ -270,7 +270,7 @@ fn push_filter_clause(query_builder: &mut QueryBuilder<Sqlite>, filter: &Element
         }
         ElementFilter::Priority { .. } => {
             // Applied in-memory after the query, since it depends on the
-            // computed rank/total which can't be referenced from WHERE.
+            // computed position/total which can't be referenced from WHERE.
             query_builder.push("1 = 1");
         }
         ElementFilter::StudyProfile {
@@ -618,7 +618,7 @@ mod tests {
         assert_eq!(2, results.len());
         assert_eq!(first_id, results[0].element_id);
         assert_eq!(second_id, results[1].element_id);
-        assert_eq!(1, results[0].priority.rank);
+        assert_eq!(1, results[0].priority.position);
         assert_eq!(2, results[0].priority.total);
     }
 
@@ -758,7 +758,7 @@ mod tests {
         folder_repository.create(second).await.unwrap();
         folder_repository.create(third).await.unwrap();
 
-        // rank 1 -> 33.3%, rank 2 -> 66.6%, rank 3 -> 100%
+        // position 1 -> percentile 0%, position 2 -> percentile 50%, position 3 -> percentile 100%
         let filters = vec![ElementFilter::Priority {
             id: Uuid::new_v4(),
             operator:

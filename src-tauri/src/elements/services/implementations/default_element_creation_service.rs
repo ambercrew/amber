@@ -96,8 +96,12 @@ impl ElementCreationService for DefaultElementCreationService {
         let element_id = ElementId::LearningAsset(dto.id);
         let parent = dto.meta.parent;
         let position = self.index_service.get_new_last_index(parent).await?;
-        let priority = match dto.initial_priority_rank {
-            Some(rank) => self.priority_service.get_priority_for_rank(rank).await?,
+        let priority = match dto.initial_priority_position {
+            Some(position) => {
+                self.priority_service
+                    .get_priority_for_position(position)
+                    .await?
+            }
             None => self.priority_service.get_new_first_priority().await?,
         };
         let now = Utc::now();
@@ -507,7 +511,7 @@ mod tests {
             pdf_bytes_base64: None,
             pdf_page_count: None,
             splits: Vec::new(),
-            initial_priority_rank: None,
+            initial_priority_position: None,
         };
         let element_id = ElementId::LearningAsset(dto.id);
 
@@ -542,7 +546,7 @@ mod tests {
             pdf_bytes_base64: Some(general_purpose::STANDARD.encode(b"%PDF-1.4")),
             pdf_page_count: Some(0),
             splits: Vec::new(),
-            initial_priority_rank: None,
+            initial_priority_position: None,
         };
 
         // Act
@@ -558,7 +562,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_learning_asset_with_initial_priority_rank_does_not_take_the_front() {
+    async fn create_learning_asset_with_initial_priority_position_does_not_take_the_front() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -576,7 +580,7 @@ mod tests {
             pdf_bytes_base64: None,
             pdf_page_count: None,
             splits: Vec::new(),
-            initial_priority_rank: None,
+            initial_priority_position: None,
         };
         service.create_learning_asset(existing_dto).await.unwrap();
 
@@ -587,11 +591,11 @@ mod tests {
             pdf_bytes_base64: None,
             pdf_page_count: None,
             splits: Vec::new(),
-            initial_priority_rank: Some(2),
+            initial_priority_position: Some(2),
         };
         let element_id = ElementId::LearningAsset(dto.id);
 
-        // Act — rank 2 of the resulting 2 elements, i.e. the back.
+        // Act — position 2 of the resulting 2 elements, i.e. the back.
 
         service.create_learning_asset(dto).await.unwrap();
 
@@ -703,7 +707,7 @@ mod tests {
             pdf_bytes_base64: None,
             pdf_page_count: None,
             splits: Vec::new(),
-            initial_priority_rank: None,
+            initial_priority_position: None,
         };
         let learning_asset_id = dto.id;
 
@@ -799,7 +803,7 @@ mod tests {
             pdf_bytes_base64: None,
             pdf_page_count: None,
             splits: Vec::new(),
-            initial_priority_rank: None,
+            initial_priority_position: None,
         };
         let element_id = ElementId::LearningAsset(dto.id);
 

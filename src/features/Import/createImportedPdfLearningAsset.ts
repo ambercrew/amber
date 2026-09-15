@@ -22,7 +22,7 @@ export async function createImportedPdfLearningAsset(
 			pdfBytesBase64,
 			pdfPageCount,
 			splits: [],
-			initialPriorityRank: ctx.priorityRank,
+			initialPriorityPosition: ctx.priorityPosition,
 		}),
 	);
 	await ctx.navigate(paths.element("learningAsset", id));

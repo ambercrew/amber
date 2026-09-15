@@ -157,20 +157,20 @@ export function updateIntervalMultiplier(
 	});
 }
 
-export function setElementPriorityByRank(
+export function setElementPriorityByPosition(
 	elementId: ElementId,
-	rank: number,
+	position: number,
 ): Promise<void> {
-	return invoke("set_element_priority_by_rank", { elementId, rank });
+	return invoke("set_element_priority_by_position", { elementId, position });
 }
 
-export function setElementPriorityByPercentage(
+export function setElementPriorityByPercentile(
 	elementId: ElementId,
-	percentage: number,
+	percentile: number,
 ): Promise<void> {
-	return invoke("set_element_priority_by_percentage", {
+	return invoke("set_element_priority_by_percentile", {
 		elementId,
-		percentage,
+		percentile,
 	});
 }
 

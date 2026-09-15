@@ -6,7 +6,7 @@ export interface CreateLearningAssetDto {
 	meta: CreateMetaDto;
 	type: LearningAssetType;
 	splits: string[];
-	initialPriorityRank?: number;
+	initialPriorityPosition?: number;
 	pdfBytesBase64?: string;
 	pdfPageCount?: number;
 }

@@ -102,7 +102,7 @@ function ImportModal() {
 			dispatch,
 			navigate,
 			parent: currentElement?.data.meta.elementId ?? null,
-			priorityRank: await priority.resolveRank(),
+			priorityPosition: await priority.resolvePosition(),
 		};
 	}
 
@@ -402,8 +402,10 @@ function ImportModal() {
 							<div style={CLICKABLE_STYLE}>
 								<ImportPrioritySection
 									total={priority.total}
-									rank={priority.rank}
-									onRankChange={priority.handleRankChange}
+									position={priority.position}
+									onPositionChange={
+										priority.handlePositionChange
+									}
 								/>
 							</div>
 							<Group justify="flex-end">

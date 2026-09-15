@@ -1,31 +1,31 @@
 import { NumberInput, Slider, Stack, Text } from "@mantine/core";
 import {
-	formatPriorityPercentage,
-	PRIORITY_PERCENTAGE_DECIMALS,
-} from "../../utils/formatPriorityPercentage";
+	formatPriorityPercentile,
+	PRIORITY_PERCENTILE_DECIMALS,
+} from "../../utils/formatPriorityPercentile";
 import styles from "./PrioritySlider.module.css";
 
 interface PrioritySliderProps {
 	total: number;
-	rank: number;
-	percentage: number;
-	percentageStep: number;
-	onRankChange: (value: string | number) => void;
-	onPercentageChange: (value: string | number) => void;
+	position: number;
+	percentile: number;
+	percentileStep: number;
+	onPositionChange: (value: string | number) => void;
+	onPercentileChange: (value: string | number) => void;
 	onSliderChange: (value: number) => void;
 	onSliderChangeEnd: (value: number) => void;
 }
 
-/** Position + percentage inputs paired with a priority slider, shared between
+/** Position + percentile inputs paired with a priority slider, shared between
  * `PriorityModal` (repositions an existing element) and the import priority
  * section (chooses where a new element will land). */
 function PrioritySlider({
 	total,
-	rank,
-	percentage,
-	percentageStep,
-	onRankChange,
-	onPercentageChange,
+	position,
+	percentile,
+	percentileStep,
+	onPositionChange,
+	onPercentileChange,
 	onSliderChange,
 	onSliderChangeEnd,
 }: PrioritySliderProps) {
@@ -36,27 +36,27 @@ function PrioritySlider({
 				description={`1 (highest priority) – ${total} (lowest priority)`}
 				min={1}
 				max={total}
-				value={rank}
-				onChange={onRankChange}
+				value={position}
+				onChange={onPositionChange}
 			/>
 			<NumberInput
-				label="Percentage"
-				decimalScale={PRIORITY_PERCENTAGE_DECIMALS}
+				label="Percentile"
+				decimalScale={PRIORITY_PERCENTILE_DECIMALS}
 				fixedDecimalScale
 				suffix="%"
 				min={0}
 				max={100}
-				step={percentageStep}
-				value={Math.round(percentage * 100) / 100}
-				onChange={onPercentageChange}
+				step={percentileStep}
+				value={Math.round(percentile * 100) / 100}
+				onChange={onPercentileChange}
 			/>
 			<Stack gap={4} style={{ overflowX: "clip" }}>
 				<Slider
-					value={percentage}
+					value={percentile}
 					min={0}
 					max={100}
-					step={percentageStep}
-					label={formatPriorityPercentage}
+					step={percentileStep}
+					label={formatPriorityPercentile}
 					onChange={onSliderChange}
 					onChangeEnd={onSliderChangeEnd}
 					classNames={{ track: styles["gradient-track"] }}
@@ -65,7 +65,7 @@ function PrioritySlider({
 					}}
 				/>
 				<Text size="xs" c="dimmed">
-					Rank {rank} of {total}
+					Position {position} of {total}
 				</Text>
 			</Stack>
 		</Stack>
