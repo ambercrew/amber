@@ -9,7 +9,8 @@ export function rankStepFor(total: number): number {
 }
 
 export function positionToRank(total: number, position: number): number {
-	return total <= 1 ? 0 : ((position - 1) / (total - 1)) * 100;
+	// Multiply before dividing so whole-number ranks stay exact.
+	return total <= 1 ? 0 : ((position - 1) * 100) / (total - 1);
 }
 
 export function rankToPosition(total: number, rank: number): number {

@@ -302,7 +302,8 @@ fn priority_info(position: i64, total: i64) -> PriorityInfo {
     let rank = if total <= 1 {
         0.0
     } else {
-        ((position - 1) as f64) / ((total - 1) as f64) * 100.0
+        // Multiply before dividing so whole-number ranks stay exact for filter comparisons.
+        ((position - 1) * 100) as f64 / (total - 1) as f64
     };
     PriorityInfo {
         position,
@@ -475,6 +476,22 @@ mod tests {
         assert_eq!(1, info.position);
         assert_eq!(1, info.total);
         assert_eq!(0.0, info.rank);
+    }
+
+    #[test]
+    fn priority_info_whole_number_rank_is_exact() {
+        // Arrange
+
+        let position = 30;
+        let total = 101;
+
+        // Act
+
+        let info = priority_info(position, total);
+
+        // Assert
+
+        assert_eq!(29.0, info.rank);
     }
 
     #[tokio::test]
