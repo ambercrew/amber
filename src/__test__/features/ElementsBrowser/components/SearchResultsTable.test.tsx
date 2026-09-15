@@ -10,7 +10,7 @@ const CARD_RESULT: SearchElementResultDto = {
 	type: "card",
 	id: "card-1",
 	name: "Card one",
-	priority: { rank: 1, total: 10, percentage: 50 },
+	priority: { rank: 1, total: 10, percentile: 50 },
 	due: "2026-01-01T00:00:00.000Z",
 	tags: [
 		{
@@ -25,7 +25,7 @@ const EXTRACT_RESULT: SearchElementResultDto = {
 	type: "extract",
 	id: "extract-1",
 	name: "Extract one",
-	priority: { rank: 2, total: 10, percentage: 25.5 },
+	priority: { rank: 2, total: 10, percentile: 25.5 },
 	due: null,
 	tags: [],
 };
@@ -34,7 +34,7 @@ const FOLDER_RESULT: SearchElementResultDto = {
 	type: "folder",
 	id: "folder-1",
 	name: "Folder one",
-	priority: { rank: 3, total: 10, percentage: 10 },
+	priority: { rank: 3, total: 10, percentile: 10 },
 	due: null,
 	tags: [],
 };

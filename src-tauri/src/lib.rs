@@ -184,7 +184,7 @@ pub async fn run() {
             remove_tag_bulk,
             clear_derived_from,
             set_element_priority_by_rank,
-            set_element_priority_by_percentage,
+            set_element_priority_by_percentile,
             get_priority_queue_size,
             create_folder,
             create_learning_asset,

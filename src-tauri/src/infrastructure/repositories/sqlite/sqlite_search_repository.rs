@@ -90,7 +90,7 @@ impl SearchRepository for SqliteSearchRepository {
                 .unwrap_or(PriorityInfo {
                     rank: 0,
                     total: 0,
-                    percentage: 0.0,
+                    percentile: 0.0,
                 });
             results.push(ElementSearchResult {
                 tags: tags_by_element_id
@@ -106,8 +106,8 @@ impl SearchRepository for SqliteSearchRepository {
         for filter in filters {
             if let ElementFilter::Priority { min, max, .. } = filter {
                 results.retain(|result| {
-                    let percentage = result.priority.percentage;
-                    percentage >= *min as f64 && percentage <= *max as f64
+                    let percentile = result.priority.percentile;
+                    percentile >= *min as f64 && percentile <= *max as f64
                 });
             }
         }

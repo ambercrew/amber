@@ -164,13 +164,13 @@ export function setElementPriorityByRank(
 	return invoke("set_element_priority_by_rank", { elementId, rank });
 }
 
-export function setElementPriorityByPercentage(
+export function setElementPriorityByPercentile(
 	elementId: ElementId,
-	percentage: number,
+	percentile: number,
 ): Promise<void> {
-	return invoke("set_element_priority_by_percentage", {
+	return invoke("set_element_priority_by_percentile", {
 		elementId,
-		percentage,
+		percentile,
 	});
 }
 

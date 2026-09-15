@@ -4,7 +4,7 @@ import AppModal from "../../../components/AppModal/AppModal";
 import PrioritySlider from "../../../components/PrioritySlider/PrioritySlider";
 import { usePriorityControls } from "../../../components/PrioritySlider/usePriorityControls";
 import {
-	setElementPriorityByPercentage,
+	setElementPriorityByPercentile,
 	setElementPriorityByRank,
 } from "../../../api/elements/api/elementsApi";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -21,7 +21,7 @@ interface PriorityModalBodyProps {
 	elementId: ElementId;
 	total: number;
 	initialRank: number;
-	initialPercentage: number;
+	initialPercentile: number;
 	onCommitted: () => void;
 }
 
@@ -29,21 +29,21 @@ function PriorityModalBody({
 	elementId,
 	total,
 	initialRank,
-	initialPercentage,
+	initialPercentile,
 	onCommitted,
 }: PriorityModalBodyProps) {
 	const controls = usePriorityControls({
 		total,
 		initialRank,
-		initialPercentage,
+		initialPercentile,
 		onRankCommit: rank => {
 			void setElementPriorityByRank(elementId, rank).then(() => {
 				window.dispatchEvent(new Event(PRIORITY_CHANGED));
 				onCommitted();
 			});
 		},
-		onPercentageCommit: percentage => {
-			void setElementPriorityByPercentage(elementId, percentage).then(
+		onPercentileCommit: percentile => {
+			void setElementPriorityByPercentile(elementId, percentile).then(
 				() => {
 					window.dispatchEvent(new Event(PRIORITY_CHANGED));
 					onCommitted();
@@ -56,10 +56,10 @@ function PriorityModalBody({
 		<PrioritySlider
 			total={total}
 			rank={controls.rank}
-			percentage={controls.percentage}
-			percentageStep={controls.percentageStep}
+			percentile={controls.percentile}
+			percentileStep={controls.percentileStep}
 			onRankChange={controls.handleRankChange}
-			onPercentageChange={controls.handlePercentageChange}
+			onPercentileChange={controls.handlePercentileChange}
 			onSliderChange={controls.handleSliderChange}
 			onSliderChangeEnd={controls.handleSliderChangeEnd}
 		/>
@@ -90,7 +90,7 @@ function PriorityModal() {
 					elementId={elementId}
 					total={details.priority.total}
 					initialRank={details.priority.rank}
-					initialPercentage={details.priority.percentage}
+					initialPercentile={details.priority.percentile}
 					onCommitted={() =>
 						void dispatch(loadElementDetailsAction(elementId))
 					}

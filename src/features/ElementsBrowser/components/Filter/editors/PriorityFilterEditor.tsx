@@ -2,9 +2,9 @@ import { RangeSlider, Stack, Text } from "@mantine/core";
 import { PriorityFilter } from "../../../../../api/savedSearches/dto/elementFilter";
 import { FILTER_EDITOR_WIDTH } from "../../../config/constants";
 import {
-	formatPriorityPercentage,
-	formatPriorityPercentageRange,
-} from "../../../../../utils/formatPriorityPercentage";
+	formatPriorityPercentile,
+	formatPriorityPercentileRange,
+} from "../../../../../utils/formatPriorityPercentile";
 
 export default function PriorityFilterEditor({
 	filter,
@@ -16,7 +16,7 @@ export default function PriorityFilterEditor({
 	return (
 		<Stack gap="xs" w={FILTER_EDITOR_WIDTH}>
 			<Text size="sm" c="dimmed">
-				Priority {formatPriorityPercentageRange(filter.min, filter.max)}
+				Priority {formatPriorityPercentileRange(filter.min, filter.max)}
 			</Text>
 			<RangeSlider
 				min={0}
@@ -24,7 +24,7 @@ export default function PriorityFilterEditor({
 				minRange={1}
 				value={[filter.min, filter.max]}
 				onChange={([min, max]) => onChange({ ...filter, min, max })}
-				label={formatPriorityPercentage}
+				label={formatPriorityPercentile}
 			/>
 		</Stack>
 	);

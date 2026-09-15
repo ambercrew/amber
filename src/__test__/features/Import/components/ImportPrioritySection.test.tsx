@@ -57,7 +57,7 @@ describe("ImportPrioritySection", () => {
 
 		// Assert
 
-		expect(await screen.findByDisplayValue("50.00%")).toBeInTheDocument();
+		expect(await screen.findByDisplayValue("44.44%")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("5")).toBeInTheDocument();
 		expect(screen.getByText("Rank 5 of 10")).toBeInTheDocument();
 	});
@@ -85,7 +85,7 @@ describe("ImportPrioritySection", () => {
 		await waitFor(() => expect(onRankChange).toHaveBeenCalledWith(1));
 	});
 
-	it("Should report the equivalent rank when the percentage input changes", async () => {
+	it("Should report the equivalent rank when the percentile input changes", async () => {
 		// Arrange
 
 		const onRankChange = vi.fn();
@@ -97,11 +97,11 @@ describe("ImportPrioritySection", () => {
 			/>,
 		);
 		fireEvent.click(screen.getByText("Priority"));
-		const percentageInput = await screen.findByLabelText("Percentage");
+		const percentileInput = await screen.findByLabelText("Rank");
 
 		// Act
 
-		fireEvent.change(percentageInput, { target: { value: "0%" } });
+		fireEvent.change(percentileInput, { target: { value: "0%" } });
 
 		// Assert
 
