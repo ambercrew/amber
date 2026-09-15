@@ -5,8 +5,6 @@ import { createDOMRange } from "@lexical/selection";
 import { findMatches } from "./findMatches";
 import { buildOffsetMap, offsetToPoint } from "./offsetToPoint";
 import { searchHighlightRegistry } from "./searchHighlightRegistry";
-// Side-effect import: registers the ::highlight() rules this plugin relies on.
-import "./SearchHighlight.module.css";
 
 interface SearchHighlightPluginProps {
 	/** Unique key identifying this editor instance among any others on screen. */

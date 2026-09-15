@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-	searchHighlightRegistry,
-	supportsHighlightApi,
-} from "./searchHighlightRegistry";
+import { searchHighlightRegistry } from "./searchHighlightRegistry";
 import styles from "./SearchHighlightOverlay.module.css";
 
 interface Box {
@@ -50,17 +47,14 @@ function sameBoxes(a: Box[], b: Box[]): boolean {
 }
 
 /**
- * Fallback renderer for browsers without the CSS Custom Highlight API
- * (notably some Android system WebViews and Windows machines on an
- * outdated WebView2 runtime) — paints the same ranges as absolutely
- * positioned boxes instead of relying on `::highlight()`.
+ * Paints find-in-page matches as fixed-position boxes over the text. Used
+ * instead of the CSS Custom Highlight API, which some Android WebViews and
+ * outdated WebView2 runtimes lack.
  */
 export default function SearchHighlightOverlay() {
 	const [boxes, setBoxes] = useState<Box[]>([]);
 
 	useEffect(() => {
-		if (supportsHighlightApi()) return;
-
 		let raf = 0;
 		let previous: Box[] = [];
 		let listening = false;
@@ -171,17 +165,10 @@ export default function SearchHighlightOverlay() {
 		};
 	}, []);
 
-	if (supportsHighlightApi() || boxes.length === 0) return null;
+	if (boxes.length === 0) return null;
 
 	return (
-		<div
-			aria-hidden
-			style={{
-				position: "fixed",
-				inset: 0,
-				zIndex: 150,
-				pointerEvents: "none",
-			}}>
+		<div aria-hidden className={styles.layer}>
 			{boxes.map((box, index) => (
 				<div
 					key={index}

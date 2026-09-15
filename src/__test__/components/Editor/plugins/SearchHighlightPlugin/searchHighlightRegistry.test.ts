@@ -1,35 +1,12 @@
-import {
-	ALL_HIGHLIGHT_NAME,
-	CURRENT_HIGHLIGHT_NAME,
-	searchHighlightRegistry,
-} from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
-
-// jsdom doesn't implement the CSS Custom Highlight API, so it's polyfilled
-// here with a real Map-backed stand-in that records what was set.
-class FakeHighlight {
-	ranges: Range[];
-	constructor(...ranges: Range[]) {
-		this.ranges = ranges;
-	}
-}
+import { searchHighlightRegistry } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
 
 function makeRange(): Range {
 	return {} as Range;
 }
 
 beforeEach(() => {
-	(globalThis as unknown as { Highlight: typeof FakeHighlight }).Highlight =
-		FakeHighlight;
-	Object.defineProperty(globalThis.CSS, "highlights", {
-		configurable: true,
-		value: new Map<string, FakeHighlight>(),
-	});
 	searchHighlightRegistry.clearAll();
 });
-
-function highlights(): Map<string, FakeHighlight> {
-	return CSS.highlights as unknown as Map<string, FakeHighlight>;
-}
 
 describe("searchHighlightRegistry", () => {
 	it("Should return undefined ranges for an editor that never reported any", () => {
@@ -56,7 +33,7 @@ describe("searchHighlightRegistry", () => {
 		expect(searchHighlightRegistry.getRanges("split-1")).toBe(ranges);
 	});
 
-	it("Should aggregate ranges from every editor into the all-matches highlight", () => {
+	it("Should aggregate ranges from every editor when flattening", () => {
 		// Arrange
 
 		const rangesA = [makeRange()];
@@ -69,22 +46,10 @@ describe("searchHighlightRegistry", () => {
 
 		// Assert
 
-		const highlight = highlights().get(ALL_HIGHLIGHT_NAME);
-		expect(highlight?.ranges).toEqual([...rangesA, ...rangesB]);
-	});
-
-	it("Should delete the all-matches highlight when every editor reports zero ranges", () => {
-		// Arrange
-
-		searchHighlightRegistry.setAll("split-1", [makeRange()]);
-
-		// Act
-
-		searchHighlightRegistry.setAll("split-1", []);
-
-		// Assert
-
-		expect(highlights().has(ALL_HIGHLIGHT_NAME)).toBe(false);
+		expect(searchHighlightRegistry.getAllRangesFlat()).toEqual([
+			...rangesA,
+			...rangesB,
+		]);
 	});
 
 	it("Should drop an editor's ranges from the aggregate when cleared", () => {
@@ -101,25 +66,11 @@ describe("searchHighlightRegistry", () => {
 
 		// Assert
 
-		expect(highlights().get(ALL_HIGHLIGHT_NAME)?.ranges).toEqual(rangesB);
+		expect(searchHighlightRegistry.getAllRangesFlat()).toEqual(rangesB);
 		expect(searchHighlightRegistry.getRanges("split-1")).toBeUndefined();
 	});
 
-	it("Should delete the all-matches highlight once the last editor is cleared", () => {
-		// Arrange
-
-		searchHighlightRegistry.setAll("split-1", [makeRange()]);
-
-		// Act
-
-		searchHighlightRegistry.clear("split-1");
-
-		// Assert
-
-		expect(highlights().has(ALL_HIGHLIGHT_NAME)).toBe(false);
-	});
-
-	it("Should set the current-match highlight to a single range", () => {
+	it("Should return the current range when one is set", () => {
 		// Arrange
 
 		const range = makeRange();
@@ -130,23 +81,7 @@ describe("searchHighlightRegistry", () => {
 
 		// Assert
 
-		expect(highlights().get(CURRENT_HIGHLIGHT_NAME)?.ranges).toEqual([
-			range,
-		]);
-	});
-
-	it("Should delete the current-match highlight when set to null", () => {
-		// Arrange
-
-		searchHighlightRegistry.setCurrent(makeRange());
-
-		// Act
-
-		searchHighlightRegistry.setCurrent(null);
-
-		// Assert
-
-		expect(highlights().has(CURRENT_HIGHLIGHT_NAME)).toBe(false);
+		expect(searchHighlightRegistry.getCurrentRange()).toBe(range);
 	});
 
 	it("Should clear every editor's ranges and the current match when clearAll is called", () => {
@@ -162,9 +97,25 @@ describe("searchHighlightRegistry", () => {
 
 		// Assert
 
-		expect(highlights().has(ALL_HIGHLIGHT_NAME)).toBe(false);
-		expect(highlights().has(CURRENT_HIGHLIGHT_NAME)).toBe(false);
-		expect(searchHighlightRegistry.getRanges("split-1")).toBeUndefined();
-		expect(searchHighlightRegistry.getRanges("split-2")).toBeUndefined();
+		expect(searchHighlightRegistry.getAllRangesFlat()).toEqual([]);
+		expect(searchHighlightRegistry.getCurrentRange()).toBeNull();
+	});
+
+	it("Should notify subscribers when ranges change", () => {
+		// Arrange
+
+		const listener = vi.fn();
+		const unsubscribe = searchHighlightRegistry.subscribe(listener);
+
+		// Act
+
+		searchHighlightRegistry.setAll("split-1", [makeRange()]);
+		searchHighlightRegistry.setCurrent(null);
+		unsubscribe();
+		searchHighlightRegistry.clear("split-1");
+
+		// Assert
+
+		expect(listener).toHaveBeenCalledTimes(2);
 	});
 });
