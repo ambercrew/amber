@@ -11,7 +11,7 @@ pub struct CreateLearningAssetDto {
     pub meta: CreateMetaDto,
     pub r#type: LearningAssetType,
     pub splits: Vec<String>,
-    pub initial_priority_rank: Option<i64>,
+    pub initial_priority_position: Option<i64>,
     #[serde(default)]
     pub pdf_bytes_base64: Option<String>,
     #[serde(default)]

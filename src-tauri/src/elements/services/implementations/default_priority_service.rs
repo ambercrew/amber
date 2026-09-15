@@ -64,11 +64,15 @@ impl PriorityService for DefaultPriorityService {
         Ok(result)
     }
 
-    async fn set_priority_by_rank(&self, id: ElementId, rank: i64) -> Result<(), PriorityError> {
-        match self.try_set_priority_by_rank(id, rank).await {
+    async fn set_priority_by_position(
+        &self,
+        id: ElementId,
+        position: i64,
+    ) -> Result<(), PriorityError> {
+        match self.try_set_priority_by_position(id, position).await {
             Err(PriorityError::PriorityExhausted) => {
                 self.rebalance_priorities().await?;
-                self.try_set_priority_by_rank(id, rank).await
+                self.try_set_priority_by_position(id, position).await
             }
             other => other,
         }
@@ -94,26 +98,25 @@ impl PriorityService for DefaultPriorityService {
         }
     }
 
-    async fn set_priority_by_percentile(
-        &self,
-        id: ElementId,
-        percentile: f64,
-    ) -> Result<(), PriorityError> {
+    async fn set_priority_by_rank(&self, id: ElementId, rank: f64) -> Result<(), PriorityError> {
         let total = self.meta_repository.count_all().await?;
         if total <= 1 {
             return Ok(());
         }
-        let clamped = percentile.clamp(0.0, 100.0);
-        let rank = (clamped / 100.0 * (total - 1) as f64).round() as i64 + 1;
-        let rank = rank.clamp(1, total);
-        self.set_priority_by_rank(id, rank).await
+        let clamped = rank.clamp(0.0, 100.0);
+        let position = (clamped / 100.0 * (total - 1) as f64).round() as i64 + 1;
+        let position = position.clamp(1, total);
+        self.set_priority_by_position(id, position).await
     }
 
-    async fn get_priority_for_rank(&self, rank: i64) -> Result<FractionalIndex, PriorityError> {
-        match self.try_get_priority_for_rank(rank).await {
+    async fn get_priority_for_position(
+        &self,
+        position: i64,
+    ) -> Result<FractionalIndex, PriorityError> {
+        match self.try_get_priority_for_position(position).await {
             Err(PriorityError::PriorityExhausted) => {
                 self.rebalance_priorities().await?;
-                self.try_get_priority_for_rank(rank).await
+                self.try_get_priority_for_position(position).await
             }
             other => other,
         }
@@ -149,18 +152,18 @@ impl DefaultPriorityService {
         Ok(priority)
     }
 
-    async fn try_set_priority_by_rank(
+    async fn try_set_priority_by_position(
         &self,
         id: ElementId,
-        rank: i64,
+        position: i64,
     ) -> Result<(), PriorityError> {
         let total = self.meta_repository.count_all().await?;
         if total == 0 {
             return Ok(());
         }
-        let clamped_rank = rank.clamp(1, total);
+        let clamped_position = position.clamp(1, total);
         let others_total = total - 1;
-        let index = (clamped_rank - 1).min(others_total);
+        let index = (clamped_position - 1).min(others_total);
 
         let before = if index > 0 {
             self.meta_repository
@@ -188,17 +191,20 @@ impl DefaultPriorityService {
         Ok(())
     }
 
-    /// Same placement math as `try_set_priority_by_rank`, but for an element
-    /// that doesn't exist yet: nothing needs excluding, and the result is
-    /// returned rather than persisted.
-    async fn try_get_priority_for_rank(&self, rank: i64) -> Result<FractionalIndex, PriorityError> {
+    /// Same placement math as `try_set_priority_by_position`, but for an
+    /// element that doesn't exist yet: nothing needs excluding, and the
+    /// result is returned rather than persisted.
+    async fn try_get_priority_for_position(
+        &self,
+        position: i64,
+    ) -> Result<FractionalIndex, PriorityError> {
         let total = self.meta_repository.count_all().await?;
         if total == 0 {
             return Ok(FractionalIndex::default());
         }
-        // The new element isn't counted yet, so it can take any rank from 1
-        // (the front) up to total + 1 (the very back).
-        let index = rank.clamp(1, total + 1) - 1;
+        // The new element isn't counted yet, so it can take any position from
+        // 1 (the front) up to total + 1 (the very back).
+        let index = position.clamp(1, total + 1) - 1;
 
         let before = if index > 0 {
             self.meta_repository
@@ -292,16 +298,16 @@ impl DefaultPriorityService {
     }
 }
 
-fn priority_info(rank: i64, total: i64) -> PriorityInfo {
-    let percentile = if total <= 1 {
+fn priority_info(position: i64, total: i64) -> PriorityInfo {
+    let rank = if total <= 1 {
         0.0
     } else {
-        ((rank - 1) as f64) / ((total - 1) as f64) * 100.0
+        ((position - 1) as f64) / ((total - 1) as f64) * 100.0
     };
     PriorityInfo {
-        rank,
+        position,
         total,
-        percentile,
+        rank,
     }
 }
 
@@ -448,7 +454,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_priority_info_single_element_is_rank_one_zero_percentile() {
+    async fn get_priority_info_single_element_is_position_one_zero_rank() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -466,13 +472,13 @@ mod tests {
 
         // Assert
 
-        assert_eq!(1, info.rank);
+        assert_eq!(1, info.position);
         assert_eq!(1, info.total);
-        assert_eq!(0.0, info.percentile);
+        assert_eq!(0.0, info.rank);
     }
 
     #[tokio::test]
-    async fn get_priority_info_last_of_three_is_hundred_percentile() {
+    async fn get_priority_info_last_of_three_is_hundred_rank() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -497,9 +503,9 @@ mod tests {
 
         // Assert
 
-        assert_eq!(3, info.rank);
+        assert_eq!(3, info.position);
         assert_eq!(3, info.total);
-        assert_eq!(100.0, info.percentile);
+        assert_eq!(100.0, info.rank);
     }
 
     #[tokio::test]
@@ -561,7 +567,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn set_priority_by_rank_moves_element_to_front() {
+    async fn set_priority_by_position_moves_element_to_front() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -579,9 +585,9 @@ mod tests {
         folder_repo.create(a).await.unwrap();
         folder_repo.create(b).await.unwrap();
 
-        // Act — move B (currently rank 2) to rank 1
+        // Act — move B (currently position 2) to position 1
 
-        service.set_priority_by_rank(b_id, 1).await.unwrap();
+        service.set_priority_by_position(b_id, 1).await.unwrap();
 
         // Assert
 
@@ -591,7 +597,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn set_priority_by_percentile_moves_element_to_middle() {
+    async fn set_priority_by_rank_moves_element_to_middle() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -610,21 +616,18 @@ mod tests {
         folder_repo.create(b).await.unwrap();
         folder_repo.create(c).await.unwrap();
 
-        // Act — move A (currently rank 1) to the 50th percentile, which lands it at rank 2
+        // Act — move A (currently position 1) to rank 50, which lands it at position 2
 
-        service
-            .set_priority_by_percentile(a_id, 50.0)
-            .await
-            .unwrap();
+        service.set_priority_by_rank(a_id, 50.0).await.unwrap();
 
         // Assert
 
         let info = service.get_priority_info(a_id).await.unwrap();
-        assert_eq!(2, info.rank);
+        assert_eq!(2, info.position);
     }
 
     #[tokio::test]
-    async fn get_priority_for_rank_empty_queue_returns_default() {
+    async fn get_priority_for_position_empty_queue_returns_default() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -633,7 +636,7 @@ mod tests {
 
         // Act
 
-        let actual = service.get_priority_for_rank(1).await.unwrap();
+        let actual = service.get_priority_for_position(1).await.unwrap();
 
         // Assert
 
@@ -641,7 +644,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_priority_for_rank_middle_rank_lands_between_the_middle_two() {
+    async fn get_priority_for_position_middle_position_lands_between_the_middle_two() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -670,10 +673,10 @@ mod tests {
             .await
             .unwrap();
 
-        // Act — rank 3 of the resulting 5 lands between the 2nd and 3rd
+        // Act — position 3 of the resulting 5 lands between the 2nd and 3rd
         // existing elements.
 
-        let actual = service.get_priority_for_rank(3).await.unwrap();
+        let actual = service.get_priority_for_position(3).await.unwrap();
 
         // Assert
 
@@ -682,7 +685,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_priority_for_rank_beyond_the_end_clamps_to_the_back() {
+    async fn get_priority_for_position_beyond_the_end_clamps_to_the_back() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -698,9 +701,9 @@ mod tests {
             .await
             .unwrap();
 
-        // Act — only 2 elements exist, so rank 100 clamps to rank 3 (the back).
+        // Act — only 2 elements exist, so position 100 clamps to position 3 (the back).
 
-        let actual = service.get_priority_for_rank(100).await.unwrap();
+        let actual = service.get_priority_for_position(100).await.unwrap();
 
         // Assert
 
@@ -708,10 +711,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_priority_for_rank_does_not_move_existing_elements() {
+    async fn get_priority_for_position_does_not_move_existing_elements() {
         // Arrange — inserting a brand new element must never touch anyone
-        // else's priority, unlike set_priority_by_rank which relocates the
-        // moved element out from among the others.
+        // else's priority, unlike set_priority_by_position which relocates
+        // the moved element out from among the others.
 
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
@@ -730,7 +733,7 @@ mod tests {
 
         // Act
 
-        service.get_priority_for_rank(2).await.unwrap();
+        service.get_priority_for_position(2).await.unwrap();
 
         // Assert
 

@@ -465,16 +465,16 @@ pub async fn get_element_details(
 }
 
 #[tauri::command]
-pub async fn set_element_priority_by_rank(
+pub async fn set_element_priority_by_position(
     injector: State<'_, Arc<Injector>>,
     element_id: ElementId,
-    rank: i64,
+    position: i64,
 ) -> Result<(), ApiError> {
     let scope = injector.start_scope();
     scope
         .resolve::<dyn PriorityService>()
         .await
-        .set_priority_by_rank(element_id, rank)
+        .set_priority_by_position(element_id, position)
         .await?;
     scope.save_changes().await?;
     Ok(())
@@ -492,16 +492,16 @@ pub async fn get_priority_queue_size(injector: State<'_, Arc<Injector>>) -> Resu
 }
 
 #[tauri::command]
-pub async fn set_element_priority_by_percentile(
+pub async fn set_element_priority_by_rank(
     injector: State<'_, Arc<Injector>>,
     element_id: ElementId,
-    percentile: f64,
+    rank: f64,
 ) -> Result<(), ApiError> {
     let scope = injector.start_scope();
     scope
         .resolve::<dyn PriorityService>()
         .await
-        .set_priority_by_percentile(element_id, percentile)
+        .set_priority_by_rank(element_id, rank)
         .await?;
     scope.save_changes().await?;
     Ok(())
