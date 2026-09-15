@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getPriorityQueueSize } from "../../../api/elements/api/elementsApi";
-import { rankToPosition } from "../../../components/PrioritySlider/priorityMath";
-import { DEFAULT_IMPORT_PRIORITY_RANK } from "../importContext";
+import { percentileToPosition } from "../../../components/PrioritySlider/priorityMath";
+import { DEFAULT_IMPORT_PRIORITY_PERCENTILE } from "../importContext";
 
 /** Queue size (including the element about to be created) and the position
  * within it new imports will take. Fetched once per time the import modal
@@ -28,7 +28,10 @@ export function useImportPriority(opened: boolean) {
 			setTotal(newTotal);
 			if (!customizedRef.current) {
 				setPosition(
-					rankToPosition(newTotal, DEFAULT_IMPORT_PRIORITY_RANK),
+					percentileToPosition(
+						newTotal,
+						DEFAULT_IMPORT_PRIORITY_PERCENTILE,
+					),
 				);
 			}
 		});
@@ -42,7 +45,10 @@ export function useImportPriority(opened: boolean) {
 	async function resolvePosition(): Promise<number> {
 		if (position !== null) return position;
 		const resolvedTotal = await fetchTotal();
-		return rankToPosition(resolvedTotal, DEFAULT_IMPORT_PRIORITY_RANK);
+		return percentileToPosition(
+			resolvedTotal,
+			DEFAULT_IMPORT_PRIORITY_PERCENTILE,
+		);
 	}
 
 	function reset() {

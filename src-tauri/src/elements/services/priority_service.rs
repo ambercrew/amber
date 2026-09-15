@@ -13,9 +13,9 @@ pub struct PriorityInfo {
     /// 1-based position among all elements; 1 is the very front of the queue.
     pub position: i64,
     pub total: i64,
-    /// Percentile-scale rank: 0.00 (highest priority) .. 100.00 (lowest priority),
+    /// Percentile: 0.00 (highest priority) .. 100.00 (lowest priority),
     /// computed as (position - 1) / (total - 1) * 100.
-    pub rank: f64,
+    pub percentile: f64,
 }
 
 #[async_trait]
@@ -57,8 +57,12 @@ pub trait PriorityService: Send + Sync {
         position: i64,
     ) -> Result<(), PriorityError>;
 
-    /// Moves the element to the given percentile-scale rank (0..100, clamped) of the queue.
-    async fn set_priority_by_rank(&self, id: ElementId, rank: f64) -> Result<(), PriorityError>;
+    /// Moves the element to the given percentile (0..100, clamped) of the queue.
+    async fn set_priority_by_percentile(
+        &self,
+        id: ElementId,
+        percentile: f64,
+    ) -> Result<(), PriorityError>;
 
     /// Priority for a brand new element inserted at the given 1-based position
     /// (clamped to 1..=queue size + 1, since the new element hasn't been

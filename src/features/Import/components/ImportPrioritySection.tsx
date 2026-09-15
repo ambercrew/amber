@@ -10,7 +10,7 @@ import {
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import PrioritySlider from "../../../components/PrioritySlider/PrioritySlider";
 import { usePriorityControls } from "../../../components/PrioritySlider/usePriorityControls";
-import { positionToRank } from "../../../components/PrioritySlider/priorityMath";
+import { positionToPercentile } from "../../../components/PrioritySlider/priorityMath";
 
 interface ImportPrioritySectionProps {
 	/** Queue size the new element would join, including itself, or `null`
@@ -75,19 +75,20 @@ function PrioritySliderControlled({
 	const controls = usePriorityControls({
 		total,
 		initialPosition: position,
-		initialRank: positionToRank(total, position),
+		initialPercentile: positionToPercentile(total, position),
 		onPositionCommit: newPosition => onPositionChange(newPosition),
-		onRankCommit: (_rank, newPosition) => onPositionChange(newPosition),
+		onPercentileCommit: (_percentile, newPosition) =>
+			onPositionChange(newPosition),
 	});
 
 	return (
 		<PrioritySlider
 			total={total}
 			position={controls.position}
-			rank={controls.rank}
-			rankStep={controls.rankStep}
+			percentile={controls.percentile}
+			percentileStep={controls.percentileStep}
 			onPositionChange={controls.handlePositionChange}
-			onRankChange={controls.handleRankChange}
+			onPercentileChange={controls.handlePercentileChange}
 			onSliderChange={controls.handleSliderChange}
 			onSliderChangeEnd={controls.handleSliderChangeEnd}
 		/>

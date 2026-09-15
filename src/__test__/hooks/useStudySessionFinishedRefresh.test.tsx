@@ -81,7 +81,7 @@ const DETAILS: ElementDetailsResponseDto = {
 	},
 	profiles: [],
 	inheritedProfileName: null,
-	priority: { position: 3, total: 5, rank: 50 },
+	priority: { position: 3, total: 5, percentile: 50 },
 };
 
 function makeStore() {

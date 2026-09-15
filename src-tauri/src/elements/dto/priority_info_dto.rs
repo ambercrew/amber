@@ -8,8 +8,8 @@ pub struct PriorityInfoResponseDto {
     /// 1-based position among all elements; 1 is the very front of the queue.
     pub position: i64,
     pub total: i64,
-    /// Percentile-scale rank: 0.00 (highest priority) .. 100.00 (lowest priority).
-    pub rank: f64,
+    /// Percentile: 0.00 (highest priority) .. 100.00 (lowest priority).
+    pub percentile: f64,
 }
 
 impl From<PriorityInfo> for PriorityInfoResponseDto {
@@ -17,7 +17,7 @@ impl From<PriorityInfo> for PriorityInfoResponseDto {
         PriorityInfoResponseDto {
             position: info.position,
             total: info.total,
-            rank: info.rank,
+            percentile: info.percentile,
         }
     }
 }

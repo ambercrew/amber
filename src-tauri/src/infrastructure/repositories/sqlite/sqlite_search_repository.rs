@@ -90,7 +90,7 @@ impl SearchRepository for SqliteSearchRepository {
                 .unwrap_or(PriorityInfo {
                     position: 0,
                     total: 0,
-                    rank: 0.0,
+                    percentile: 0.0,
                 });
             results.push(ElementSearchResult {
                 tags: tags_by_element_id
@@ -106,8 +106,8 @@ impl SearchRepository for SqliteSearchRepository {
         for filter in filters {
             if let ElementFilter::Priority { min, max, .. } = filter {
                 results.retain(|result| {
-                    let rank = result.priority.rank;
-                    rank >= *min as f64 && rank <= *max as f64
+                    let percentile = result.priority.percentile;
+                    percentile >= *min as f64 && percentile <= *max as f64
                 });
             }
         }
@@ -758,7 +758,7 @@ mod tests {
         folder_repository.create(second).await.unwrap();
         folder_repository.create(third).await.unwrap();
 
-        // position 1 -> rank 0%, position 2 -> rank 50%, position 3 -> rank 100%
+        // position 1 -> percentile 0%, position 2 -> percentile 50%, position 3 -> percentile 100%
         let filters = vec![ElementFilter::Priority {
             id: Uuid::new_v4(),
             operator:

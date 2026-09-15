@@ -4,7 +4,7 @@ import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import {
 	getElementDetails,
 	setElementPriorityByPosition,
-	setElementPriorityByRank,
+	setElementPriorityByPercentile,
 } from "../../../../api/elements/api/elementsApi";
 import { ElementDetailsResponseDto } from "../../../../api/elements/dto/elementDetailsDto";
 import { AnyElementDto } from "../../../../api/elements/dto/anyElementDto";
@@ -63,7 +63,7 @@ function makeDetails(
 		effectiveProfile: { profile, source: "default", inheritedFrom: null },
 		profiles: [],
 		inheritedProfileName: null,
-		priority: { position: 3, total: 5, rank: 50 },
+		priority: { position: 3, total: 5, percentile: 50 },
 		...overrides,
 	};
 }
@@ -137,7 +137,7 @@ describe("PriorityModal", () => {
 		expect(screen.getByText("Loading…")).toBeInTheDocument();
 	});
 
-	it("Should display the current position and rank when details have loaded", async () => {
+	it("Should display the current position and percentile when details have loaded", async () => {
 		// Arrange
 
 		// Act
@@ -181,49 +181,52 @@ describe("PriorityModal", () => {
 		await waitFor(() => expect(getElementDetails).toHaveBeenCalledTimes(2));
 	});
 
-	it("Should set priority by rank and reload details when the rank input changes", async () => {
+	it("Should set priority by percentile and reload details when the percentile input changes", async () => {
 		// Arrange
 
-		vi.mocked(setElementPriorityByRank).mockResolvedValue(undefined);
+		vi.mocked(setElementPriorityByPercentile).mockResolvedValue(undefined);
 		renderWithProviders(<PriorityModal />, {
 			preloadedState: {
 				app: appStateFor(true),
 				elements: elementsStateFor(cardElement()),
 			},
 		});
-		const rankInput = await screen.findByLabelText("Rank");
+		const percentileInput = await screen.findByLabelText("Percentile");
 
 		// Act
 
-		fireEvent.change(rankInput, { target: { value: "0%" } });
+		fireEvent.change(percentileInput, { target: { value: "0%" } });
 
 		// Assert
 
-		expect(setElementPriorityByRank).toHaveBeenCalledWith(cardElementId, 0);
+		expect(setElementPriorityByPercentile).toHaveBeenCalledWith(
+			cardElementId,
+			0,
+		);
 		await waitFor(() => expect(getElementDetails).toHaveBeenCalledTimes(2));
 	});
 
-	it("Should move the rank by exactly one element when stepping with the arrow keys", async () => {
+	it("Should move the percentile by exactly one element when stepping with the arrow keys", async () => {
 		// Arrange
 
-		vi.mocked(setElementPriorityByRank).mockResolvedValue(undefined);
+		vi.mocked(setElementPriorityByPercentile).mockResolvedValue(undefined);
 		renderWithProviders(<PriorityModal />, {
 			preloadedState: {
 				app: appStateFor(true),
 				elements: elementsStateFor(cardElement()),
 			},
 		});
-		const rankInput = await screen.findByLabelText("Rank");
+		const percentileInput = await screen.findByLabelText("Percentile");
 
 		// Act
 
-		fireEvent.keyDown(rankInput, { key: "ArrowUp" });
+		fireEvent.keyDown(percentileInput, { key: "ArrowUp" });
 
 		// Assert
 
-		// Rank step is 100/(total-1) = 100/4 = 25, so one arrow press moves
+		// Percentile step is 100/(total-1) = 100/4 = 25, so one arrow press moves
 		// from the mocked 50% to 75%.
-		expect(setElementPriorityByRank).toHaveBeenCalledWith(
+		expect(setElementPriorityByPercentile).toHaveBeenCalledWith(
 			cardElementId,
 			75,
 		);

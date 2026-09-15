@@ -18,7 +18,7 @@ const ELEMENT_ID: ElementId = { type: "learningAsset", id: "asset-1" };
 const SELECTED_RESULT: SearchElementResultDto = {
 	...ELEMENT_ID,
 	name: "Asset one",
-	priority: { position: 1, total: 1, rank: 100 },
+	priority: { position: 1, total: 1, percentile: 100 },
 	due: null,
 	tags: [],
 };

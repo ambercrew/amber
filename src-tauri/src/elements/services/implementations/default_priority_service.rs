@@ -98,13 +98,17 @@ impl PriorityService for DefaultPriorityService {
         }
     }
 
-    async fn set_priority_by_rank(&self, id: ElementId, rank: f64) -> Result<(), PriorityError> {
+    async fn set_priority_by_percentile(
+        &self,
+        id: ElementId,
+        percentile: f64,
+    ) -> Result<(), PriorityError> {
         let total = self.meta_repository.count_all().await?;
         if total <= 1 {
             return Ok(());
         }
-        let clamped = rank.clamp(0.0, 100.0);
-        let position = (clamped / 100.0 * (total - 1) as f64).round() as i64 + 1;
+        let clamped = percentile.clamp(0.0, 100.0);
+        let position = (clamped * (total - 1) as f64 / 100.0).round() as i64 + 1;
         let position = position.clamp(1, total);
         self.set_priority_by_position(id, position).await
     }
@@ -299,16 +303,16 @@ impl DefaultPriorityService {
 }
 
 fn priority_info(position: i64, total: i64) -> PriorityInfo {
-    let rank = if total <= 1 {
+    let percentile = if total <= 1 {
         0.0
     } else {
-        // Multiply before dividing so whole-number ranks stay exact for filter comparisons.
+        // Multiply before dividing so whole-number percentiles stay exact for filter comparisons.
         ((position - 1) * 100) as f64 / (total - 1) as f64
     };
     PriorityInfo {
         position,
         total,
-        rank,
+        percentile,
     }
 }
 
@@ -455,7 +459,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_priority_info_single_element_is_position_one_zero_rank() {
+    async fn get_priority_info_single_element_is_position_one_zero_percentile() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -475,11 +479,11 @@ mod tests {
 
         assert_eq!(1, info.position);
         assert_eq!(1, info.total);
-        assert_eq!(0.0, info.rank);
+        assert_eq!(0.0, info.percentile);
     }
 
     #[test]
-    fn priority_info_whole_number_rank_is_exact() {
+    fn priority_info_whole_number_percentile_is_exact() {
         // Arrange
 
         let position = 30;
@@ -491,11 +495,11 @@ mod tests {
 
         // Assert
 
-        assert_eq!(29.0, info.rank);
+        assert_eq!(29.0, info.percentile);
     }
 
     #[tokio::test]
-    async fn get_priority_info_last_of_three_is_hundred_rank() {
+    async fn get_priority_info_last_of_three_is_hundred_percentile() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -522,7 +526,7 @@ mod tests {
 
         assert_eq!(3, info.position);
         assert_eq!(3, info.total);
-        assert_eq!(100.0, info.rank);
+        assert_eq!(100.0, info.percentile);
     }
 
     #[tokio::test]
@@ -614,7 +618,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn set_priority_by_rank_moves_element_to_middle() {
+    async fn set_priority_by_percentile_moves_element_to_middle() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -633,9 +637,12 @@ mod tests {
         folder_repo.create(b).await.unwrap();
         folder_repo.create(c).await.unwrap();
 
-        // Act — move A (currently position 1) to rank 50, which lands it at position 2
+        // Act — move A (currently position 1) to percentile 50, which lands it at position 2
 
-        service.set_priority_by_rank(a_id, 50.0).await.unwrap();
+        service
+            .set_priority_by_percentile(a_id, 50.0)
+            .await
+            .unwrap();
 
         // Assert
 

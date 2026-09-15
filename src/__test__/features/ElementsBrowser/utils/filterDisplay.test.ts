@@ -415,7 +415,7 @@ describe("describeFilter", () => {
 		});
 	});
 
-	it("Should describe priority filter with min and max ranks", () => {
+	it("Should describe priority filter with min and max percentiles", () => {
 		// Arrange
 
 		const filter: PriorityFilter = {

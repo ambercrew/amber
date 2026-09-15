@@ -1,7 +1,7 @@
-import { positionToRank } from "../../../components/PrioritySlider/priorityMath";
+import { positionToPercentile } from "../../../components/PrioritySlider/priorityMath";
 
-describe("positionToRank", () => {
-	it("Should return an exact whole-number rank when the position maps to one", () => {
+describe("positionToPercentile", () => {
+	it("Should return an exact whole-number percentile when the position maps to one", () => {
 		// Arrange
 
 		const total = 101;
@@ -9,7 +9,7 @@ describe("positionToRank", () => {
 
 		// Act
 
-		const actual = positionToRank(total, position);
+		const actual = positionToPercentile(total, position);
 
 		// Assert
 

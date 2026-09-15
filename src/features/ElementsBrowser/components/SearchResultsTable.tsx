@@ -12,7 +12,7 @@ import { Link } from "react-router";
 import { SearchElementResultDto } from "../../../api/search/dto/searchElementResultDto";
 import { ElementId } from "../../../types/elements/elementId";
 import { paths } from "../../../paths";
-import { formatPriorityRank } from "../../../utils/formatPriorityRank";
+import { formatPriorityPercentile } from "../../../utils/formatPriorityPercentile";
 import ElementNodeIcon from "../../App/components/ElementNodeIcon";
 import { elementTypeOptions } from "../utils/elementTypeOptions";
 import { elementKey } from "../utils/elementKey";
@@ -153,7 +153,9 @@ export default function SearchResultsTable({
 							</Table.Td>
 							<Table.Td>{elementTypeLabel(result.type)}</Table.Td>
 							<Table.Td>
-								{formatPriorityRank(result.priority.rank)}
+								{formatPriorityPercentile(
+									result.priority.percentile,
+								)}
 							</Table.Td>
 							<Table.Td>{formatDateTime(result.due)}</Table.Td>
 							<Table.Td>

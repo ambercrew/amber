@@ -85,7 +85,7 @@ describe("ImportPrioritySection", () => {
 		await waitFor(() => expect(onPositionChange).toHaveBeenCalledWith(1));
 	});
 
-	it("Should report the equivalent position when the rank input changes", async () => {
+	it("Should report the equivalent position when the percentile input changes", async () => {
 		// Arrange
 
 		const onPositionChange = vi.fn();
@@ -97,11 +97,11 @@ describe("ImportPrioritySection", () => {
 			/>,
 		);
 		fireEvent.click(screen.getByText("Priority"));
-		const rankInput = await screen.findByLabelText("Rank");
+		const percentileInput = await screen.findByLabelText("Percentile");
 
 		// Act
 
-		fireEvent.change(rankInput, { target: { value: "0%" } });
+		fireEvent.change(percentileInput, { target: { value: "0%" } });
 
 		// Assert
 
