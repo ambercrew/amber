@@ -4,6 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, Duration, Utc};
+use fractional_index::FractionalIndex;
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
 
@@ -62,10 +63,10 @@ impl ElementCreationService for DefaultElementCreationService {
     async fn create_folder(&self, dto: CreateFolderDto) -> Result<(), ElementCreationError> {
         let parent = dto.meta.parent;
         let position = self.index_service.get_new_last_index(parent).await?;
-        let priority = self.priority_service.get_new_first_priority().await?;
         let now = Utc::now();
         let (derived_from, bibliographical_source_id) =
             self.resolve_origin(parent, dto.meta.origin).await?;
+        let priority = self.resolve_priority(derived_from, parent).await?;
 
         let element_id = ElementId::Folder(Uuid::new_v4());
 
@@ -96,21 +97,21 @@ impl ElementCreationService for DefaultElementCreationService {
         let element_id = ElementId::LearningAsset(dto.id);
         let parent = dto.meta.parent;
         let position = self.index_service.get_new_last_index(parent).await?;
+        let (derived_from, bibliographical_source_id) =
+            self.resolve_origin(parent, dto.meta.origin).await?;
         let priority = match dto.initial_priority_position {
             Some(position) => {
                 self.priority_service
                     .get_priority_for_position(position)
                     .await?
             }
-            None => self.priority_service.get_new_first_priority().await?,
+            None => self.resolve_priority(derived_from, parent).await?,
         };
         let now = Utc::now();
         let profile = self
             .profile_resolution_service
             .resolve_profile(parent)
             .await?;
-        let (derived_from, bibliographical_source_id) =
-            self.resolve_origin(parent, dto.meta.origin).await?;
 
         let learning_asset = LearningAsset {
             r#type: dto.r#type,
@@ -169,12 +170,7 @@ impl ElementCreationService for DefaultElementCreationService {
         let position = self.index_service.get_new_last_index(parent).await?;
         let (derived_from, bibliographical_source_id) =
             self.resolve_origin(parent, dto.meta.origin).await?;
-        // Extracted text inherits the priority of the element it was pulled
-        // from, so the reader isn't forced to re-triage every extract.
-        let priority = match derived_from {
-            Some(source) => self.priority_service.get_inherited_priority(source).await?,
-            None => self.priority_service.get_new_first_priority().await?,
-        };
+        let priority = self.resolve_priority(derived_from, parent).await?;
         let now = Utc::now();
         let profile = self
             .profile_resolution_service
@@ -210,10 +206,10 @@ impl ElementCreationService for DefaultElementCreationService {
         let element_id = ElementId::Card(dto.id);
         let parent = dto.meta.parent;
         let position = self.index_service.get_new_last_index(parent).await?;
-        let priority = self.priority_service.get_new_first_priority().await?;
         let now = Utc::now();
         let (derived_from, bibliographical_source_id) =
             self.resolve_origin(parent, dto.meta.origin).await?;
+        let priority = self.resolve_priority(derived_from, parent).await?;
 
         let card = Card {
             meta: Meta {
@@ -266,6 +262,20 @@ impl DefaultElementCreationService {
                 None => Ok((None, None)),
             },
         }
+    }
+
+    /// New elements inherit the priority of what they were derived from (or,
+    /// failing that, their tree parent) so the user needn't re-triage them.
+    async fn resolve_priority(
+        &self,
+        derived_from: Option<ElementId>,
+        parent: Option<ElementId>,
+    ) -> Result<FractionalIndex, ElementCreationError> {
+        let priority = match derived_from.or(parent) {
+            Some(source) => self.priority_service.get_inherited_priority(source).await?,
+            None => self.priority_service.get_new_first_priority().await?,
+        };
+        Ok(priority)
     }
 
     async fn copy_parent_tags(
@@ -906,5 +916,95 @@ mod tests {
         // Assert
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn create_card_with_parent_inherits_parent_priority() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile(&scope, 1.0).await;
+        let parent_id = create_tagged_parent_folder(&scope, Vec::new()).await;
+        let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+        let parent_priority = meta_repository
+            .get_by_id(parent_id.id())
+            .await
+            .unwrap()
+            .priority;
+        // Another element sits at the front, ahead of the parent.
+        let front = make_root_folder(FractionalIndex::new_before(&parent_priority));
+        let front_priority = front.meta.priority.clone();
+        scope
+            .resolve::<dyn FolderRepository>()
+            .await
+            .create(front)
+            .await
+            .unwrap();
+        let service = create_service(&scope).await;
+        let dto = CreateCardDto {
+            id: Uuid::new_v4(),
+            meta: dto_meta(Some(parent_id)),
+            front: String::new(),
+            back: String::new(),
+        };
+        let element_id = ElementId::Card(dto.id);
+
+        // Act
+
+        service.create_card(dto).await.unwrap();
+
+        // Assert
+
+        let created = meta_repository.get_by_id(element_id.id()).await.unwrap();
+        assert!(front_priority < created.priority);
+        assert!(created.priority < parent_priority);
+    }
+
+    #[tokio::test]
+    async fn create_folder_without_parent_takes_front_of_queue() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let existing = make_root_folder(FractionalIndex::default());
+        let existing_priority = existing.meta.priority.clone();
+        scope
+            .resolve::<dyn FolderRepository>()
+            .await
+            .create(existing)
+            .await
+            .unwrap();
+        let service = create_service(&scope).await;
+        let dto = CreateFolderDto {
+            meta: dto_meta(None),
+        };
+
+        // Act
+
+        service.create_folder(dto).await.unwrap();
+
+        // Assert
+
+        let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+        let first = meta_repository.get_first_priority().await.unwrap().unwrap();
+        assert!(first < existing_priority);
+    }
+
+    fn make_root_folder(priority: FractionalIndex) -> Folder {
+        Folder {
+            meta: Meta {
+                element_id: ElementId::Folder(Uuid::new_v4()),
+                name: "root".into(),
+                parent: None,
+                position: FractionalIndex::default(),
+                priority,
+                study_profile_id: None,
+                bibliographical_source_id: None,
+                derived_from: None,
+                created_at: Utc::now(),
+                modified_at: Utc::now(),
+            },
+        }
     }
 }
