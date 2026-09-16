@@ -5,6 +5,7 @@ use injector::injector::Injector;
 
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::settings::repositories::settings_repository::SettingsRepository;
+use crate::sync::sync_lock::SyncLock;
 use crate::trash::services::trash_service::{TIME_BETWEEN_TRASH_PURGES_IN_MINUTES, TrashService};
 
 /// Starts the trash retention purge background task, which also runs once
@@ -18,6 +19,11 @@ pub fn spawn_trash_purge_task(injector: Arc<Injector>) {
         loop {
             interval.tick().await;
             let scope = injector.start_scope();
+
+            // The first tick lands on app start, right when the frontend kicks
+            // off its own sync — held here so the two don't write at once.
+            let sync_lock = scope.resolve::<SyncLock>().await;
+            let _guard = sync_lock.0.lock().await;
 
             let retention_days = scope
                 .resolve::<dyn SettingsRepository>()
