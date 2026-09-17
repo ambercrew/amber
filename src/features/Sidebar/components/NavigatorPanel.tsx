@@ -1,9 +1,6 @@
 import { Alert, Divider, NavLink, Stack } from "@mantine/core";
-import {
-	HouseIcon,
-	ListMagnifyingGlassIcon,
-	PlusSquareIcon,
-} from "@phosphor-icons/react";
+import { PlusSquareIcon } from "@phosphor-icons/react";
+import { BrowserIcon, HomeIcon } from "../../../config/icons";
 import { useLocation, useNavigate } from "react-router";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
@@ -42,7 +39,7 @@ function NavigatorPanel() {
 				<AppTooltip label="Open your root folder" openDelay={300}>
 					<NavLink
 						label="Home"
-						leftSection={<HouseIcon size={NAV_ICON_SIZE} />}
+						leftSection={<HomeIcon size={NAV_ICON_SIZE} />}
 						active={location.pathname === paths.root()}
 						onClick={() => void navigate(paths.root())}
 					/>
@@ -52,9 +49,7 @@ function NavigatorPanel() {
 					openDelay={300}>
 					<NavLink
 						label="Browser"
-						leftSection={
-							<ListMagnifyingGlassIcon size={NAV_ICON_SIZE} />
-						}
+						leftSection={<BrowserIcon size={NAV_ICON_SIZE} />}
 						active={location.pathname === paths.browser()}
 						onClick={() => void navigate(paths.browser())}
 					/>

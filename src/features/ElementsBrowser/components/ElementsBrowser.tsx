@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useDebouncedValue } from "@mantine/hooks";
-import { Alert, Group, Paper, Stack, Text, Title } from "@mantine/core";
+import { Alert, Group, Paper, Stack } from "@mantine/core";
+import PageTitle from "../../../components/PageTitle/PageTitle";
+import { BrowserIcon } from "../../../config/icons";
 import {
 	ElementFilter,
 	ElementFilterField,
@@ -144,14 +146,11 @@ export default function ElementsBrowser() {
 	return (
 		<Paper withBorder radius="md" p="md" maw={900} mx="auto" my="lg">
 			<Stack gap="sm">
-				<Stack gap={2}>
-					<Title order={2}>Browser</Title>
-					<Text c="dimmed" size="sm">
-						Search and filter every element in your collection. Save
-						the queries you use often, and select results to act on
-						them in bulk.
-					</Text>
-				</Stack>
+				<PageTitle
+					icon={<BrowserIcon />}
+					title="Browser"
+					description="Search and filter every element in your collection. Save the queries you use often, and select results to act on them in bulk."
+				/>
 				<SavedSearchSelector
 					filters={filters}
 					onFiltersChange={updateFilters}

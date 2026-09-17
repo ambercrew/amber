@@ -1,11 +1,11 @@
-import {
-	CardsIcon,
-	FileTextIcon,
-	FolderIcon,
-	FolderOpenIcon,
-	ScissorsIcon,
-} from "@phosphor-icons/react";
 import { ElementNodeType } from "../../../types/elements/elementNodeType";
+import {
+	CardElementIcon,
+	ExtractElementIcon,
+	FolderElementIcon,
+	FolderOpenElementIcon,
+	LearningAssetElementIcon,
+} from "../../../config/icons";
 
 interface ElementNodeIconProps {
 	type: ElementNodeType;
@@ -17,16 +17,16 @@ function ElementNodeIcon({ type, expanded, size }: ElementNodeIconProps) {
 	switch (type) {
 		case "folder":
 			return expanded ? (
-				<FolderOpenIcon size={size} />
+				<FolderOpenElementIcon size={size} />
 			) : (
-				<FolderIcon size={size} />
+				<FolderElementIcon size={size} />
 			);
 		case "learningAsset":
-			return <FileTextIcon size={size} />;
+			return <LearningAssetElementIcon size={size} />;
 		case "extract":
-			return <ScissorsIcon size={size} />;
+			return <ExtractElementIcon size={size} />;
 		case "card":
-			return <CardsIcon size={size} />;
+			return <CardElementIcon size={size} />;
 	}
 }
 
