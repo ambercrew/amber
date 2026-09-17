@@ -4,12 +4,15 @@ import {
 	Button,
 	Container,
 	Group,
+	Paper,
 	Stack,
 	Text,
 } from "@mantine/core";
 import { UploadSimpleIcon } from "@phosphor-icons/react";
 import { Link } from "react-router";
-import PageTitle from "../../components/PageTitle/PageTitle";
+import PageTitle, {
+	PAGE_TITLE_FONT_SIZE,
+} from "../../components/PageTitle/PageTitle";
 import { FolderElementIcon, HomeIcon } from "../../config/icons";
 import { useFolderTrail } from "./hooks/useFolderTrail";
 import useAppDispatch from "../../hooks/useAppDispatch";
@@ -35,7 +38,7 @@ export default function FolderView() {
 			key="home"
 			component={Link}
 			to={paths.root()}
-			size="lg"
+			inherit
 			c={trail.length === 0 ? "inherit" : "dimmed"}
 			fw={trail.length === 0 ? 700 : undefined}
 			underline="hover">
@@ -48,7 +51,7 @@ export default function FolderView() {
 					key={item.id}
 					component={Link}
 					to={paths.element("folder", item.id)}
-					size="lg"
+					inherit
 					c={isCurrent ? "inherit" : "dimmed"}
 					fw={isCurrent ? 700 : undefined}
 					underline="hover">
@@ -59,32 +62,40 @@ export default function FolderView() {
 	];
 
 	return (
-		<Container size="sm" py="lg">
-			<Stack gap="lg">
-				<PageTitle
-					icon={folder ? <FolderElementIcon /> : <HomeIcon />}
-					title={<Breadcrumbs separator="/">{crumbs}</Breadcrumbs>}
-					description={
-						folder
-							? "Import content into this folder, or pick one of its elements from the sidebar."
-							: "The root of your collection. Import something to get started, or pick an element from the sidebar."
-					}
-				/>
+		<Container size="md" py="lg">
+			<Paper withBorder radius="md" p="md">
+				<Stack gap="lg">
+					<PageTitle
+						icon={folder ? <FolderElementIcon /> : <HomeIcon />}
+						title={
+							<Breadcrumbs
+								fz={PAGE_TITLE_FONT_SIZE}
+								separator="/">
+								{crumbs}
+							</Breadcrumbs>
+						}
+						description={
+							folder
+								? "Import content into this folder, or pick one of its elements from the sidebar."
+								: "The root of your collection. Import something to get started, or pick an element from the sidebar."
+						}
+					/>
 
-				<Group>
-					<Button
-						variant="default"
-						size="xl"
-						h="auto"
-						py="md"
-						onClick={() => dispatch(openImportModal())}>
-						<Stack align="center" gap={4}>
-							<UploadSimpleIcon size={28} />
-							<Text>Import</Text>
-						</Stack>
-					</Button>
-				</Group>
-			</Stack>
+					<Group>
+						<Button
+							variant="default"
+							size="xl"
+							h="auto"
+							py="md"
+							onClick={() => dispatch(openImportModal())}>
+							<Stack align="center" gap={4}>
+								<UploadSimpleIcon size={28} />
+								<Text>Import</Text>
+							</Stack>
+						</Button>
+					</Group>
+				</Stack>
+			</Paper>
 		</Container>
 	);
 }

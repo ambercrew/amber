@@ -2,7 +2,11 @@ import { Group, Stack, Text, Title } from "@mantine/core";
 import { IconProps } from "@phosphor-icons/react";
 import { cloneElement, ReactElement, ReactNode } from "react";
 
-const ICON_SIZE = 26;
+const ICON_SIZE = 22;
+
+/** Font size of a page heading, exported so a custom title (e.g. a breadcrumb
+ * trail) matches the plain one instead of guessing at it. */
+export const PAGE_TITLE_FONT_SIZE = "h3";
 
 interface PageTitleProps {
 	icon: ReactElement<IconProps>;
@@ -20,7 +24,9 @@ function PageTitle({ icon, title, description }: PageTitleProps) {
 			<Group gap="sm" align="center" wrap="nowrap">
 				{cloneElement(icon, { size: ICON_SIZE })}
 				{typeof title === "string" ? (
-					<Title order={2}>{title}</Title>
+					<Title order={2} fz={PAGE_TITLE_FONT_SIZE}>
+						{title}
+					</Title>
 				) : (
 					title
 				)}

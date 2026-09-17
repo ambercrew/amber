@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useDebouncedValue } from "@mantine/hooks";
-import { Alert, Group, Paper, Stack } from "@mantine/core";
+import { Alert, Container, Group, Paper, Stack } from "@mantine/core";
 import PageTitle from "../../../components/PageTitle/PageTitle";
 import { BrowserIcon } from "../../../config/icons";
 import {
@@ -144,54 +144,56 @@ export default function ElementsBrowser() {
 	);
 
 	return (
-		<Paper withBorder radius="md" p="md" maw={900} mx="auto" my="lg">
-			<Stack gap="sm">
-				<PageTitle
-					icon={<BrowserIcon />}
-					title="Browser"
-					description="Search and filter every element in your collection. Save the queries you use often, and select results to act on them in bulk."
-				/>
-				<SavedSearchSelector
-					filters={filters}
-					onFiltersChange={updateFilters}
-					loadedSavedSearchId={loadedSavedSearchId}
-					onLoadedSavedSearchIdChange={setLoadedSavedSearchId}
-					savedSearches={savedSearches}
-					onSavedSearchesChange={setSavedSearches}
-				/>
-				<Group gap="xs" wrap="wrap">
-					{filters.map(filter => (
-						<FilterChip
-							key={filter.id}
-							filter={filter}
-							sources={sources}
-							profiles={profiles}
-							defaultOpened={filter.id === justAddedId}
-							onChange={handleChangeFilter}
-							onRemove={() => handleRemoveFilter(filter.id)}
-						/>
-					))}
-					<AddFilterMenu onSelect={handleAddFilter} />
-				</Group>
-				{errorMessage && (
-					<Alert color="red" title="Search failed">
-						{errorMessage}
-					</Alert>
-				)}
-				<BulkActionsBar
-					selectedIds={selectedIds}
-					selectedResults={selectedResults}
-					profiles={profiles}
-					sources={sources}
-					onClearSelection={() => setSelectedIds([])}
-					onActionComplete={runSearch}
-				/>
-				<SearchResultsTable
-					results={results}
-					selectedIds={selectedIds}
-					onSelectionChange={setSelectedIds}
-				/>
-			</Stack>
-		</Paper>
+		<Container size="md" py="lg">
+			<Paper withBorder radius="md" p="md">
+				<Stack gap="sm">
+					<PageTitle
+						icon={<BrowserIcon />}
+						title="Browser"
+						description="Search and filter every element in your collection. Save the queries you use often, and select results to act on them in bulk."
+					/>
+					<SavedSearchSelector
+						filters={filters}
+						onFiltersChange={updateFilters}
+						loadedSavedSearchId={loadedSavedSearchId}
+						onLoadedSavedSearchIdChange={setLoadedSavedSearchId}
+						savedSearches={savedSearches}
+						onSavedSearchesChange={setSavedSearches}
+					/>
+					<Group gap="xs" wrap="wrap">
+						{filters.map(filter => (
+							<FilterChip
+								key={filter.id}
+								filter={filter}
+								sources={sources}
+								profiles={profiles}
+								defaultOpened={filter.id === justAddedId}
+								onChange={handleChangeFilter}
+								onRemove={() => handleRemoveFilter(filter.id)}
+							/>
+						))}
+						<AddFilterMenu onSelect={handleAddFilter} />
+					</Group>
+					{errorMessage && (
+						<Alert color="red" title="Search failed">
+							{errorMessage}
+						</Alert>
+					)}
+					<BulkActionsBar
+						selectedIds={selectedIds}
+						selectedResults={selectedResults}
+						profiles={profiles}
+						sources={sources}
+						onClearSelection={() => setSelectedIds([])}
+						onActionComplete={runSearch}
+					/>
+					<SearchResultsTable
+						results={results}
+						selectedIds={selectedIds}
+						onSelectionChange={setSelectedIds}
+					/>
+				</Stack>
+			</Paper>
+		</Container>
 	);
 }
