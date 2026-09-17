@@ -214,11 +214,13 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--mantine-color-body": lighten("var(--mantine-color-gray-0)", 0.8),
 		"--sidebar-bg": lighten("var(--mantine-color-gray-0)", 0.1),
 		"--editor-surface-bg": "var(--sidebar-bg)",
+		"--pdf-viewport-bg": "#e8e5dc",
 	},
 	dark: {
 		"--mantine-color-body": "var(--mantine-color-dark-7)",
 		"--sidebar-bg": "var(--mantine-color-dark-8)",
 		"--editor-surface-bg": "var(--sidebar-bg)",
+		"--pdf-viewport-bg": "var(--mantine-color-body)",
 
 		// Mantine's dark defaults for these come from shade 8 of a stock red/teal
 		// it never sees us replace, which reads ~2:1 on our body. Shade 4 is where

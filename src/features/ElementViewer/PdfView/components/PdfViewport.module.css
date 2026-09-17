@@ -1,5 +1,7 @@
 .viewport {
 	scrollbar-gutter: stable;
+	/* Trough the page rests on, so it doesn't blend into the app background. */
+	background-color: var(--pdf-viewport-bg);
 }
 
 .viewport::-webkit-scrollbar {
