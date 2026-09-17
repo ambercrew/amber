@@ -1,12 +1,18 @@
 import { ActionIcon, Box, Group, Text } from "@mantine/core";
 import { CommandIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { spotlight } from "@mantine/spotlight";
+import { ReactNode } from "react";
+import { useLocation } from "react-router";
 import ElementNodeIcon from "./ElementNodeIcon";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
 import { SPOTLIGHT_SHORTCUT } from "../../../commands/commands";
 import StudyModeToggle from "../../Study/components/StudyModeToggle";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import { BrowserIcon, HomeIcon } from "../../../config/icons";
+import { paths } from "../../../paths";
+
+const ICON_SIZE = 18;
 
 interface AppHeaderProps {
 	onToggleSidebar: () => void;
@@ -15,7 +21,29 @@ interface AppHeaderProps {
 
 function AppHeader({ onToggleSidebar, onToggleAside }: AppHeaderProps) {
 	const currentElement = useAppSelector(selectCurrentElement);
+	const location = useLocation();
 	const storedMeta = currentElement?.data.meta ?? null;
+
+	// The route wins over the loaded element, which outlives navigating away
+	// from it to Home or the Browser.
+	let icon: ReactNode = null;
+	let name: string | null = null;
+
+	if (location.pathname === paths.browser()) {
+		icon = <BrowserIcon size={ICON_SIZE} />;
+		name = "Browser";
+	} else if (location.pathname === paths.root()) {
+		icon = <HomeIcon size={ICON_SIZE} />;
+		name = "Home";
+	} else if (storedMeta) {
+		icon = (
+			<ElementNodeIcon
+				type={storedMeta.elementId.type}
+				size={ICON_SIZE}
+			/>
+		);
+		name = storedMeta.name;
+	}
 
 	return (
 		<Group
@@ -36,15 +64,12 @@ function AppHeader({ onToggleSidebar, onToggleAside }: AppHeaderProps) {
 					</ActionIcon>
 				</AppTooltip>
 
-				{storedMeta && (
+				{name && (
 					<Group gap={6} align="center" wrap="nowrap" miw={0} px="xs">
 						<Box style={{ flexShrink: 0, display: "flex" }}>
-							<ElementNodeIcon
-								type={storedMeta.elementId.type}
-								size={18}
-							/>
+							{icon}
 						</Box>
-						<Text truncate="end">{storedMeta.name}</Text>
+						<Text truncate="end">{name}</Text>
 					</Group>
 				)}
 			</Group>

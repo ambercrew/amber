@@ -54,6 +54,60 @@ describe("AppHeader", () => {
 		expect(screen.getByRole("switch")).toBeInTheDocument();
 	});
 
+	it("Should show Home when the route is the root folder", () => {
+		// Arrange & Act
+
+		renderWithProviders(
+			<AppHeader onToggleSidebar={vi.fn()} onToggleAside={vi.fn()} />,
+			{
+				preloadedState: BASE_STATE,
+				memoryRouterProps: { initialEntries: ["/"] },
+			},
+		);
+
+		// Assert
+
+		expect(screen.getByText("Home")).toBeInTheDocument();
+	});
+
+	it("Should show Browser when the route is the elements browser", () => {
+		// Arrange & Act
+
+		renderWithProviders(
+			<AppHeader onToggleSidebar={vi.fn()} onToggleAside={vi.fn()} />,
+			{
+				preloadedState: BASE_STATE,
+				memoryRouterProps: { initialEntries: ["/browser"] },
+			},
+		);
+
+		// Assert
+
+		expect(screen.getByText("Browser")).toBeInTheDocument();
+	});
+
+	it("Should show Browser rather than the loaded element when the route is the browser", () => {
+		// Arrange & Act
+
+		renderWithProviders(
+			<AppHeader onToggleSidebar={vi.fn()} onToggleAside={vi.fn()} />,
+			{
+				preloadedState: {
+					elements: {
+						...BASE_STATE.elements,
+						currentElement: folderElement,
+					},
+				},
+				memoryRouterProps: { initialEntries: ["/browser"] },
+			},
+		);
+
+		// Assert
+
+		expect(screen.getByText("Browser")).toBeInTheDocument();
+		expect(screen.queryByText("Science")).not.toBeInTheDocument();
+	});
+
 	it("Should show element name when an element is selected", () => {
 		// Arrange & Act
 
@@ -65,6 +119,9 @@ describe("AppHeader", () => {
 						...BASE_STATE.elements,
 						currentElement: folderElement,
 					},
+				},
+				memoryRouterProps: {
+					initialEntries: ["/folder/folder-science"],
 				},
 			},
 		);
