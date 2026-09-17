@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://amberapp.dev/">Website</a> ·
   <a href="https://discord.gg/krb7uWTQjt">Discord</a>
 </p>
 

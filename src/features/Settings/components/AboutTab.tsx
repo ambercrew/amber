@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { Badge, Button, Group, Stack, Text } from "@mantine/core";
 import {
 	BugIcon,
-	ChatCircleDotsIcon,
+	DiscordLogoIcon,
 	GithubLogoIcon,
+	GlobeIcon,
 } from "@phosphor-icons/react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getAppVersion } from "../../../utils/tauriUtils";
 
+const WEBSITE_URL = "https://amberapp.dev/";
 const GITHUB_URL = "https://github.com/ambercrew/amber";
 const FEEDBACK_URL = "https://github.com/ambercrew/amber/issues/new";
 const DISCORD_URL = "https://discord.gg/krb7uWTQjt";
@@ -45,15 +47,21 @@ function AboutTab() {
 				<Group gap="sm">
 					<Button
 						variant="default"
-						leftSection={<GithubLogoIcon />}
-						onClick={() => void openUrl(GITHUB_URL)}>
-						GitHub
+						leftSection={<GlobeIcon />}
+						onClick={() => void openUrl(WEBSITE_URL)}>
+						Website
 					</Button>
 					<Button
 						variant="default"
-						leftSection={<ChatCircleDotsIcon />}
+						leftSection={<DiscordLogoIcon />}
 						onClick={() => void openUrl(DISCORD_URL)}>
 						Discord
+					</Button>
+					<Button
+						variant="default"
+						leftSection={<GithubLogoIcon />}
+						onClick={() => void openUrl(GITHUB_URL)}>
+						GitHub
 					</Button>
 				</Group>
 			</Stack>
