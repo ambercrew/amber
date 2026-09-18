@@ -1,4 +1,4 @@
-import { Group, Stack, Text, Title } from "@mantine/core";
+import { Box, Group, Stack, Text, Title } from "@mantine/core";
 import { IconProps } from "@phosphor-icons/react";
 import { cloneElement, ReactElement, ReactNode } from "react";
 
@@ -22,7 +22,9 @@ function PageTitle({ icon, title, description }: PageTitleProps) {
 	return (
 		<Stack gap={4}>
 			<Group gap="sm" align="center" wrap="nowrap">
-				{cloneElement(icon, { size: ICON_SIZE })}
+				<Box style={{ flexShrink: 0, display: "flex" }}>
+					{cloneElement(icon, { size: ICON_SIZE })}
+				</Box>
 				{typeof title === "string" ? (
 					<Title order={2} fz={PAGE_TITLE_FONT_SIZE}>
 						{title}
