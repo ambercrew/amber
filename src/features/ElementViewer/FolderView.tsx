@@ -25,7 +25,7 @@ export default function FolderView() {
 	const dispatch = useAppDispatch();
 	const currentElement = useAppSelector(selectCurrentElement);
 
-	// Nothing selected is the root of the tree, presented as "Home".
+	// Nothing selected is the root of the tree, shown as "Home".
 	const folder =
 		currentElement?.type === "folder" ? currentElement.data : null;
 	const trail = useFolderTrail(
@@ -33,33 +33,21 @@ export default function FolderView() {
 		folder?.meta.name ?? null,
 	);
 
-	const crumbs = [
-		<Anchor
-			key="home"
-			component={Link}
-			to={paths.root()}
-			inherit
-			c={trail.length === 0 ? "inherit" : "dimmed"}
-			fw={trail.length === 0 ? 700 : undefined}
-			underline="hover">
-			Home
-		</Anchor>,
-		...trail.map((item, index) => {
-			const isCurrent = index === trail.length - 1;
-			return (
-				<Anchor
-					key={item.id}
-					component={Link}
-					to={paths.element("folder", item.id)}
-					inherit
-					c={isCurrent ? "inherit" : "dimmed"}
-					fw={isCurrent ? 700 : undefined}
-					underline="hover">
-					{item.name}
-				</Anchor>
-			);
-		}),
-	];
+	const crumbs = trail.map((item, index) => {
+		const isCurrent = index === trail.length - 1;
+		return (
+			<Anchor
+				key={item.id}
+				component={Link}
+				to={paths.element("folder", item.id)}
+				inherit
+				c={isCurrent ? "inherit" : "dimmed"}
+				fw={isCurrent ? 700 : undefined}
+				underline="hover">
+				{item.name}
+			</Anchor>
+		);
+	});
 
 	return (
 		<Container size="md" py="lg">
@@ -68,11 +56,18 @@ export default function FolderView() {
 					<PageTitle
 						icon={folder ? <FolderElementIcon /> : <HomeIcon />}
 						title={
-							<Breadcrumbs
-								fz={PAGE_TITLE_FONT_SIZE}
-								separator="/">
-								{crumbs}
-							</Breadcrumbs>
+							trail.length === 0 ? (
+								"Home"
+							) : (
+								<Group gap="xs" wrap="nowrap">
+									<Text fz={PAGE_TITLE_FONT_SIZE}>/</Text>
+									<Breadcrumbs
+										fz={PAGE_TITLE_FONT_SIZE}
+										separator="/">
+										{crumbs}
+									</Breadcrumbs>
+								</Group>
+							)
 						}
 						description={
 							folder
