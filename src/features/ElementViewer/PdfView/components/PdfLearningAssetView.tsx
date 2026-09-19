@@ -29,9 +29,6 @@ interface PdfLearningAssetViewProps {
 	meta: MetaResponseDto;
 }
 
-// TODO:
-// 1. More manual testing (also test sync)
-// 2. Better performance (mesaure on big documents with many highlights) and seraching
 export default function PdfLearningAssetView({
 	learningAssetId,
 	readPoint,

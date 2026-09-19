@@ -149,9 +149,13 @@ export default function PdfDocumentContent({
 							<PagePointerProvider
 								documentId={activeDocumentId}
 								pageIndex={pageIndex}>
+								{/* Without this the native image drag fires
+								    pointercancel with no pointerup, leaving
+								    embedpdf's text selection stuck "selecting". */}
 								<RenderLayer
 									documentId={activeDocumentId}
 									pageIndex={pageIndex}
+									draggable={false}
 								/>
 								<AnnotationLayer
 									documentId={activeDocumentId}
