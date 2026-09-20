@@ -5,6 +5,7 @@ use uuid::Uuid;
 use crate::common::repository_error::RepositoryError;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::study::entities::study_profile::StudyProfile;
+use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
 use crate::study::value_objects::step_unit::StepUnit;
 
 /// FSRS models are trained on exactly this many weights.
@@ -24,6 +25,7 @@ pub struct StudyProfileFields {
     pub initial_interval_multiplier: f32,
     pub initial_interval_days: f32,
     pub min_interval_days: f32,
+    pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
 #[async_trait]

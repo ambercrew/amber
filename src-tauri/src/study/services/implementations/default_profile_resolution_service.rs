@@ -12,6 +12,7 @@ use crate::study::repositories::study_profile_repository::StudyProfileRepository
 use crate::study::services::profile_resolution_service::{
     EffectiveProfile, ProfileResolutionError, ProfileResolutionService, ProfileSource,
 };
+use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
 use crate::study::value_objects::step_unit::StepUnit;
 
 const DEFAULT_DESIRED_RETENTION: f32 = 0.9;
@@ -121,6 +122,7 @@ impl DefaultProfileResolutionService {
             initial_interval_multiplier: DEFAULT_INTERVAL_MULTIPLIER,
             initial_interval_days: DEFAULT_INITIAL_INTERVAL_DAYS,
             min_interval_days: DEFAULT_MIN_INTERVAL_DAYS,
+            priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }
 }

@@ -108,6 +108,10 @@ const CARD_SCHEDULING: CardSchedulingDto = {
 		initialIntervalMultiplier: 1.2,
 		initialIntervalDays: 1,
 		minIntervalDays: 1,
+		priorityInheritancePolicy: {
+			placement: { type: "aboveParent" },
+			ceilingPercentile: null,
+		},
 	},
 };
 

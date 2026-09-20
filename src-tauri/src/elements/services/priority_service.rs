@@ -6,6 +6,7 @@ use thiserror::Error;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
 
 /// Where an element currently stands in the global priority queue.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -20,16 +21,12 @@ pub struct PriorityInfo {
 
 #[async_trait]
 pub trait PriorityService: Send + Sync {
-    /// Priority for a brand new element: the front of the queue, since its
-    /// real priority hasn't been triaged yet.
-    async fn get_new_first_priority(&self) -> Result<FractionalIndex, PriorityError>;
-
-    /// Priority for an element derived from (extracted out of) another one:
-    /// placed immediately after the source, inheriting roughly its priority
-    /// without requiring the user to re-triage every extract.
-    async fn get_inherited_priority(
+    /// Priority for a brand new element, placed by its study profile's
+    /// inheritance policy relative to the element it was derived from.
+    async fn get_priority_for_new_element(
         &self,
-        bibliographical_source_id: ElementId,
+        parent: Option<ElementId>,
+        policy: PriorityInheritancePolicy,
     ) -> Result<FractionalIndex, PriorityError>;
 
     async fn get_priority_info(&self, id: ElementId) -> Result<PriorityInfo, PriorityError>;

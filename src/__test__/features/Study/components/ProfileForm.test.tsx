@@ -35,6 +35,10 @@ function makeProfile(
 		initialIntervalMultiplier: 1.2,
 		initialIntervalDays: 1,
 		minIntervalDays: 1,
+		priorityInheritancePolicy: {
+			placement: { type: "aboveParent" },
+			ceilingPercentile: null,
+		},
 		...overrides,
 	};
 }
@@ -306,6 +310,241 @@ describe("ProfileForm", () => {
 		});
 	});
 
+	it("Should not render a percentile input when the policy takes no percentile", () => {
+		// Arrange
+
+		const profile = makeProfile({
+			priorityInheritancePolicy: {
+				placement: { type: "belowParent" },
+				ceilingPercentile: null,
+			},
+		});
+
+		// Act
+
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Assert
+
+		expect(
+			screen.queryByRole("textbox", { name: "Percentile" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("Should render the policy's percentile when the profile has one", () => {
+		// Arrange
+
+		const profile = makeProfile({
+			priorityInheritancePolicy: {
+				placement: { type: "fixedPercentile", percentile: 35 },
+				ceilingPercentile: null,
+			},
+		});
+
+		// Act
+
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Assert
+
+		expect(screen.getByRole("textbox", { name: "Percentile" })).toHaveValue(
+			"35",
+		);
+	});
+
+	it("Should submit the selected policy with its percentile when the policy is changed", async () => {
+		// Arrange
+
+		const profile = makeProfile();
+		vi.mocked(updateStudyProfile).mockResolvedValue(profile);
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Act
+
+		await user.click(
+			screen.getByRole("combobox", {
+				name: "Priority inheritance policy",
+			}),
+		);
+		await user.click(
+			await screen.findByRole("option", { name: "Offset from parent" }),
+		);
+		await user.type(
+			screen.getByRole("textbox", { name: "Offset (percentile points)" }),
+			"15",
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// Assert
+
+		await waitFor(() => {
+			expect(updateStudyProfile).toHaveBeenCalledWith(
+				profile.id,
+				expect.objectContaining({
+					priorityInheritancePolicy: {
+						placement: {
+							type: "offsetFromParent",
+							offsetPercentile: 15,
+						},
+						ceilingPercentile: null,
+					},
+				}),
+			);
+		});
+	});
+
+	it("Should not render the cap controls when the placement is a fixed percentile", () => {
+		// Arrange
+
+		const profile = makeProfile({
+			priorityInheritancePolicy: {
+				placement: { type: "fixedPercentile", percentile: 35 },
+				ceilingPercentile: null,
+			},
+		});
+
+		// Act
+
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Assert
+
+		expect(
+			screen.queryByRole("checkbox", { name: "Cap priority" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("Should render the ceiling when the profile is capped", () => {
+		// Arrange
+
+		const profile = makeProfile({
+			priorityInheritancePolicy: {
+				placement: { type: "belowParent" },
+				ceilingPercentile: 20,
+			},
+		});
+
+		// Act
+
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Assert
+
+		expect(
+			screen.getByRole("checkbox", { name: "Cap priority" }),
+		).toBeChecked();
+		expect(
+			screen.getByRole("textbox", { name: "Ceiling (percentile)" }),
+		).toHaveValue("20");
+	});
+
+	it("Should submit the ceiling alongside the placement when the cap is enabled", async () => {
+		// Arrange
+
+		const profile = makeProfile();
+		vi.mocked(updateStudyProfile).mockResolvedValue(profile);
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Act
+
+		await user.click(
+			screen.getByRole("checkbox", { name: "Cap priority" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// Assert
+
+		await waitFor(() => {
+			expect(updateStudyProfile).toHaveBeenCalledWith(
+				profile.id,
+				expect.objectContaining({
+					priorityInheritancePolicy: {
+						placement: { type: "aboveParent" },
+						ceilingPercentile: 20,
+					},
+				}),
+			);
+		});
+	});
+
+	it("Should drop the ceiling when the cap is turned off", async () => {
+		// Arrange
+
+		const profile = makeProfile({
+			priorityInheritancePolicy: {
+				placement: { type: "belowParent" },
+				ceilingPercentile: 20,
+			},
+		});
+		vi.mocked(updateStudyProfile).mockResolvedValue(profile);
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Act
+
+		await user.click(
+			screen.getByRole("checkbox", { name: "Cap priority" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// Assert
+
+		await waitFor(() => {
+			expect(updateStudyProfile).toHaveBeenCalledWith(
+				profile.id,
+				expect.objectContaining({
+					priorityInheritancePolicy: {
+						placement: { type: "belowParent" },
+						ceilingPercentile: null,
+					},
+				}),
+			);
+		});
+	});
 	it("Should show a validation error when a step is not a number followed by a unit", async () => {
 		// Arrange
 

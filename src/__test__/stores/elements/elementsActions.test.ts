@@ -26,6 +26,10 @@ const PROFILE: StudyProfileDto = {
 	initialIntervalMultiplier: 1.2,
 	initialIntervalDays: 1,
 	minIntervalDays: 1,
+	priorityInheritancePolicy: {
+		placement: { type: "aboveParent" },
+		ceilingPercentile: null,
+	},
 };
 
 const CARD_ELEMENT: AnyElementDto = {

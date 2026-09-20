@@ -8,6 +8,9 @@ use injector_derive::ScopeInjectable;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::services::priority_service::{PriorityError, PriorityInfo, PriorityService};
 use crate::elements::value_objects::element_id::ElementId;
+use crate::study::value_objects::priority_inheritance_policy::{
+    Placement, PriorityInheritancePolicy,
+};
 
 #[derive(ScopeInjectable)]
 pub struct DefaultPriorityService {
@@ -16,28 +19,21 @@ pub struct DefaultPriorityService {
 
 #[async_trait]
 impl PriorityService for DefaultPriorityService {
-    async fn get_new_first_priority(&self) -> Result<FractionalIndex, PriorityError> {
-        let first = self.meta_repository.get_first_priority().await?;
-        Ok(first
-            .map(|p| FractionalIndex::new_before(&p))
-            .unwrap_or_default())
-    }
-
-    async fn get_inherited_priority(
+    async fn get_priority_for_new_element(
         &self,
-        bibliographical_source_id: ElementId,
+        parent: Option<ElementId>,
+        policy: PriorityInheritancePolicy,
     ) -> Result<FractionalIndex, PriorityError> {
-        match self
-            .try_get_inherited_priority(bibliographical_source_id)
-            .await
-        {
-            Err(PriorityError::PriorityExhausted) => {
-                self.rebalance_priorities().await?;
-                self.try_get_inherited_priority(bibliographical_source_id)
-                    .await
-            }
-            other => other,
+        let total = self.meta_repository.count_all().await?;
+        if total == 0 {
+            return Ok(FractionalIndex::default());
         }
+        let position = self
+            .target_position(parent, policy.placement, total)
+            .await?;
+
+        self.get_priority_for_position(self.apply_ceiling(position, parent, policy, total))
+            .await
     }
 
     async fn get_priority_info(&self, id: ElementId) -> Result<PriorityInfo, PriorityError> {
@@ -132,28 +128,55 @@ impl PriorityService for DefaultPriorityService {
 }
 
 impl DefaultPriorityService {
-    /// Two elements can end up with the same priority (e.g. a duplicate
-    /// introduced by sync), which leaves no midpoint between them. Surface
-    /// that as `PriorityExhausted` rather than silently reusing a key, so
-    /// callers rebalance instead of masking the collision.
-    async fn try_get_inherited_priority(
+    /// Holds `position` back to the ceiling, so a parent near the front of the
+    /// queue doesn't drag every element derived from it up there with it.
+    ///
+    /// A parent-relative placement with no parent has nothing to cap: the
+    /// element is untriaged, so it stays at the front rather than being pushed
+    /// down to the ceiling.
+    fn apply_ceiling(
         &self,
-        bibliographical_source_id: ElementId,
-    ) -> Result<FractionalIndex, PriorityError> {
-        let source = self
-            .meta_repository
-            .get_by_id(bibliographical_source_id.id())
-            .await?;
-        let previous = self
-            .meta_repository
-            .get_previous_by_priority(&source)
-            .await?;
-        let priority = match previous {
-            Some(previous) => FractionalIndex::new_between(&previous.priority, &source.priority)
-                .ok_or(PriorityError::PriorityExhausted)?,
-            None => FractionalIndex::new_before(&source.priority),
+        position: i64,
+        parent: Option<ElementId>,
+        policy: PriorityInheritancePolicy,
+        total: i64,
+    ) -> i64 {
+        let absolute = matches!(policy.placement, Placement::FixedPercentile { .. });
+        match policy.ceiling_percentile {
+            Some(ceiling) if parent.is_some() || absolute => {
+                position.max(position_for_percentile(ceiling, total))
+            }
+            _ => position,
+        }
+    }
+
+    async fn target_position(
+        &self,
+        parent: Option<ElementId>,
+        placement: Placement,
+        total: i64,
+    ) -> Result<i64, PriorityError> {
+        let parent = match (placement, parent) {
+            (Placement::FixedPercentile { percentile }, _) => {
+                return Ok(position_for_percentile(percentile, total));
+            }
+            (_, None) => return Ok(1),
+            (_, Some(parent)) => parent,
         };
-        Ok(priority)
+        let position = self
+            .meta_repository
+            .count_with_lower_priority(parent)
+            .await?
+            + 1;
+
+        Ok(match placement {
+            Placement::AboveParent => position,
+            Placement::BelowParent => position + 1,
+            Placement::OffsetFromParent { offset_percentile } => {
+                position + offset_positions(offset_percentile, total)
+            }
+            Placement::FixedPercentile { .. } => unreachable!("returned above"),
+        })
     }
 
     async fn try_set_priority_by_position(
@@ -198,6 +221,10 @@ impl DefaultPriorityService {
     /// Same placement math as `try_set_priority_by_position`, but for an
     /// element that doesn't exist yet: nothing needs excluding, and the
     /// result is returned rather than persisted.
+    /// Two elements can end up with the same priority (e.g. a duplicate
+    /// introduced by sync), which leaves no midpoint between them. Surface
+    /// that as `PriorityExhausted` rather than silently reusing a key, so
+    /// callers rebalance instead of masking the collision.
     async fn try_get_priority_for_position(
         &self,
         position: i64,
@@ -302,6 +329,21 @@ impl DefaultPriorityService {
     }
 }
 
+/// 1-based slot a not-yet-created element must take to report `percentile`
+/// once it exists. See [`DefaultPriorityService::get_priority_for_percentile`]
+/// for why the span is `total` rather than `total - 1`.
+fn position_for_percentile(percentile: f64, total: i64) -> i64 {
+    let clamped = percentile.clamp(0.0, 100.0);
+    (clamped * total as f64 / 100.0).round() as i64 + 1
+}
+
+/// `offset_percentile` as a number of positions, measured against the same
+/// span [`priority_info`] uses, so an offset of 0 covers no distance at all.
+fn offset_positions(offset_percentile: f64, total: i64) -> i64 {
+    let span = (total - 1).max(0) as f64;
+    (offset_percentile * span / 100.0).round() as i64
+}
+
 fn priority_info(position: i64, total: i64) -> PriorityInfo {
     let percentile = if total <= 1 {
         0.0
@@ -348,6 +390,20 @@ mod tests {
         injector
     }
 
+    fn policy(placement: Placement) -> PriorityInheritancePolicy {
+        PriorityInheritancePolicy {
+            placement,
+            ceiling_percentile: None,
+        }
+    }
+
+    fn capped(placement: Placement, ceiling_percentile: f64) -> PriorityInheritancePolicy {
+        PriorityInheritancePolicy {
+            placement,
+            ceiling_percentile: Some(ceiling_percentile),
+        }
+    }
+
     fn make_folder(priority: FractionalIndex) -> Folder {
         Folder {
             meta: Meta {
@@ -365,8 +421,359 @@ mod tests {
         }
     }
 
+    /// Builds a queue of `count` folders with ascending priorities and returns
+    /// their ids in priority order (front of the queue first).
+    async fn make_queue(
+        folder_repo: &Arc<dyn FolderRepository>,
+        count: usize,
+    ) -> Vec<(ElementId, FractionalIndex)> {
+        let mut priority = FractionalIndex::default();
+        let mut created = Vec::with_capacity(count);
+        for _ in 0..count {
+            let folder = make_folder(priority.clone());
+            created.push((folder.meta.element_id, priority.clone()));
+            priority = FractionalIndex::new_after(&priority);
+            folder_repo.create(folder).await.unwrap();
+        }
+        created
+    }
+
     #[tokio::test]
-    async fn get_new_first_priority_empty_returns_default() {
+    async fn get_priority_for_new_element_capped_without_parent_returns_front_of_queue() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 10).await;
+        let first_priority = queue[0].1.clone();
+
+        // Act
+
+        let actual = service
+            .get_priority_for_new_element(None, capped(Placement::AboveParent, 20.0))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(actual < first_priority);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_below_parent_returns_between_parent_and_next() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 3).await;
+        let (parent_id, parent_priority) = queue[0].clone();
+        let next_priority = queue[1].1.clone();
+
+        // Act
+
+        let actual = service
+            .get_priority_for_new_element(Some(parent_id), policy(Placement::BelowParent))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(parent_priority < actual);
+        assert!(actual < next_priority);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_below_parent_at_back_returns_after_parent() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 2).await;
+        let (parent_id, parent_priority) = queue[1].clone();
+
+        // Act
+
+        let actual = service
+            .get_priority_for_new_element(Some(parent_id), policy(Placement::BelowParent))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(parent_priority < actual);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_offset_from_parent_returns_behind_parent() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 10).await;
+        let (parent_id, parent_priority) = queue[0].clone();
+
+        // Act
+
+        // Parent sits at 0%, so +50 lands it halfway down a ten-element queue.
+        let actual = service
+            .get_priority_for_new_element(
+                Some(parent_id),
+                policy(Placement::OffsetFromParent {
+                    offset_percentile: 50.0,
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(parent_priority < actual);
+        assert!(actual > queue[4].1);
+        assert!(actual < queue[5].1);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_offset_from_parent_zero_offset_returns_parent_slot() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 10).await;
+        let (parent_id, parent_priority) = queue[5].clone();
+
+        // Act
+
+        let actual = service
+            .get_priority_for_new_element(
+                Some(parent_id),
+                policy(Placement::OffsetFromParent {
+                    offset_percentile: 0.0,
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(queue[4].1 < actual);
+        assert!(actual < parent_priority);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_capped_parent_ahead_of_ceiling_returns_at_ceiling() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 10).await;
+        let (parent_id, parent_priority) = queue[0].clone();
+
+        // Act
+
+        let actual = service
+            .get_priority_for_new_element(Some(parent_id), capped(Placement::AboveParent, 20.0))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(parent_priority < actual);
+        assert!(actual > queue[1].1);
+        assert!(actual < queue[2].1);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_capped_parent_behind_ceiling_returns_above_parent() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 10).await;
+        let (parent_id, parent_priority) = queue[8].clone();
+
+        // Act
+
+        let actual = service
+            .get_priority_for_new_element(Some(parent_id), capped(Placement::AboveParent, 20.0))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(queue[7].1 < actual);
+        assert!(actual < parent_priority);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_capped_below_parent_holds_at_ceiling() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 10).await;
+        let (parent_id, parent_priority) = queue[0].clone();
+
+        // Act
+
+        let actual = service
+            .get_priority_for_new_element(Some(parent_id), capped(Placement::BelowParent, 30.0))
+            .await
+            .unwrap();
+
+        // Assert — just behind the parent would be 1, so the ceiling wins.
+
+        assert!(parent_priority < actual);
+        assert!(queue[2].1 < actual);
+        assert!(actual < queue[3].1);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_capped_below_parent_behind_ceiling_keeps_placement() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 10).await;
+        let (parent_id, parent_priority) = queue[7].clone();
+
+        // Act
+
+        let actual = service
+            .get_priority_for_new_element(Some(parent_id), capped(Placement::BelowParent, 30.0))
+            .await
+            .unwrap();
+
+        // Assert — the parent already sits behind the ceiling, so the cap
+        // never applies and the element lands right behind it.
+
+        assert!(parent_priority < actual);
+        assert!(actual < queue[8].1);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_capped_offset_holds_at_ceiling() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 10).await;
+        let (parent_id, _) = queue[5].clone();
+
+        // Act — a -50 offset would reach the front of the queue.
+
+        let actual = service
+            .get_priority_for_new_element(
+                Some(parent_id),
+                capped(
+                    Placement::OffsetFromParent {
+                        offset_percentile: -50.0,
+                    },
+                    40.0,
+                ),
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(queue[3].1 < actual);
+        assert!(actual < queue[4].1);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_fixed_percentile_without_parent_returns_at_percentile() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 10).await;
+
+        // Act
+
+        let actual = service
+            .get_priority_for_new_element(
+                None,
+                policy(Placement::FixedPercentile { percentile: 50.0 }),
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(queue[4].1 < actual);
+        assert!(actual < queue[5].1);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_parent_relative_policy_without_parent_returns_front() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 3).await;
+
+        // Act
+
+        let actual = service
+            .get_priority_for_new_element(None, policy(Placement::BelowParent))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(actual < queue[0].1);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_above_parent_returns_ahead_of_parent() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 3).await;
+        let (parent_id, parent_priority) = queue[1].clone();
+
+        // Act
+
+        let actual = service
+            .get_priority_for_new_element(Some(parent_id), policy(Placement::AboveParent))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(queue[0].1 < actual);
+        assert!(actual < parent_priority);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_position_front_on_empty_queue_returns_default() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -375,7 +782,7 @@ mod tests {
 
         // Act
 
-        let actual = service.get_new_first_priority().await.unwrap();
+        let actual = service.get_priority_for_position(1).await.unwrap();
 
         // Assert
 
@@ -383,7 +790,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_new_first_priority_with_existing_returns_before_first() {
+    async fn get_priority_for_position_front_with_existing_returns_before_first() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -396,7 +803,7 @@ mod tests {
 
         // Act
 
-        let actual = service.get_new_first_priority().await.unwrap();
+        let actual = service.get_priority_for_position(1).await.unwrap();
 
         // Assert
 
@@ -404,7 +811,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_inherited_priority_source_with_no_previous_returns_before_source() {
+    async fn get_priority_for_new_element_above_parent_with_no_previous_returns_before_parent() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -412,14 +819,14 @@ mod tests {
         let service = scope.resolve::<dyn PriorityService>().await;
         let folder_repo = scope.resolve::<dyn FolderRepository>().await;
 
-        let source = make_folder(FractionalIndex::default());
-        let bibliographical_source_id = source.meta.element_id;
-        folder_repo.create(source).await.unwrap();
+        let parent = make_folder(FractionalIndex::default());
+        let parent_id = parent.meta.element_id;
+        folder_repo.create(parent).await.unwrap();
 
         // Act
 
         let actual = service
-            .get_inherited_priority(bibliographical_source_id)
+            .get_priority_for_new_element(Some(parent_id), policy(Placement::AboveParent))
             .await
             .unwrap();
 
@@ -429,7 +836,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_inherited_priority_source_with_previous_returns_between_previous_and_source() {
+    async fn get_priority_for_new_element_above_parent_with_previous_returns_between_previous_and_parent()
+     {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -438,24 +846,24 @@ mod tests {
         let folder_repo = scope.resolve::<dyn FolderRepository>().await;
 
         let previous_priority = FractionalIndex::default();
-        let source_priority = FractionalIndex::new_after(&previous_priority);
+        let parent_priority = FractionalIndex::new_after(&previous_priority);
         let previous = make_folder(previous_priority.clone());
-        let source = make_folder(source_priority.clone());
-        let bibliographical_source_id = source.meta.element_id;
+        let parent = make_folder(parent_priority.clone());
+        let parent_id = parent.meta.element_id;
         folder_repo.create(previous).await.unwrap();
-        folder_repo.create(source).await.unwrap();
+        folder_repo.create(parent).await.unwrap();
 
         // Act
 
         let actual = service
-            .get_inherited_priority(bibliographical_source_id)
+            .get_priority_for_new_element(Some(parent_id), policy(Placement::AboveParent))
             .await
             .unwrap();
 
         // Assert
 
         assert!(actual > previous_priority);
-        assert!(actual < source_priority);
+        assert!(actual < parent_priority);
     }
 
     #[tokio::test]
@@ -795,7 +1203,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_inherited_priority_previous_and_source_exhausted_rebalances_and_succeeds() {
+    async fn get_priority_for_new_element_above_parent_exhausted_rebalances_and_succeeds() {
         // Arrange — create three folders, then exhaust the space between the
         // first two via direct SQL so no key can fit strictly between them.
 
@@ -807,15 +1215,15 @@ mod tests {
         let tx = scope.resolve::<DbTransaction>().await;
 
         let previous = make_folder(FractionalIndex::default());
-        let source = make_folder(FractionalIndex::new_after(&FractionalIndex::default()));
+        let parent = make_folder(FractionalIndex::new_after(&FractionalIndex::default()));
         let other = make_folder(FractionalIndex::new_after(&FractionalIndex::new_after(
             &FractionalIndex::default(),
         )));
         let previous_id = previous.meta.element_id.id();
-        let bibliographical_source_id = source.meta.element_id;
+        let parent_id = parent.meta.element_id;
         let other_id = other.meta.element_id;
         folder_repo.create(previous).await.unwrap();
-        folder_repo.create(source).await.unwrap();
+        folder_repo.create(parent).await.unwrap();
         folder_repo.create(other).await.unwrap();
 
         let adjacent_before = FractionalIndex::from_bytes(vec![127, 128]).unwrap();
@@ -834,33 +1242,30 @@ mod tests {
             sqlx::query!(
                 "UPDATE meta SET priority = $1 WHERE element_id = $2",
                 adjacent_after.as_bytes(),
-                bibliographical_source_id.id().hyphenated()
+                parent_id.id().hyphenated()
             )
             .execute(&mut *tx_ref)
             .await
             .unwrap();
         }
 
-        // Act — the priority between previous and source is exhausted, so
+        // Act — the priority between previous and parent is exhausted, so
         // the service must rebalance every priority before succeeding.
 
         let inherited = service
-            .get_inherited_priority(bibliographical_source_id)
+            .get_priority_for_new_element(Some(parent_id), policy(Placement::AboveParent))
             .await
             .unwrap();
 
         // Assert — the new priority is a distinct key strictly between the
-        // (rebalanced) previous and source, and overall order is preserved.
+        // (rebalanced) previous and parent, and overall order is preserved.
 
         let previous_meta = meta_repo.get_by_id(previous_id).await.unwrap();
-        let source_meta = meta_repo
-            .get_by_id(bibliographical_source_id.id())
-            .await
-            .unwrap();
+        let parent_meta = meta_repo.get_by_id(parent_id.id()).await.unwrap();
         let other_meta = meta_repo.get_by_id(other_id.id()).await.unwrap();
         assert!(previous_meta.priority < inherited);
-        assert!(inherited < source_meta.priority);
-        assert!(source_meta.priority < other_meta.priority);
+        assert!(inherited < parent_meta.priority);
+        assert!(parent_meta.priority < other_meta.priority);
     }
 
     #[tokio::test]

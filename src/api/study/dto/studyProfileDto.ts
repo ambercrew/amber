@@ -1,5 +1,18 @@
 import { ElementId } from "../../../types/elements/elementId";
 
+export type Placement =
+	| { type: "aboveParent" }
+	| { type: "belowParent" }
+	| { type: "offsetFromParent"; offsetPercentile: number }
+	| { type: "fixedPercentile"; percentile: number };
+
+export type PlacementType = Placement["type"];
+
+export interface PriorityInheritancePolicy {
+	placement: Placement;
+	ceilingPercentile: number | null;
+}
+
 export interface StudyProfileDto {
 	id: string;
 	createdAt: string;
@@ -13,6 +26,7 @@ export interface StudyProfileDto {
 	initialIntervalMultiplier: number;
 	initialIntervalDays: number;
 	minIntervalDays: number;
+	priorityInheritancePolicy: PriorityInheritancePolicy;
 }
 
 export interface StudyProfileRequestDto {
@@ -24,6 +38,7 @@ export interface StudyProfileRequestDto {
 	initialIntervalMultiplier: number;
 	initialIntervalDays: number;
 	minIntervalDays: number;
+	priorityInheritancePolicy: PriorityInheritancePolicy;
 }
 
 export type ProfileSource = "direct" | "inherited" | "default";

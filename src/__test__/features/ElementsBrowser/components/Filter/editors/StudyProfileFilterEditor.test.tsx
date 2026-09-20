@@ -18,6 +18,10 @@ const DEFAULT_PROFILE: StudyProfileDto = {
 	initialIntervalMultiplier: 1,
 	initialIntervalDays: 1,
 	minIntervalDays: 1,
+	priorityInheritancePolicy: {
+		placement: { type: "aboveParent" },
+		ceilingPercentile: null,
+	},
 };
 
 const EXAM_PROFILE: StudyProfileDto = {

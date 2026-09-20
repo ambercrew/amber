@@ -28,6 +28,10 @@ function makeProfile(overrides: Partial<StudyProfileDto>): StudyProfileDto {
 		initialIntervalMultiplier: 1.2,
 		initialIntervalDays: 1,
 		minIntervalDays: 1,
+		priorityInheritancePolicy: {
+			placement: { type: "aboveParent" },
+			ceilingPercentile: null,
+		},
 		...overrides,
 	};
 }

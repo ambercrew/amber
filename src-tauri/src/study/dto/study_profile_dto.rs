@@ -6,6 +6,7 @@ use crate::elements::value_objects::element_id::ElementId;
 use crate::study::entities::study_profile::StudyProfile;
 use crate::study::services::profile_resolution_service::{EffectiveProfile, ProfileSource};
 use crate::study::services::study_profile_service::StudyProfileFields;
+use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
 use crate::study::value_objects::step_unit::StepUnit;
 
 #[derive(Serialize)]
@@ -23,6 +24,7 @@ pub struct StudyProfileResponseDto {
     pub initial_interval_multiplier: f32,
     pub initial_interval_days: f32,
     pub min_interval_days: f32,
+    pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
 /// Mirrors ts-fsrs's own `default_learning_steps`/`default_relearning_steps`
@@ -63,6 +65,7 @@ impl From<StudyProfile> for StudyProfileResponseDto {
             initial_interval_multiplier: profile.initial_interval_multiplier,
             initial_interval_days: profile.initial_interval_days,
             min_interval_days: profile.min_interval_days,
+            priority_inheritance_policy: profile.priority_inheritance_policy,
         }
     }
 }
@@ -80,6 +83,7 @@ pub struct StudyProfileRequestDto {
     pub initial_interval_multiplier: f32,
     pub initial_interval_days: f32,
     pub min_interval_days: f32,
+    pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
 impl From<StudyProfileRequestDto> for StudyProfileFields {
@@ -93,6 +97,7 @@ impl From<StudyProfileRequestDto> for StudyProfileFields {
             initial_interval_multiplier: dto.initial_interval_multiplier,
             initial_interval_days: dto.initial_interval_days,
             min_interval_days: dto.min_interval_days,
+            priority_inheritance_policy: dto.priority_inheritance_policy,
         }
     }
 }

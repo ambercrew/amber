@@ -111,6 +111,7 @@ impl ElementDetailsService for DefaultElementDetailsService {
 
 #[cfg(test)]
 mod tests {
+    use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
     use chrono::{Duration, Utc};
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
@@ -230,6 +231,7 @@ mod tests {
             initial_interval_multiplier: 1.2,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
+            priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }
 

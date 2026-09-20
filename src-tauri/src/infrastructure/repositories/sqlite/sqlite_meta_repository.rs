@@ -431,49 +431,6 @@ impl MetaRepository for SqliteMetaRepository {
         Ok(())
     }
 
-    async fn get_first_priority(&self) -> Result<Option<FractionalIndex>, RepositoryError> {
-        let mut tx = self.tx.lock().await;
-        let tx = tx.as_mut();
-        let row = sqlx::query!(
-            r#"SELECT priority as "priority: Vec<u8>" FROM meta WHERE trashed_at IS NULL ORDER BY priority LIMIT 1"#
-        )
-        .fetch_optional(&mut *tx)
-        .await?;
-        Ok(row.map(|r| FractionalIndex::from_bytes(r.priority).expect("Invalid fractional index")))
-    }
-
-    async fn get_previous_by_priority(&self, meta: &Meta) -> Result<Option<Meta>, RepositoryError> {
-        let mut tx = self.tx.lock().await;
-        let tx = tx.as_mut();
-
-        let row = sqlx::query_as!(
-            MetaRow,
-            r#"SELECT
-                element_id as "element_id: _",
-                element_type,
-                name,
-                position as "position: _",
-                priority as "priority: _",
-                parent_id as "parent_id: _",
-                parent_type,
-                derived_from_id as "derived_from_id: _",
-                derived_from_type,
-                study_profile_id as "study_profile_id: _",
-                bibliographical_source_id as "bibliographical_source_id: _",
-                created_at as "created_at: _",
-                modified_at as "modified_at: _"
-            FROM meta
-            WHERE priority < $1 AND trashed_at IS NULL
-            ORDER BY priority DESC
-            LIMIT 1"#,
-            meta.priority.as_bytes()
-        )
-        .fetch_optional(&mut *tx)
-        .await?;
-
-        Ok(row.map(|r| r.into()))
-    }
-
     async fn get_priority_before(
         &self,
         priority: &FractionalIndex,

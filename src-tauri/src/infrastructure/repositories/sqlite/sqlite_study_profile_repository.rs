@@ -33,11 +33,15 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             .relearning_steps
             .as_ref()
             .map(|steps| serde_json::to_string(steps).expect("Cannot serialize relearning_steps"));
+        let placement = profile.priority_inheritance_policy.placement;
+        let placement_kind = placement.kind();
+        let placement_percentile = placement.percentile();
+        let ceiling_percentile = profile.priority_inheritance_policy.ceiling_percentile;
 
         sqlx::query!(
             r#"INSERT INTO study_profiles
-                (id, created_at, modified_at, name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, initial_interval_multiplier, initial_interval_days, min_interval_days)
-            VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8, $9, $10, $11, $12)"#,
+                (id, created_at, modified_at, name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, initial_interval_multiplier, initial_interval_days, min_interval_days, priority_inheritance_placement, priority_inheritance_percentile, priority_inheritance_ceiling_percentile)
+            VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)"#,
             profile.id.hyphenated(),
             profile.created_at,
             profile.modified_at,
@@ -50,6 +54,9 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             profile.initial_interval_multiplier,
             profile.initial_interval_days,
             profile.min_interval_days,
+            placement_kind,
+            placement_percentile,
+            ceiling_percentile,
         )
         .execute(&mut *tx)
         .await?;
@@ -73,6 +80,10 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             .relearning_steps
             .as_ref()
             .map(|steps| serde_json::to_string(steps).expect("Cannot serialize relearning_steps"));
+        let placement = profile.priority_inheritance_policy.placement;
+        let placement_kind = placement.kind();
+        let placement_percentile = placement.percentile();
+        let ceiling_percentile = profile.priority_inheritance_policy.ceiling_percentile;
 
         sqlx::query!(
             r#"UPDATE study_profiles SET
@@ -84,8 +95,11 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 relearning_steps = $6,
                 initial_interval_multiplier = $7,
                 initial_interval_days = $8,
-                min_interval_days = $9
-            WHERE id = $10"#,
+                min_interval_days = $9,
+                priority_inheritance_placement = $10,
+                priority_inheritance_percentile = $11,
+                priority_inheritance_ceiling_percentile = $12
+            WHERE id = $13"#,
             profile.name,
             profile.is_default,
             profile.desired_retention,
@@ -95,6 +109,9 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             profile.initial_interval_multiplier,
             profile.initial_interval_days,
             profile.min_interval_days,
+            placement_kind,
+            placement_percentile,
+            ceiling_percentile,
             profile.id.hyphenated(),
         )
         .execute(&mut *tx)
@@ -133,7 +150,10 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 relearning_steps,
                 initial_interval_multiplier,
                 initial_interval_days,
-                min_interval_days
+                min_interval_days,
+                priority_inheritance_placement,
+                priority_inheritance_percentile,
+                priority_inheritance_ceiling_percentile
             FROM study_profiles
             WHERE id = $1"#,
             id.hyphenated()
@@ -162,7 +182,10 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 relearning_steps,
                 initial_interval_multiplier,
                 initial_interval_days,
-                min_interval_days
+                min_interval_days,
+                priority_inheritance_placement,
+                priority_inheritance_percentile,
+                priority_inheritance_ceiling_percentile
             FROM study_profiles
             ORDER BY is_default DESC, created_at ASC"#
         )
@@ -199,7 +222,10 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 relearning_steps,
                 initial_interval_multiplier,
                 initial_interval_days,
-                min_interval_days
+                min_interval_days,
+                priority_inheritance_placement,
+                priority_inheritance_percentile,
+                priority_inheritance_ceiling_percentile
             FROM study_profiles
             ORDER BY is_default DESC, created_at ASC
             LIMIT 1"#
@@ -213,6 +239,9 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
 
 #[cfg(test)]
 mod tests {
+    use crate::study::value_objects::priority_inheritance_policy::{
+        Placement, PriorityInheritancePolicy,
+    };
     use chrono::Utc;
     use injector::{injector::Injector, register_scope};
 
@@ -250,6 +279,12 @@ mod tests {
             initial_interval_multiplier: 1.2,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
+            priority_inheritance_policy: PriorityInheritancePolicy {
+                placement: Placement::OffsetFromParent {
+                    offset_percentile: 15.0,
+                },
+                ceiling_percentile: Some(20.0),
+            },
         }
     }
 
@@ -273,6 +308,10 @@ mod tests {
         assert_eq!(profile.fsrs_params, actual.fsrs_params);
         assert_eq!(profile.learning_steps, actual.learning_steps);
         assert_eq!(profile.relearning_steps, actual.relearning_steps);
+        assert_eq!(
+            profile.priority_inheritance_policy,
+            actual.priority_inheritance_policy
+        );
     }
 
     #[tokio::test]

@@ -50,6 +50,10 @@ const profiles: StudyProfileDto[] = [
 		initialIntervalMultiplier: 1,
 		initialIntervalDays: 1,
 		minIntervalDays: 1,
+		priorityInheritancePolicy: {
+			placement: { type: "aboveParent" },
+			ceilingPercentile: null,
+		},
 	},
 ];
 

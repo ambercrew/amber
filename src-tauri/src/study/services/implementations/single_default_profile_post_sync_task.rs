@@ -78,6 +78,7 @@ fn newest<'a>(profiles: impl Iterator<Item = &'a StudyProfile>) -> Option<&'a St
 
 #[cfg(test)]
 mod tests {
+    use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
     use chrono::{DateTime, TimeZone, Utc};
     use injector::{injector::Injector, register_scope};
     use uuid::Uuid;
@@ -126,6 +127,7 @@ mod tests {
             initial_interval_multiplier: 1.5,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
+            priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }
 

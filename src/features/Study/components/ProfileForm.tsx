@@ -1,7 +1,9 @@
 import {
 	Button,
+	Checkbox,
 	Group,
 	NumberInput,
+	Select,
 	Stack,
 	Text,
 	Textarea,
@@ -17,6 +19,8 @@ import {
 	updateStudyProfile,
 } from "../../../api/study/api/studyProfileApi";
 import {
+	Placement,
+	PlacementType,
 	StudyProfileDto,
 	StudyProfileRequestDto,
 } from "../../../api/study/dto/studyProfileDto";
@@ -39,11 +43,65 @@ const DEFAULT_FSRS_PARAMS = [
 
 interface ProfileFormValues extends Omit<
 	StudyProfileRequestDto,
-	"fsrsParams" | "learningSteps" | "relearningSteps"
+	| "fsrsParams"
+	| "learningSteps"
+	| "relearningSteps"
+	| "priorityInheritancePolicy"
 > {
 	fsrsParams: string;
 	learningSteps: string;
 	relearningSteps: string;
+	placementType: PlacementType;
+	// The percentile the chosen placement takes, ignored by the two that take none.
+	placementPercentile: number;
+	capPriority: boolean;
+	ceilingPercentile: number;
+}
+
+const PLACEMENT_OPTIONS: {
+	value: PlacementType;
+	label: string;
+}[] = [
+	{ value: "aboveParent", label: "Above parent" },
+	{ value: "belowParent", label: "Below parent" },
+	{ value: "offsetFromParent", label: "Offset from parent" },
+	{ value: "fixedPercentile", label: "Fixed percentile" },
+];
+
+const PLACEMENT_PERCENTILE_LABELS: Partial<Record<PlacementType, string>> = {
+	offsetFromParent: "Offset (percentile points)",
+	fixedPercentile: "Percentile",
+};
+
+const PLACEMENT_TOOLTIP =
+	"Where a new element lands in the priority queue, relative to the element it was extracted from (or its parent). Percentiles run from 0% (front of the queue) to 100% (back).";
+
+const CEILING_TOOLTIP =
+	"The new element never lands ahead of this percentile, however high its parent sits: with a cap at 20%, a parent at 3% still yields 20%.";
+
+function placementPercentileOf(placement: Placement | undefined): number {
+	switch (placement?.type) {
+		case "offsetFromParent":
+			return placement.offsetPercentile;
+		case "fixedPercentile":
+			return placement.percentile;
+		case "aboveParent":
+		case "belowParent":
+		case undefined:
+			return 0;
+	}
+}
+
+function toPlacement(type: PlacementType, percentile: number): Placement {
+	switch (type) {
+		case "offsetFromParent":
+			return { type, offsetPercentile: percentile };
+		case "fixedPercentile":
+			return { type, percentile };
+		case "aboveParent":
+		case "belowParent":
+			return { type };
+	}
 }
 
 function parseFsrsParams(raw: string): number[] {
@@ -88,6 +146,16 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 				profile?.initialIntervalMultiplier ?? 1.2,
 			initialIntervalDays: profile?.initialIntervalDays ?? 1,
 			minIntervalDays: profile?.minIntervalDays ?? 1,
+			placementType:
+				profile?.priorityInheritancePolicy.placement.type ??
+				"aboveParent",
+			placementPercentile: placementPercentileOf(
+				profile?.priorityInheritancePolicy.placement,
+			),
+			capPriority:
+				profile?.priorityInheritancePolicy.ceilingPercentile != null,
+			ceilingPercentile:
+				profile?.priorityInheritancePolicy.ceilingPercentile ?? 20,
 		},
 		validate: {
 			fsrsParams: value =>
@@ -105,12 +173,36 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 		},
 	});
 
+	const placementType = form.values.placementType;
+	const percentileLabel = PLACEMENT_PERCENTILE_LABELS[placementType];
+	const placementPercentileTooltip =
+		placementType === "offsetFromParent"
+			? "Percentile points added to the parent's own percentile, clamped to the queue. A positive offset places the new element behind its parent."
+			: "The percentile every new element is placed at, regardless of its parent.";
+	// A fixed percentile already names an absolute spot, so a cap on it would
+	// only ever restate that spot.
+	const supportsCeiling = placementType !== "fixedPercentile";
+
 	async function handleSubmit(values: ProfileFormValues) {
+		const {
+			placementType,
+			placementPercentile,
+			capPriority,
+			ceilingPercentile,
+			...rest
+		} = values;
 		const payload: StudyProfileRequestDto = {
-			...values,
+			...rest,
 			fsrsParams: parseFsrsParams(values.fsrsParams),
 			learningSteps: parseSteps(values.learningSteps),
 			relearningSteps: parseSteps(values.relearningSteps),
+			priorityInheritancePolicy: {
+				placement: toPlacement(placementType, placementPercentile),
+				ceilingPercentile:
+					capPriority && placementType !== "fixedPercentile"
+						? ceilingPercentile
+						: null,
+			},
 		};
 		if (profile) {
 			await updateStudyProfile(profile.id, payload);
@@ -242,6 +334,59 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 					step={1}
 					{...form.getInputProps("minIntervalDays")}
 				/>
+				<Select
+					label={
+						<FieldLabel
+							label="Priority inheritance policy"
+							tooltip={PLACEMENT_TOOLTIP}
+						/>
+					}
+					data={PLACEMENT_OPTIONS}
+					allowDeselect={false}
+					withAlignedLabels
+					{...form.getInputProps("placementType")}
+				/>
+				{percentileLabel && (
+					<NumberInput
+						label={
+							<FieldLabel
+								label={percentileLabel}
+								tooltip={placementPercentileTooltip}
+							/>
+						}
+						min={placementType === "offsetFromParent" ? -100 : 0}
+						max={100}
+						step={5}
+						{...form.getInputProps("placementPercentile")}
+					/>
+				)}
+				{supportsCeiling && (
+					<Checkbox
+						label={
+							<FieldLabel
+								label="Cap priority"
+								tooltip={CEILING_TOOLTIP}
+							/>
+						}
+						{...form.getInputProps("capPriority", {
+							type: "checkbox",
+						})}
+					/>
+				)}
+				{supportsCeiling && form.values.capPriority && (
+					<NumberInput
+						label={
+							<FieldLabel
+								label="Ceiling (percentile)"
+								tooltip={CEILING_TOOLTIP}
+							/>
+						}
+						min={0}
+						max={100}
+						step={5}
+						{...form.getInputProps("ceilingPercentile")}
+					/>
+				)}
 
 				<Group justify="space-between" mt="sm">
 					<Group gap={4}>

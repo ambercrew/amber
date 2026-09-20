@@ -66,7 +66,13 @@ impl ElementCreationService for DefaultElementCreationService {
         let now = Utc::now();
         let (derived_from, bibliographical_source_id) =
             self.resolve_origin(parent, dto.meta.origin).await?;
-        let priority = self.resolve_priority(derived_from, parent).await?;
+        let profile = self
+            .profile_resolution_service
+            .resolve_profile(parent)
+            .await?;
+        let priority = self
+            .resolve_priority(derived_from, parent, &profile)
+            .await?;
 
         let element_id = ElementId::Folder(Uuid::new_v4());
 
@@ -99,19 +105,22 @@ impl ElementCreationService for DefaultElementCreationService {
         let position = self.index_service.get_new_last_index(parent).await?;
         let (derived_from, bibliographical_source_id) =
             self.resolve_origin(parent, dto.meta.origin).await?;
+        let now = Utc::now();
+        let profile = self
+            .profile_resolution_service
+            .resolve_profile(parent)
+            .await?;
         let priority = match dto.initial_priority_position {
             Some(position) => {
                 self.priority_service
                     .get_priority_for_position(position)
                     .await?
             }
-            None => self.resolve_priority(derived_from, parent).await?,
+            None => {
+                self.resolve_priority(derived_from, parent, &profile)
+                    .await?
+            }
         };
-        let now = Utc::now();
-        let profile = self
-            .profile_resolution_service
-            .resolve_profile(parent)
-            .await?;
 
         let learning_asset = LearningAsset {
             r#type: dto.r#type,
@@ -170,11 +179,13 @@ impl ElementCreationService for DefaultElementCreationService {
         let position = self.index_service.get_new_last_index(parent).await?;
         let (derived_from, bibliographical_source_id) =
             self.resolve_origin(parent, dto.meta.origin).await?;
-        let priority = self.resolve_priority(derived_from, parent).await?;
         let now = Utc::now();
         let profile = self
             .profile_resolution_service
             .resolve_profile(parent)
+            .await?;
+        let priority = self
+            .resolve_priority(derived_from, parent, &profile)
             .await?;
 
         let extract = Extract {
@@ -209,7 +220,13 @@ impl ElementCreationService for DefaultElementCreationService {
         let now = Utc::now();
         let (derived_from, bibliographical_source_id) =
             self.resolve_origin(parent, dto.meta.origin).await?;
-        let priority = self.resolve_priority(derived_from, parent).await?;
+        let profile = self
+            .profile_resolution_service
+            .resolve_profile(parent)
+            .await?;
+        let priority = self
+            .resolve_priority(derived_from, parent, &profile)
+            .await?;
 
         let card = Card {
             meta: Meta {
@@ -264,17 +281,22 @@ impl DefaultElementCreationService {
         }
     }
 
-    /// New elements inherit the priority of what they were derived from (or,
+    /// New elements are placed relative to what they were derived from (or,
     /// failing that, their tree parent) so the user needn't re-triage them.
+    /// How exactly is the effective study profile's priority inheritance policy.
     async fn resolve_priority(
         &self,
         derived_from: Option<ElementId>,
         parent: Option<ElementId>,
+        profile: &StudyProfile,
     ) -> Result<FractionalIndex, ElementCreationError> {
-        let priority = match derived_from.or(parent) {
-            Some(source) => self.priority_service.get_inherited_priority(source).await?,
-            None => self.priority_service.get_new_first_priority().await?,
-        };
+        let priority = self
+            .priority_service
+            .get_priority_for_new_element(
+                derived_from.or(parent),
+                profile.priority_inheritance_policy,
+            )
+            .await?;
         Ok(priority)
     }
 
@@ -353,6 +375,9 @@ fn due_from_today(initial_interval_days: f32) -> DateTime<Utc> {
 
 #[cfg(test)]
 mod tests {
+    use crate::study::value_objects::priority_inheritance_policy::{
+        Placement, PriorityInheritancePolicy,
+    };
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
 
@@ -501,6 +526,31 @@ mod tests {
             initial_interval_multiplier: 1.2,
             initial_interval_days,
             min_interval_days: 1.0,
+            priority_inheritance_policy: PriorityInheritancePolicy::default(),
+        };
+        profile_repo.create(&profile).await.unwrap();
+        profile.id
+    }
+
+    async fn create_test_profile_with_policy(
+        scope: &injector::injector_scope::InjectorScope<'_>,
+        priority_inheritance_policy: PriorityInheritancePolicy,
+    ) -> Uuid {
+        let profile_repo = scope.resolve::<dyn StudyProfileRepository>().await;
+        let profile = StudyProfile {
+            id: Uuid::new_v4(),
+            created_at: Utc::now(),
+            modified_at: Utc::now(),
+            name: "test".into(),
+            is_default: true,
+            desired_retention: 0.9,
+            fsrs_params: None,
+            learning_steps: None,
+            relearning_steps: None,
+            initial_interval_multiplier: 1.2,
+            initial_interval_days: 1.0,
+            min_interval_days: 1.0,
+            priority_inheritance_policy,
         };
         profile_repo.create(&profile).await.unwrap();
         profile.id
@@ -612,7 +662,7 @@ mod tests {
         // Assert
 
         let created = meta_repository.get_by_id(element_id.id()).await.unwrap();
-        let front = priority_service.get_new_first_priority().await.unwrap();
+        let front = priority_service.get_priority_for_position(1).await.unwrap();
         assert!(created.priority > front);
     }
 
@@ -697,6 +747,7 @@ mod tests {
             initial_interval_multiplier,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
+            priority_inheritance_policy: PriorityInheritancePolicy::default(),
         };
         profile_repo.create(&profile).await.unwrap();
         profile.id
@@ -962,6 +1013,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_card_with_below_parent_policy_places_card_behind_parent() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile_with_policy(
+            &scope,
+            PriorityInheritancePolicy {
+                placement: Placement::BelowParent,
+                ceiling_percentile: None,
+            },
+        )
+        .await;
+        let parent_id = create_tagged_parent_folder(&scope, Vec::new()).await;
+        let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+        let parent_priority = meta_repository
+            .get_by_id(parent_id.id())
+            .await
+            .unwrap()
+            .priority;
+        // Another element sits behind the parent, so the card has to land
+        // between the two rather than at the very back.
+        let back = make_root_folder(FractionalIndex::new_after(&parent_priority));
+        let back_priority = back.meta.priority.clone();
+        scope
+            .resolve::<dyn FolderRepository>()
+            .await
+            .create(back)
+            .await
+            .unwrap();
+        let service = create_service(&scope).await;
+        let dto = CreateCardDto {
+            id: Uuid::new_v4(),
+            meta: dto_meta(Some(parent_id)),
+            front: String::new(),
+            back: String::new(),
+        };
+        let element_id = ElementId::Card(dto.id);
+
+        // Act
+
+        service.create_card(dto).await.unwrap();
+
+        // Assert
+
+        let created = meta_repository.get_by_id(element_id.id()).await.unwrap();
+        assert!(parent_priority < created.priority);
+        assert!(created.priority < back_priority);
+    }
+
+    #[tokio::test]
     async fn create_folder_without_parent_takes_front_of_queue() {
         // Arrange
 
@@ -987,8 +1089,12 @@ mod tests {
         // Assert
 
         let meta_repository = scope.resolve::<dyn MetaRepository>().await;
-        let first = meta_repository.get_first_priority().await.unwrap().unwrap();
-        assert!(first < existing_priority);
+        let first = meta_repository
+            .get_at_priority_offset(None, 0)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(first.priority < existing_priority);
     }
 
     fn make_root_folder(priority: FractionalIndex) -> Folder {

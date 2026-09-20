@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
 use crate::study::value_objects::step_unit::StepUnit;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -25,4 +26,6 @@ pub struct StudyProfile {
     /// scheduled: when it's created, and for its first incremental-reading pass.
     pub initial_interval_days: f32,
     pub min_interval_days: f32,
+    /// Where elements created under this profile land in the priority queue.
+    pub priority_inheritance_policy: PriorityInheritancePolicy,
 }

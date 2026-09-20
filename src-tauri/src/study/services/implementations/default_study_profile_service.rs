@@ -49,6 +49,7 @@ impl StudyProfileService for DefaultStudyProfileService {
             initial_interval_multiplier: fields.initial_interval_multiplier,
             initial_interval_days: fields.initial_interval_days,
             min_interval_days: fields.min_interval_days,
+            priority_inheritance_policy: fields.priority_inheritance_policy,
         };
         self.study_profile_repository.create(&profile).await?;
         self.emit_profiles_changed().await;
@@ -72,6 +73,7 @@ impl StudyProfileService for DefaultStudyProfileService {
             initial_interval_multiplier: fields.initial_interval_multiplier,
             initial_interval_days: fields.initial_interval_days,
             min_interval_days: fields.min_interval_days,
+            priority_inheritance_policy: fields.priority_inheritance_policy,
             ..existing
         };
         self.study_profile_repository.update(&profile).await?;
@@ -159,6 +161,7 @@ fn validate_fsrs_params(
 
 #[cfg(test)]
 mod tests {
+    use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
 
@@ -207,6 +210,7 @@ mod tests {
             initial_interval_multiplier: 1.2,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
+            priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }
 
