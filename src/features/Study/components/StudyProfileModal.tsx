@@ -11,7 +11,7 @@ import useAppSelector from "../../../hooks/useAppSelector";
 import { closeStudyProfileModal } from "../../../stores/app/appReducer";
 import { selectIsStudyProfileModalOpened } from "../../../stores/app/appSelectors";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
-import ProfileForm from "./ProfileForm";
+import ProfileForm from "./ProfileForm/ProfileForm";
 import StudyProfileOption from "./StudyProfileOption";
 
 const CREATE_PROFILE_VALUE = "__create__";
@@ -73,7 +73,7 @@ function StudyProfileModal() {
 			fullScreenOnSmallScreen
 			title="Study profiles"
 			size="lg">
-			<Stack gap="md">
+			<Stack gap="md" flex={1} mih={0}>
 				<Select
 					label="Profile"
 					value={selectedId}

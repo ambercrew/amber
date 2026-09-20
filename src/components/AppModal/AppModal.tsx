@@ -45,7 +45,25 @@ function AppModal({
 			centered={centered}
 			closeOnEscape={closeOnEscape}
 			closeButtonProps={{ "aria-label": "Close", ...closeButtonProps }}
-			styles={{ content: isFullScreen ? safeAreaTopStyle() : undefined }}
+			styles={
+				isFullScreen
+					? {
+							// A column that fills the screen, so a body laid
+							// out with `flex`/`mt="auto"` reaches the bottom.
+							content: {
+								...safeAreaTopStyle(),
+								display: "flex",
+								flexDirection: "column",
+							},
+							body: {
+								flex: 1,
+								display: "flex",
+								flexDirection: "column",
+								minHeight: 0,
+							},
+						}
+					: undefined
+			}
 			{...others}
 		/>
 	);
