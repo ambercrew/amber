@@ -77,7 +77,8 @@ function ImportModal() {
 	const [isPdf, setIsPdf] = useState(false);
 	const [extractPdfContent, setExtractPdfContent] = useState(false);
 	const [phase, setPhase] = useState<Phase>({ kind: "idle" });
-	const priority = useImportPriority(opened);
+	const parent = currentElement?.data.meta.elementId ?? null;
+	const priority = useImportPriority(opened, parent);
 	const openRef = useRef<() => void>(null);
 	const cancelledRef = useRef(false);
 	const pdfDetectionTokenRef = useRef(0);
@@ -101,7 +102,7 @@ function ImportModal() {
 		return {
 			dispatch,
 			navigate,
-			parent: currentElement?.data.meta.elementId ?? null,
+			parent,
 			priorityPosition: await priority.resolvePosition(),
 		};
 	}

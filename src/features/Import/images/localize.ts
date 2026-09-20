@@ -1,8 +1,5 @@
 import { fetchImage } from "../../../api/import/api/importApi";
-import {
-	compressDataUri,
-	estimateDataUriBytes,
-} from "./compressImage";
+import { compressDataUri, estimateDataUriBytes } from "./compressImage";
 
 export type LocalizedImage =
 	{ ok: true; src: string } | { ok: false; originalUrl: string };

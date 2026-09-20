@@ -29,6 +29,14 @@ pub trait PriorityService: Send + Sync {
         policy: PriorityInheritancePolicy,
     ) -> Result<FractionalIndex, PriorityError>;
 
+    /// The 1-based position [`get_priority_for_new_element`] would place that
+    /// element at, without creating it.
+    async fn get_position_for_new_element(
+        &self,
+        parent: Option<ElementId>,
+        policy: PriorityInheritancePolicy,
+    ) -> Result<i64, PriorityError>;
+
     async fn get_priority_info(&self, id: ElementId) -> Result<PriorityInfo, PriorityError>;
 
     /// Priority info for a batch of elements, computed from a single pass over

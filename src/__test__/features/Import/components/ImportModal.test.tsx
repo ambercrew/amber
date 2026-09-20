@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import ImportModal from "../../../../features/Import/components/ImportModal";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { runFileImport } from "../../../../features/Import/flows/file";
-import { getPriorityQueueSize } from "../../../../api/elements/api/elementsApi";
+import { getPriorityPositionForNewElement } from "../../../../api/elements/api/elementsApi";
 
 vi.mock(import("../../../../features/Import/flows/file"));
 vi.mock(import("../../../../api/elements/api/elementsApi.ts"));
@@ -51,7 +51,10 @@ async function renderOpenedModal() {
 
 describe("ImportModal", () => {
 	beforeEach(() => {
-		vi.mocked(getPriorityQueueSize).mockResolvedValue(9);
+		vi.mocked(getPriorityPositionForNewElement).mockResolvedValue({
+			position: 5,
+			total: 10,
+		});
 	});
 
 	it("Should stage the file without starting import when a file is pasted", async () => {

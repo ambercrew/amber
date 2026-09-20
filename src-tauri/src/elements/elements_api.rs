@@ -15,6 +15,7 @@ use crate::elements::dto::learning_asset_split_id_dto::LearningAssetSplitIdDto;
 use crate::elements::dto::learning_asset_split_meta_dto::LearningAssetSplitMetaDto;
 use crate::elements::dto::learning_asset_split_text_dto::LearningAssetSplitTextDto;
 use crate::elements::dto::move_element_dto::MoveElementRequestDto;
+use crate::elements::dto::new_element_priority_dto::NewElementPriorityResponseDto;
 use crate::elements::dto::pdf_bytes_dto::PdfBytesDto;
 use crate::elements::dto::pdf_highlights_dto::{PdfHighlightsDto, UpdatePdfHighlightsDto};
 use crate::elements::dto::tag_dto::TagResponseDto;
@@ -35,6 +36,7 @@ use crate::elements::services::element_tree_service::ElementTreeService;
 use crate::elements::services::priority_service::PriorityService;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
+use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use injector::injector::Injector;
 
 #[tauri::command]
@@ -489,6 +491,25 @@ pub async fn get_priority_queue_size(injector: State<'_, Arc<Injector>>) -> Resu
         .get_queue_size()
         .await?;
     Ok(size)
+}
+
+#[tauri::command]
+pub async fn get_priority_position_for_new_element(
+    injector: State<'_, Arc<Injector>>,
+    parent: Option<ElementId>,
+) -> Result<NewElementPriorityResponseDto, ApiError> {
+    let scope = injector.start_scope();
+    let profile = scope
+        .resolve::<dyn ProfileResolutionService>()
+        .await
+        .resolve_profile(parent)
+        .await?;
+    let priority_service = scope.resolve::<dyn PriorityService>().await;
+    let position = priority_service
+        .get_position_for_new_element(parent, profile.priority_inheritance_policy)
+        .await?;
+    let total = priority_service.get_queue_size().await? + 1;
+    Ok(NewElementPriorityResponseDto { position, total })
 }
 
 #[tauri::command]

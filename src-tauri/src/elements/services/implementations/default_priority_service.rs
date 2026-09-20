@@ -28,12 +28,21 @@ impl PriorityService for DefaultPriorityService {
         if total == 0 {
             return Ok(FractionalIndex::default());
         }
-        let position = self
-            .target_position(parent, policy.placement, total)
-            .await?;
 
-        self.get_priority_for_position(self.apply_ceiling(position, parent, policy, total))
+        self.get_priority_for_position(self.new_element_position(parent, policy, total).await?)
             .await
+    }
+
+    async fn get_position_for_new_element(
+        &self,
+        parent: Option<ElementId>,
+        policy: PriorityInheritancePolicy,
+    ) -> Result<i64, PriorityError> {
+        let total = self.meta_repository.count_all().await?;
+        if total == 0 {
+            return Ok(1);
+        }
+        self.new_element_position(parent, policy, total).await
     }
 
     async fn get_priority_info(&self, id: ElementId) -> Result<PriorityInfo, PriorityError> {
@@ -128,12 +137,28 @@ impl PriorityService for DefaultPriorityService {
 }
 
 impl DefaultPriorityService {
+    /// The 1-based slot a brand new element takes under `policy`: its
+    /// placement relative to `parent`, held back by the policy's ceiling and
+    /// clamped to the queue.
+    async fn new_element_position(
+        &self,
+        parent: Option<ElementId>,
+        policy: PriorityInheritancePolicy,
+        total: i64,
+    ) -> Result<i64, PriorityError> {
+        let position = self
+            .target_position(parent, policy.placement, total)
+            .await?;
+        let position = self.apply_ceiling(position, parent, policy, total);
+        Ok(clamp_new_element_position(position, total))
+    }
+
     /// Holds `position` back to the ceiling, so a parent near the front of the
     /// queue doesn't drag every element derived from it up there with it.
     ///
     /// A parent-relative placement with no parent has nothing to cap: the
-    /// element is untriaged, so it stays at the front rather than being pushed
-    /// down to the ceiling.
+    /// element is untriaged, so it keeps the middle-of-the-queue default
+    /// rather than being pushed down to the ceiling.
     fn apply_ceiling(
         &self,
         position: i64,
@@ -160,7 +185,7 @@ impl DefaultPriorityService {
             (Placement::FixedPercentile { percentile }, _) => {
                 return Ok(position_for_percentile(percentile, total));
             }
-            (_, None) => return Ok(1),
+            (_, None) => return Ok(position_for_percentile(NO_PARENT_PERCENTILE, total)),
             (_, Some(parent)) => parent,
         };
         let position = self
@@ -233,9 +258,7 @@ impl DefaultPriorityService {
         if total == 0 {
             return Ok(FractionalIndex::default());
         }
-        // The new element isn't counted yet, so it can take any position from
-        // 1 (the front) up to total + 1 (the very back).
-        let index = position.clamp(1, total + 1) - 1;
+        let index = clamp_new_element_position(position, total) - 1;
 
         let before = if index > 0 {
             self.meta_repository
@@ -328,6 +351,16 @@ impl DefaultPriorityService {
         Ok(())
     }
 }
+
+/// The new element isn't counted in `total` yet, so it can take any position
+/// from 1 (the front) up to `total + 1` (the very back).
+fn clamp_new_element_position(position: i64, total: i64) -> i64 {
+    position.clamp(1, total + 1)
+}
+
+/// Where a parent-relative placement lands when there is no parent: the middle
+/// of the queue, so an untriaged element neither jumps the line nor sinks.
+const NO_PARENT_PERCENTILE: f64 = 50.0;
 
 /// 1-based slot a not-yet-created element must take to report `percentile`
 /// once it exists. See [`DefaultPriorityService::get_priority_for_percentile`]
@@ -439,7 +472,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_priority_for_new_element_capped_without_parent_returns_front_of_queue() {
+    async fn get_position_for_new_element_returns_the_slot_the_priority_is_allocated_in() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -447,7 +480,55 @@ mod tests {
         let service = scope.resolve::<dyn PriorityService>().await;
         let folder_repo = scope.resolve::<dyn FolderRepository>().await;
         let queue = make_queue(&folder_repo, 10).await;
-        let first_priority = queue[0].1.clone();
+        let parent_id = queue[4].0;
+        let policy = capped(Placement::BelowParent, 20.0);
+
+        // Act
+
+        let position = service
+            .get_position_for_new_element(Some(parent_id), policy)
+            .await
+            .unwrap();
+        let actual = service
+            .get_priority_for_new_element(Some(parent_id), policy)
+            .await
+            .unwrap();
+
+        // Assert
+
+        let expected = service.get_priority_for_position(position).await.unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[tokio::test]
+    async fn get_position_for_new_element_on_empty_queue_returns_the_front() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+
+        // Act
+
+        let actual = service
+            .get_position_for_new_element(None, policy(Placement::AboveParent))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(1, actual);
+    }
+
+    #[tokio::test]
+    async fn get_priority_for_new_element_capped_without_parent_returns_middle_of_queue() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 10).await;
 
         // Act
 
@@ -458,7 +539,7 @@ mod tests {
 
         // Assert
 
-        assert!(actual < first_priority);
+        assert!(queue[4].1 < actual && actual < queue[5].1);
     }
 
     #[tokio::test]
@@ -727,7 +808,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_priority_for_new_element_parent_relative_policy_without_parent_returns_front() {
+    async fn get_priority_for_new_element_parent_relative_policy_without_parent_returns_middle() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -745,7 +826,7 @@ mod tests {
 
         // Assert
 
-        assert!(actual < queue[0].1);
+        assert!(queue[1].1 < actual && actual < queue[2].1);
     }
 
     #[tokio::test]

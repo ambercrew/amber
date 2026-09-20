@@ -1,17 +1,17 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import ProfileForm from "../../../../features/Study/components/ProfileForm";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+import ProfileForm from "../../../../../features/Study/components/ProfileForm/ProfileForm";
+import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
 import {
 	cloneStudyProfile,
 	createStudyProfile,
 	deleteStudyProfile,
 	setDefaultStudyProfile,
 	updateStudyProfile,
-} from "../../../../api/study/api/studyProfileApi";
-import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
+} from "../../../../../api/study/api/studyProfileApi";
+import { StudyProfileDto } from "../../../../../api/study/dto/studyProfileDto";
 
-vi.mock(import("../../../../api/study/api/studyProfileApi.ts"));
+vi.mock(import("../../../../../api/study/api/studyProfileApi.ts"));
 
 const { openConfirmModal } = vi.hoisted(() => ({ openConfirmModal: vi.fn() }));
 vi.mock(import("@mantine/modals"), async importOriginal => {
@@ -42,6 +42,14 @@ function makeProfile(
 		...overrides,
 	};
 }
+
+/** Each group of fields lives behind its own tab, so reveal it before querying. */
+async function openTab(name: string) {
+	await userEvent.setup().click(screen.getByRole("radio", { name }));
+}
+
+const openCardsTab = () => openTab("Cards");
+const openQueueTab = () => openTab("Queue");
 
 describe("ProfileForm", () => {
 	beforeEach(() => {
@@ -216,6 +224,7 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openCardsTab();
 		const weightsInput = screen.getByRole("textbox", {
 			name: "FSRS weights",
 		});
@@ -234,7 +243,7 @@ describe("ProfileForm", () => {
 		expect(updateStudyProfile).not.toHaveBeenCalled();
 	});
 
-	it("Should render an empty learning steps input when the profile has no custom steps", () => {
+	it("Should render an empty learning steps input when the profile has no custom steps", async () => {
 		// Arrange
 
 		const profile = makeProfile({ learningSteps: [] });
@@ -248,13 +257,14 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openCardsTab();
 
 		// Assert
 
 		expect(screen.getByPlaceholderText("1m 10m")).toHaveValue("");
 	});
 
-	it("Should render the learning steps separated by spaces when the profile has custom steps", () => {
+	it("Should render the learning steps separated by spaces when the profile has custom steps", async () => {
 		// Arrange
 
 		const profile = makeProfile({ learningSteps: ["5m", "15m"] });
@@ -268,6 +278,7 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openCardsTab();
 
 		// Assert
 
@@ -289,6 +300,7 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openCardsTab();
 
 		// Act
 
@@ -310,7 +322,7 @@ describe("ProfileForm", () => {
 		});
 	});
 
-	it("Should not render a percentile input when the policy takes no percentile", () => {
+	it("Should not render a percentile input when the policy takes no percentile", async () => {
 		// Arrange
 
 		const profile = makeProfile({
@@ -329,6 +341,7 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openQueueTab();
 
 		// Assert
 
@@ -337,7 +350,7 @@ describe("ProfileForm", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("Should render the policy's percentile when the profile has one", () => {
+	it("Should render the policy's percentile when the profile has one", async () => {
 		// Arrange
 
 		const profile = makeProfile({
@@ -356,6 +369,7 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openQueueTab();
 
 		// Assert
 
@@ -377,12 +391,13 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openQueueTab();
 
 		// Act
 
 		await user.click(
 			screen.getByRole("combobox", {
-				name: "Priority inheritance policy",
+				name: "Placement policy",
 			}),
 		);
 		await user.click(
@@ -412,7 +427,7 @@ describe("ProfileForm", () => {
 		});
 	});
 
-	it("Should not render the cap controls when the placement is a fixed percentile", () => {
+	it("Should not render the cap controls when the placement is a fixed percentile", async () => {
 		// Arrange
 
 		const profile = makeProfile({
@@ -431,6 +446,7 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openQueueTab();
 
 		// Assert
 
@@ -439,7 +455,7 @@ describe("ProfileForm", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("Should render the ceiling when the profile is capped", () => {
+	it("Should render the ceiling when the profile is capped", async () => {
 		// Arrange
 
 		const profile = makeProfile({
@@ -458,6 +474,7 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openQueueTab();
 
 		// Assert
 
@@ -482,6 +499,7 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openQueueTab();
 
 		// Act
 
@@ -523,6 +541,7 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openQueueTab();
 
 		// Act
 
@@ -557,6 +576,7 @@ describe("ProfileForm", () => {
 				onSubmitted={vi.fn()}
 			/>,
 		);
+		await openCardsTab();
 
 		// Act
 

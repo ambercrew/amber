@@ -16,6 +16,7 @@ import { LearningAssetSplitTextDto } from "../../../types/elements/learningAsset
 import { AnyElementDto } from "../dto/anyElementDto";
 import { ElementDetailsResponseDto } from "../dto/elementDetailsDto";
 import { NodeDto } from "../dto/nodeDto";
+import { NewElementPriorityDto } from "../dto/newElementPriorityDto";
 
 export function getElementTree(): Promise<NodeDto[]> {
 	return invoke("get_element_tree");
@@ -176,6 +177,12 @@ export function setElementPriorityByPercentile(
 
 export function getPriorityQueueSize(): Promise<number> {
 	return invoke("get_priority_queue_size");
+}
+
+export function getPriorityPositionForNewElement(
+	parent: ElementId | null,
+): Promise<NewElementPriorityDto> {
+	return invoke("get_priority_position_for_new_element", { parent });
 }
 
 export function clearDerivedFrom(elementId: ElementId): Promise<void> {

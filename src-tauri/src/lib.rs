@@ -186,6 +186,7 @@ pub async fn run() {
             set_element_priority_by_position,
             set_element_priority_by_percentile,
             get_priority_queue_size,
+            get_priority_position_for_new_element,
             create_folder,
             create_learning_asset,
             create_extract,
