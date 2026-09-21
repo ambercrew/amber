@@ -15,7 +15,6 @@ import { SelectionPluginPackage } from "@embedpdf/plugin-selection/react";
 import { SearchPluginPackage } from "@embedpdf/plugin-search/react";
 import { usePdfiumEngine } from "@embedpdf/engines/react";
 import { getPdfBytes } from "../../../../api/elements/api/elementsApi";
-import { MetaResponseDto } from "../../../../api/elements/dto/anyElementDto";
 import useApi from "../../../../hooks/useApi";
 import { ReadPoint } from "../../../../types/elements/readPoint";
 import { base64ToArrayBuffer } from "../../../../utils/base64ToArrayBuffer";
@@ -26,13 +25,11 @@ const WASM_URL = "/pdfium/pdfium.wasm";
 interface PdfLearningAssetViewProps {
 	learningAssetId: string;
 	readPoint: ReadPoint;
-	meta: MetaResponseDto;
 }
 
 export default function PdfLearningAssetView({
 	learningAssetId,
 	readPoint,
-	meta,
 }: PdfLearningAssetViewProps) {
 	const [buffer, setBuffer] = useState<ArrayBuffer | null>(null);
 	const { callApi, errorMessage } = useApi();
@@ -61,7 +58,9 @@ export default function PdfLearningAssetView({
 							// No fixed `documentId` here: under StrictMode's double
 							// mount, a shared-id orphaned instance can close the real
 							// one's document. Let the plugin generate a fresh id.
-							initialDocuments: [{ buffer, name: meta.name }],
+							initialDocuments: [
+								{ buffer, name: learningAssetId },
+							],
 						}),
 						createPluginRegistration(ViewportPluginPackage),
 						createPluginRegistration(ScrollPluginPackage),
@@ -81,7 +80,7 @@ export default function PdfLearningAssetView({
 						}),
 					]
 				: null,
-		[buffer, meta.name],
+		[buffer],
 	);
 
 	if (errorMessage) {

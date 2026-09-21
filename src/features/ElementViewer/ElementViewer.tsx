@@ -78,7 +78,6 @@ export default function ElementViewer() {
 				key={`pdf-${elementId.id}`}
 				learningAssetId={elementId.id}
 				readPoint={currentElement.data.readPoint}
-				meta={currentElement.data.meta}
 			/>
 		);
 	}
