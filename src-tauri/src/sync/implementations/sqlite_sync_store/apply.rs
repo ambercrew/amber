@@ -145,7 +145,10 @@ async fn apply_remote_page_inner(
 ) -> Result<(), SyncError> {
     apply_remote_inner(tx, batch, pending, clock).await?;
 
-    if is_last_page && try_flush_pending(tx, pending).await? {
+    if is_last_page
+        && try_flush_pending(tx, pending).await?
+        && discard_incomplete_deleted_rows(tx, pending).await?
+    {
         log::warn!(
             "apply_remote: reached the last pulled page with one or more rows still \
              missing required columns; left them buffered for a retry on the next sync"
@@ -154,6 +157,35 @@ async fn apply_remote_page_inner(
     }
 
     Ok(())
+}
+
+/// Drops incomplete deleted rows, whose missing cells were deleted with them and
+/// would otherwise stall the pull cursor. Returns whether any row is still buffered.
+async fn discard_incomplete_deleted_rows(
+    tx: &mut SqliteConnection,
+    pending: &PendingBuffer,
+) -> Result<bool, SyncError> {
+    for key in pending.snapshot().await.into_keys() {
+        let is_deleted: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 AND col = ?3)",
+        )
+        .bind(&key.tbl)
+        .bind(&key.row_id)
+        .bind(merge::DELETED_COL)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if is_deleted {
+            log::info!(
+                "Discarding buffered columns for deleted row {}/{}: they can't complete it",
+                key.tbl,
+                key.row_id
+            );
+            pending.remove(&key.tbl, &key.row_id).await;
+        }
+    }
+
+    Ok(!pending.is_empty().await)
 }
 
 /// Reports every row still buffered after the final flush attempt. Listing the
@@ -264,12 +296,17 @@ async fn apply_remote_inner(
         )?;
 
         match action {
+            MergeAction::Discard => {
+                // Older than the row's tombstone, so it must not linger in the cell log.
+                drop_cell(tx, &cell.tbl, &cell.row_id, &cell.col).await?;
+            }
             MergeAction::SetColumn { col, value } => {
                 pending.push(&cell.tbl, &cell.row_id, col, value).await;
             }
             MergeAction::DeleteRow => {
                 // A delete makes buffered column updates for this row moot.
                 pending.remove(&cell.tbl, &cell.row_id).await;
+                drop_cells_older_than(tx, &cell.tbl, &cell.row_id, &cell.hlc).await?;
                 apply_action(
                     tx,
                     &cell.tbl,
@@ -284,6 +321,41 @@ async fn apply_remote_inner(
             }
         }
     }
+
+    Ok(())
+}
+
+/// Drops a row's cells older than its new tombstone `hlc`, mirroring what the
+/// delete trigger does for a local delete. Newer cells may still resurrect it.
+async fn drop_cells_older_than(
+    tx: &mut SqliteConnection,
+    table: &str,
+    row_id: &str,
+    hlc: &str,
+) -> Result<(), SyncError> {
+    sqlx::query("DELETE FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 AND col <> ?3 AND hlc < ?4")
+        .bind(table)
+        .bind(row_id)
+        .bind(merge::DELETED_COL)
+        .bind(hlc)
+        .execute(&mut *tx)
+        .await?;
+
+    Ok(())
+}
+
+async fn drop_cell(
+    tx: &mut SqliteConnection,
+    table: &str,
+    row_id: &str,
+    col: &str,
+) -> Result<(), SyncError> {
+    sqlx::query("DELETE FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 AND col = ?3")
+        .bind(table)
+        .bind(row_id)
+        .bind(col)
+        .execute(&mut *tx)
+        .await?;
 
     Ok(())
 }
@@ -353,30 +425,23 @@ async fn apply_row_upsert_columns(
     let pk_columns = primary_key_columns(table, &columns)?;
     let pk_values = parse_row_id(table, &key.row_id, pk_columns.len())?;
 
-    backfill_required_columns_from_cell_log(
-        tx,
-        key,
-        &pk_columns,
-        &pk_values,
-        &columns,
-        &mut values,
-    )
-    .await?;
+    backfill_missing_columns_from_cell_log(tx, key, &pk_columns, &pk_values, &columns, &mut values)
+        .await?;
 
     upsert_row(tx, table, &pk_columns, &pk_values, &columns, values).await
 }
 
-/// Fills in columns a new row's `INSERT` requires (`NOT NULL`, no `DEFAULT`)
-/// but that this pull didn't deliver, reading them from `sync_cells` — the
+/// Fills in a new row's columns that this pull didn't deliver (required ones,
+/// but also nullable ones a partial pull already stored), from `sync_cells` — the
 /// durable record of every cell this device has won, where the pending buffer
 /// only holds what arrived during *this* pull. A row can lose buffered columns
 /// mid-cycle (a `DeleteRow` clears them, or a cell loses its HLC comparison)
 /// while the cursor commits past them; the server won't resend those, so the
 /// row would otherwise never be materializable again.
 ///
-/// Only runs for a row that doesn't exist yet; an existing row already satisfies
-/// its `NOT NULL` columns.
-async fn backfill_required_columns_from_cell_log(
+/// Only runs for a row that doesn't exist yet; an existing row already holds its
+/// columns. A deleted row's cells older than its tombstone are gone by now.
+async fn backfill_missing_columns_from_cell_log(
     tx: &mut SqliteConnection,
     key: &RowKey,
     pk_columns: &[&ColumnInfo],
@@ -386,7 +451,7 @@ async fn backfill_required_columns_from_cell_log(
 ) -> Result<(), SyncError> {
     let missing: Vec<&str> = columns
         .iter()
-        .filter(|c| c.is_required_on_insert() && !values.contains_key(&c.name))
+        .filter(|c| !c.is_primary_key() && !values.contains_key(&c.name))
         .map(|c| c.name.as_str())
         .collect();
 
@@ -406,7 +471,7 @@ async fn backfill_required_columns_from_cell_log(
 
         if let Some(value) = value {
             log::debug!(
-                "backfilled required column '{col}' for {}/{} from the local cell log",
+                "backfilled column '{col}' for {}/{} from the local cell log",
                 key.tbl,
                 key.row_id
             );

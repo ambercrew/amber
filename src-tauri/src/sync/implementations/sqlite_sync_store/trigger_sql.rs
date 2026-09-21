@@ -133,12 +133,15 @@ pub fn backfill_via_trigger(schema: &TableSchema) -> Vec<String> {
     ]
 }
 
+/// Drops the row's other cells before writing its tombstone, so only the
+/// tombstone is pushed and no copy of the payload (a whole PDF) is kept.
 fn delete_trigger(table: &str, pk_columns: &[String], quoted_table: &str) -> String {
     let row_id_old = row_id_expr("OLD", pk_columns);
     format!(
         "CREATE TRIGGER sync_{table}_ad AFTER DELETE ON {quoted_table}
 {guard}
 BEGIN
+  DELETE FROM sync_cells WHERE tbl = '{table}' AND row_id = {row_id_old} AND col <> '{DELETED_COL}';
   INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('{table}', {row_id_old}, '{DELETED_COL}', NULL, hlc_now(), device_id())
   {UPSERT_CONFLICT_CLAUSE};
 END;",
@@ -267,7 +270,7 @@ mod tests {
         );
 
         assert_eq!(
-            "CREATE TRIGGER sync_notes_ad AFTER DELETE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(OLD.\"id\"), '__deleted', NULL, hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
+            "CREATE TRIGGER sync_notes_ad AFTER DELETE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  DELETE FROM sync_cells WHERE tbl = 'notes' AND row_id = json_array(OLD.\"id\") AND col <> '__deleted';\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(OLD.\"id\"), '__deleted', NULL, hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
             actual[2]
         );
     }
@@ -295,7 +298,7 @@ mod tests {
         );
 
         assert_eq!(
-            "CREATE TRIGGER sync_notes_ad AFTER DELETE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(OLD.\"id\"), '__deleted', NULL, hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
+            "CREATE TRIGGER sync_notes_ad AFTER DELETE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  DELETE FROM sync_cells WHERE tbl = 'notes' AND row_id = json_array(OLD.\"id\") AND col <> '__deleted';\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(OLD.\"id\"), '__deleted', NULL, hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
             actual[2]
         );
     }

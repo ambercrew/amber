@@ -1064,19 +1064,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_folder_without_parent_takes_front_of_queue() {
+    async fn create_folder_without_parent_lands_in_middle_of_queue() {
         // Arrange
 
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
-        let existing = make_root_folder(FractionalIndex::default());
-        let existing_priority = existing.meta.priority.clone();
-        scope
-            .resolve::<dyn FolderRepository>()
-            .await
-            .create(existing)
-            .await
-            .unwrap();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let mut priorities = vec![FractionalIndex::default()];
+        for _ in 0..2 {
+            priorities.push(FractionalIndex::new_after(priorities.last().unwrap()));
+        }
+        for priority in &priorities {
+            folder_repository
+                .create(make_root_folder(priority.clone()))
+                .await
+                .unwrap();
+        }
         let service = create_service(&scope).await;
         let dto = CreateFolderDto {
             meta: dto_meta(None),
@@ -1089,12 +1092,13 @@ mod tests {
         // Assert
 
         let meta_repository = scope.resolve::<dyn MetaRepository>().await;
-        let first = meta_repository
-            .get_at_priority_offset(None, 0)
+        let created = meta_repository
+            .get_at_priority_offset(None, 2)
             .await
             .unwrap()
             .unwrap();
-        assert!(first.priority < existing_priority);
+        assert!(priorities[1] < created.priority);
+        assert!(created.priority < priorities[2]);
     }
 
     fn make_root_folder(priority: FractionalIndex) -> Folder {

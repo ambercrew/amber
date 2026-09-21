@@ -565,6 +565,31 @@ async fn column_mode_delete_writes_tombstone() {
 }
 
 #[tokio::test]
+async fn column_mode_delete_drops_the_rows_other_cells() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Title", "Body").await;
+
+    // Act
+
+    delete_note(&tx, "1").await;
+
+    // Assert
+
+    let cells = get_cells(&tx, "notes", "1").await;
+    assert_eq!(vec![(merge::DELETED_COL.to_string(), None)], cells);
+}
+
+#[tokio::test]
 async fn row_mode_insert_writes_single_row_cell() {
     // Arrange
 
@@ -898,6 +923,32 @@ async fn changes_since_last_push_row_mode_delete_reports_tombstone_cell() {
     assert_eq!(1, actual.cells.len());
     assert_eq!(merge::DELETED_COL, actual.cells[0].col);
     assert_eq!(None, actual.cells[0].value);
+}
+
+#[tokio::test]
+async fn changes_since_last_push_row_mode_insert_then_delete_before_push_reports_only_tombstone() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Row, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Title", "Body").await;
+    delete_note(&tx, "1").await;
+
+    // Act
+
+    let actual = engine.changes_since_last_push().await.unwrap();
+
+    // Assert
+
+    assert_eq!(1, actual.cells.len());
+    assert_eq!(merge::DELETED_COL, actual.cells[0].col);
 }
 
 #[tokio::test]
@@ -1965,7 +2016,7 @@ async fn apply_remote_page_delete_on_later_page_drops_pending_columns_for_that_r
 }
 
 #[tokio::test]
-async fn apply_remote_resurrected_row_missing_not_null_column_backfills_it_from_cell_log() {
+async fn apply_remote_partial_edit_after_tombstone_discards_it_without_leaving_the_row_pending() {
     // Arrange
 
     let injector = create_test_injector().await;
@@ -1979,9 +2030,7 @@ async fn apply_remote_resurrected_row_missing_not_null_column_backfills_it_from_
         .unwrap();
     let ms = far_future_ms();
 
-    // `title` lands, then a tombstone clears the row and its buffered columns.
-    // `sync_cells` keeps `title`, but the cursor has moved past it, so the server
-    // will never send it again.
+    // `title` lands, then a tombstone deletes the row and drops its cells.
     engine
         .apply_remote(
             ChangeBatch {
@@ -2017,7 +2066,7 @@ async fn apply_remote_resurrected_row_missing_not_null_column_backfills_it_from_
 
     // Act
 
-    // A later cycle resurrects the row carrying only `body`.
+    // A later cycle carries only an edit to `body`, which can't rebuild the row.
     let actual = engine
         .apply_remote(
             ChangeBatch {
@@ -2037,9 +2086,171 @@ async fn apply_remote_resurrected_row_missing_not_null_column_backfills_it_from_
     // Assert
 
     assert!(actual.is_ok(), "{actual:?}");
+    assert_eq!(None, get_required_note(&tx, "1").await);
+    assert!(!engine.has_pending_changes().await.unwrap());
+}
+
+#[tokio::test]
+async fn apply_remote_reinsert_split_across_syncs_after_tombstone_restores_every_column() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_required_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("required_notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell_for(
+                    "required_notes",
+                    "1",
+                    merge::DELETED_COL,
+                    None,
+                    ms,
+                    0,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // The re-insert's first push chunk lands in one sync, the second in the next.
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell_for(
+                    "required_notes",
+                    "1",
+                    "body",
+                    Some(b"Body".to_vec()),
+                    ms,
+                    1,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell_for(
+                    "required_notes",
+                    "1",
+                    "title",
+                    Some(b"Hi".to_vec()),
+                    ms,
+                    2,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
     assert_eq!(
         Some(("Hi".to_string(), Some("Body".to_string()))),
         get_required_note(&tx, "1").await
+    );
+}
+
+#[tokio::test]
+async fn apply_remote_tombstone_drops_older_cells_but_keeps_newer_ones() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![
+                    remote_cell("1", "title", Some(b"Old".to_vec()), ms, 0),
+                    remote_cell("1", "body", Some(b"New".to_vec()), ms, 2),
+                    remote_cell("1", merge::DELETED_COL, None, ms, 1),
+                ],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    let mut cells = get_cells(&tx, "notes", "1").await;
+    cells.sort();
+    assert_eq!(
+        vec![
+            (merge::DELETED_COL.to_string(), None),
+            ("body".to_string(), Some(b"New".to_vec())),
+        ],
+        cells
+    );
+}
+
+#[tokio::test]
+async fn apply_remote_cell_older_than_tombstone_is_not_kept_in_sync_cells() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", merge::DELETED_COL, None, ms, 1)],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", "title", Some(b"Stale".to_vec()), ms, 0)],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(
+        vec![(merge::DELETED_COL.to_string(), None)],
+        get_cells(&tx, "notes", "1").await
     );
 }
 
