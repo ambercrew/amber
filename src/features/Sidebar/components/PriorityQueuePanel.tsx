@@ -101,7 +101,7 @@ function PriorityQueuePanel() {
 											/>
 										</Box>
 									}>
-									{counts[type]}
+									{counts[type] ?? 0}
 								</Badge>
 							</AppTooltip>
 						))}
