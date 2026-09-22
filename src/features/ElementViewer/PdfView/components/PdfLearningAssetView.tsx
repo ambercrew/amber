@@ -11,6 +11,7 @@ import { AnnotationPluginPackage } from "@embedpdf/plugin-annotation/react";
 import { BookmarkPluginPackage } from "@embedpdf/plugin-bookmark/react";
 import { HistoryPluginPackage } from "@embedpdf/plugin-history/react";
 import { InteractionManagerPluginPackage } from "@embedpdf/plugin-interaction-manager/react";
+import { PanPluginPackage } from "@embedpdf/plugin-pan/react";
 import { SelectionPluginPackage } from "@embedpdf/plugin-selection/react";
 import { SearchPluginPackage } from "@embedpdf/plugin-search/react";
 import { usePdfiumEngine } from "@embedpdf/engines/react";
@@ -71,6 +72,11 @@ export default function PdfLearningAssetView({
 							InteractionManagerPluginPackage,
 						),
 						createPluginRegistration(SelectionPluginPackage),
+						// Touch drags pan the page instead of starting a text
+						// selection; desktop click-drag still selects.
+						createPluginRegistration(PanPluginPackage, {
+							defaultMode: "mobile",
+						}),
 						createPluginRegistration(SearchPluginPackage),
 						createPluginRegistration(HistoryPluginPackage),
 						createPluginRegistration(AnnotationPluginPackage, {

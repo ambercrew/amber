@@ -8,10 +8,18 @@ import {
 	Text,
 	TextInput,
 } from "@mantine/core";
-import { ListBulletsIcon, MinusIcon, PlusIcon } from "@phosphor-icons/react";
+import {
+	CursorTextIcon,
+	HandIcon,
+	ListBulletsIcon,
+	MinusIcon,
+	PlusIcon,
+} from "@phosphor-icons/react";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
+import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
 import useAppSelector from "../../../../../hooks/useAppSelector";
+import { useIsCoarsePointer } from "../../../../../hooks/useIsCoarsePointer";
 import { selectStudyStatus } from "../../../../../stores/study/studySelectors";
 import { SAFE_AREA_BOTTOM } from "../../../../../utils/safeArea";
 import { HEADER_AND_FOOTER_HEIGHT } from "../../../../App/components/App";
@@ -35,6 +43,13 @@ interface PdfToolbarProps {
 export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 	const { state: zoomState, provides: zoom } = useZoom(documentId);
 	const { state: scrollState, provides: scroll } = useScroll(documentId);
+	const { state: interactionState, provides: interactionManager } =
+		useInteractionManager(documentId);
+	// The pan plugin's own togglePan()/disablePan() fall back to
+	// activateDefaultMode() — a no-op once defaultMode: "mobile" has
+	// permanently made "panMode" the default. Activate modes directly instead.
+	const isPanning = interactionState.activeMode === "panMode";
+	const isCoarsePointer = useIsCoarsePointer();
 	const [outlineOpened, setOutlineOpened] = useState(false);
 
 	// The study session footer sits below us with the same pinned state — add
@@ -203,6 +218,28 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 						</ActionIcon>
 					</AppTooltip>
 				</Group>
+				{isCoarsePointer && (
+					<>
+						<Divider orientation="vertical" />
+						<AppTooltip
+							label={isPanning ? "Select text" : "Pan to scroll"}>
+							<ActionIcon
+								variant={isPanning ? "light" : "subtle"}
+								size="lg"
+								onClick={() =>
+									interactionManager?.activate(
+										isPanning ? "pointerMode" : "panMode",
+									)
+								}>
+								{isPanning ? (
+									<HandIcon size={18} />
+								) : (
+									<CursorTextIcon size={18} />
+								)}
+							</ActionIcon>
+						</AppTooltip>
+					</>
+				)}
 			</Group>
 		</div>
 	);
