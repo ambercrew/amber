@@ -80,7 +80,8 @@ function Updater() {
 				onConfirm={handleConfirm}
 				onClose={() => setPendingUpdate(null)}>
 				<Text>
-					Do you want to update the application to the latest version?
+					Do you want to update the application from version{" "}
+					{pendingUpdate?.currentVersion} to {pendingUpdate?.version}?
 				</Text>
 			</ConfirmModal>
 
