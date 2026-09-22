@@ -329,6 +329,7 @@ jobs:
       # https://github.com/r0adkll/upload-google-play#configure-access-via-service-account
       - name: Publish to Google Play
         uses: r0adkll/upload-google-play@v1
+        continue-on-error: true
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: dev.amberapp.amber
