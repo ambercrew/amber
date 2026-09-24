@@ -58,13 +58,34 @@ pub mod generated_code {
 }
 
 #[cfg(feature = "cef")]
-type AppRuntime = tauri::Cef;
+type AppRuntime = tauri_runtime_cef::CefRuntime;
 #[cfg(not(feature = "cef"))]
-type AppRuntime = tauri::Wry;
+type AppRuntime = tauri_runtime_wry::WryRuntime;
+
+// CEF's sandbox and zygote helpers require setuid root helper binaries that
+// aren't set up in most Linux dev/AppImage environments, so CEF fails to
+// start unless these are disabled. Bake them in instead of requiring
+// `--no-sandbox --no-zygote` to be passed manually on every launch.
+#[cfg(feature = "cef")]
+fn cef_runtime() -> tauri_runtime_cef::Cef {
+    let cef = tauri_runtime_cef::Cef::default();
+    #[cfg(target_os = "linux")]
+    let cef = cef.command_line_args::<_, String>([
+        ("--no-sandbox".to_string(), None),
+        ("--no-zygote".to_string(), None),
+    ]);
+    cef
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
-    let mut tauri_builder = tauri::Builder::<AppRuntime>::default()
+    #[cfg(feature = "cef")]
+    let runtime = cef_runtime();
+    #[cfg(not(feature = "cef"))]
+    let runtime = tauri_runtime_wry::Wry::default();
+
+    let mut tauri_builder = tauri::Builder::<AppRuntime>::new()
+        .runtime(runtime)
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
@@ -72,18 +93,6 @@ pub async fn run() {
         )
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init());
-
-    // CEF's sandbox and zygote helpers require setuid root helper binaries that
-    // aren't set up in most Linux dev/AppImage environments, so CEF fails to
-    // start unless these are disabled. Bake them in instead of requiring
-    // `--no-sandbox --no-zygote` to be passed manually on every launch.
-    #[cfg(all(feature = "cef", target_os = "linux"))]
-    {
-        tauri_builder = tauri_builder.command_line_args::<_, String>([
-            ("--no-sandbox".to_string(), None),
-            ("--no-zygote".to_string(), None),
-        ]);
-    }
 
     #[cfg(desktop)]
     {

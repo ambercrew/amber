@@ -1,6 +1,13 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 import "@testing-library/jest-dom";
+import type { TestingLibraryMatchers } from "@testing-library/jest-dom/matchers";
 import { beforeEach, vi } from "vitest";
+
+// Vitest 5 no longer merges `jest.Matchers`, and jest-dom's own `vitest` types target the old `Assertion<T>`.
+declare module "vitest" {
+	// eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unused-vars -- merged interfaces must redeclare `T`
+	interface Matchers<R, T> extends TestingLibraryMatchers<unknown, R> {}
+}
 
 vi.mock("@tauri-apps/api/app", () => ({
 	onBackButtonPress: vi.fn().mockResolvedValue({ unregister: vi.fn() }),

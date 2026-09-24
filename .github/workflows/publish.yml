@@ -80,7 +80,7 @@ jobs:
     # `@tauri-apps/cli` is upstream and has no CEF support, so the Linux job
     # builds the CLI from the same fork the crates are patched to.
     env:
-      TAURI_CLI_REV: 64606e20f18c7dafa73426c282a750f91e8219e6
+      TAURI_CLI_REV: fe0e5155c12459f3250dd9ae5867dd627d7c8286
     steps:
       - uses: actions/checkout@v5
       - name: setup node

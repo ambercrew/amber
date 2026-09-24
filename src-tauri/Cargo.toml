@@ -32,7 +32,7 @@ markdown = "1.0.0"
 pdf_oxide = "0.3.78"
 prost = "0.14.4"
 prost-types = "0.14.4"
-rand = "0.10.2"
+rand = "0.10.3"
 regex = "1.13.1"
 tauri-plugin-http = "2.5.9"
 reqwest-middleware = { version = "0.4", features = ["json"] }
@@ -47,15 +47,15 @@ tauri-plugin-dialog = "2.7.1"
 tauri-plugin-opener = "2.5.4"
 tauri-plugin-os = "2"
 tauri-plugin-process = "2.3.1"
-thiserror = "2.0.20"
+thiserror = "2.0.21"
 tokio = { version = "1.53.1", features = ["full"] }
 tokio-stream = "0.1.19"
-uuid = { version = "1.26.0", features = [ "v4", "serde" ] }
+uuid = { version = "1.26.1", features = [ "v4", "serde" ] }
 fractional_index = "2.0.2"
 fsrs = "6.6.2"
 rig = { version = "=0.42.0", default-features = false, features = ["pdf", "derive", "native-tls", "sqlite", "agent"] }
 schemars = "1.2.2"
-text-splitter = "0.32.0"
+text-splitter = "0.33.0"
 sqlite-vec = "0.1.9"
 tokio-rusqlite = "0.6.0"
 fontdb = "0.24.0"
@@ -72,15 +72,23 @@ sha2 = "0.11.0"
 # config override, NOT true for `tauri android build`), so a default would
 # silently combine with whatever a platform opts into via config.
 #
-# Do NOT enable "cef" directly on a per-target dependency table — `tauri
-# build`/`tauri dev` normalizes the "tauri" dependency's features across
-# all target-cfg tables and will silently copy it into every table.
+# The runtime is its own crate (not a `tauri` feature) on feat/cef; each
+# feature pulls one in and `lib.rs` selects it on the builder.
 [dependencies.tauri]
 version = "2"
 default-features = false
 features = [
   "test",
 ]
+
+[dependencies.tauri-runtime-wry]
+version = "2"
+default-features = false
+optional = true
+
+[dependencies.tauri-runtime-cef]
+version = "0.1"
+optional = true
 
 [dev-dependencies]
 mockall = "0.15.0"
@@ -92,15 +100,15 @@ tauri-plugin-window-state = "2.4.1"
 
 [features]
 store = []
-wry = ["tauri/wry"]
-cef = ["tauri/cef"]
+wry = ["dep:tauri-runtime-wry"]
+cef = ["dep:tauri-runtime-cef"]
 
 [target.'cfg(target_os = "android")'.dependencies]
 openssl = { version = "*", features = ["vendored"] }
 
 # Redirect every crates.io consumer of tauri (your app AND all
-# tauri-plugin-* crates) to the feat/cef branch. Replace `rev` with the
-# current HEAD of feat/cef and keep it pinned — the branch moves fast.
+# tauri-plugin-* crates) to the feat/cef branch. Cargo.lock pins the exact
+# commit; `cargo update` moves it to the branch head.
 [patch.crates-io]
 tauri = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
 tauri-build = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
@@ -108,6 +116,7 @@ tauri-plugin = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef
 tauri-utils = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
 tauri-runtime = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
 tauri-runtime-wry = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
+tauri-runtime-cef = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
 tauri-macros = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
 tauri-codegen = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
 
