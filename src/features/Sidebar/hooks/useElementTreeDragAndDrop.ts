@@ -1,6 +1,7 @@
-import { TreeNodeData } from "@mantine/core";
+import { TreeDragDropPayload, TreeNodeData } from "@mantine/core";
 import { useCallback, useEffect, useRef } from "react";
 import { DropPosition } from "../../../api/elements/api/elementsApi";
+import { isLinux } from "../../../utils/tauriUtils";
 import { getAncestorsOf } from "../utils/elementTreeUtils";
 
 export const MOVE_THRESHOLD_PX = 5;
@@ -12,6 +13,14 @@ export const AUTOSCROLL_STEP_PX = 12;
 const LABEL_SELECTOR = "[data-tree-label]";
 const NON_DRAGGABLE_SELECTOR =
 	"button, input, textarea, select, [data-no-drag]";
+
+/**
+ * Native HTML5 drag never starts under the Linux CEF backend; Android touch
+ * has the same limitation — include it here when touch reorder is needed there.
+ */
+export function shouldUsePointerDragAndDrop(): boolean {
+	return isLinux();
+}
 
 /** Mirrors Mantine's own drop-zone algorithm so the indicators behave identically. */
 export function getDropPosition(
@@ -165,8 +174,9 @@ interface UseElementTreeDragAndDropOptions {
 }
 
 /**
- * Pointer-driven drag-and-drop for Mantine's Tree. Native HTML5 drag never
- * starts under the Linux CEF backend, so this replaces it without a dependency.
+ * Drag-and-drop props for Mantine's Tree. Native HTML5 drag never starts under
+ * the Linux CEF backend, so Linux drives reordering with pointer events while
+ * every other platform delegates to Mantine's native `onDragDrop`.
  */
 export function useElementTreeDragAndDrop({
 	data,
@@ -299,10 +309,19 @@ export function useElementTreeDragAndDrop({
 		event.stopPropagation();
 	}, []);
 
+	if (!shouldUsePointerDragAndDrop()) {
+		return {
+			onDragDrop: ({
+				draggedNode,
+				targetNode,
+				position,
+			}: TreeDragDropPayload) =>
+				onDropRef.current(draggedNode, targetNode, position),
+		};
+	}
+
 	return {
-		rootProps: {
-			onPointerDown: handlePointerDown,
-			onClickCapture: handleClickCapture,
-		},
+		onPointerDown: handlePointerDown,
+		onClickCapture: handleClickCapture,
 	};
 }

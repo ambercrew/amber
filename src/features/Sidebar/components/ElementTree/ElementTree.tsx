@@ -6,9 +6,12 @@ import {
 	Tree,
 } from "@mantine/core";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { MoveElementDto } from "../../../../api/elements/api/elementsApi";
+import {
+	DropPosition,
+	MoveElementDto,
+} from "../../../../api/elements/api/elementsApi";
 import { NodeDto } from "../../../../api/elements/dto/nodeDto";
 import {
 	ELEMENT_CREATED_EVENT,
@@ -101,9 +104,8 @@ function ElementTree({ tree }: ElementTreeProps) {
 		);
 	}
 
-	const { rootProps } = useElementTreeDragAndDrop({
-		data,
-		onDrop: (draggedValue, targetValue, position) => {
+	const handleMove = useCallback(
+		(draggedValue: string, targetValue: string, position: DropPosition) => {
 			const draggedType = findNodeType(data, draggedValue);
 			const targetType = findNodeType(data, targetValue);
 			if (!draggedType) return;
@@ -116,6 +118,12 @@ function ElementTree({ tree }: ElementTreeProps) {
 			};
 			void dispatch(moveElementAction(dto));
 		},
+		[data, dispatch],
+	);
+
+	const dragAndDropProps = useElementTreeDragAndDrop({
+		data,
+		onDrop: handleMove,
 	});
 
 	const treeElement = (
@@ -124,7 +132,7 @@ function ElementTree({ tree }: ElementTreeProps) {
 			tree={treeController}
 			renderNode={renderNode}
 			withLines
-			{...rootProps}
+			{...dragAndDropProps}
 		/>
 	);
 

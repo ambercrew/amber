@@ -15,6 +15,10 @@ export function isAndroid() {
 	return type() === "android";
 }
 
+export function isLinux() {
+	return type() === "linux";
+}
+
 export function tryGetCurrentWebView(): Webview | null {
 	if (isMobile()) {
 		return null;
