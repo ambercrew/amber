@@ -26,6 +26,7 @@ import {
 	findNodeType,
 } from "../../utils/elementTreeUtils";
 import { useElementTreeExpansion } from "../../hooks/useElementTreeExpansion";
+import { useElementTreeDragAndDrop } from "../../hooks/useElementTreeDragAndDrop";
 import TrashElementModal from "../TrashElementModal";
 import ElementTreeMenuItems from "./ElementTreeMenuItems";
 import ElementTreeNode from "./ElementTreeNode";
@@ -100,28 +101,30 @@ function ElementTree({ tree }: ElementTreeProps) {
 		);
 	}
 
+	const { rootProps } = useElementTreeDragAndDrop({
+		data,
+		onDrop: (draggedValue, targetValue, position) => {
+			const draggedType = findNodeType(data, draggedValue);
+			const targetType = findNodeType(data, targetValue);
+			if (!draggedType) return;
+			const dto: MoveElementDto = {
+				draggedId: { type: draggedType, id: draggedValue },
+				targetId: targetType
+					? { type: targetType, id: targetValue }
+					: null,
+				position,
+			};
+			void dispatch(moveElementAction(dto));
+		},
+	});
+
 	const treeElement = (
 		<Tree
 			data={filteredData}
 			tree={treeController}
 			renderNode={renderNode}
 			withLines
-			onDragDrop={({ draggedNode, targetNode, position }) => {
-				const draggedType = findNodeType(data, draggedNode);
-				const targetType = findNodeType(data, targetNode);
-				if (!draggedType) return;
-				const dto: MoveElementDto = {
-					draggedId: {
-						type: draggedType,
-						id: draggedNode,
-					},
-					targetId: targetType
-						? { type: targetType, id: targetNode }
-						: null,
-					position,
-				};
-				void dispatch(moveElementAction(dto));
-			}}
+			{...rootProps}
 		/>
 	);
 
