@@ -28,6 +28,9 @@ function nodeToTreeNode(node: NodeDto): TreeNodeData {
 			position: node.meta.position,
 		} satisfies ElementNodeProps,
 		children,
+		// NOTE: Mantine only offers an "inside" drop zone on nodes with children, so
+		// childless elements must opt in explicitly.
+		hasChildren: true,
 	};
 }
 
