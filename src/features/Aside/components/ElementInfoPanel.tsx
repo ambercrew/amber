@@ -2,6 +2,7 @@ import {
 	ActionIcon,
 	Divider,
 	Group,
+	NumberInput,
 	Stack,
 	Text,
 	TagsInput,
@@ -11,7 +12,10 @@ import { useDebouncedCallback } from "@mantine/hooks";
 import useAppSelector from "../../../hooks/useAppSelector";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
-import { updateElementTags } from "../../../api/elements/api/elementsApi";
+import {
+	updateElementTags,
+	updateIntervalMultiplier,
+} from "../../../api/elements/api/elementsApi";
 import { renameElementAction } from "../../../stores/elements/elementsActions";
 import { selectCurrentElementDetails } from "../../../stores/elementDetails/elementDetailsSelectors";
 import { loadElementDetailsAction } from "../../../stores/elementDetails/elementDetailsActions";
@@ -71,6 +75,11 @@ function ElementInfoPanel() {
 		500,
 	);
 
+	const debouncedUpdateIntervalMultiplier = useDebouncedCallback(
+		(id: ElementId, value: number) => updateIntervalMultiplier(id, value),
+		500,
+	);
+
 	const storedName = storedMeta?.name ?? "";
 	const nameRef = useRef<HTMLTextAreaElement>(null);
 	const [name, setName] = useState(storedName);
@@ -98,7 +107,8 @@ function ElementInfoPanel() {
 
 	const elementType = storedMeta.elementId.type;
 	const dueIso = dueIsoFor(details);
-	const finished = Boolean(details?.learningAssetReview?.finishedAt);
+	const finishedAt = details?.learningAssetReview?.finishedAt ?? null;
+	const finished = Boolean(finishedAt);
 
 	return (
 		<Stack gap="lg">
@@ -133,22 +143,6 @@ function ElementInfoPanel() {
 						{new Date(storedMeta.createdAt).toLocaleString()}
 					</Text>
 				</InfoField>
-				<InfoField label="Priority">
-					<Group gap={4} wrap="nowrap" align="center">
-						<Text size="sm" flex={1}>
-							{details
-								? `${formatPriorityPercentile(details.priority.percentile)} (${details.priority.position}/${details.priority.total})`
-								: "—"}
-						</Text>
-						<AppTooltip label="Set priority">
-							<ActionIcon
-								variant="subtle"
-								onClick={() => dispatch(openPriorityModal())}>
-								{commandIcon("open-priority")}
-							</ActionIcon>
-						</AppTooltip>
-					</Group>
-				</InfoField>
 			</InfoGroup>
 
 			<Divider />
@@ -173,6 +167,22 @@ function ElementInfoPanel() {
 						/>
 					</InfoField>
 				)}
+				<InfoField label="Priority">
+					<Group gap={4} wrap="nowrap" align="center">
+						<Text size="sm" flex={1}>
+							{details
+								? `${formatPriorityPercentile(details.priority.percentile)} (${details.priority.position}/${details.priority.total})`
+								: "—"}
+						</Text>
+						<AppTooltip label="Set priority">
+							<ActionIcon
+								variant="subtle"
+								onClick={() => dispatch(openPriorityModal())}>
+								{commandIcon("open-priority")}
+							</ActionIcon>
+						</AppTooltip>
+					</Group>
+				</InfoField>
 				{hasFinished(elementType) && (
 					<InfoField label="Finished">
 						<FinishedSwitch
@@ -181,6 +191,37 @@ function ElementInfoPanel() {
 						/>
 					</InfoField>
 				)}
+				{finishedAt && (
+					<InfoField label="Finished at">
+						<Text size="sm">
+							{new Date(finishedAt).toLocaleString()}
+						</Text>
+					</InfoField>
+				)}
+				{currentElement &&
+					(currentElement.type === "learningAsset" ||
+						currentElement.type === "extract") && (
+						<InfoField label="Interval multiplier">
+							<NumberInput
+								key={`interval-multiplier-${storedMeta.elementId.id}-${refreshCount}`}
+								size="sm"
+								min={0}
+								step={0.1}
+								decimalScale={2}
+								defaultValue={
+									currentElement.data.intervalMultiplier
+								}
+								onChange={value => {
+									if (typeof value === "number") {
+										debouncedUpdateIntervalMultiplier(
+											storedMeta.elementId,
+											value,
+										);
+									}
+								}}
+							/>
+						</InfoField>
+					)}
 			</InfoGroup>
 
 			{currentElement &&

@@ -1,9 +1,6 @@
-import { NumberInput, Text } from "@mantine/core";
-import { useDebouncedCallback } from "@mantine/hooks";
-import { updateIntervalMultiplier } from "../../../api/elements/api/elementsApi";
+import { Text } from "@mantine/core";
 import { AnyElementDto } from "../../../api/elements/dto/anyElementDto";
 import { ElementDetailsResponseDto } from "../../../api/elements/dto/elementDetailsDto";
-import { ElementId } from "../../../types/elements/elementId";
 import ResetRepetitionsButton from "../../Study/components/ResetRepetitionsButton";
 import InfoField from "./InfoField";
 import InfoGroup from "./InfoGroup";
@@ -26,35 +23,12 @@ function ReviewDetails({ element, details }: ReviewDetailsProps) {
 	const cardReview = details?.cardReview ?? null;
 	const learningAssetReview = details?.learningAssetReview ?? null;
 
-	const debouncedUpdateIntervalMultiplier = useDebouncedCallback(
-		(id: ElementId, value: number) => updateIntervalMultiplier(id, value),
-		500,
-	);
-
 	if (element.type === "learningAsset" || element.type === "extract") {
 		return (
 			<InfoGroup
-				title="Scheduling"
+				title="Statistics"
 				storageKey="scheduling"
 				defaultOpened={false}>
-				<InfoField label="Interval multiplier">
-					<NumberInput
-						key={`interval-multiplier-${elementId.id}`}
-						size="sm"
-						min={0}
-						step={0.1}
-						decimalScale={2}
-						defaultValue={element.data.intervalMultiplier}
-						onChange={value => {
-							if (typeof value === "number") {
-								debouncedUpdateIntervalMultiplier(
-									elementId,
-									value,
-								);
-							}
-						}}
-					/>
-				</InfoField>
 				<InfoField label="Interval (days)">
 					<Text size="sm">
 						{learningAssetReview
@@ -69,13 +43,6 @@ function ReviewDetails({ element, details }: ReviewDetailsProps) {
 						)}
 					</Text>
 				</InfoField>
-				<InfoField label="Finished at">
-					<Text size="sm">
-						{formatDateTime(
-							learningAssetReview?.finishedAt ?? null,
-						)}
-					</Text>
-				</InfoField>
 			</InfoGroup>
 		);
 	}
@@ -83,7 +50,7 @@ function ReviewDetails({ element, details }: ReviewDetailsProps) {
 	if (element.type === "card") {
 		return (
 			<InfoGroup
-				title="Scheduling"
+				title="Statistics"
 				storageKey="scheduling"
 				defaultOpened={false}>
 				<InfoField label="State">
@@ -91,10 +58,19 @@ function ReviewDetails({ element, details }: ReviewDetailsProps) {
 						{cardReview?.state ?? "—"}
 					</Text>
 				</InfoField>
-				<InfoField label="Due">
+				<InfoField label="Last reviewed">
 					<Text size="sm">
-						{formatDateTime(cardReview?.due ?? null)}
+						{formatDateTime(cardReview?.lastReviewed ?? null)}
 					</Text>
+				</InfoField>
+				<InfoField label="Interval (days)">
+					<Text size="sm">{cardReview?.scheduledDays ?? "—"}</Text>
+				</InfoField>
+				<InfoField label="Reps">
+					<Text size="sm">{cardReview?.reps ?? "—"}</Text>
+				</InfoField>
+				<InfoField label="Lapses">
+					<Text size="sm">{cardReview?.lapses ?? "—"}</Text>
 				</InfoField>
 				<InfoField label="Stability">
 					<Text size="sm">
@@ -106,22 +82,8 @@ function ReviewDetails({ element, details }: ReviewDetailsProps) {
 						{cardReview ? formatNumber(cardReview.difficulty) : "—"}
 					</Text>
 				</InfoField>
-				<InfoField label="Interval (days)">
-					<Text size="sm">{cardReview?.scheduledDays ?? "—"}</Text>
-				</InfoField>
 				<InfoField label="Learning step">
 					<Text size="sm">{cardReview?.learningSteps ?? "—"}</Text>
-				</InfoField>
-				<InfoField label="Reps">
-					<Text size="sm">{cardReview?.reps ?? "—"}</Text>
-				</InfoField>
-				<InfoField label="Lapses">
-					<Text size="sm">{cardReview?.lapses ?? "—"}</Text>
-				</InfoField>
-				<InfoField label="Last reviewed">
-					<Text size="sm">
-						{formatDateTime(cardReview?.lastReviewed ?? null)}
-					</Text>
 				</InfoField>
 				<ResetRepetitionsButton elementId={elementId} />
 			</InfoGroup>
