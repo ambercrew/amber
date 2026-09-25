@@ -5,6 +5,7 @@ import {
 	PdfHighlightAnnoObject,
 	Rect,
 } from "@embedpdf/models";
+import { AnnotationDocumentState } from "@embedpdf/plugin-annotation";
 import { ElementNodeType } from "../../../../types/elements/elementNodeType";
 
 // Matches the annotation plugin's own default "highlight" tool color.
@@ -106,6 +107,18 @@ export function isPdfHighlightAnnotation(
 		typeof (annotation as Partial<PdfHighlightAnnotation>).custom
 			?.elementId === "string"
 	);
+}
+
+/** The document's live PDF highlights. A delete leaves its annotation in
+ * `byUid` as `commitState: "deleted"`, so those entries are skipped. */
+export function getActivePdfHighlights(
+	state: AnnotationDocumentState | null,
+): PdfHighlightAnnotation[] {
+	if (!state) return [];
+	return Object.values(state.byUid)
+		.filter(tracked => tracked.commitState !== "deleted")
+		.map(tracked => tracked.object)
+		.filter(isPdfHighlightAnnotation);
 }
 
 /** Finds the element behind the topmost-then-leftmost highlight that overlaps
