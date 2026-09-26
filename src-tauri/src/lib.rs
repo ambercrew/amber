@@ -62,25 +62,10 @@ type AppRuntime = tauri_runtime_cef::CefRuntime;
 #[cfg(not(feature = "cef"))]
 type AppRuntime = tauri_runtime_wry::WryRuntime;
 
-// CEF's sandbox and zygote helpers require setuid root helper binaries that
-// aren't set up in most Linux dev/AppImage environments, so CEF fails to
-// start unless these are disabled. Bake them in instead of requiring
-// `--no-sandbox --no-zygote` to be passed manually on every launch.
-#[cfg(feature = "cef")]
-fn cef_runtime() -> tauri_runtime_cef::Cef {
-    let cef = tauri_runtime_cef::Cef::default();
-    #[cfg(target_os = "linux")]
-    let cef = cef.command_line_args::<_, String>([
-        ("--no-sandbox".to_string(), None),
-        ("--no-zygote".to_string(), None),
-    ]);
-    cef
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub async fn run() {
     #[cfg(feature = "cef")]
-    let runtime = cef_runtime();
+    let runtime = tauri_runtime_cef::Cef::default();
     #[cfg(not(feature = "cef"))]
     let runtime = tauri_runtime_wry::Wry::default();
 
