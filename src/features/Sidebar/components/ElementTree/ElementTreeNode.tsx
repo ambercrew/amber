@@ -47,7 +47,7 @@ function ElementTreeNode({
 	onRenameClose,
 	onAfterCreate,
 }: ElementTreeNodeProps) {
-	const { node, expanded, elementProps } = payload;
+	const { node, expanded, hasChildren, elementProps } = payload;
 	const { type, childrenCount } = node.nodeProps as ElementNodeProps;
 	const id = node.value;
 	const label = typeof node.label === "string" ? node.label : node.value;
@@ -71,6 +71,10 @@ function ElementTreeNode({
 				gap={6}
 				py={2}
 				{...restElementProps}
+				data-tree-label
+				data-type={type}
+				data-has-children={hasChildren}
+				data-expanded={expanded}
 				onClick={onSelect}
 				onDoubleClick={onRenameClick}
 				onContextMenu={onContextMenu}
@@ -88,7 +92,10 @@ function ElementTreeNode({
 						? "var(--mantine-primary-color-light-color)"
 						: undefined
 				}
-				style={{ borderRadius: "var(--mantine-radius-default)" }}>
+				style={{
+					borderRadius: "var(--mantine-radius-default)",
+					cursor: "grab",
+				}}>
 				<ActionIcon
 					variant="transparent"
 					size="xs"

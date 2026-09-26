@@ -6,9 +6,12 @@ import {
 	Tree,
 } from "@mantine/core";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { MoveElementDto } from "../../../../api/elements/api/elementsApi";
+import {
+	DropPosition,
+	MoveElementDto,
+} from "../../../../api/elements/api/elementsApi";
 import { NodeDto } from "../../../../api/elements/dto/nodeDto";
 import {
 	ELEMENT_CREATED_EVENT,
@@ -26,6 +29,7 @@ import {
 	findNodeType,
 } from "../../utils/elementTreeUtils";
 import { useElementTreeExpansion } from "../../hooks/useElementTreeExpansion";
+import { useElementTreeDragAndDrop } from "../../hooks/useElementTreeDragAndDrop";
 import TrashElementModal from "../TrashElementModal";
 import ElementTreeMenuItems from "./ElementTreeMenuItems";
 import ElementTreeNode from "./ElementTreeNode";
@@ -100,28 +104,35 @@ function ElementTree({ tree }: ElementTreeProps) {
 		);
 	}
 
+	const handleMove = useCallback(
+		(draggedValue: string, targetValue: string, position: DropPosition) => {
+			const draggedType = findNodeType(data, draggedValue);
+			const targetType = findNodeType(data, targetValue);
+			if (!draggedType) return;
+			const dto: MoveElementDto = {
+				draggedId: { type: draggedType, id: draggedValue },
+				targetId: targetType
+					? { type: targetType, id: targetValue }
+					: null,
+				position,
+			};
+			void dispatch(moveElementAction(dto));
+		},
+		[data, dispatch],
+	);
+
+	const dragAndDropProps = useElementTreeDragAndDrop({
+		data,
+		onDrop: handleMove,
+	});
+
 	const treeElement = (
 		<Tree
 			data={filteredData}
 			tree={treeController}
 			renderNode={renderNode}
 			withLines
-			onDragDrop={({ draggedNode, targetNode, position }) => {
-				const draggedType = findNodeType(data, draggedNode);
-				const targetType = findNodeType(data, targetNode);
-				if (!draggedType) return;
-				const dto: MoveElementDto = {
-					draggedId: {
-						type: draggedType,
-						id: draggedNode,
-					},
-					targetId: targetType
-						? { type: targetType, id: targetNode }
-						: null,
-					position,
-				};
-				void dispatch(moveElementAction(dto));
-			}}
+			{...dragAndDropProps}
 		/>
 	);
 
