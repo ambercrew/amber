@@ -126,6 +126,8 @@ fn extract_pdf_html(
 
     let options = ConversionOptions {
         include_images: true,
+        detect_headings: false,
+        include_form_fields: false,
         ..Default::default()
     };
 
