@@ -56,17 +56,17 @@ import { isMobile } from "../utils/tauriUtils";
 import { isCoarsePointer } from "../utils/pointer";
 import { selectIsVirtualKeyboardSuppressed } from "../stores/app/appSelectors";
 import { ZOOM_STEP, clampZoom } from "../utils/zoom";
-
-export const SPOTLIGHT_SHORTCUT = "mod+K";
-export const IMPORT_SHORTCUT = "mod+shift+N";
-export const TOGGLE_STUDY_SESSION_SHORTCUT = "mod+L";
-export const OPEN_SETTINGS_SHORTCUT = "mod+P";
-export const SET_READ_POINT_SHORTCUT = "mod+shift+R";
-export const OPEN_PRIORITY_SHORTCUT = "alt+P";
-export const FIND_IN_PAGE_SHORTCUT = "mod+F";
-export const ZOOM_IN_SHORTCUT = "mod+=";
-export const ZOOM_OUT_SHORTCUT = "mod+-";
-export const RESET_ZOOM_SHORTCUT = "mod+0";
+import {
+	FIND_IN_PAGE_SHORTCUT,
+	IMPORT_SHORTCUT,
+	OPEN_PRIORITY_SHORTCUT,
+	OPEN_SETTINGS_SHORTCUT,
+	RESET_ZOOM_SHORTCUT,
+	SET_READ_POINT_SHORTCUT,
+	TOGGLE_STUDY_SESSION_SHORTCUT,
+	ZOOM_IN_SHORTCUT,
+	ZOOM_OUT_SHORTCUT,
+} from "../config/shortcuts";
 
 export const commandIds = [
 	"import",

@@ -16,6 +16,7 @@ Keep comments to one or two lines. If a comment needs more than that, the code l
 - Use **`@phosphor-icons/react`** for icons.
 - Use **`AppTooltip`** (`src/components/AppTooltip/AppTooltip.tsx`) instead of Mantine's `Tooltip` — it takes the same props and accepts a `shortcut` prop (raw `useHotkeys` notation, e.g. `"mod+K"`). Never hand-append a shortcut to a tooltip label. Pass `touch` to also open on tap, but only on targets whose meaning is otherwise unreachable on touch (info icons, study session buttons) — not on action buttons whose label is already visible.
 - **Never display a keyboard shortcut on touch input** — there's no keyboard to press it with. Every shortcut shown in the UI must be rendered through `useShortcutDisplay()` (`src/commands/useShortcutDisplay.ts`), which formats it and yields `undefined` on a coarse pointer; `AppTooltip`'s `shortcut` prop and `useCommandShortcut(id)` already go through it. Never call `formatShortcut` directly from a component.
+- **Every shortcut string lives in `src/config/shortcuts.ts`** — commands, `useAppHotkeys` bindings, and tooltips all import from there; never inline one (e.g. `"mod+K"`).
 - Avoid custom CSS. Use Mantine's built-in style props (`p`, `px`, `h`, `w`, `gap`, `justify`, `align`) and inline `style` objects only when Mantine props are insufficient. Do not create `.module.css` files for layout or cosmetic concerns that Mantine already covers.
 
 ## Commands
@@ -188,7 +189,7 @@ A single registry in `commands.ts` drives the Spotlight palette (`mod+K`), globa
 
 - To add a command, look at `commands.ts` (`commandIds`, `commandGroups`, `commands`) and follow the shape of existing entries.
 - To trigger a command from a component, use `useRunCommand()` rather than dispatching the underlying action directly.
-- For displaying a shortcut, use `useShortcutDisplay()` (or `useCommandShortcut(id)` for a command's own shortcut) — never `formatShortcut()` directly, which doesn't know about touch input. The palette's own open shortcut is `SPOTLIGHT_SHORTCUT` in `commands.ts`.
+- For displaying a shortcut, use `useShortcutDisplay()` (or `useCommandShortcut(id)` for a command's own shortcut) — never `formatShortcut()` directly, which doesn't know about touch input. The palette's own open shortcut is `SPOTLIGHT_SHORTCUT` in `src/config/shortcuts.ts`.
 - `CommandPalette` is mounted once in `App.tsx`. To open it elsewhere, call `spotlight.open()` from `@mantine/spotlight` — don't mount a second `<Spotlight>`.
 
 ### CSS Naming Conventions

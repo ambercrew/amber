@@ -32,7 +32,7 @@ import {
 	RESET_ZOOM_SHORTCUT,
 	ZOOM_IN_SHORTCUT,
 	ZOOM_OUT_SHORTCUT,
-} from "../../../../../commands/commands";
+} from "../../../../../config/shortcuts";
 import PdfOutline from "../PdfOutline/PdfOutline";
 
 interface PdfToolbarProps {

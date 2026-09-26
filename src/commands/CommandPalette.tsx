@@ -3,7 +3,7 @@ import { Spotlight, spotlight } from "@mantine/spotlight";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import GlobalHotkeys from "./GlobalHotkeys";
 import { useSpotlightActions } from "./useSpotlightActions";
-import { SPOTLIGHT_SHORTCUT } from "./commands";
+import { SPOTLIGHT_SHORTCUT } from "../config/shortcuts";
 import { useAppHotkeys } from "./useAppHotkeys";
 import useBackButtonPress from "../hooks/useBackButtonPress";
 import { BackButtonPriority } from "../managers/backButtonManager";

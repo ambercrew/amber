@@ -26,14 +26,22 @@ import { Rating } from "../../../types/study/rating";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import { useAppHotkeys } from "../../../commands/useAppHotkeys";
-
-const SHOW_ANSWER_SHORTCUT = "space";
+import {
+	FINISH_LEARNING_ASSET_SHORTCUT,
+	GRADE_AGAIN_SHORTCUT,
+	GRADE_EASY_SHORTCUT,
+	GRADE_GOOD_SHORTCUT,
+	GRADE_HARD_SHORTCUT,
+	NEXT_LEARNING_ASSET_SHORTCUT,
+	SHOW_ANSWER_SHORTCUT,
+	SKIP_LEARNING_ASSET_SHORTCUT,
+} from "../../../config/shortcuts";
 
 const RATINGS: { rating: Rating; label: string; shortcut: string }[] = [
-	{ rating: "again", label: "Again", shortcut: "1" },
-	{ rating: "hard", label: "Hard", shortcut: "2" },
-	{ rating: "good", label: "Good", shortcut: "3" },
-	{ rating: "easy", label: "Easy", shortcut: "4" },
+	{ rating: "again", label: "Again", shortcut: GRADE_AGAIN_SHORTCUT },
+	{ rating: "hard", label: "Hard", shortcut: GRADE_HARD_SHORTCUT },
+	{ rating: "good", label: "Good", shortcut: GRADE_GOOD_SHORTCUT },
+	{ rating: "easy", label: "Easy", shortcut: GRADE_EASY_SHORTCUT },
 ];
 
 function formatElapsed(totalSeconds: number): string {
@@ -114,24 +122,24 @@ function StudySessionBar() {
 				if (answerHidden) dispatch(answerShown());
 			},
 		],
-		["1", gradeShortcut("again")],
-		["2", gradeShortcut("hard")],
-		["3", gradeShortcut("good")],
-		["4", gradeShortcut("easy")],
+		[GRADE_AGAIN_SHORTCUT, gradeShortcut("again")],
+		[GRADE_HARD_SHORTCUT, gradeShortcut("hard")],
+		[GRADE_GOOD_SHORTCUT, gradeShortcut("good")],
+		[GRADE_EASY_SHORTCUT, gradeShortcut("easy")],
 		[
-			"1",
+			SKIP_LEARNING_ASSET_SHORTCUT,
 			learningAssetShortcut(
 				id => void dispatch(skipLearningAssetAction(id, navigate)),
 			),
 		],
 		[
-			"2",
+			NEXT_LEARNING_ASSET_SHORTCUT,
 			learningAssetShortcut(
 				id => void dispatch(nextLearningAssetAction(id, navigate)),
 			),
 		],
 		[
-			"3",
+			FINISH_LEARNING_ASSET_SHORTCUT,
 			learningAssetShortcut(
 				id => void dispatch(finishLearningAssetAction(id, navigate)),
 			),
@@ -187,7 +195,7 @@ function StudySessionBar() {
 					<AppTooltip
 						touch
 						label="Move to the end of the queue"
-						shortcut="1">
+						shortcut={SKIP_LEARNING_ASSET_SHORTCUT}>
 						<Button
 							variant="default"
 							size="sm"
@@ -205,7 +213,7 @@ function StudySessionBar() {
 							nextLearningAssetDue &&
 							formatRelativeDueDate(nextLearningAssetDue)
 						}
-						shortcut="2">
+						shortcut={NEXT_LEARNING_ASSET_SHORTCUT}>
 						<Button
 							variant="default"
 							size="sm"
@@ -217,7 +225,10 @@ function StudySessionBar() {
 							Next
 						</Button>
 					</AppTooltip>
-					<AppTooltip touch label="Won't repeat" shortcut="3">
+					<AppTooltip
+						touch
+						label="Won't repeat"
+						shortcut={FINISH_LEARNING_ASSET_SHORTCUT}>
 						<Button
 							variant="default"
 							size="sm"

@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import { Menu } from "@mantine/core";
 import { CommandMenuItem } from "../../commands/CommandMenuItem";
-import { OPEN_SETTINGS_SHORTCUT } from "../../commands/commands";
+import { OPEN_SETTINGS_SHORTCUT } from "../../config/shortcuts";
 import { formatShortcut } from "../../commands/formatShortcut";
 import { useIsCoarsePointer } from "../../hooks/useIsCoarsePointer";
 import { renderWithProviders } from "../test-utils/renderWithProviders";

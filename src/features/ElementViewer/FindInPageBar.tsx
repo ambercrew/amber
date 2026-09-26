@@ -9,7 +9,7 @@ import {
 	XIcon,
 } from "@phosphor-icons/react";
 import AutosizeTextInput from "../../components/AutosizeTextInput/AutosizeTextInput";
-import { FIND_IN_PAGE_SHORTCUT } from "../../commands/commands";
+import { FIND_IN_PAGE_SHORTCUT } from "../../config/shortcuts";
 import { useAppHotkeys } from "../../commands/useAppHotkeys";
 import useAppDispatch from "../../hooks/useAppDispatch";
 import useAppSelector from "../../hooks/useAppSelector";

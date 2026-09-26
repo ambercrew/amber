@@ -6,7 +6,7 @@ import { useLocation } from "react-router";
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
-import { SPOTLIGHT_SHORTCUT } from "../../../commands/commands";
+import { SPOTLIGHT_SHORTCUT } from "../../../config/shortcuts";
 import StudyModeToggle from "../../Study/components/StudyModeToggle";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import { BrowserIcon, HomeIcon } from "../../../config/icons";
