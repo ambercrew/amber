@@ -259,12 +259,20 @@ impl MetaRepository for SqliteMetaRepository {
         Ok(())
     }
 
-    async fn clear_derived_from(&self, id: ElementId) -> Result<(), RepositoryError> {
+    async fn set_derived_from(
+        &self,
+        id: ElementId,
+        derived_from: Option<ElementId>,
+    ) -> Result<(), RepositoryError> {
         let uuid = id.id().hyphenated();
+        let derived_from_id = derived_from.map(|d| d.id().hyphenated());
+        let derived_from_type = derived_from.map(|d| d.element_name());
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
-            r#"UPDATE meta SET derived_from_id = NULL, derived_from_type = NULL WHERE element_id = $1"#,
+            r#"UPDATE meta SET derived_from_id = $1, derived_from_type = $2 WHERE element_id = $3"#,
+            derived_from_id,
+            derived_from_type,
             uuid
         )
         .execute(&mut *tx)
@@ -611,6 +619,55 @@ mod tests {
             created_at: Utc::now(),
             modified_at: Utc::now(),
         }
+    }
+
+    #[tokio::test]
+    async fn set_derived_from_some_element_stores_it() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let id = ElementId::Extract(Uuid::new_v4());
+        let source = ElementId::LearningAsset(Uuid::new_v4());
+        repo.create_meta(&make_meta(id)).await.unwrap();
+        repo.create_meta(&make_meta(source)).await.unwrap();
+
+        // Act
+
+        repo.set_derived_from(id, Some(source)).await.unwrap();
+
+        // Assert
+
+        let meta = repo.get_by_id(id.id()).await.unwrap();
+        assert_eq!(Some(source), meta.derived_from);
+    }
+
+    #[tokio::test]
+    async fn set_derived_from_none_clears_it() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let id = ElementId::Extract(Uuid::new_v4());
+        let source = ElementId::LearningAsset(Uuid::new_v4());
+        repo.create_meta(&make_meta(source)).await.unwrap();
+        repo.create_meta(&Meta {
+            derived_from: Some(source),
+            ..make_meta(id)
+        })
+        .await
+        .unwrap();
+
+        // Act
+
+        repo.set_derived_from(id, None).await.unwrap();
+
+        // Assert
+
+        let meta = repo.get_by_id(id.id()).await.unwrap();
+        assert_eq!(None, meta.derived_from);
     }
 
     #[tokio::test]

@@ -1,5 +1,4 @@
 import {
-	clearDerivedFrom,
 	createCard,
 	createExtract,
 	createFolder,
@@ -10,6 +9,7 @@ import {
 	moveElement,
 	MoveElementDto,
 	renameElement,
+	setDerivedFrom,
 } from "../../api/elements/api/elementsApi";
 import { NodeDto } from "../../api/elements/dto/nodeDto";
 import { CreateCardDto } from "../../types/elements/createCardDto";
@@ -50,10 +50,13 @@ export function loadElementTree() {
 	return withTreeRefresh(() => Promise.resolve());
 }
 
-export function clearDerivedFromAction(elementId: ElementId) {
+export function setDerivedFromAction(
+	elementId: ElementId,
+	derivedFrom: ElementId | null,
+) {
 	return async (dispatch: AppDispatch) => {
-		await clearDerivedFrom(elementId);
-		dispatch(setCurrentElementMeta({ derivedFrom: null }));
+		await setDerivedFrom(elementId, derivedFrom);
+		dispatch(setCurrentElementMeta({ derivedFrom }));
 	};
 }
 

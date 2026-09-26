@@ -192,7 +192,7 @@ pub async fn run() {
             update_element_tags,
             add_tag_bulk,
             remove_tag_bulk,
-            clear_derived_from,
+            set_derived_from,
             set_element_priority_by_position,
             set_element_priority_by_percentile,
             get_priority_queue_size,

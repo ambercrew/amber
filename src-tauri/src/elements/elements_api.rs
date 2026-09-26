@@ -390,15 +390,16 @@ pub async fn remove_tag_bulk(
 }
 
 #[tauri::command]
-pub async fn clear_derived_from(
+pub async fn set_derived_from(
     injector: State<'_, Arc<Injector>>,
     element_id: ElementId,
+    derived_from: Option<ElementId>,
 ) -> Result<(), ApiError> {
     let scope = injector.start_scope();
     scope
         .resolve::<dyn MetaRepository>()
         .await
-        .clear_derived_from(element_id)
+        .set_derived_from(element_id, derived_from)
         .await?;
     scope.save_changes().await?;
     Ok(())

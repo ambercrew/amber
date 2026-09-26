@@ -1,9 +1,13 @@
 import { setupStore } from "../../../stores/store";
-import { loadCurrentElementAction } from "../../../stores/elements/elementsActions";
+import {
+	loadCurrentElementAction,
+	setDerivedFromAction,
+} from "../../../stores/elements/elementsActions";
 import {
 	elementExists,
 	getElementById,
 	getElementDetails,
+	setDerivedFrom,
 } from "../../../api/elements/api/elementsApi";
 import { AnyElementDto } from "../../../api/elements/dto/anyElementDto";
 import { ElementDetailsResponseDto } from "../../../api/elements/dto/elementDetailsDto";
@@ -105,5 +109,30 @@ describe("loadCurrentElementAction", () => {
 		expect(loaded).toBe(true);
 		expect(store.getState().elements.currentElement).toEqual(CARD_ELEMENT);
 		expect(store.getState().elementDetails.details).toEqual(DETAILS);
+	});
+});
+
+describe("setDerivedFromAction", () => {
+	it("Should save the new derived from and update the current element when an element is given", async () => {
+		// Arrange
+
+		vi.mocked(setDerivedFrom).mockResolvedValue();
+		vi.mocked(elementExists).mockResolvedValue(true);
+		vi.mocked(getElementById).mockResolvedValue(CARD_ELEMENT);
+		vi.mocked(getElementDetails).mockResolvedValue(DETAILS);
+		const store = setupStore();
+		await store.dispatch(loadCurrentElementAction(ELEMENT_ID));
+		const source = { type: "learningAsset" as const, id: "asset-1" };
+
+		// Act
+
+		await store.dispatch(setDerivedFromAction(ELEMENT_ID, source));
+
+		// Assert
+
+		expect(setDerivedFrom).toHaveBeenCalledWith(ELEMENT_ID, source);
+		expect(
+			store.getState().elements.currentElement?.data.meta.derivedFrom,
+		).toEqual(source);
 	});
 });

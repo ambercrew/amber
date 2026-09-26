@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import {
+	Box,
 	CloseButton,
 	Combobox,
 	ComboboxProps,
@@ -185,10 +186,17 @@ export default function ElementSelect({
 									value.type === option.type
 								}>
 								<Group gap="xs" wrap="nowrap">
-									<ElementNodeIcon
-										type={option.type}
-										size={16}
-									/>
+									{/* Keeps long, truncated names from squeezing the icon. */}
+									<Box
+										style={{
+											flexShrink: 0,
+											display: "flex",
+										}}>
+										<ElementNodeIcon
+											type={option.type}
+											size={16}
+										/>
+									</Box>
 									<Text size="sm" truncate>
 										{option.name}
 									</Text>

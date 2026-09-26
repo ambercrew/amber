@@ -48,8 +48,12 @@ pub trait MetaRepository: Send + Sync {
         bibliographical_source_id: Uuid,
     ) -> Result<i64, RepositoryError>;
 
-    /// Clears the element's `derived_from` lineage.
-    async fn clear_derived_from(&self, id: ElementId) -> Result<(), RepositoryError>;
+    /// Sets or clears (`None`) the element's `derived_from` lineage.
+    async fn set_derived_from(
+        &self,
+        id: ElementId,
+        derived_from: Option<ElementId>,
+    ) -> Result<(), RepositoryError>;
 
     /// Changes the parent and position of the given element.
     async fn move_to(

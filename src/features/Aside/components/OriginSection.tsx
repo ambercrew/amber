@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import {
 	ActionIcon,
-	Anchor,
 	Box,
 	Fieldset,
 	Group,
@@ -12,7 +11,7 @@ import {
 } from "@mantine/core";
 import { useDebouncedCallback } from "@mantine/hooks";
 import { modals } from "@mantine/modals";
-import { TrashIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, TrashIcon } from "@phosphor-icons/react";
 import useApi from "../../../hooks/useApi";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
@@ -22,8 +21,8 @@ import {
 	BibliographicalSourceType,
 } from "../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { ElementDetailsResponseDto } from "../../../api/elements/dto/elementDetailsDto";
-import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
-import { clearDerivedFromAction } from "../../../stores/elements/elementsActions";
+import ElementSelect from "../../../components/ElementSelect/ElementSelect";
+import { setDerivedFromAction } from "../../../stores/elements/elementsActions";
 import { loadElementDetailsAction } from "../../../stores/elementDetails/elementDetailsActions";
 import {
 	assignBibliographicalSourceAction,
@@ -81,7 +80,6 @@ function OriginSection({
 	const bibliographicalSources = useAppSelector(selectBibliographicalSources);
 	const selectedBibliographicalSource =
 		details?.bibliographicalSource ?? null;
-	const derivedFromName = details?.derivedFromName ?? null;
 
 	useEffect(() => {
 		void dispatch(loadBibliographicalSourcesAction());
@@ -174,9 +172,9 @@ function OriginSection({
 		});
 	}
 
-	function handleClearDerivedFrom() {
+	function handleDerivedFromChange(value: ElementId | null) {
 		void callApi(async () => {
-			await dispatch(clearDerivedFromAction(elementId));
+			await dispatch(setDerivedFromAction(elementId, value));
 			await refreshDetails();
 		});
 	}
@@ -185,17 +183,21 @@ function OriginSection({
 		<InfoGroup title="Origin" storageKey="origin" defaultOpened={false}>
 			<Fieldset legend="Derived from" p="xs">
 				<InfoField label="Element">
-					{derivedFrom ? (
-						<Group justify="space-between" wrap="nowrap">
-							<Group gap={6} wrap="nowrap">
-								<Box style={{ flexShrink: 0, display: "flex" }}>
-									<ElementNodeIcon
-										type={derivedFrom.type}
-										size={18}
-									/>
-								</Box>
-								<Anchor
-									size="sm"
+					<Group gap={4} wrap="nowrap">
+						<Box flex={1} miw={0}>
+							<ElementSelect
+								placeholder="Search for an element"
+								value={derivedFrom}
+								onChange={handleDerivedFromChange}
+								clearable
+							/>
+						</Box>
+						{derivedFrom && (
+							<AppTooltip label="Go to element">
+								<ActionIcon
+									variant="subtle"
+									aria-label="Go to element"
+									size="lg"
 									onClick={() => {
 										void navigate(
 											paths.element(
@@ -204,22 +206,11 @@ function OriginSection({
 											),
 										);
 									}}>
-									{derivedFromName ?? "…"}
-								</Anchor>
-							</Group>
-							<AppTooltip label="Clear derived from">
-								<ActionIcon
-									variant="subtle"
-									onClick={handleClearDerivedFrom}>
-									<XIcon size={18} />
+									<ArrowRightIcon size={18} />
 								</ActionIcon>
 							</AppTooltip>
-						</Group>
-					) : (
-						<Text size="sm" c="dimmed">
-							—
-						</Text>
-					)}
+						)}
+					</Group>
 				</InfoField>
 			</Fieldset>
 

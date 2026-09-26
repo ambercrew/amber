@@ -189,6 +189,9 @@ export function getPriorityPositionForNewElement(
 	return invoke("get_priority_position_for_new_element", { parent });
 }
 
-export function clearDerivedFrom(elementId: ElementId): Promise<void> {
-	return invoke("clear_derived_from", { elementId });
+export function setDerivedFrom(
+	elementId: ElementId,
+	derivedFrom: ElementId | null,
+): Promise<void> {
+	return invoke("set_derived_from", { elementId, derivedFrom });
 }
