@@ -9,5 +9,6 @@ pub trait SearchService: Send + Sync {
     async fn search_elements(
         &self,
         filters: Vec<ElementFilter>,
+        limit: Option<u32>,
     ) -> Result<Vec<ElementSearchResult>, RepositoryError>;
 }

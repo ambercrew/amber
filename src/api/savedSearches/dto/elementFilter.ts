@@ -1,3 +1,4 @@
+import { ElementId } from "../../../types/elements/elementId";
 import { ElementNodeType } from "../../../types/elements/elementNodeType";
 
 export type SelectFilterOperator = "isAnyOf" | "isNoneOf";
@@ -9,6 +10,8 @@ export type StringFilterOperator =
 	"contains" | "equals" | "startsWith" | "endsWith";
 
 export type RangeFilterOperator = "between";
+
+export type DescendantFilterOperator = "is" | "isNot";
 
 export interface NameFilter {
 	id: string;
@@ -62,6 +65,13 @@ export interface StudyProfileFilter {
 	profileIds: string[];
 }
 
+export interface DescendantOfFilter {
+	id: string;
+	field: "descendantOf";
+	operator: DescendantFilterOperator;
+	ancestor: ElementId | null;
+}
+
 export type ElementFilter =
 	| NameFilter
 	| TagsFilter
@@ -69,6 +79,7 @@ export type ElementFilter =
 	| BibliographicalSourceFilter
 	| ElementTypeFilter
 	| PriorityFilter
-	| StudyProfileFilter;
+	| StudyProfileFilter
+	| DescendantOfFilter;
 
 export type ElementFilterField = ElementFilter["field"];

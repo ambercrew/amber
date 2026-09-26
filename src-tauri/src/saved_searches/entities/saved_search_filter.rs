@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::elements::value_objects::element_id::ElementId;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SavedSearchFilter {
     pub index: i64,
@@ -59,6 +61,11 @@ pub enum ElementFilter {
         operator: SelectFilterOperator,
         profile_ids: Vec<Uuid>,
     },
+    DescendantOf {
+        id: Uuid,
+        operator: DescendantFilterOperator,
+        ancestor: Option<ElementId>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -94,6 +101,13 @@ pub enum DateFilterOperator {
 pub enum SelectFilterOperator {
     IsAnyOf,
     IsNoneOf,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DescendantFilterOperator {
+    Is,
+    IsNot,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

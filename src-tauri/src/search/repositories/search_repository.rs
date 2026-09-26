@@ -7,9 +7,10 @@ use crate::search::entities::element_search_result::ElementSearchResult;
 #[async_trait]
 pub trait SearchRepository: Send + Sync {
     /// Live elements matching every one of the given filters, ordered by
-    /// priority ascending (front of queue first).
+    /// priority ascending (front of queue first), capped at `limit` if given.
     async fn search(
         &self,
         filters: &[ElementFilter],
+        limit: Option<u32>,
     ) -> Result<Vec<ElementSearchResult>, RepositoryError>;
 }

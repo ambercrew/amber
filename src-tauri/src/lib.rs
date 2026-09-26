@@ -187,6 +187,7 @@ pub async fn run() {
             get_element_details,
             rename_element,
             element_exists,
+            get_element_name,
             move_element,
             update_element_tags,
             add_tag_bulk,

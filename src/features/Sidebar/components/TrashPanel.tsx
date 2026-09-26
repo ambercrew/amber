@@ -29,7 +29,7 @@ import {
 	selectTrashError,
 } from "../../../stores/trash/trashSelectors";
 import { formatTrashCountdown } from "../../../utils/formatTrashCountdown";
-import ElementNodeIcon from "../../App/components/ElementNodeIcon";
+import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import PanelHeader from "./PanelHeader";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 

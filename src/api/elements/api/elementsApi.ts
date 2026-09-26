@@ -105,6 +105,10 @@ export function elementExists(elementId: ElementId): Promise<boolean> {
 	return invoke("element_exists", { elementId });
 }
 
+export function getElementName(elementId: ElementId): Promise<string> {
+	return invoke("get_element_name", { elementId });
+}
+
 export function getElementById(elementId: ElementId): Promise<AnyElementDto> {
 	return invoke("get_element_by_id", { elementId });
 }

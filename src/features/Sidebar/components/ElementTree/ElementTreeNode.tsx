@@ -11,7 +11,7 @@ import {
 	DotsThreeVerticalIcon,
 } from "@phosphor-icons/react";
 import { useState } from "react";
-import ElementNodeIcon from "../../../App/components/ElementNodeIcon";
+import ElementNodeIcon from "../../../../components/ElementNodeIcon/ElementNodeIcon";
 import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
 import { ElementId } from "../../../../types/elements/elementId";
 import { ElementNodeProps } from "../../utils/elementTreeUtils";

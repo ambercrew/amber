@@ -1,11 +1,11 @@
-import { ElementNodeType } from "../../../types/elements/elementNodeType";
+import { ElementNodeType } from "../../types/elements/elementNodeType";
 import {
 	CardElementIcon,
 	ExtractElementIcon,
 	FolderElementIcon,
 	FolderOpenElementIcon,
 	LearningAssetElementIcon,
-} from "../../../config/icons";
+} from "../../config/icons";
 
 interface ElementNodeIconProps {
 	type: ElementNodeType;

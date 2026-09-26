@@ -1,15 +1,36 @@
 import {
 	DateFilter,
+	DescendantFilterOperator,
 	ElementFilter,
 } from "../../../api/savedSearches/dto/elementFilter";
+import { ElementNameState } from "../../../hooks/useElementName";
 import { BibliographicalSourceResponseDto } from "../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
 import { elementTypeOptions } from "./elementTypeOptions";
 import { formatPriorityPercentileRange } from "../../../utils/formatPriorityPercentile";
 
 export interface FilterDisplay {
+	/** Replaces the field's label on the chip when the operator reads better folded into it. */
+	fieldLabel?: string;
 	operatorLabel: string;
 	valueLabel: string;
+}
+
+export const descendantOperatorLabels: Record<
+	DescendantFilterOperator,
+	string
+> = {
+	is: "Descendant of",
+	isNot: "Not descendant of",
+};
+
+function describeAncestor(
+	hasAncestor: boolean,
+	{ name, errorMessage }: ElementNameState,
+): string {
+	if (!hasAncestor) return "not set";
+	if (errorMessage) return "failed to load";
+	return name ?? "…";
 }
 
 function formatDate(iso: string | null): string {
@@ -49,6 +70,10 @@ export function describeFilter(
 	filter: ElementFilter,
 	sources: BibliographicalSourceResponseDto[],
 	profiles: StudyProfileDto[],
+	ancestor: ElementNameState = {
+		name: null,
+		errorMessage: null,
+	},
 ): FilterDisplay {
 	switch (filter.field) {
 		case "name": {
@@ -104,6 +129,15 @@ export function describeFilter(
 				valueLabel: joinNames(names),
 			};
 		}
+		case "descendantOf":
+			return {
+				fieldLabel: descendantOperatorLabels[filter.operator],
+				operatorLabel: "",
+				valueLabel: describeAncestor(
+					filter.ancestor !== null,
+					ancestor,
+				),
+			};
 		case "priority":
 			return {
 				operatorLabel: "",

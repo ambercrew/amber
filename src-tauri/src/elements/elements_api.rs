@@ -128,6 +128,20 @@ pub async fn element_exists(
 }
 
 #[tauri::command]
+pub async fn get_element_name(
+    injector: State<'_, Arc<Injector>>,
+    element_id: ElementId,
+) -> Result<String, ApiError> {
+    let scope = injector.start_scope();
+    let result = scope
+        .resolve::<dyn MetaRepository>()
+        .await
+        .get_name(element_id)
+        .await?;
+    Ok(result)
+}
+
+#[tauri::command]
 pub async fn create_card(
     injector: State<'_, Arc<Injector>>,
     dto: CreateCardDto,

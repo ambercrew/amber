@@ -5,6 +5,7 @@ import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
 import { getFilterFieldMeta } from "../../utils/filterFieldMeta";
 import { describeFilter } from "../../utils/filterDisplay";
 import FilterEditor from "./FilterEditor";
+import useElementName from "../../../../hooks/useElementName";
 
 export default function FilterChip({
 	filter,
@@ -22,10 +23,14 @@ export default function FilterChip({
 	onRemove: () => void;
 }) {
 	const meta = getFilterFieldMeta(filter.field);
-	const { operatorLabel, valueLabel } = describeFilter(
+	const ancestor = useElementName(
+		filter.field === "descendantOf" ? filter.ancestor : null,
+	);
+	const { fieldLabel, operatorLabel, valueLabel } = describeFilter(
 		filter,
 		sources,
 		profiles,
+		ancestor,
 	);
 
 	return (
@@ -68,7 +73,7 @@ export default function FilterChip({
 							{meta.icon(16)}
 						</Box>
 						<Text fw={600} style={{ flexShrink: 0 }}>
-							{meta.label}
+							{fieldLabel ?? meta.label}
 						</Text>
 						{operatorLabel && (
 							<Text style={{ flexShrink: 0 }}>

@@ -5,7 +5,7 @@ import { useNavigate } from "react-router";
 import { commandIcon } from "../../../commands/commandIcon";
 import { useElementParams } from "../../../hooks/useElementParams";
 import { paths } from "../../../paths";
-import ElementNodeIcon from "../../App/components/ElementNodeIcon";
+import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import { StudySessionLocationState } from "../../../types/study/studySessionLocationState";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";

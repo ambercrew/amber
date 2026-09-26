@@ -213,6 +213,16 @@ impl MetaRepository for SqliteMetaRepository {
         Ok(row.exists)
     }
 
+    async fn get_name(&self, id: ElementId) -> Result<String, RepositoryError> {
+        let uuid = id.id().hyphenated();
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let row = sqlx::query!(r#"SELECT name FROM meta WHERE element_id = $1"#, uuid)
+            .fetch_one(&mut *tx)
+            .await?;
+        Ok(row.name)
+    }
+
     async fn set_study_profile(
         &self,
         id: ElementId,
@@ -601,6 +611,25 @@ mod tests {
             created_at: Utc::now(),
             modified_at: Utc::now(),
         }
+    }
+
+    #[tokio::test]
+    async fn get_name_existing_element_returns_its_name() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let id = ElementId::Folder(Uuid::new_v4());
+        repo.create_meta(&make_meta(id)).await.unwrap();
+
+        // Act
+
+        let actual = repo.get_name(id).await.unwrap();
+
+        // Assert
+
+        assert_eq!("test", actual);
     }
 
     #[tokio::test]

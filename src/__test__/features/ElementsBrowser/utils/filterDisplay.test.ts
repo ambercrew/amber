@@ -2,6 +2,7 @@ import { describeFilter } from "../../../../features/ElementsBrowser/utils/filte
 import {
 	BibliographicalSourceFilter,
 	DateFilter,
+	DescendantOfFilter,
 	ElementTypeFilter,
 	NameFilter,
 	PriorityFilter,
@@ -440,5 +441,72 @@ describe("describeFilter", () => {
 			operatorLabel: "",
 			valueLabel: "70.00–100.00%",
 		});
+	});
+
+	it("Should describe the ancestor by name when a descendantOf filter has an ancestor", () => {
+		// Arrange
+
+		const filter: DescendantOfFilter = {
+			id: "1",
+			field: "descendantOf",
+			operator: "isNot",
+			ancestor: { type: "folder", id: "folder-1" },
+		};
+
+		// Act
+
+		const actual = describeFilter(filter, sources, profiles, {
+			name: "Physics",
+			errorMessage: null,
+		});
+
+		// Assert
+
+		expect(actual).toEqual({
+			fieldLabel: "Not descendant of",
+			operatorLabel: "",
+			valueLabel: "Physics",
+		});
+	});
+
+	it("Should say the ancestor is not set when a descendantOf filter has no ancestor", () => {
+		// Arrange
+
+		const filter: DescendantOfFilter = {
+			id: "1",
+			field: "descendantOf",
+			operator: "is",
+			ancestor: null,
+		};
+
+		// Act
+
+		const actual = describeFilter(filter, sources, profiles);
+
+		// Assert
+
+		expect(actual.valueLabel).toBe("not set");
+	});
+
+	it("Should say the ancestor failed to load when fetching its name errored", () => {
+		// Arrange
+
+		const filter: DescendantOfFilter = {
+			id: "1",
+			field: "descendantOf",
+			operator: "is",
+			ancestor: { type: "folder", id: "folder-1" },
+		};
+
+		// Act
+
+		const actual = describeFilter(filter, sources, profiles, {
+			name: null,
+			errorMessage: "Database locked",
+		});
+
+		// Assert
+
+		expect(actual.valueLabel).toBe("failed to load");
 	});
 });

@@ -3,7 +3,7 @@ import { CommandIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { spotlight } from "@mantine/spotlight";
 import { ReactNode } from "react";
 import { useLocation } from "react-router";
-import ElementNodeIcon from "./ElementNodeIcon";
+import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
 import { SPOTLIGHT_SHORTCUT } from "../../../commands/commands";

@@ -37,5 +37,7 @@ export function createDefaultFilter(field: ElementFilterField): ElementFilter {
 			return { id, field, operator: "between", min: 70, max: 100 };
 		case "studyProfile":
 			return { id, field, operator: "isAnyOf", profileIds: [] };
+		case "descendantOf":
+			return { id, field, operator: "is", ancestor: null };
 	}
 }

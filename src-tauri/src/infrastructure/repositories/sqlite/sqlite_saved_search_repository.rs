@@ -125,7 +125,10 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
         .fetch_all(&mut *tx)
         .await?;
 
-        Ok(rows.into_iter().map(SavedSearchFilter::from).collect())
+        Ok(rows
+            .into_iter()
+            .filter_map(SavedSearchFilterRow::into_filter)
+            .collect())
     }
 
     async fn replace_filters(

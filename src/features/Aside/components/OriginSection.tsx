@@ -22,7 +22,7 @@ import {
 	BibliographicalSourceType,
 } from "../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { ElementDetailsResponseDto } from "../../../api/elements/dto/elementDetailsDto";
-import ElementNodeIcon from "../../App/components/ElementNodeIcon";
+import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import { clearDerivedFromAction } from "../../../stores/elements/elementsActions";
 import { loadElementDetailsAction } from "../../../stores/elementDetails/elementDetailsActions";
 import {

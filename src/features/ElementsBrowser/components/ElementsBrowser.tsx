@@ -25,7 +25,7 @@ import {
 } from "../../../stores/sync/managers/syncEventManager";
 import { SEARCH_DEBOUNCE_MS } from "../config/constants";
 import { createDefaultFilter } from "../utils/createDefaultFilter";
-import { elementKey } from "../utils/elementKey";
+import { elementKey } from "../../../utils/elementKey";
 import FilterChip from "./Filter/FilterChip";
 import AddFilterMenu from "./Filter/AddFilterMenu";
 import SavedSearchSelector from "./SavedSearch/SavedSearchSelector";

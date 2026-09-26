@@ -19,7 +19,8 @@ impl SearchService for DefaultSearchService {
     async fn search_elements(
         &self,
         filters: Vec<ElementFilter>,
+        limit: Option<u32>,
     ) -> Result<Vec<ElementSearchResult>, RepositoryError> {
-        self.search_repository.search(&filters).await
+        self.search_repository.search(&filters, limit).await
     }
 }

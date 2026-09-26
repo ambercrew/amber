@@ -15,7 +15,8 @@ use crate::infrastructure::repositories::sqlite::sqlite_rows::search_row::Search
 use crate::infrastructure::repositories::sqlite::sqlite_rows::tag_row::TagRow;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 use crate::saved_searches::entities::saved_search_filter::{
-    DateFilterOperator, ElementFilter, ElementNodeType, SelectFilterOperator,
+    DateFilterOperator, DescendantFilterOperator, ElementFilter, ElementNodeType,
+    SelectFilterOperator,
 };
 use crate::search::entities::element_search_result::ElementSearchResult;
 use crate::search::repositories::search_repository::SearchRepository;
@@ -31,6 +32,7 @@ impl SearchRepository for SqliteSearchRepository {
     async fn search(
         &self,
         filters: &[ElementFilter],
+        limit: Option<u32>,
     ) -> Result<Vec<ElementSearchResult>, RepositoryError> {
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             r#"SELECT
@@ -51,6 +53,16 @@ impl SearchRepository for SqliteSearchRepository {
         }
 
         query_builder.push(" ORDER BY m.priority");
+
+        // The priority filter runs in memory below, so a SQL LIMIT would cut
+        // rows before it; in that case the limit is applied after filtering.
+        let has_priority_filter = filters
+            .iter()
+            .any(|filter| matches!(filter, ElementFilter::Priority { .. }));
+        if let (Some(limit), false) = (limit, has_priority_filter) {
+            query_builder.push(" LIMIT ");
+            query_builder.push_bind(limit as i64);
+        }
 
         // The lock is scoped to this block and released before consulting
         // priority_service below, which locks the same transaction internally.
@@ -110,6 +122,10 @@ impl SearchRepository for SqliteSearchRepository {
                     percentile >= *min as f64 && percentile <= *max as f64
                 });
             }
+        }
+
+        if let Some(limit) = limit {
+            results.truncate(limit as usize);
         }
 
         Ok(results)
@@ -278,6 +294,25 @@ fn push_filter_clause(query_builder: &mut QueryBuilder<Sqlite>, filter: &Element
             profile_ids,
             ..
         } => push_select_clause(query_builder, "m.study_profile_id", operator, profile_ids),
+        ElementFilter::DescendantOf {
+            operator, ancestor, ..
+        } => {
+            let Some(ancestor) = ancestor else {
+                query_builder.push("1 = 1");
+                return;
+            };
+            query_builder.push(match operator {
+                DescendantFilterOperator::Is => "m.element_id IN (",
+                DescendantFilterOperator::IsNot => "m.element_id NOT IN (",
+            });
+            query_builder.push(
+                "WITH RECURSIVE subtree(element_id) AS (SELECT element_id FROM meta WHERE parent_id = ",
+            );
+            query_builder.push_bind(ancestor.id().hyphenated());
+            query_builder.push(
+                " UNION SELECT c.element_id FROM meta c JOIN subtree s ON c.parent_id = s.element_id) SELECT element_id FROM subtree)",
+            );
+        }
     }
 }
 
@@ -484,8 +519,8 @@ mod tests {
     use crate::infrastructure::repositories::sqlite::sqlite_study_profile_repository::SqliteStudyProfileRepository;
     use crate::infrastructure::repositories::sqlite::sqlite_trash_repository::SqliteTrashRepository;
     use crate::saved_searches::entities::saved_search_filter::{
-        DateFilterOperator, ElementNodeType, SelectFilterOperator, StringFilterOperator,
-        TagsFilterOperator,
+        DateFilterOperator, DescendantFilterOperator, ElementNodeType, SelectFilterOperator,
+        StringFilterOperator, TagsFilterOperator,
     };
     use crate::study::entities::card_review::CardReview;
     use crate::study::entities::learning_asset_review::LearningAssetReview;
@@ -612,7 +647,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&[]).await.unwrap();
+        let results = search_repository.search(&[], None).await.unwrap();
 
         // Assert
 
@@ -649,7 +684,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -688,7 +723,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -731,7 +766,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&[]).await.unwrap();
+        let results = search_repository.search(&[], None).await.unwrap();
 
         // Assert
 
@@ -770,7 +805,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -804,7 +839,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -838,7 +873,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -872,7 +907,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -906,7 +941,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -946,7 +981,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -990,7 +1025,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1020,7 +1055,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1049,7 +1084,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1083,7 +1118,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1118,7 +1153,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1178,7 +1213,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1234,7 +1269,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1303,7 +1338,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1372,7 +1407,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1415,7 +1450,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1452,7 +1487,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1494,7 +1529,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1540,7 +1575,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&[]).await.unwrap();
+        let results = search_repository.search(&[], None).await.unwrap();
 
         // Assert
 
@@ -1575,7 +1610,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&[]).await.unwrap();
+        let results = search_repository.search(&[], None).await.unwrap();
 
         // Assert
 
@@ -1632,7 +1667,7 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
@@ -1662,10 +1697,253 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters).await.unwrap();
+        let results = search_repository.search(&filters, None).await.unwrap();
 
         // Assert
 
         assert!(results.is_empty());
+    }
+
+    fn make_child_folder(name: &str, parent: ElementId, priority: FractionalIndex) -> Folder {
+        let mut folder = make_folder(name, priority);
+        folder.meta.parent = Some(parent);
+        folder
+    }
+
+    #[tokio::test]
+    async fn search_descendant_of_filter_is_returns_nested_descendants_only() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let root = make_folder("Root", FractionalIndex::default());
+        let root_id = root.meta.element_id;
+        let child = make_child_folder(
+            "Child",
+            root_id,
+            FractionalIndex::new_after(&FractionalIndex::default()),
+        );
+        let child_id = child.meta.element_id;
+        let grandchild = make_child_folder(
+            "Grandchild",
+            child_id,
+            FractionalIndex::new_after(&child.meta.priority),
+        );
+        let grandchild_id = grandchild.meta.element_id;
+        let unrelated = make_folder(
+            "Unrelated",
+            FractionalIndex::new_after(&grandchild.meta.priority),
+        );
+        folder_repository.create(root).await.unwrap();
+        folder_repository.create(child).await.unwrap();
+        folder_repository.create(grandchild).await.unwrap();
+        folder_repository.create(unrelated).await.unwrap();
+
+        let filters = vec![ElementFilter::DescendantOf {
+            id: Uuid::new_v4(),
+            operator: DescendantFilterOperator::Is,
+            ancestor: Some(root_id),
+        }];
+
+        // Act
+
+        let results = search_repository.search(&filters, None).await.unwrap();
+
+        // Assert
+
+        let ids: Vec<ElementId> = results.iter().map(|r| r.element_id).collect();
+        assert_eq!(vec![child_id, grandchild_id], ids);
+    }
+
+    #[tokio::test]
+    async fn search_descendant_of_filter_is_not_excludes_descendants() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let root = make_folder("Root", FractionalIndex::default());
+        let root_id = root.meta.element_id;
+        let child = make_child_folder(
+            "Child",
+            root_id,
+            FractionalIndex::new_after(&FractionalIndex::default()),
+        );
+        let unrelated = make_folder(
+            "Unrelated",
+            FractionalIndex::new_after(&child.meta.priority),
+        );
+        let unrelated_id = unrelated.meta.element_id;
+        folder_repository.create(root).await.unwrap();
+        folder_repository.create(child).await.unwrap();
+        folder_repository.create(unrelated).await.unwrap();
+
+        let filters = vec![ElementFilter::DescendantOf {
+            id: Uuid::new_v4(),
+            operator: DescendantFilterOperator::IsNot,
+            ancestor: Some(root_id),
+        }];
+
+        // Act
+
+        let results = search_repository.search(&filters, None).await.unwrap();
+
+        // Assert
+
+        let ids: Vec<ElementId> = results.iter().map(|r| r.element_id).collect();
+        assert_eq!(vec![root_id, unrelated_id], ids);
+    }
+
+    #[tokio::test]
+    async fn search_descendant_of_filter_with_parent_cycle_terminates() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+        let tx = scope.resolve::<DbTransaction>().await;
+
+        let first = make_folder("First", FractionalIndex::default());
+        let first_id = first.meta.element_id;
+        let second = make_child_folder(
+            "Second",
+            first_id,
+            FractionalIndex::new_after(&FractionalIndex::default()),
+        );
+        let second_id = second.meta.element_id;
+        folder_repository.create(first).await.unwrap();
+        folder_repository.create(second).await.unwrap();
+        // Concurrent moves merged by sync can leave two folders parenting each other.
+        {
+            let mut guard = tx.lock().await;
+            sqlx::query(
+                "UPDATE meta SET parent_id = $1, parent_type = 'folder' WHERE element_id = $2",
+            )
+            .bind(second_id.id().hyphenated())
+            .bind(first_id.id().hyphenated())
+            .execute(&mut *guard.as_mut())
+            .await
+            .unwrap();
+        }
+
+        let filters = vec![ElementFilter::DescendantOf {
+            id: Uuid::new_v4(),
+            operator: DescendantFilterOperator::Is,
+            ancestor: Some(first_id),
+        }];
+
+        // Act
+
+        let results = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            search_repository.search(&filters, None),
+        )
+        .await
+        .expect("search did not terminate")
+        .unwrap();
+
+        // Assert
+
+        let ids: Vec<ElementId> = results.iter().map(|r| r.element_id).collect();
+        assert_eq!(vec![first_id, second_id], ids);
+    }
+
+    #[tokio::test]
+    async fn search_descendant_of_filter_without_ancestor_returns_all_elements() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        folder_repository
+            .create(make_folder("Solo", FractionalIndex::default()))
+            .await
+            .unwrap();
+
+        let filters = vec![ElementFilter::DescendantOf {
+            id: Uuid::new_v4(),
+            operator: DescendantFilterOperator::Is,
+            ancestor: None,
+        }];
+
+        // Act
+
+        let results = search_repository.search(&filters, None).await.unwrap();
+
+        // Assert
+
+        assert_eq!(1, results.len());
+    }
+
+    #[tokio::test]
+    async fn search_with_limit_returns_highest_priority_elements_only() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let first = make_folder("A", FractionalIndex::default());
+        let second = make_folder("B", FractionalIndex::new_after(&first.meta.priority));
+        let third = make_folder("C", FractionalIndex::new_after(&second.meta.priority));
+        let first_id = first.meta.element_id;
+        let second_id = second.meta.element_id;
+        folder_repository.create(first).await.unwrap();
+        folder_repository.create(second).await.unwrap();
+        folder_repository.create(third).await.unwrap();
+
+        // Act
+
+        let results = search_repository.search(&[], Some(2)).await.unwrap();
+
+        // Assert
+
+        let ids: Vec<ElementId> = results.iter().map(|r| r.element_id).collect();
+        assert_eq!(vec![first_id, second_id], ids);
+        assert_eq!(3, results[0].priority.total);
+    }
+
+    #[tokio::test]
+    async fn search_with_limit_and_priority_filter_limits_after_filtering() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let first = make_folder("A", FractionalIndex::default());
+        let second = make_folder("B", FractionalIndex::new_after(&first.meta.priority));
+        let third = make_folder("C", FractionalIndex::new_after(&second.meta.priority));
+        let second_id = second.meta.element_id;
+        folder_repository.create(first).await.unwrap();
+        folder_repository.create(second).await.unwrap();
+        folder_repository.create(third).await.unwrap();
+
+        let filters = vec![ElementFilter::Priority {
+            id: Uuid::new_v4(),
+            operator:
+                crate::saved_searches::entities::saved_search_filter::RangeFilterOperator::Between,
+            min: 50,
+            max: 100,
+        }];
+
+        // Act
+
+        let results = search_repository.search(&filters, Some(1)).await.unwrap();
+
+        // Assert
+
+        assert_eq!(1, results.len());
+        assert_eq!(second_id, results[0].element_id);
     }
 }

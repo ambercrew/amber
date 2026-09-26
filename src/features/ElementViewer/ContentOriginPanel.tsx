@@ -15,7 +15,7 @@ import { MetaResponseDto } from "../../api/elements/dto/anyElementDto";
 import useAppSelector from "../../hooks/useAppSelector";
 import { selectCurrentElementDetails } from "../../stores/elementDetails/elementDetailsSelectors";
 import { paths } from "../../paths";
-import ElementNodeIcon from "../App/components/ElementNodeIcon";
+import ElementNodeIcon from "../../components/ElementNodeIcon/ElementNodeIcon";
 
 interface ContentOriginPanelProps {
 	meta: MetaResponseDto;

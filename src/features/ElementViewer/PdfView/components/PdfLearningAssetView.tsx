@@ -32,14 +32,21 @@ export default function PdfLearningAssetView({
 	learningAssetId,
 	readPoint,
 }: PdfLearningAssetViewProps) {
-	const [buffer, setBuffer] = useState<ArrayBuffer | null>(null);
+	// Keyed by the id it was fetched for, so the document is never named after a different asset.
+	const [pdf, setPdf] = useState<{ id: string; buffer: ArrayBuffer } | null>(
+		null,
+	);
 	const { callApi, errorMessage } = useApi();
 
 	useEffect(() => {
 		let cancelled = false;
 		void callApi(async () => {
 			const { bytesBase64 } = await getPdfBytes(learningAssetId);
-			if (!cancelled) setBuffer(base64ToArrayBuffer(bytesBase64));
+			if (!cancelled)
+				setPdf({
+					id: learningAssetId,
+					buffer: base64ToArrayBuffer(bytesBase64),
+				});
 		});
 		return () => {
 			cancelled = true;
@@ -53,14 +60,14 @@ export default function PdfLearningAssetView({
 
 	const plugins = useMemo(
 		() =>
-			buffer
+			pdf
 				? [
 						createPluginRegistration(DocumentManagerPluginPackage, {
 							// No fixed `documentId` here: under StrictMode's double
 							// mount, a shared-id orphaned instance can close the real
 							// one's document. Let the plugin generate a fresh id.
 							initialDocuments: [
-								{ buffer, name: learningAssetId },
+								{ buffer: pdf.buffer, name: pdf.id },
 							],
 						}),
 						createPluginRegistration(ViewportPluginPackage),
@@ -86,7 +93,7 @@ export default function PdfLearningAssetView({
 						}),
 					]
 				: null,
-		[buffer],
+		[pdf],
 	);
 
 	if (errorMessage) {
@@ -109,7 +116,7 @@ export default function PdfLearningAssetView({
 		);
 	}
 
-	if (!buffer || !plugins || !engine) {
+	if (!pdf || !plugins || !engine) {
 		return (
 			<Center h="100%">
 				<Stack align="center" gap="xs">

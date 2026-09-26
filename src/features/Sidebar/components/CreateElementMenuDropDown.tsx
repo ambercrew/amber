@@ -10,7 +10,7 @@ import {
 import { AppDispatch } from "../../../stores/store";
 import { ElementId } from "../../../types/elements/elementId";
 import { defaultElementName } from "./ElementTree/elementTreeUtils";
-import ElementNodeIcon from "../../App/components/ElementNodeIcon";
+import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 
 function useCreateHandlers(
 	elementId: ElementId | null,

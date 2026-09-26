@@ -8,6 +8,7 @@ import BibliographicalSourceFilterEditor from "./editors/BibliographicalSourceFi
 import ElementTypeFilterEditor from "./editors/ElementTypeFilterEditor";
 import PriorityFilterEditor from "./editors/PriorityFilterEditor";
 import StudyProfileFilterEditor from "./editors/StudyProfileFilterEditor";
+import DescendantOfFilterEditor from "./editors/DescendantOfFilterEditor";
 
 export default function FilterEditor({
 	filter,
@@ -49,6 +50,10 @@ export default function FilterEditor({
 					profiles={profiles}
 					onChange={onChange}
 				/>
+			);
+		case "descendantOf":
+			return (
+				<DescendantOfFilterEditor filter={filter} onChange={onChange} />
 			);
 	}
 }

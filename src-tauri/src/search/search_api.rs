@@ -17,7 +17,7 @@ pub async fn search_elements(
     let results = scope
         .resolve::<dyn SearchService>()
         .await
-        .search_elements(dto.filters)
+        .search_elements(dto.filters, dto.limit)
         .await?;
     Ok(results
         .into_iter()

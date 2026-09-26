@@ -13,9 +13,9 @@ import { SearchElementResultDto } from "../../../api/search/dto/searchElementRes
 import { ElementId } from "../../../types/elements/elementId";
 import { paths } from "../../../paths";
 import { formatPriorityPercentile } from "../../../utils/formatPriorityPercentile";
-import ElementNodeIcon from "../../App/components/ElementNodeIcon";
+import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import { elementTypeOptions } from "../utils/elementTypeOptions";
-import { elementKey } from "../utils/elementKey";
+import { elementKey } from "../../../utils/elementKey";
 
 function elementTypeLabel(type: SearchElementResultDto["type"]): string {
 	return (

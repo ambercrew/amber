@@ -7,6 +7,7 @@ import {
 	TextAaIcon,
 	TrendUpIcon,
 	GraduationCapIcon,
+	TreeViewIcon,
 } from "@phosphor-icons/react";
 import { ElementFilterField } from "../../../api/savedSearches/dto/elementFilter";
 
@@ -48,6 +49,11 @@ export const filterFieldMetas: FilterFieldMeta[] = [
 		field: "studyProfile",
 		label: "Study profile",
 		icon: size => <GraduationCapIcon size={size} />,
+	},
+	{
+		field: "descendantOf",
+		label: "Descendant of",
+		icon: size => <TreeViewIcon size={size} />,
 	},
 ];
 
