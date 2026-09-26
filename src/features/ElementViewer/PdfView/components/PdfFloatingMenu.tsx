@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router";
 import { useRegistry } from "@embedpdf/core/react";
 import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
@@ -41,7 +41,7 @@ import {
 	findFirstHighlightedElement,
 	findHighlightsUnderSelection,
 	flattenHighlightRects,
-	isPdfHighlightAnnotation,
+	getActivePdfHighlights,
 } from "./pdfHighlightAnnotations";
 
 interface PdfFloatingMenuProps extends SelectionSelectionMenuProps {
@@ -68,18 +68,29 @@ export default function PdfFloatingMenu({
 		[learningAssetId],
 	);
 
-	const getPdfHighlights = useCallback(() => {
-		if (!annotation || !activeDocumentId) return [];
-		return annotation
-			.forDocument(activeDocumentId)
-			.getAnnotations()
-			.map(tracked => tracked.object)
-			.filter(isPdfHighlightAnnotation);
-	}, [annotation, activeDocumentId]);
+	// Re-render when the annotation plugin changes, so the highlight set
+	// below can't go stale while this menu stays mounted.
+	const annotationState = useSyncExternalStore(
+		useCallback(
+			(onStoreChange: () => void) => {
+				if (!annotation || !activeDocumentId) return () => undefined;
+				return annotation
+					.forDocument(activeDocumentId)
+					.onStateChange(onStoreChange);
+			},
+			[annotation, activeDocumentId],
+		),
+		() =>
+			annotation && activeDocumentId
+				? annotation.forDocument(activeDocumentId).getState()
+				: null,
+	);
 
-	// Scanning all annotations is O(n) and only needs to happen when the
-	// annotation set actually changes, not on every selection-drag frame.
-	const highlights = useMemo(() => getPdfHighlights(), [getPdfHighlights]);
+	// Scanning all annotations is O(n), so only recompute when the set changes.
+	const highlights = useMemo(
+		() => getActivePdfHighlights(annotationState),
+		[annotationState],
+	);
 
 	const highlightUnderSelection = useMemo(() => {
 		if (!selection || !activeDocumentId) return null;
@@ -107,12 +118,12 @@ export default function PdfFloatingMenu({
 		);
 		if (selectionRects.length === 0) return;
 		const toDelete = findHighlightsUnderSelection(
-			getPdfHighlights(),
+			highlights,
 			selectionRects,
 		);
 		if (toDelete.length === 0) return;
 		annotation.forDocument(activeDocumentId).deleteAnnotations(toDelete);
-	}, [selection, annotation, activeDocumentId, getPdfHighlights]);
+	}, [selection, annotation, activeDocumentId, highlights]);
 
 	const handleAddAiContext = useCallback(() => {
 		if (!selection || !activeDocumentId) return;

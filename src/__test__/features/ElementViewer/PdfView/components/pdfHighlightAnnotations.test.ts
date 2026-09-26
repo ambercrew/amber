@@ -4,11 +4,13 @@ import {
 	PdfBlendMode,
 	PdfSquareAnnoObject,
 } from "@embedpdf/models";
+import { AnnotationDocumentState } from "@embedpdf/plugin-annotation";
 import {
 	buildHighlightAnnotations,
 	findFirstHighlightedElement,
 	findHighlightsUnderSelection,
 	flattenHighlightRects,
+	getActivePdfHighlights,
 	isPdfHighlightAnnotation,
 } from "../../../../../features/ElementViewer/PdfView/components/pdfHighlightAnnotations";
 
@@ -481,6 +483,66 @@ describe("findHighlightsUnderSelection", () => {
 		// Act
 
 		const actual = findHighlightsUnderSelection([], []);
+
+		// Assert
+
+		expect(actual).toEqual([]);
+	});
+});
+
+describe("getActivePdfHighlights", () => {
+	it("Should return a highlight when its commit state is synced", () => {
+		// Arrange
+
+		const [highlight] = buildHighlightAnnotations(
+			[{ page: 0, rect: RECT_1 }],
+			"element-1",
+			"extract",
+			"#FFCD45",
+		);
+		const state = {
+			byUid: {
+				[highlight.id]: { commitState: "synced", object: highlight },
+			},
+		} as unknown as AnnotationDocumentState;
+
+		// Act
+
+		const actual = getActivePdfHighlights(state);
+
+		// Assert
+
+		expect(actual).toEqual([highlight]);
+	});
+
+	it("Should drop a highlight when its commit state is deleted", () => {
+		// Arrange
+
+		const [highlight] = buildHighlightAnnotations(
+			[{ page: 0, rect: RECT_1 }],
+			"element-1",
+			"extract",
+			"#FFCD45",
+		);
+		const state = {
+			byUid: {
+				[highlight.id]: { commitState: "deleted", object: highlight },
+			},
+		} as unknown as AnnotationDocumentState;
+
+		// Act
+
+		const actual = getActivePdfHighlights(state);
+
+		// Assert
+
+		expect(actual).toEqual([]);
+	});
+
+	it("Should return an empty array when the state is null", () => {
+		// Act
+
+		const actual = getActivePdfHighlights(null);
 
 		// Assert
 

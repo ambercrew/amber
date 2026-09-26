@@ -1,4 +1,5 @@
 import { fireEvent, waitFor } from "@testing-library/react";
+import { PdfAnnotationSubtype } from "@embedpdf/models";
 import PdfFloatingMenu from "../../../../../features/ElementViewer/PdfView/components/PdfFloatingMenu";
 import {
 	createCardAction,
@@ -52,14 +53,49 @@ const PLACEMENT = {
 const DOCUMENT_ID = "doc-1";
 const LEARNING_ASSET_ID = "learningAsset-1";
 
+interface TestHighlight {
+	commitState: "synced" | "deleted";
+	object: {
+		id: string;
+		type: PdfAnnotationSubtype;
+		pageIndex: number;
+		rect: typeof RECT;
+		segmentRects: (typeof RECT)[];
+		custom: { elementId: string; elementType: "extract" | "card" };
+	};
+}
+
+/** A tracked highlight annotation as the plugin keeps it in `byUid`. */
+function buildHighlight({
+	id,
+	commitState = "synced",
+}: {
+	id: string;
+	commitState?: TestHighlight["commitState"];
+}): TestHighlight {
+	return {
+		commitState,
+		object: {
+			id,
+			type: PdfAnnotationSubtype.HIGHLIGHT,
+			pageIndex: 0,
+			rect: RECT,
+			segmentRects: [RECT],
+			custom: { elementId: "element-1", elementType: "extract" },
+		},
+	};
+}
+
 function renderMenu({
 	selectedText,
 	pageText,
 	slice,
+	highlights = [],
 }: {
 	selectedText: string;
 	pageText: string;
 	slice: { start: number; count: number };
+	highlights?: TestHighlight[];
 }) {
 	const selectionScope = {
 		getHighlightRects: vi.fn(() => ({ 0: [RECT] })),
@@ -69,10 +105,32 @@ function renderMenu({
 		getState: vi.fn(() => ({ slices: { 0: slice } })),
 		clear: vi.fn(),
 	};
+	let state = {
+		byUid: Object.fromEntries(
+			highlights.map(highlight => [highlight.object.id, highlight]),
+		) as Record<string, TestHighlight>,
+	};
+	const stateListeners = new Set<(state: unknown) => void>();
 	const annotationScope = {
-		getAnnotations: vi.fn(() => []),
+		getState: vi.fn(() => state),
+		onStateChange: vi.fn((listener: (state: unknown) => void) => {
+			stateListeners.add(listener);
+			return () => stateListeners.delete(listener);
+		}),
 		createAnnotation: vi.fn(),
-		deleteAnnotations: vi.fn(),
+		deleteAnnotations: vi.fn(
+			(toDelete: { pageIndex: number; id: string }[]) => {
+				// Soft delete: a new `byUid` with the entry marked `deleted`.
+				const byUid = { ...state.byUid };
+				for (const { id } of toDelete) {
+					const tracked = byUid[id];
+					if (tracked)
+						byUid[id] = { ...tracked, commitState: "deleted" };
+				}
+				state = { byUid };
+				for (const listener of stateListeners) listener(state);
+			},
+		),
 	};
 	useSelectionCapabilityMock.mockReturnValue({
 		provides: { forDocument: () => selectionScope },
@@ -149,5 +207,101 @@ describe("PdfFloatingMenu", () => {
 		// Assert
 
 		await waitFor(() => expect(selectionScope.clear).toHaveBeenCalled());
+	});
+
+	it("Should offer Open and Remove when the selection overlaps a highlight", () => {
+		// Arrange
+
+		const highlight = buildHighlight({ id: "h1" });
+
+		// Act
+
+		renderMenu({
+			selectedText: "Selected phrase",
+			pageText: "Full page text",
+			slice: { start: 0, count: 8 },
+			highlights: [highlight],
+		});
+
+		// Assert
+
+		expect(document.querySelector('[aria-label="Open"]')).not.toBeNull();
+		expect(
+			document.querySelector('[aria-label="Remove Highlight"]'),
+		).not.toBeNull();
+	});
+
+	it("Should not offer Open or Remove when the overlapping highlight is soft-deleted", () => {
+		// Arrange
+
+		const deletedHighlight = buildHighlight({
+			id: "h1",
+			commitState: "deleted",
+		});
+
+		// Act
+
+		renderMenu({
+			selectedText: "Selected phrase",
+			pageText: "Full page text",
+			slice: { start: 0, count: 8 },
+			highlights: [deletedHighlight],
+		});
+
+		// Assert
+
+		expect(document.querySelector('[aria-label="Open"]')).toBeNull();
+		expect(
+			document.querySelector('[aria-label="Remove Highlight"]'),
+		).toBeNull();
+	});
+
+	it("Should delete the highlight when Remove Highlight is clicked", () => {
+		// Arrange
+
+		const { annotationScope } = renderMenu({
+			selectedText: "Selected phrase",
+			pageText: "Full page text",
+			slice: { start: 0, count: 8 },
+			highlights: [buildHighlight({ id: "h1" })],
+		});
+
+		// Act
+
+		fireEvent.click(
+			document.querySelector('[aria-label="Remove Highlight"]')!,
+		);
+
+		// Assert
+
+		expect(annotationScope.deleteAnnotations).toHaveBeenCalledWith([
+			{ pageIndex: 0, id: "h1" },
+		]);
+	});
+
+	it("Should hide the highlight actions when the highlight is removed", async () => {
+		// Arrange
+
+		renderMenu({
+			selectedText: "Selected phrase",
+			pageText: "Full page text",
+			slice: { start: 0, count: 8 },
+			highlights: [buildHighlight({ id: "h1" })],
+		});
+
+		// Act
+
+		fireEvent.click(
+			document.querySelector('[aria-label="Remove Highlight"]')!,
+		);
+
+		// Assert
+
+		await waitFor(() =>
+			expect(
+				document.querySelector('[aria-label="Remove Highlight"]'),
+			).toBeNull(),
+		);
+		expect(document.querySelector('[aria-label="Open"]')).toBeNull();
 	});
 });
