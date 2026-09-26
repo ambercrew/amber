@@ -32,6 +32,7 @@ export default function StudyProfileFilterEditor({
 			/>
 			<MultiSelect
 				placeholder="Select study profiles"
+				data-autofocus
 				searchable
 				data={profiles.map(profile => ({
 					value: profile.id,

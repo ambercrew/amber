@@ -33,7 +33,7 @@ export interface ElementSelectProps {
 	placeholder?: string;
 	clearable?: boolean;
 	disabled?: boolean;
-	/** Focuses the input on mount, which also opens the dropdown. */
+	/** Focuses the input on mount (also inside a Mantine focus trap), which opens the dropdown. */
 	autoFocus?: boolean;
 	comboboxProps?: ComboboxProps;
 }
@@ -151,6 +151,7 @@ export default function ElementSelect({
 					placeholder={placeholder}
 					disabled={disabled}
 					autoFocus={autoFocus}
+					data-autofocus={autoFocus ? true : undefined}
 					error={search === null ? selected.errorMessage : undefined}
 					value={search ?? selected.name ?? ""}
 					leftSection={

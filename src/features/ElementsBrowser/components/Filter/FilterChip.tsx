@@ -1,3 +1,4 @@
+import { KeyboardEvent, useState } from "react";
 import { Box, Group, Pill, Popover, Text } from "@mantine/core";
 import { ElementFilter } from "../../../../api/savedSearches/dto/elementFilter";
 import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
@@ -22,6 +23,7 @@ export default function FilterChip({
 	onChange: (filter: ElementFilter) => void;
 	onRemove: () => void;
 }) {
+	const [opened, setOpened] = useState(defaultOpened ?? false);
 	const meta = getFilterFieldMeta(filter.field);
 	const ancestor = useElementName(
 		filter.field === "descendantOf" ? filter.ancestor : null,
@@ -33,18 +35,38 @@ export default function FilterChip({
 		ancestor,
 	);
 
+	function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+		// Ignore keys bubbling up from the remove button inside the chip.
+		if (event.target !== event.currentTarget) return;
+		if (event.key === "Enter" || event.key === " ") {
+			event.preventDefault();
+			setOpened(o => !o);
+		}
+	}
+
 	return (
 		<Popover
 			position="bottom-start"
 			shadow="md"
-			defaultOpened={defaultOpened}
+			opened={opened}
+			onChange={setOpened}
+			// Focuses the editor's `data-autofocus` field on open and keeps Tab inside.
+			trapFocus
+			returnFocus
 			withinPortal>
 			<Popover.Target>
 				<Pill
+					role="button"
+					tabIndex={0}
+					aria-label={`Edit ${meta.label} filter`}
+					onClick={() => setOpened(o => !o)}
+					onKeyDown={handleKeyDown}
 					size="xl"
 					withRemoveButton
 					onRemove={onRemove}
 					removeButtonProps={{
+						// Mantine takes the remove button out of the tab order by default.
+						tabIndex: 0,
 						"aria-hidden": false,
 						"aria-label": `Remove ${meta.label} filter`,
 					}}

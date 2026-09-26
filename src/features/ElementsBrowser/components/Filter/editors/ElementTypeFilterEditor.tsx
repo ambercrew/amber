@@ -31,6 +31,7 @@ export default function ElementTypeFilterEditor({
 			/>
 			<MultiSelect
 				placeholder="Select element types"
+				data-autofocus
 				data={elementTypeOptions}
 				value={filter.types}
 				onChange={types =>

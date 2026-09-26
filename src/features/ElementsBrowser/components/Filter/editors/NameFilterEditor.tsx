@@ -31,6 +31,7 @@ export default function NameFilterEditor({
 			/>
 			<TextInput
 				placeholder="Name"
+				data-autofocus
 				value={filter.value}
 				onChange={event =>
 					onChange({ ...filter, value: event.currentTarget.value })

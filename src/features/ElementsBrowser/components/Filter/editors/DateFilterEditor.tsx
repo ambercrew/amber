@@ -24,6 +24,8 @@ export default function DateFilterEditor({
 			<FilterOperatorSelect
 				options={operatorOptions}
 				value={filter.operator}
+				// "today" has no value field, so the operator is the field to focus.
+				autoFocus={filter.operator === "today"}
 				onChange={operator =>
 					onChange({
 						...filter,
@@ -34,6 +36,7 @@ export default function DateFilterEditor({
 			{filter.operator === "withinDays" && (
 				<NumberInput
 					label="Days"
+					data-autofocus
 					min={1}
 					value={filter.days ?? 1}
 					onChange={value =>
@@ -44,6 +47,7 @@ export default function DateFilterEditor({
 			{(filter.operator === "before" || filter.operator === "after") && (
 				<DateInput
 					label="Date"
+					data-autofocus
 					value={filter.from}
 					onChange={value => onChange({ ...filter, from: value })}
 					popoverProps={{ withinPortal: false }}
@@ -53,6 +57,7 @@ export default function DateFilterEditor({
 				<DatePickerInput
 					type="range"
 					label="Date range"
+					data-autofocus
 					value={[filter.from, filter.to]}
 					onChange={([from, to]) => onChange({ ...filter, from, to })}
 					popoverProps={{ withinPortal: false }}

@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ElementsBrowser from "../../../../features/ElementsBrowser/components/ElementsBrowser";
 import { TagsFilter } from "../../../../api/savedSearches/dto/elementFilter";
@@ -58,10 +58,7 @@ function render(memoryRouterProps?: { initialEntries: object[] }) {
 
 async function addTagsFilter(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(screen.getByRole("button", { name: "Filter" }));
-	const menus = await screen.findAllByRole("menu");
-	const menu = menus.find(m => within(m).queryByText("Filter by"));
-	if (!menu) throw new Error("Filter menu did not open");
-	await user.click(within(menu).getByText("Tags"));
+	await user.click(await screen.findByRole("menuitem", { name: "Tags" }));
 }
 
 describe("ElementsBrowser", () => {

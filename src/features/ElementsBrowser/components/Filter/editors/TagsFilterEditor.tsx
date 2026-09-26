@@ -30,6 +30,7 @@ export default function TagsFilterEditor({
 			/>
 			<TagsInput
 				placeholder="Add tags"
+				data-autofocus
 				value={filter.tags}
 				onChange={tags => onChange({ ...filter, tags })}
 			/>

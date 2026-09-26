@@ -1,7 +1,11 @@
+import { Fragment } from "react";
 import { Button, Menu } from "@mantine/core";
 import { PlusIcon } from "@phosphor-icons/react";
 import { ElementFilterField } from "../../../../api/savedSearches/dto/elementFilter";
-import { filterFieldMetas } from "../../utils/filterFieldMeta";
+import { filterFieldGroups } from "../../utils/filterFieldMeta";
+
+// Roomier than the content needs, but never wider than the screen.
+const MENU_WIDTH = "min(15rem, calc(100vw - 2rem))";
 
 export default function AddFilterMenu({
 	onSelect,
@@ -9,7 +13,11 @@ export default function AddFilterMenu({
 	onSelect: (field: ElementFilterField) => void;
 }) {
 	return (
-		<Menu position="bottom-start" shadow="md" withinPortal>
+		<Menu
+			position="bottom-start"
+			shadow="md"
+			width={MENU_WIDTH}
+			withinPortal>
 			<Menu.Target>
 				<Button
 					variant="default"
@@ -20,14 +28,19 @@ export default function AddFilterMenu({
 				</Button>
 			</Menu.Target>
 			<Menu.Dropdown>
-				<Menu.Label>Filter by</Menu.Label>
-				{filterFieldMetas.map(meta => (
-					<Menu.Item
-						key={meta.field}
-						leftSection={meta.icon(16)}
-						onClick={() => onSelect(meta.field)}>
-						{meta.label}
-					</Menu.Item>
+				{filterFieldGroups.map((group, index) => (
+					<Fragment key={group.label}>
+						{index > 0 && <Menu.Divider />}
+						<Menu.Label>{group.label}</Menu.Label>
+						{group.fields.map(meta => (
+							<Menu.Item
+								key={meta.field}
+								leftSection={meta.icon(16)}
+								onClick={() => onSelect(meta.field)}>
+								{meta.label}
+							</Menu.Item>
+						))}
+					</Fragment>
 				))}
 			</Menu.Dropdown>
 		</Menu>

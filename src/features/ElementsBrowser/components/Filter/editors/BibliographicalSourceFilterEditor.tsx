@@ -33,6 +33,7 @@ export default function BibliographicalSourceFilterEditor({
 			/>
 			<MultiSelect
 				placeholder="Select bibliographical sources"
+				data-autofocus
 				searchable
 				data={sources.map(source => ({
 					value: source.id,
