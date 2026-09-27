@@ -76,11 +76,12 @@ jobs:
             args: ""
 
     runs-on: ${{ matrix.platform }}
-    # The npm `@tauri-apps/cli` is upstream and has no CEF support, so the Linux
-    # job builds the CLI from the feat/cef fork. Pinned to the rev (and bundling
-    # script) that produced the last working AppImage, v0.16.0.
+    # Must match the `tauri` revision resolved in src-tauri/Cargo.lock. The npm
+    # `@tauri-apps/cli` is upstream and has no CEF support, so the Linux job
+    # builds the CLI from the same fork the crates are patched to.
+    # QUICK_SHARUN_REV: the upstream AppImage bundling script v0.16.0 was built with.
     env:
-      TAURI_CLI_REV: 64606e20f18c7dafa73426c282a750f91e8219e6
+      TAURI_CLI_REV: fe0e5155c12459f3250dd9ae5867dd627d7c8286
       QUICK_SHARUN_REV: fcfa5b42a69cb88636a284c661f0b0d3309775fe
     steps:
       - uses: actions/checkout@v5
@@ -117,15 +118,15 @@ jobs:
 
       - name: install tauri CLI from feat/cef fork (ubuntu only)
         if: matrix.platform == 'ubuntu-24.04' && steps.tauri-cli-cache.outputs.cache-hit != 'true'
-        # The bundler downloads quick-sharun.sh from upstream main on every build; pin it to the
-        # commit v0.16.0 was built with so later upstream changes can't break the AppImage.
+        # The bundler downloads quick-sharun.sh from a moving branch of a stale fork (which drops the NSS
+        # modules CEF needs); pin it to the upstream commit v0.16.0 was built with.
         # --force: rust-cache also restores ~/.cargo/bin, which may hold a stale cargo-tauri.
         run: |
           src="$RUNNER_TEMP/tauri"
           git clone --filter=blob:none https://github.com/tauri-apps/tauri "$src"
           git -C "$src" checkout "$TAURI_CLI_REV"
           f="$src/crates/tauri-bundler/src/bundle/linux/appimage/sharun_cef.rs"
-          sed -i "s|Anylinux-AppImages/refs/heads/main/useful-tools/quick-sharun.sh|Anylinux-AppImages/$QUICK_SHARUN_REV/useful-tools/quick-sharun.sh|" "$f"
+          sed -i "s|[A-Za-z]*/Anylinux-AppImages/refs/heads/main/useful-tools/quick-sharun.sh|pkgforge-dev/Anylinux-AppImages/$QUICK_SHARUN_REV/useful-tools/quick-sharun.sh|" "$f"
           grep -q "pkgforge-dev/Anylinux-AppImages/$QUICK_SHARUN_REV/useful-tools/quick-sharun.sh" "$f"
           cargo install --path "$src/crates/tauri-cli" --locked --force
 
