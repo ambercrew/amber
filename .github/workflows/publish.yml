@@ -116,9 +116,10 @@ jobs:
 
       - name: install tauri CLI from feat/cef fork (ubuntu only)
         if: matrix.platform == 'ubuntu-24.04' && steps.tauri-cli-cache.outputs.cache-hit != 'true'
+        # --force: rust-cache also restores ~/.cargo/bin, which may hold a stale cargo-tauri.
         run: |
           cargo install --git https://github.com/tauri-apps/tauri \
-            --rev "$TAURI_CLI_REV" tauri-cli --locked
+            --rev "$TAURI_CLI_REV" tauri-cli --locked --force
 
       - name: install protoc
         uses: taiki-e/install-action@v2
