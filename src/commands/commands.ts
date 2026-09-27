@@ -104,35 +104,35 @@ import {
 } from "../types/events/showLeftSidebarTabRequestedEvent";
 
 export const commandIds = [
+	"enter-study-mode",
+	"enter-edit-mode",
+	"open-study-session-settings",
+	"manage-study-profiles",
 	"import",
-	"toggle-left-sidebar",
-	"toggle-right-sidebar",
-	"show-shortcuts",
+	"create-card",
+	"open-priority",
+	"open-due-date",
+	"set-read-point",
+	"go-to-read-point",
+	"clear-read-point",
+	"go-home",
+	"open-browser",
 	"go-back",
 	"go-forward",
 	"focus-tree",
-	"go-home",
-	"open-browser",
 	"show-priority-queue",
 	"show-trash",
-	"create-card",
-	"open-due-date",
 	"focus-ai-chat",
-	"manage-study-profiles",
-	"enter-study-mode",
-	"enter-edit-mode",
-	"open-settings",
-	"toggle-theme",
-	"set-read-point",
-	"clear-read-point",
-	"go-to-read-point",
-	"open-priority",
-	"open-study-session-settings",
 	"find-in-page",
-	"sync",
 	"zoom-in",
 	"zoom-out",
 	"reset-zoom",
+	"sync",
+	"open-settings",
+	"show-shortcuts",
+	"toggle-theme",
+	"toggle-left-sidebar",
+	"toggle-right-sidebar",
 	"disable-virtual-keyboard",
 	"enable-virtual-keyboard",
 ] as const;
@@ -173,6 +173,43 @@ export interface Command {
 }
 
 export const commandsById: Record<CommandId, Command> = {
+	"enter-study-mode": {
+		id: "enter-study-mode",
+		group: "Study",
+		label: "Enter study mode",
+		shortcutLabel: "Switch between study and edit mode",
+		shortcut: TOGGLE_STUDY_SESSION_SHORTCUT,
+		icon: createElement(BookOpenIcon),
+		enabled: state => selectStudyStatus(state) !== "studying",
+		execute: (dispatch, _getState, navigate) => {
+			void dispatch(startStudySession(navigate)).then(started => {
+				if (!started) notifications.show({ message: "Nothing due" });
+			});
+		},
+	},
+	"enter-edit-mode": {
+		id: "enter-edit-mode",
+		group: "Study",
+		label: "Enter edit mode",
+		shortcut: TOGGLE_STUDY_SESSION_SHORTCUT,
+		icon: createElement(PencilSimpleIcon),
+		enabled: state => selectStudyStatus(state) === "studying",
+		execute: dispatch => dispatch(stopStudySessionAction()),
+	},
+	"open-study-session-settings": {
+		id: "open-study-session-settings",
+		group: "Study",
+		label: "Study session settings",
+		icon: createElement(ShuffleIcon),
+		execute: dispatch => dispatch(openStudySessionSettingsModal()),
+	},
+	"manage-study-profiles": {
+		id: "manage-study-profiles",
+		group: "Study",
+		label: "Manage study profiles",
+		icon: createElement(FadersHorizontalIcon),
+		execute: dispatch => dispatch(openStudyProfileModal()),
+	},
 	import: {
 		id: "import",
 		group: "Elements",
@@ -181,34 +218,105 @@ export const commandsById: Record<CommandId, Command> = {
 		icon: createElement(UploadSimpleIcon),
 		execute: dispatch => dispatch(openImportModal()),
 	},
-	"toggle-left-sidebar": {
-		id: "toggle-left-sidebar",
-		group: "App",
-		label: "Toggle left sidebar",
-		searchOnly: true,
-		shortcut: TOGGLE_LEFT_SIDEBAR_SHORTCUT,
-		icon: createElement(SidebarSimpleIcon),
-		execute: () =>
-			window.dispatchEvent(new Event(TOGGLE_LEFT_SIDEBAR_REQUESTED)),
+	"create-card": {
+		id: "create-card",
+		group: "Elements",
+		label: "New card under current element",
+		shortcut: CREATE_CARD_SHORTCUT,
+		icon: createElement(CardsIcon),
+		enabled: state => {
+			const type = selectCurrentElement(state)?.type;
+			return !!type && type !== "card";
+		},
+		execute: (dispatch, getState, navigate) => {
+			const parent =
+				selectCurrentElement(getState())?.data.meta.elementId;
+			if (!parent || parent.type === "card") return;
+			const id = crypto.randomUUID();
+			void dispatch(createCardAction(newCardDto(parent, id))).then(
+				created => {
+					if (created) void navigate(paths.element("card", id));
+					// The tree may be hidden, so its error alert can't be relied on.
+					else
+						notifications.show({
+							color: "red",
+							title: "Couldn't create the card",
+							message: selectElementTreeError(getState()),
+						});
+				},
+			);
+		},
 	},
-	"toggle-right-sidebar": {
-		id: "toggle-right-sidebar",
-		group: "App",
-		label: "Toggle right sidebar",
-		searchOnly: true,
-		shortcut: TOGGLE_RIGHT_SIDEBAR_SHORTCUT,
-		icon: createElement(SidebarSimpleIcon, { mirrored: true }),
-		execute: () =>
-			window.dispatchEvent(new Event(TOGGLE_RIGHT_SIDEBAR_REQUESTED)),
+	"open-priority": {
+		id: "open-priority",
+		group: "Elements",
+		label: "Set priority",
+		shortcut: OPEN_PRIORITY_SHORTCUT,
+		icon: createElement(ArrowsDownUpIcon),
+		enabled: state => selectCurrentElement(state) !== null,
+		execute: dispatch => dispatch(openPriorityModal()),
 	},
-	"show-shortcuts": {
-		id: "show-shortcuts",
-		group: "App",
-		label: "Show keyboard shortcuts",
-		shortcut: SHOW_SHORTCUTS_SHORTCUT,
-		icon: createElement(KeyboardIcon),
-		enabled: () => !isCoarsePointer(),
-		execute: dispatch => dispatch(openShortcutsModal()),
+	"open-due-date": {
+		id: "open-due-date",
+		group: "Elements",
+		label: "Set due date",
+		shortcut: OPEN_DUE_DATE_SHORTCUT,
+		icon: createElement(CalendarBlankIcon),
+		enabled: state => {
+			const type = selectCurrentElement(state)?.type;
+			return !!type && hasDue(type);
+		},
+		execute: dispatch => dispatch(openDueDateModal()),
+	},
+	"set-read-point": {
+		id: "set-read-point",
+		group: "Elements",
+		label: "Set read point",
+		shortcut: SET_READ_POINT_SHORTCUT,
+		icon: createElement(BookmarkSimpleIcon),
+		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
+		execute: () => {
+			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
+			notifications.show({ message: "Read point set" });
+		},
+	},
+	"go-to-read-point": {
+		id: "go-to-read-point",
+		group: "Elements",
+		label: "Go to read point",
+		icon: createElement(MapPinIcon),
+		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
+		execute: () => {
+			window.dispatchEvent(new Event(READ_POINT_MANUAL_GOTO_REQUESTED));
+		},
+	},
+	"clear-read-point": {
+		id: "clear-read-point",
+		group: "Elements",
+		label: "Clear read point",
+		searchOnly: true,
+		icon: createElement(EraserIcon),
+		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
+		execute: () => {
+			window.dispatchEvent(new Event(READ_POINT_MANUAL_CLEAR_REQUESTED));
+			notifications.show({ message: "Read point cleared" });
+		},
+	},
+	"go-home": {
+		id: "go-home",
+		group: "Navigation",
+		label: "Go to Home",
+		icon: createElement(HomeIcon),
+		execute: (_dispatch, _getState, navigate) =>
+			void navigate(paths.root()),
+	},
+	"open-browser": {
+		id: "open-browser",
+		group: "Navigation",
+		label: "Open Browser",
+		icon: createElement(BrowserIcon),
+		execute: (_dispatch, _getState, navigate) =>
+			void navigate(paths.browser()),
 	},
 	"go-back": {
 		id: "go-back",
@@ -240,22 +348,6 @@ export const commandsById: Record<CommandId, Command> = {
 		icon: createElement(TreeStructureIcon),
 		execute: () => requestFocus("tree"),
 	},
-	"go-home": {
-		id: "go-home",
-		group: "Navigation",
-		label: "Go to Home",
-		icon: createElement(HomeIcon),
-		execute: (_dispatch, _getState, navigate) =>
-			void navigate(paths.root()),
-	},
-	"open-browser": {
-		id: "open-browser",
-		group: "Navigation",
-		label: "Open Browser",
-		icon: createElement(BrowserIcon),
-		execute: (_dispatch, _getState, navigate) =>
-			void navigate(paths.browser()),
-	},
 	"show-priority-queue": {
 		id: "show-priority-queue",
 		group: "Navigation",
@@ -272,47 +364,6 @@ export const commandsById: Record<CommandId, Command> = {
 		icon: createElement(TrashIcon),
 		execute: () => showLeftSidebarTab("trash"),
 	},
-	"create-card": {
-		id: "create-card",
-		group: "Elements",
-		label: "New card under current element",
-		shortcut: CREATE_CARD_SHORTCUT,
-		icon: createElement(CardsIcon),
-		enabled: state => {
-			const type = selectCurrentElement(state)?.type;
-			return !!type && type !== "card";
-		},
-		execute: (dispatch, getState, navigate) => {
-			const parent =
-				selectCurrentElement(getState())?.data.meta.elementId;
-			if (!parent || parent.type === "card") return;
-			const id = crypto.randomUUID();
-			void dispatch(createCardAction(newCardDto(parent, id))).then(
-				created => {
-					if (created) void navigate(paths.element("card", id));
-					// The tree may be hidden, so its error alert can't be relied on.
-					else
-						notifications.show({
-							color: "red",
-							title: "Couldn't create the card",
-							message: selectElementTreeError(getState()),
-						});
-				},
-			);
-		},
-	},
-	"open-due-date": {
-		id: "open-due-date",
-		group: "Elements",
-		label: "Set due date",
-		shortcut: OPEN_DUE_DATE_SHORTCUT,
-		icon: createElement(CalendarBlankIcon),
-		enabled: state => {
-			const type = selectCurrentElement(state)?.type;
-			return !!type && hasDue(type);
-		},
-		execute: dispatch => dispatch(openDueDateModal()),
-	},
 	"focus-ai-chat": {
 		id: "focus-ai-chat",
 		group: "AI",
@@ -322,110 +373,6 @@ export const commandsById: Record<CommandId, Command> = {
 		enabled: state => selectSettings(state)?.enableAi ?? false,
 		execute: () => requestFocus("aiChat"),
 	},
-	"manage-study-profiles": {
-		id: "manage-study-profiles",
-		group: "Study",
-		label: "Manage study profiles",
-		icon: createElement(FadersHorizontalIcon),
-		execute: dispatch => dispatch(openStudyProfileModal()),
-	},
-	"open-settings": {
-		id: "open-settings",
-		group: "App",
-		label: "Open settings",
-		shortcut: OPEN_SETTINGS_SHORTCUT,
-		icon: createElement(GearIcon),
-		execute: dispatch => dispatch(openSettingsModal()),
-	},
-	"toggle-theme": {
-		id: "toggle-theme",
-		group: "App",
-		label: state =>
-			isCurrentlyDark(state)
-				? "Switch to light theme"
-				: "Switch to dark theme",
-		searchOnly: true,
-		icon: createElement(MoonIcon),
-		execute: (dispatch, getState) => {
-			const next = isCurrentlyDark(getState()) ? "Light" : "Dark";
-			void dispatch(
-				saveSettings(buildUpdateSettingsRequest({ theme: next })),
-			);
-		},
-	},
-	"enter-study-mode": {
-		id: "enter-study-mode",
-		group: "Study",
-		label: "Enter study mode",
-		shortcutLabel: "Switch between study and edit mode",
-		shortcut: TOGGLE_STUDY_SESSION_SHORTCUT,
-		icon: createElement(BookOpenIcon),
-		enabled: state => selectStudyStatus(state) !== "studying",
-		execute: (dispatch, _getState, navigate) => {
-			void dispatch(startStudySession(navigate)).then(started => {
-				if (!started) notifications.show({ message: "Nothing due" });
-			});
-		},
-	},
-	"enter-edit-mode": {
-		id: "enter-edit-mode",
-		group: "Study",
-		label: "Enter edit mode",
-		shortcut: TOGGLE_STUDY_SESSION_SHORTCUT,
-		icon: createElement(PencilSimpleIcon),
-		enabled: state => selectStudyStatus(state) === "studying",
-		execute: dispatch => dispatch(stopStudySessionAction()),
-	},
-	"set-read-point": {
-		id: "set-read-point",
-		group: "Elements",
-		label: "Set read point",
-		shortcut: SET_READ_POINT_SHORTCUT,
-		icon: createElement(BookmarkSimpleIcon),
-		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
-		execute: () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
-			notifications.show({ message: "Read point set" });
-		},
-	},
-	"clear-read-point": {
-		id: "clear-read-point",
-		group: "Elements",
-		label: "Clear read point",
-		searchOnly: true,
-		icon: createElement(EraserIcon),
-		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
-		execute: () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_CLEAR_REQUESTED));
-			notifications.show({ message: "Read point cleared" });
-		},
-	},
-	"go-to-read-point": {
-		id: "go-to-read-point",
-		group: "Elements",
-		label: "Go to read point",
-		icon: createElement(MapPinIcon),
-		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
-		execute: () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_GOTO_REQUESTED));
-		},
-	},
-	"open-priority": {
-		id: "open-priority",
-		group: "Elements",
-		label: "Set priority",
-		shortcut: OPEN_PRIORITY_SHORTCUT,
-		icon: createElement(ArrowsDownUpIcon),
-		enabled: state => selectCurrentElement(state) !== null,
-		execute: dispatch => dispatch(openPriorityModal()),
-	},
-	"open-study-session-settings": {
-		id: "open-study-session-settings",
-		group: "Study",
-		label: "Study session settings",
-		icon: createElement(ShuffleIcon),
-		execute: dispatch => dispatch(openStudySessionSettingsModal()),
-	},
 	"find-in-page": {
 		id: "find-in-page",
 		group: "Find in page",
@@ -434,18 +381,6 @@ export const commandsById: Record<CommandId, Command> = {
 		icon: createElement(MagnifyingGlassIcon),
 		enabled: state => selectCurrentElement(state) !== null,
 		execute: dispatch => dispatch(openSearch()),
-	},
-	sync: {
-		id: "sync",
-		group: "App",
-		label: "Sync",
-		shortcut: SYNC_SHORTCUT,
-		icon: createElement(ArrowsClockwiseIcon),
-		enabled: state =>
-			selectIsSignedIn(state) &&
-			!!selectUserInformation(state)?.isEmailVerified &&
-			!selectIsSyncing(state),
-		execute: dispatch => void dispatch(sync()),
 	},
 	"zoom-in": {
 		id: "zoom-in",
@@ -486,6 +421,87 @@ export const commandsById: Record<CommandId, Command> = {
 			);
 		},
 	},
+	"reset-zoom": {
+		id: "reset-zoom",
+		group: "Zoom",
+		label: "Reset zoom",
+		searchOnly: true,
+		shortcut: RESET_ZOOM_SHORTCUT,
+		icon: createElement(ArrowCounterClockwiseIcon),
+		enabled: state => !isMobile() && selectCanZoomAppWide(state),
+		execute: dispatch => {
+			void dispatch(
+				saveSettings(
+					buildUpdateSettingsRequest({ zoomPercentage: 100 }),
+				),
+			);
+		},
+	},
+	sync: {
+		id: "sync",
+		group: "App",
+		label: "Sync",
+		shortcut: SYNC_SHORTCUT,
+		icon: createElement(ArrowsClockwiseIcon),
+		enabled: state =>
+			selectIsSignedIn(state) &&
+			!!selectUserInformation(state)?.isEmailVerified &&
+			!selectIsSyncing(state),
+		execute: dispatch => void dispatch(sync()),
+	},
+	"open-settings": {
+		id: "open-settings",
+		group: "App",
+		label: "Open settings",
+		shortcut: OPEN_SETTINGS_SHORTCUT,
+		icon: createElement(GearIcon),
+		execute: dispatch => dispatch(openSettingsModal()),
+	},
+	"show-shortcuts": {
+		id: "show-shortcuts",
+		group: "App",
+		label: "Show keyboard shortcuts",
+		shortcut: SHOW_SHORTCUTS_SHORTCUT,
+		icon: createElement(KeyboardIcon),
+		enabled: () => !isCoarsePointer(),
+		execute: dispatch => dispatch(openShortcutsModal()),
+	},
+	"toggle-theme": {
+		id: "toggle-theme",
+		group: "App",
+		label: state =>
+			isCurrentlyDark(state)
+				? "Switch to light theme"
+				: "Switch to dark theme",
+		searchOnly: true,
+		icon: createElement(MoonIcon),
+		execute: (dispatch, getState) => {
+			const next = isCurrentlyDark(getState()) ? "Light" : "Dark";
+			void dispatch(
+				saveSettings(buildUpdateSettingsRequest({ theme: next })),
+			);
+		},
+	},
+	"toggle-left-sidebar": {
+		id: "toggle-left-sidebar",
+		group: "App",
+		label: "Toggle left sidebar",
+		searchOnly: true,
+		shortcut: TOGGLE_LEFT_SIDEBAR_SHORTCUT,
+		icon: createElement(SidebarSimpleIcon),
+		execute: () =>
+			window.dispatchEvent(new Event(TOGGLE_LEFT_SIDEBAR_REQUESTED)),
+	},
+	"toggle-right-sidebar": {
+		id: "toggle-right-sidebar",
+		group: "App",
+		label: "Toggle right sidebar",
+		searchOnly: true,
+		shortcut: TOGGLE_RIGHT_SIDEBAR_SHORTCUT,
+		icon: createElement(SidebarSimpleIcon, { mirrored: true }),
+		execute: () =>
+			window.dispatchEvent(new Event(TOGGLE_RIGHT_SIDEBAR_REQUESTED)),
+	},
 	"disable-virtual-keyboard": {
 		id: "disable-virtual-keyboard",
 		group: "App",
@@ -507,22 +523,6 @@ export const commandsById: Record<CommandId, Command> = {
 		execute: dispatch =>
 			dispatch(setVirtualKeyboardSuppressedAction(false)),
 	},
-	"reset-zoom": {
-		id: "reset-zoom",
-		group: "Zoom",
-		label: "Reset zoom",
-		searchOnly: true,
-		shortcut: RESET_ZOOM_SHORTCUT,
-		icon: createElement(ArrowCounterClockwiseIcon),
-		enabled: state => !isMobile() && selectCanZoomAppWide(state),
-		execute: dispatch => {
-			void dispatch(
-				saveSettings(
-					buildUpdateSettingsRequest({ zoomPercentage: 100 }),
-				),
-			);
-		},
-	},
 };
 
 function showLeftSidebarTab(tab: LeftSidebarTab) {
@@ -537,5 +537,5 @@ function canGoBack() {
 	return (state?.idx ?? 0) > 0;
 }
 
-/** Declaration order, for consumers that list/iterate commands rather than look one up by id. */
+/** Declaration order, most used first within each group, for consumers that list commands. */
 export const commands: Command[] = Object.values(commandsById);
