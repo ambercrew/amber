@@ -15,6 +15,7 @@ export const GO_FORWARD_SHORTCUT = "alt+ArrowRight";
 export const NEXT_TREE_ELEMENT_SHORTCUT = "alt+ArrowDown";
 export const PREVIOUS_TREE_ELEMENT_SHORTCUT = "alt+ArrowUp";
 export const FOCUS_TREE_SHORTCUT = "mod+shift+E";
+export const OPEN_FOCUSED_TREE_ELEMENT_SHORTCUT = "Enter";
 
 // Find in page
 export const FIND_IN_PAGE_SHORTCUT = "mod+F";
@@ -27,7 +28,7 @@ export const ZOOM_IN_ALT_SHORTCUT = "mod+[plus]";
 export const ZOOM_OUT_SHORTCUT = "mod+-";
 export const RESET_ZOOM_SHORTCUT = "mod+0";
 
-// Element actions
+// Elements
 export const CREATE_CARD_SHORTCUT = "mod+N";
 export const SET_READ_POINT_SHORTCUT = "mod+shift+R";
 export const OPEN_PRIORITY_SHORTCUT = "mod+shift+P";

@@ -23,8 +23,10 @@ import {
 	MapPinIcon,
 	MoonIcon,
 	PencilSimpleIcon,
+	QueueIcon,
 	ShuffleIcon,
 	SidebarSimpleIcon,
+	TrashIcon,
 	UploadSimpleIcon,
 } from "@phosphor-icons/react";
 import { AppDispatch, RootState } from "../stores/store";
@@ -94,6 +96,11 @@ import { createCardAction } from "../stores/elements/elementsActions";
 import { hasDue } from "../utils/elementDue";
 import { newCardDto } from "../features/Sidebar/components/ElementTree/elementTreeUtils";
 import { paths } from "../paths";
+import { BrowserIcon, HomeIcon } from "../config/icons";
+import {
+	LeftSidebarTab,
+	SHOW_LEFT_SIDEBAR_TAB_REQUESTED,
+} from "../types/events/showLeftSidebarTabRequestedEvent";
 
 export const commandIds = [
 	"import",
@@ -103,6 +110,10 @@ export const commandIds = [
 	"go-back",
 	"go-forward",
 	"focus-tree",
+	"go-home",
+	"open-browser",
+	"show-priority-queue",
+	"show-trash",
 	"create-card",
 	"open-due-date",
 	"focus-ai-chat",
@@ -127,14 +138,14 @@ export const commandIds = [
 export type CommandId = (typeof commandIds)[number];
 
 export const commandGroups = [
-	"App",
+	"Study",
+	"Elements",
+	"Editor",
 	"Navigation",
+	"AI",
 	"Find in page",
 	"Zoom",
-	"AI",
-	"Element actions",
-	"Editor",
-	"Study",
+	"App",
 ] as const;
 export type CommandGroup = (typeof commandGroups)[number];
 
@@ -147,6 +158,8 @@ export interface Command {
 	extraShortcuts?: string[];
 	/** Describes the shortcut in the help when one key runs several commands; the others are left out. */
 	shortcutLabel?: string;
+	/** Hidden from the palette until a search is typed. */
+	searchOnly?: boolean;
 	/** Keep the shortcuts from firing while typing in a text field or the editor. */
 	outsideTextFields?: boolean;
 	icon?: ReactNode;
@@ -161,8 +174,8 @@ export interface Command {
 export const commandsById: Record<CommandId, Command> = {
 	import: {
 		id: "import",
-		group: "Element actions",
-		label: "Import",
+		group: "Elements",
+		label: "Import file or web page…",
 		shortcut: IMPORT_SHORTCUT,
 		icon: createElement(UploadSimpleIcon),
 		execute: dispatch => dispatch(openImportModal()),
@@ -171,6 +184,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "toggle-left-sidebar",
 		group: "App",
 		label: "Toggle left sidebar",
+		searchOnly: true,
 		shortcut: TOGGLE_LEFT_SIDEBAR_SHORTCUT,
 		icon: createElement(SidebarSimpleIcon),
 		execute: () =>
@@ -180,6 +194,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "toggle-right-sidebar",
 		group: "App",
 		label: "Toggle right sidebar",
+		searchOnly: true,
 		shortcut: TOGGLE_RIGHT_SIDEBAR_SHORTCUT,
 		icon: createElement(SidebarSimpleIcon, { mirrored: true }),
 		execute: () =>
@@ -198,6 +213,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "go-back",
 		group: "Navigation",
 		label: "Go back",
+		searchOnly: true,
 		shortcut: GO_BACK_SHORTCUT,
 		outsideTextFields: true,
 		icon: createElement(ArrowLeftIcon),
@@ -208,6 +224,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "go-forward",
 		group: "Navigation",
 		label: "Go forward",
+		searchOnly: true,
 		shortcut: GO_FORWARD_SHORTCUT,
 		outsideTextFields: true,
 		icon: createElement(ArrowRightIcon),
@@ -217,14 +234,47 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "focus-tree",
 		group: "Navigation",
 		label: "Focus current element in the tree",
+		searchOnly: true,
 		shortcut: FOCUS_TREE_SHORTCUT,
 		icon: createElement(TreeStructureIcon),
 		execute: () => requestFocus("tree"),
 	},
+	"go-home": {
+		id: "go-home",
+		group: "Navigation",
+		label: "Go to Home",
+		icon: createElement(HomeIcon),
+		execute: (_dispatch, _getState, navigate) =>
+			void navigate(paths.root()),
+	},
+	"open-browser": {
+		id: "open-browser",
+		group: "Navigation",
+		label: "Open Browser",
+		icon: createElement(BrowserIcon),
+		execute: (_dispatch, _getState, navigate) =>
+			void navigate(paths.browser()),
+	},
+	"show-priority-queue": {
+		id: "show-priority-queue",
+		group: "Navigation",
+		label: "Show priority queue",
+		searchOnly: true,
+		icon: createElement(QueueIcon),
+		execute: () => showLeftSidebarTab("priority-queue"),
+	},
+	"show-trash": {
+		id: "show-trash",
+		group: "Navigation",
+		label: "Show trash",
+		searchOnly: true,
+		icon: createElement(TrashIcon),
+		execute: () => showLeftSidebarTab("trash"),
+	},
 	"create-card": {
 		id: "create-card",
-		group: "Element actions",
-		label: "New card on this element",
+		group: "Elements",
+		label: "New card under current element",
 		shortcut: CREATE_CARD_SHORTCUT,
 		icon: createElement(CardsIcon),
 		enabled: state => {
@@ -252,7 +302,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"open-due-date": {
 		id: "open-due-date",
-		group: "Element actions",
+		group: "Elements",
 		label: "Set due date",
 		shortcut: OPEN_DUE_DATE_SHORTCUT,
 		icon: createElement(CalendarBlankIcon),
@@ -293,6 +343,7 @@ export const commandsById: Record<CommandId, Command> = {
 			isCurrentlyDark(state)
 				? "Switch to light theme"
 				: "Switch to dark theme",
+		searchOnly: true,
 		icon: createElement(MoonIcon),
 		execute: (dispatch, getState) => {
 			const next = isCurrentlyDark(getState()) ? "Light" : "Dark";
@@ -326,7 +377,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"set-read-point": {
 		id: "set-read-point",
-		group: "Element actions",
+		group: "Elements",
 		label: "Set read point",
 		shortcut: SET_READ_POINT_SHORTCUT,
 		icon: createElement(BookmarkSimpleIcon),
@@ -338,8 +389,9 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"clear-read-point": {
 		id: "clear-read-point",
-		group: "Element actions",
+		group: "Elements",
 		label: "Clear read point",
+		searchOnly: true,
 		icon: createElement(EraserIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
 		execute: () => {
@@ -349,7 +401,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"go-to-read-point": {
 		id: "go-to-read-point",
-		group: "Element actions",
+		group: "Elements",
 		label: "Go to read point",
 		icon: createElement(MapPinIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
@@ -359,7 +411,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"open-priority": {
 		id: "open-priority",
-		group: "Element actions",
+		group: "Elements",
 		label: "Set priority",
 		shortcut: OPEN_PRIORITY_SHORTCUT,
 		icon: createElement(ArrowsDownUpIcon),
@@ -385,7 +437,7 @@ export const commandsById: Record<CommandId, Command> = {
 	sync: {
 		id: "sync",
 		group: "App",
-		label: state => (selectIsSyncing(state) ? "Syncing..." : "Sync"),
+		label: "Sync",
 		icon: createElement(ArrowsClockwiseIcon),
 		enabled: state =>
 			selectIsSignedIn(state) &&
@@ -397,6 +449,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "zoom-in",
 		group: "Zoom",
 		label: "Zoom in",
+		searchOnly: true,
 		shortcut: ZOOM_IN_SHORTCUT,
 		extraShortcuts: [ZOOM_IN_ALT_SHORTCUT],
 		icon: createElement(MagnifyingGlassPlusIcon),
@@ -416,6 +469,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "zoom-out",
 		group: "Zoom",
 		label: "Zoom out",
+		searchOnly: true,
 		shortcut: ZOOM_OUT_SHORTCUT,
 		icon: createElement(MagnifyingGlassMinusIcon),
 		enabled: state => !isMobile() && selectCanZoomAppWide(state),
@@ -455,6 +509,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "reset-zoom",
 		group: "Zoom",
 		label: "Reset zoom",
+		searchOnly: true,
 		shortcut: RESET_ZOOM_SHORTCUT,
 		icon: createElement(ArrowCounterClockwiseIcon),
 		enabled: state => !isMobile() && selectCanZoomAppWide(state),
@@ -467,6 +522,12 @@ export const commandsById: Record<CommandId, Command> = {
 		},
 	},
 };
+
+function showLeftSidebarTab(tab: LeftSidebarTab) {
+	window.dispatchEvent(
+		new CustomEvent(SHOW_LEFT_SIDEBAR_TAB_REQUESTED, { detail: tab }),
+	);
+}
 
 // React Router numbers its history entries; the first one has nothing behind it.
 function canGoBack() {

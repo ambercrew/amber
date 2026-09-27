@@ -85,7 +85,7 @@ export default function FolderView() {
 							onClick={() => dispatch(openImportModal())}>
 							<Stack align="center" gap={4}>
 								<UploadSimpleIcon size={28} />
-								<Text>Import</Text>
+								<Text>Import file or web page…</Text>
 							</Stack>
 						</Button>
 					</Group>

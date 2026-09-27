@@ -5,6 +5,7 @@ import CollapsibleSidebar from "../../../components/CollapsibleSidebar/Collapsib
 import { useSidebarTab } from "../../../components/CollapsibleSidebar/useSidebarTab";
 import { useFocusRequested } from "../../../hooks/useFocusRequest";
 import { TOGGLE_LEFT_SIDEBAR_REQUESTED } from "../../../types/events/toggleLeftSidebarRequestedEvent";
+import { SHOW_LEFT_SIDEBAR_TAB_REQUESTED } from "../../../types/events/showLeftSidebarTabRequestedEvent";
 import AccountMenu from "./AccountMenu";
 import NavigatorPanel from "./NavigatorPanel";
 import PriorityQueuePanel from "./PriorityQueuePanel";
@@ -28,6 +29,10 @@ function Sidebar({ onCollapse, onExpand, onToggle }: SidebarProps) {
 	const treeState = useElementTreeState(useAppSelector(selectElementTree));
 
 	useWindowEvent(TOGGLE_LEFT_SIDEBAR_REQUESTED, onToggle);
+	useWindowEvent(SHOW_LEFT_SIDEBAR_TAB_REQUESTED, event => {
+		onExpand();
+		setTab(event.detail);
+	});
 	// Reveal the tree; it focuses itself once mounted.
 	useFocusRequested("tree", () => {
 		onExpand();

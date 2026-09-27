@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Spotlight, spotlight } from "@mantine/spotlight";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import GlobalHotkeys from "./GlobalHotkeys";
-import { useSpotlightActions } from "./useSpotlightActions";
+import {
+	filterCommandActions,
+	useSpotlightActions,
+} from "./useSpotlightActions";
 import { SPOTLIGHT_SHORTCUT } from "../config/shortcuts";
 import { useAppHotkeys } from "./useAppHotkeys";
 import useBackButtonPress from "../hooks/useBackButtonPress";
@@ -25,6 +28,7 @@ function CommandPalette() {
 			<GlobalHotkeys />
 			<Spotlight
 				actions={actions}
+				filter={filterCommandActions}
 				onSpotlightOpen={() => {
 					setOpened(true);
 					refresh();
