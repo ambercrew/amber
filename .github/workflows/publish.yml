@@ -76,19 +76,12 @@ jobs:
             args: ""
 
     runs-on: ${{ matrix.platform }}
-    # Must match the `tauri` revision resolved in src-tauri/Cargo.lock. The npm
-    # `@tauri-apps/cli` is upstream and has no CEF support, so the Linux job
-    # builds the CLI from the same fork the crates are patched to.
+    # The npm `@tauri-apps/cli` is upstream and has no CEF support, so the Linux
+    # job builds the CLI from the feat/cef fork. Pinned to the rev (and bundling
+    # script) that produced the last working AppImage, v0.16.0.
     env:
-      TAURI_CLI_REV: fe0e5155c12459f3250dd9ae5867dd627d7c8286
-      # The fork's quick-sharun.sh (AppImage bundling) still fetches helper libs from paths
-      # upstream removed in pkgforge-dev/Anylinux-AppImages@e3de1528; pin a commit that has them.
-      ANYLINUX_LIB_SOURCE: https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/df9cd3246ccbcf61eb22fc321a52277351047b4b/useful-tools/lib/anylinux.c
-      GTK_CLASS_FIX_SOURCE: https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/df9cd3246ccbcf61eb22fc321a52277351047b4b/useful-tools/lib/gtk-class-fix.c
-      # CEF dlopens GL/Vulkan, so quick-sharun doesn't detect them; bundle Mesa to match the bundled
-      # glibc, since host drivers built against a newer glibc fail to load (glXQueryExtensionsString NULL).
-      DEPLOY_OPENGL: "1"
-      DEPLOY_VULKAN: "1"
+      TAURI_CLI_REV: 64606e20f18c7dafa73426c282a750f91e8219e6
+      QUICK_SHARUN_REV: fcfa5b42a69cb88636a284c661f0b0d3309775fe
     steps:
       - uses: actions/checkout@v5
       - name: setup node
@@ -111,8 +104,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-          # Mesa GL/EGL/Vulkan drivers for the AppImage (see DEPLOY_OPENGL above).
-          sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 libegl-mesa0 libgbm1 mesa-vulkan-drivers libvulkan1
 
       # The AppImage/deb/rpm bundlers only ship libcef.so and the CEF resource
       # files when the CLI resolves a `cef_path`, which upstream cannot do.
@@ -122,14 +113,21 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/cargo-tauri
-          key: cargo-tauri-${{ runner.os }}-${{ env.TAURI_CLI_REV }}
+          key: cargo-tauri-${{ runner.os }}-${{ env.TAURI_CLI_REV }}-${{ env.QUICK_SHARUN_REV }}
 
       - name: install tauri CLI from feat/cef fork (ubuntu only)
         if: matrix.platform == 'ubuntu-24.04' && steps.tauri-cli-cache.outputs.cache-hit != 'true'
+        # The bundler downloads quick-sharun.sh from upstream main on every build; pin it to the
+        # commit v0.16.0 was built with so later upstream changes can't break the AppImage.
         # --force: rust-cache also restores ~/.cargo/bin, which may hold a stale cargo-tauri.
         run: |
-          cargo install --git https://github.com/tauri-apps/tauri \
-            --rev "$TAURI_CLI_REV" tauri-cli --locked --force
+          src="$RUNNER_TEMP/tauri"
+          git clone --filter=blob:none https://github.com/tauri-apps/tauri "$src"
+          git -C "$src" checkout "$TAURI_CLI_REV"
+          f="$src/crates/tauri-bundler/src/bundle/linux/appimage/sharun_cef.rs"
+          sed -i "s|Anylinux-AppImages/refs/heads/main/useful-tools/quick-sharun.sh|Anylinux-AppImages/$QUICK_SHARUN_REV/useful-tools/quick-sharun.sh|" "$f"
+          grep -q "pkgforge-dev/Anylinux-AppImages/$QUICK_SHARUN_REV/useful-tools/quick-sharun.sh" "$f"
+          cargo install --path "$src/crates/tauri-cli" --locked --force
 
       - name: install protoc
         uses: taiki-e/install-action@v2
