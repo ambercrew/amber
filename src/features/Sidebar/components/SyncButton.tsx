@@ -8,6 +8,7 @@ import {
 	selectUserInformation,
 } from "../../../stores/user/userSelectors";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import { SYNC_SHORTCUT } from "../../../config/shortcuts";
 
 function SyncButton() {
 	const run = useRunCommand();
@@ -20,7 +21,9 @@ function SyncButton() {
 	if (!isSignedIn || !isEmailVerified) return null;
 
 	return (
-		<AppTooltip label={isSyncing ? "Syncing..." : "Sync"}>
+		<AppTooltip
+			label={isSyncing ? "Syncing..." : "Sync"}
+			shortcut={SYNC_SHORTCUT}>
 			<ActionIcon
 				variant="subtle"
 				color="gray"

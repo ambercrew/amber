@@ -8,6 +8,7 @@ export const IMPORT_SHORTCUT = "mod+shift+N";
 export const TOGGLE_LEFT_SIDEBAR_SHORTCUT = "mod+shift+B";
 export const TOGGLE_RIGHT_SIDEBAR_SHORTCUT = "mod+alt+B";
 export const SHOW_SHORTCUTS_SHORTCUT = "F1";
+export const SYNC_SHORTCUT = "mod+S";
 
 // Navigation
 export const GO_BACK_SHORTCUT = "alt+ArrowLeft";

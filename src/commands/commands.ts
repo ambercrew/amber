@@ -82,6 +82,7 @@ import {
 	RESET_ZOOM_SHORTCUT,
 	SET_READ_POINT_SHORTCUT,
 	SHOW_SHORTCUTS_SHORTCUT,
+	SYNC_SHORTCUT,
 	TOGGLE_LEFT_SIDEBAR_SHORTCUT,
 	TOGGLE_RIGHT_SIDEBAR_SHORTCUT,
 	TOGGLE_STUDY_SESSION_SHORTCUT,
@@ -438,6 +439,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "sync",
 		group: "App",
 		label: "Sync",
+		shortcut: SYNC_SHORTCUT,
 		icon: createElement(ArrowsClockwiseIcon),
 		enabled: state =>
 			selectIsSignedIn(state) &&
