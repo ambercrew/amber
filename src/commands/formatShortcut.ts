@@ -13,6 +13,7 @@ const SPECIAL: Record<string, string> = {
 	backspace: "⌫",
 	escape: "Esc",
 	space: "Space",
+	"[plus]": "+",
 };
 
 /**
@@ -45,5 +46,6 @@ export function formatShortcut(
 		const key = p.trim().toLowerCase();
 		return KEY_SYMBOLS[key] ?? SPECIAL[key] ?? displayKey(key, layoutMap);
 	});
-	return isMac ? parts.join("") : parts.join(" + ");
+	// A thin space keeps wide glyphs like ⌘ from running into the next key.
+	return isMac ? parts.join(" ") : parts.join(" + ");
 }

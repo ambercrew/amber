@@ -9,7 +9,7 @@ import {
 } from "../../../stores/elements/elementsActions";
 import { AppDispatch } from "../../../stores/store";
 import { ElementId } from "../../../types/elements/elementId";
-import { defaultElementName } from "./ElementTree/elementTreeUtils";
+import { defaultElementName, newCardDto } from "./ElementTree/elementTreeUtils";
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 
 function useCreateHandlers(
@@ -18,7 +18,7 @@ function useCreateHandlers(
 ) {
 	const dispatch = useDispatch<AppDispatch>();
 
-	function run(action: (dispatch: AppDispatch) => Promise<void>) {
+	function run(action: (dispatch: AppDispatch) => Promise<boolean>) {
 		void (async () => {
 			await dispatch(action);
 			onAfterCreate?.();
@@ -63,19 +63,7 @@ function useCreateHandlers(
 					content: "",
 				}),
 			),
-		card: () =>
-			run(
-				createCardAction({
-					id: crypto.randomUUID(),
-					meta: {
-						name: defaultElementName("Card"),
-						parent: elementId,
-						origin: { type: "custom" },
-					},
-					front: "",
-					back: "",
-				}),
-			),
+		card: () => run(createCardAction(newCardDto(elementId))),
 	};
 }
 

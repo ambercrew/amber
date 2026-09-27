@@ -28,3 +28,12 @@ export const dueDateTimePickerProps: Pick<
 		minutesInputLabel: "Minutes",
 	},
 };
+
+/**
+ * For a picker inside a modal: the dropdown lives in a portal, so closing it by
+ * keyboard would drop focus outside the modal unless it returns to the input.
+ */
+export const dueDateTimePickerInModalProps: typeof dueDateTimePickerProps = {
+	...dueDateTimePickerProps,
+	popoverProps: { ...dueDateTimePickerProps.popoverProps, returnFocus: true },
+};

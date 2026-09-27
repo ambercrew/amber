@@ -9,7 +9,7 @@ import {
 } from "@mantine/core";
 import { XIcon } from "@phosphor-icons/react";
 import { SMALL_SCREEN_BREAKPOINT } from "../../hooks/useIsSmallScreen";
-import { useLocalStorage } from "@mantine/hooks";
+import { useSidebarTab } from "./useSidebarTab";
 import AppTooltip from "../AppTooltip/AppTooltip";
 
 export interface SidebarTab {
@@ -48,10 +48,7 @@ function CollapsibleSidebar({
 	collapsePosition = "right",
 	localStorageKey,
 }: CollapsibleSidebarProps) {
-	const [value, setValue] = useLocalStorage({
-		defaultValue,
-		key: `${localStorageKey}.open-tab`,
-	});
+	const [value, setValue] = useSidebarTab(localStorageKey, defaultValue);
 	const activeValue = tabs.some(tab => tab.value === value)
 		? value
 		: (tabs[0]?.value ?? "");

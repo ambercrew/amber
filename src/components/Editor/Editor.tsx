@@ -1,9 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
-import { AutoFocusExtension } from "@lexical/extension";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalExtensionComposer } from "@lexical/react/LexicalExtensionComposer";
-import { configExtension, defineExtension } from "lexical";
+import { defineExtension } from "lexical";
 import {
 	Box,
 	Menu,
@@ -45,7 +44,6 @@ function stripCodeNodeThemes(json: string): string {
 
 interface EditorProps {
 	initialContent?: string;
-	autoFocus?: boolean;
 	children?: React.ReactNode;
 	onHighlightCreated?: (payload: HighlightCreatedPayload) => void;
 	contextMenuItems?: React.ReactNode;
@@ -61,7 +59,6 @@ export default function Editor(props: EditorProps) {
 
 function EditorContent({
 	initialContent,
-	autoFocus = false,
 	children,
 	onHighlightCreated,
 	contextMenuItems,
@@ -97,13 +94,7 @@ function EditorContent({
 	const editorExtension = useMemo(
 		() =>
 			defineExtension({
-				dependencies: [
-					...editorExtensionDependencies,
-					configExtension(AutoFocusExtension, {
-						defaultSelection: "rootStart",
-						disabled: !autoFocus,
-					}),
-				],
+				dependencies: [...editorExtensionDependencies],
 				theme: {
 					...editorTheme,
 					text: {
@@ -118,7 +109,7 @@ function EditorContent({
 					? undefined
 					: stripCodeNodeThemes(initialContent),
 			}),
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- only apply initialContent/autoFocus once, at editor creation; colorScheme is the one prop allowed to rebuild the editor, so code blocks re-highlight with the matching Shiki theme
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- only apply initialContent once, at editor creation; colorScheme is the one prop allowed to rebuild the editor, so code blocks re-highlight with the matching Shiki theme
 		[colorScheme],
 	);
 

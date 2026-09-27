@@ -30,6 +30,8 @@ async function renderOpenedModal() {
 				studyProfileModalOpened: false,
 				settingsModalOpened: false,
 				priorityModalOpened: false,
+				dueDateModalOpened: false,
+				shortcutsModalOpened: false,
 				studySessionSettingsModalOpened: false,
 				authModalOpened: false,
 				authModalInitialTab: "sign-in",

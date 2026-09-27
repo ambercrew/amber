@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import NavigatorPanel from "../../../../features/Sidebar/components/NavigatorPanel";
+import { ElementTreeState } from "../../../../features/Sidebar/hooks/useElementTreeState";
 import { createFolderAction } from "../../../../stores/elements/elementsActions";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
@@ -14,9 +15,13 @@ describe("NavigatorPanel — new root folder button", () => {
 	it("Should dispatch createFolderAction with parentFolderId null when clicked", async () => {
 		// Arrange
 
-		vi.mocked(createFolderAction).mockReturnValue(() => Promise.resolve());
+		vi.mocked(createFolderAction).mockReturnValue(() =>
+			Promise.resolve(true),
+		);
 		const user = userEvent.setup();
-		renderWithProviders(<NavigatorPanel />);
+		renderWithProviders(
+			<NavigatorPanel treeState={{} as ElementTreeState} />,
+		);
 
 		// Act
 
@@ -35,9 +40,13 @@ describe("NavigatorPanel — new root folder button", () => {
 	it("Should use a name containing the element label and a timestamp when clicked", async () => {
 		// Arrange
 
-		vi.mocked(createFolderAction).mockReturnValue(() => Promise.resolve());
+		vi.mocked(createFolderAction).mockReturnValue(() =>
+			Promise.resolve(true),
+		);
 		const user = userEvent.setup();
-		renderWithProviders(<NavigatorPanel />);
+		renderWithProviders(
+			<NavigatorPanel treeState={{} as ElementTreeState} />,
+		);
 
 		// Act
 

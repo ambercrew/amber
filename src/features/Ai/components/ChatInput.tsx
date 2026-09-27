@@ -1,8 +1,9 @@
-import { KeyboardEvent, useState } from "react";
+import { KeyboardEvent, useRef, useState } from "react";
 import { ActionIcon, Group, Textarea } from "@mantine/core";
 import { ArrowUpIcon, PaperclipIcon, StopIcon } from "@phosphor-icons/react";
 import { open } from "@tauri-apps/plugin-dialog";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import { useFocusOnRequest } from "../../../hooks/useFocusRequest";
 
 interface ChatInputProps {
 	disabled?: boolean;
@@ -28,6 +29,8 @@ function ChatInput({
 	initialValue,
 }: ChatInputProps) {
 	const [value, setValue] = useState(initialValue ?? "");
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	useFocusOnRequest("aiChat", () => textareaRef.current?.focus());
 
 	function handleSend() {
 		const trimmed = value.trim();
@@ -67,6 +70,7 @@ function ChatInput({
 			</AppTooltip>
 
 			<Textarea
+				ref={textareaRef}
 				style={{ flex: 1 }}
 				placeholder="Ask a question…"
 				autosize

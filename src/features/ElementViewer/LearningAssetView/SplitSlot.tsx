@@ -20,7 +20,6 @@ interface SplitSlotProps {
 	/** Best-known height (px) for the placeholder state. */
 	height: number;
 	buttons: FloatingMenuItem[];
-	autoFocus: boolean;
 	/** Ref for the slot root (observed for viewport entry + slot lookup). */
 	slotRef: (element: Element | null) => void;
 	/** Ref for the mounted editor's measured element. */
@@ -53,7 +52,6 @@ export default function SplitSlot({
 	mounted,
 	height,
 	buttons,
-	autoFocus,
 	slotRef,
 	observeSplit,
 	registerContentRoot,
@@ -131,7 +129,6 @@ export default function SplitSlot({
 					<ElementEditor
 						initialContent={content}
 						buttons={buttons}
-						autoFocus={autoFocus}
 						onChange={handleChange}
 						onHighlightCreated={handleHighlightCreated}
 						onRootElement={registerContentRoot}

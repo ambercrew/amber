@@ -6,22 +6,23 @@ import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { clearTreeError } from "../../../stores/elements/elementsReducer";
 import CreateElementDropDown from "./CreateElementMenuDropDown";
-import {
-	selectElementTree,
-	selectElementTreeError,
-} from "../../../stores/elements/elementsSelectors";
+import { selectElementTreeError } from "../../../stores/elements/elementsSelectors";
 import ElementTree from "./ElementTree/ElementTree";
 import { paths } from "../../../paths";
 import PanelHeader from "./PanelHeader";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import { ElementTreeState } from "../hooks/useElementTreeState";
 
 const NAV_ICON_SIZE = 18;
 
-function NavigatorPanel() {
+interface NavigatorPanelProps {
+	treeState: ElementTreeState;
+}
+
+function NavigatorPanel({ treeState }: NavigatorPanelProps) {
 	const dispatch = useAppDispatch();
 	const navigate = useNavigate();
 	const location = useLocation();
-	const tree = useAppSelector(selectElementTree);
 	const error = useAppSelector(selectElementTreeError);
 
 	return (
@@ -69,7 +70,7 @@ function NavigatorPanel() {
 						},
 					]}
 				/>
-				<ElementTree tree={tree} />
+				<ElementTree state={treeState} />
 			</Stack>
 		</Stack>
 	);

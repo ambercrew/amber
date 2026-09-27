@@ -21,6 +21,7 @@ import styles from "../Editor.module.css";
 import FloatingMenuBar, {
 	FloatingMenuBarItem,
 } from "../../FloatingMenuBar/FloatingMenuBar";
+import { matchesShortcut } from "../../../commands/useAppHotkeys";
 
 export interface FloatingMenuButton {
 	divider?: false;
@@ -30,6 +31,10 @@ export interface FloatingMenuButton {
 	showLabel?: boolean;
 	color?: MantineColor;
 	Icon: React.ComponentType<{ size?: number }>;
+	/** Runs the button while its selection applies, even with the menu hidden. */
+	shortcut?: string;
+	/** Let the shortcut act on a collapsed caret, not just a selected range. */
+	actsOnCaret?: boolean;
 	onClick: (
 		editor: LexicalEditor,
 		isActive: boolean,
@@ -121,10 +126,8 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 		() => editor.getRootElement() === document.activeElement,
 		[editor],
 	);
-	// Extensions like AutoFocus can focus the root element (and fire
-	// FOCUS_COMMAND) synchronously while the editor is being built, before
-	// this subscription is registered. useSyncExternalStore re-checks the
-	// snapshot right after commit, so that initial case isn't missed.
+	// The root element can gain focus before this subscription is registered;
+	// useSyncExternalStore re-checks the snapshot right after commit, so that isn't missed.
 	const isEditorFocused = useSyncExternalStore(
 		subscribeToFocus,
 		getFocusSnapshot,
@@ -244,6 +247,35 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 		setCoords(null);
 	}, []);
 
+	useEffect(() => {
+		return editor.registerCommand(
+			KEY_DOWN_COMMAND,
+			event => {
+				const button = buttons.find(
+					(btn): btn is FloatingMenuButton =>
+						!isFloatingMenuDivider(btn) &&
+						!!btn.shortcut &&
+						matchesShortcut(btn.shortcut, event),
+				);
+				if (!button) return false;
+				const isActive = editor.getEditorState().read(() => {
+					const selection = $getSelection();
+					if (!$isRangeSelection(selection)) return null;
+					if (selection.isCollapsed() && !button.actsOnCaret)
+						return null;
+					if (button.isVisible && !button.isVisible(selection))
+						return null;
+					return button.isActive(selection);
+				});
+				if (isActive === null) return false;
+				event.preventDefault();
+				button.onClick(editor, isActive, closeMenu);
+				return true;
+			},
+			COMMAND_PRIORITY_LOW,
+		);
+	}, [editor, buttons, closeMenu]);
+
 	const shouldShow = (isEditorFocused || isMenuFocused) && coords !== null;
 
 	const items: FloatingMenuBarItem[] = buttons.map(btn => {
@@ -255,6 +287,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 			showLabel: btn.showLabel,
 			color: btn.color,
 			Icon: btn.Icon,
+			shortcut: btn.shortcut,
 			isActive: activeState[btn.name] ?? false,
 			isVisible: visibleState[btn.name] ?? true,
 			onClick: () =>

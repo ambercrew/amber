@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NodeDto } from "../../../../../api/elements/dto/nodeDto";
-import ElementTree from "../../../../../features/Sidebar/components/ElementTree/ElementTree";
+import ElementTreeHarness from "../../../../test-utils/ElementTreeHarness";
 import { useIsCoarsePointer } from "../../../../../hooks/useIsCoarsePointer";
 import {
 	LOCATION_DISPLAY_TEST_ID,
@@ -32,7 +32,7 @@ describe("ElementTreeNode actions menu navigation", () => {
 		// Arrange
 
 		const user = userEvent.setup();
-		renderWithProviders(<ElementTree tree={TREE} />);
+		renderWithProviders(<ElementTreeHarness tree={TREE} />);
 		await user.click(screen.getByLabelText("Open actions menu"));
 		await waitFor(() =>
 			expect(screen.getByText("New")).toBeInTheDocument(),

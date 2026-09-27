@@ -3,6 +3,8 @@ import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "./types/events/readPointManua
 import { READ_POINT_MANUAL_GOTO_REQUESTED } from "./types/events/readPointManualGotoRequestedEvent";
 import { PRIORITY_CHANGED } from "./types/events/priorityChangedEvent";
 import { STUDY_SESSION_SETTINGS_CHANGED } from "./types/events/studySessionSettingsChangedEvent";
+import { TOGGLE_LEFT_SIDEBAR_REQUESTED } from "./types/events/toggleLeftSidebarRequestedEvent";
+import { TOGGLE_RIGHT_SIDEBAR_REQUESTED } from "./types/events/toggleRightSidebarRequestedEvent";
 
 declare global {
 	interface WindowEventMap {
@@ -11,6 +13,8 @@ declare global {
 		[READ_POINT_MANUAL_GOTO_REQUESTED]: Event;
 		[PRIORITY_CHANGED]: Event;
 		[STUDY_SESSION_SETTINGS_CHANGED]: Event;
+		[TOGGLE_LEFT_SIDEBAR_REQUESTED]: Event;
+		[TOGGLE_RIGHT_SIDEBAR_REQUESTED]: Event;
 	}
 }
 

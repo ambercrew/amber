@@ -39,7 +39,6 @@ interface LearningAssetViewProps {
 	readPoint: ReadPoint;
 	meta: MetaResponseDto;
 	buttons: FloatingMenuItem[];
-	autoFocus?: boolean;
 	onHighlightCreated?: (payload: HighlightCreatedPayload) => void;
 }
 
@@ -55,7 +54,6 @@ export default function LearningAssetView({
 	readPoint,
 	meta,
 	buttons,
-	autoFocus,
 	onHighlightCreated,
 }: LearningAssetViewProps) {
 	const [contentWidth, setContentWidth] = useState(0);
@@ -214,17 +212,12 @@ export default function LearningAssetView({
 		[onHighlightCreated, recordExtractReadPoint],
 	);
 
-	// One-shot: left permanently on, re-mounting this split later (as the
-	// mount window slides back over it) would re-focus its start and yank
-	// the reader's scroll position via the browser's caret-follow.
-	const [pendingAutoFocus, setPendingAutoFocus] = useState(!!autoFocus);
 	const handleContentReady = useCallback(
 		(seq: number) => {
-			if (seq === readPoint.split) setPendingAutoFocus(false);
 			notifySplitReady(seq);
 			notifySearchTargetReady(seq);
 		},
-		[readPoint.split, notifySplitReady, notifySearchTargetReady],
+		[notifySplitReady, notifySearchTargetReady],
 	);
 
 	// Cached per seq so the ref callback's identity is stable across renders
@@ -281,9 +274,6 @@ export default function LearningAssetView({
 						mounted={mountedSeqs.has(split.seq)}
 						height={getHeight(split.seq, split.charCount)}
 						buttons={buttons}
-						autoFocus={
-							pendingAutoFocus && split.seq === readPoint.split
-						}
 						slotRef={setSlotRef(split.seq)}
 						observeSplit={observeSplit(split.seq, split.charCount)}
 						registerContentRoot={registerContentRoot(split.seq)}

@@ -23,7 +23,7 @@ import { selectElementRefreshCount } from "../../../stores/sync/syncSelector";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import { formatPriorityPercentile } from "../../../utils/formatPriorityPercentile";
 import { ElementId } from "../../../types/elements/elementId";
-import { ElementDetailsResponseDto } from "../../../api/elements/dto/elementDetailsDto";
+import { dueIsoFor, hasDue } from "../../../utils/elementDue";
 import { openPriorityModal } from "../../../stores/app/appReducer";
 import { commandIcon } from "../../../commands/commandIcon";
 import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
@@ -38,21 +38,8 @@ import ReviewDetails from "./ReviewDetails";
 import OriginSection from "./OriginSection";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 
-function dueIsoFor(details: ElementDetailsResponseDto | null): string | null {
-	if (!details) return null;
-	return details.cardReview?.due ?? details.learningAssetReview?.due ?? null;
-}
-
 function hasFinished(elementType: string): boolean {
 	return elementType === "learningAsset" || elementType === "extract";
-}
-
-function hasDue(elementType: string): boolean {
-	return (
-		elementType === "card" ||
-		elementType === "learningAsset" ||
-		elementType === "extract"
-	);
 }
 
 function ElementInfoPanel() {

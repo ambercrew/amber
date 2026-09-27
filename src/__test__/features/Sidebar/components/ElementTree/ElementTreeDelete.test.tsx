@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NodeDto } from "../../../../../api/elements/dto/nodeDto";
-import ElementTree from "../../../../../features/Sidebar/components/ElementTree/ElementTree";
+import ElementTreeHarness from "../../../../test-utils/ElementTreeHarness";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
 
 vi.mock(import("../../../../../stores/elements/elementsActions"));
@@ -22,7 +22,7 @@ describe("ElementTree delete", () => {
 	beforeEach(() => window.localStorage.clear());
 
 	function render() {
-		return renderWithProviders(<ElementTree tree={TREE} />);
+		return renderWithProviders(<ElementTreeHarness tree={TREE} />);
 	}
 
 	it("Should open the move to trash confirmation modal when Move to trash is clicked", async () => {

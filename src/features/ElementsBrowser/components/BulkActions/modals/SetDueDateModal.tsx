@@ -7,7 +7,7 @@ import {
 	fromDateInputValue,
 	toDateInputValue,
 } from "../../../../../utils/dateInputValue";
-import { dueDateTimePickerProps } from "../../../../../utils/dueDateTimePickerProps";
+import { dueDateTimePickerInModalProps } from "../../../../../utils/dueDateTimePickerProps";
 import { BulkCallApi } from "../bulkCallApi";
 
 interface SetDueDateModalProps {
@@ -53,7 +53,7 @@ export default function SetDueDateModal({
 				placeholder="Pick a date and time"
 				value={value}
 				onChange={setValue}
-				{...dueDateTimePickerProps}
+				{...dueDateTimePickerInModalProps}
 			/>
 		</ConfirmModal>
 	);

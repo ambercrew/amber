@@ -9,6 +9,8 @@ export interface AppState {
 	studyProfileModalOpened: boolean;
 	settingsModalOpened: boolean;
 	priorityModalOpened: boolean;
+	dueDateModalOpened: boolean;
+	shortcutsModalOpened: boolean;
 	studySessionSettingsModalOpened: boolean;
 	authModalOpened: boolean;
 	authModalInitialTab: AuthModalTab;
@@ -25,6 +27,8 @@ const initialState: AppState = {
 	studyProfileModalOpened: false,
 	settingsModalOpened: false,
 	priorityModalOpened: false,
+	dueDateModalOpened: false,
+	shortcutsModalOpened: false,
 	studySessionSettingsModalOpened: false,
 	authModalOpened: false,
 	authModalInitialTab: "sign-in",
@@ -63,6 +67,18 @@ const appSlice = createSlice({
 		},
 		closePriorityModal: state => {
 			state.priorityModalOpened = false;
+		},
+		openDueDateModal: state => {
+			state.dueDateModalOpened = true;
+		},
+		closeDueDateModal: state => {
+			state.dueDateModalOpened = false;
+		},
+		openShortcutsModal: state => {
+			state.shortcutsModalOpened = true;
+		},
+		closeShortcutsModal: state => {
+			state.shortcutsModalOpened = false;
 		},
 		openStudySessionSettingsModal: state => {
 			state.studySessionSettingsModalOpened = true;
@@ -113,6 +129,10 @@ export const {
 	closeSettingsModal,
 	openPriorityModal,
 	closePriorityModal,
+	openDueDateModal,
+	closeDueDateModal,
+	openShortcutsModal,
+	closeShortcutsModal,
 	openStudySessionSettingsModal,
 	closeStudySessionSettingsModal,
 	openAuthModal,

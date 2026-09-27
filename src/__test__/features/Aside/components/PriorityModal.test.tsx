@@ -89,6 +89,8 @@ function appStateFor(priorityModalOpened: boolean): AppState {
 		studyProfileModalOpened: false,
 		settingsModalOpened: false,
 		priorityModalOpened,
+		dueDateModalOpened: false,
+		shortcutsModalOpened: false,
 		studySessionSettingsModalOpened: false,
 		authModalOpened: false,
 		authModalInitialTab: "sign-in",

@@ -122,4 +122,89 @@ describe("matchesShortcut", () => {
 
 		expect(actual).toBe(true);
 	});
+
+	it("Should match a punctuation key when shift was needed to type it", () => {
+		// Arrange
+
+		const event = keyEvent({ key: "?", code: "Slash", shiftKey: true });
+
+		// Act
+
+		const actual = matchesShortcut("?", event);
+
+		// Assert
+
+		expect(actual).toBe(true);
+	});
+
+	it("Should match the plus key when shift produced it", () => {
+		// Arrange
+
+		const event = keyEvent({
+			key: "+",
+			code: "Equal",
+			ctrlKey: true,
+			shiftKey: true,
+		});
+
+		// Act
+
+		const actual = matchesShortcut("mod+[plus]", event);
+
+		// Assert
+
+		expect(actual).toBe(true);
+	});
+
+	it("Should not match the unshifted key of the same physical key when shift produced plus", () => {
+		// Arrange
+
+		const event = keyEvent({
+			key: "+",
+			code: "Equal",
+			ctrlKey: true,
+			shiftKey: true,
+		});
+
+		// Act
+
+		const actual = matchesShortcut("mod+=", event);
+
+		// Assert
+
+		expect(actual).toBe(false);
+	});
+
+	it("Should not match a letter shortcut when shift is held", () => {
+		// Arrange
+
+		const event = keyEvent({
+			key: "K",
+			code: "KeyK",
+			ctrlKey: true,
+			shiftKey: true,
+		});
+
+		// Act
+
+		const actual = matchesShortcut("mod+K", event);
+
+		// Assert
+
+		expect(actual).toBe(false);
+	});
+
+	it("Should match a letter shortcut when caps lock produces an uppercase key", () => {
+		// Arrange
+
+		const event = keyEvent({ key: "S", code: "KeyS" });
+
+		// Act
+
+		const actual = matchesShortcut("S", event);
+
+		// Assert
+
+		expect(actual).toBe(true);
+	});
 });

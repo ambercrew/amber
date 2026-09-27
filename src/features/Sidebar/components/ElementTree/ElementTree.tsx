@@ -6,46 +6,45 @@ import {
 	Tree,
 } from "@mantine/core";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { MoveElementDto } from "../../../../api/elements/api/elementsApi";
-import { NodeDto } from "../../../../api/elements/dto/nodeDto";
-import {
-	ELEMENT_CREATED_EVENT,
-	ElementCreatedEventDto,
-} from "../../../../api/elements/events/elementCreatedEvent";
-import { useElementParams } from "../../../../hooks/useElementParams";
 import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
-import { useTauriEvent } from "../../../../hooks/useTauriEvent";
 import { paths } from "../../../../paths";
 import { ElementId } from "../../../../types/elements/elementId";
 import { ElementNodeType } from "../../../../types/elements/elementNodeType";
-import {
-	dtosToTreeData,
-	ElementNodeProps,
-	findNodeType,
-} from "../../utils/elementTreeUtils";
-import { useElementTreeExpansion } from "../../hooks/useElementTreeExpansion";
+import { ElementNodeProps, findNodeType } from "../../utils/elementTreeUtils";
 import TrashElementModal from "../TrashElementModal";
 import ElementTreeMenuItems from "./ElementTreeMenuItems";
 import ElementTreeNode from "./ElementTreeNode";
 import useAppDispatch from "../../../../hooks/useAppDispatch";
-import useAppSelector from "../../../../hooks/useAppSelector";
+import { moveElementAction } from "../../../../stores/elements/elementsActions";
+import { useFocusOnRequest } from "../../../../hooks/useFocusRequest";
+import { matchesShortcut } from "../../../../commands/useAppHotkeys";
 import {
-	loadElementTree,
-	moveElementAction,
-} from "../../../../stores/elements/elementsActions";
-import { selectStudyStatus } from "../../../../stores/study/studySelectors";
+	GO_BACK_SHORTCUT,
+	GO_FORWARD_SHORTCUT,
+	NEXT_TREE_ELEMENT_SHORTCUT,
+	OPEN_FOCUSED_TREE_ELEMENT_SHORTCUT,
+	PREVIOUS_TREE_ELEMENT_SHORTCUT,
+} from "../../../../config/shortcuts";
+import { ElementTreeState } from "../../hooks/useElementTreeState";
+
+// Mantine's tree nodes act on arrow keys whatever the modifiers, and stop them.
+const PASS_THROUGH_SHORTCUTS = [
+	GO_BACK_SHORTCUT,
+	GO_FORWARD_SHORTCUT,
+	NEXT_TREE_ELEMENT_SHORTCUT,
+	PREVIOUS_TREE_ELEMENT_SHORTCUT,
+];
 
 interface ElementTreeProps {
-	tree: NodeDto[];
+	state: ElementTreeState;
 }
 
-function ElementTree({ tree }: ElementTreeProps) {
+function ElementTree({ state }: ElementTreeProps) {
 	const navigate = useNavigate();
-	const selected = useElementParams();
 	const coarsePointer = useIsCoarsePointer();
-	const data = useMemo(() => dtosToTreeData(tree), [tree]);
 	const dispatch = useAppDispatch();
 	const [contextMenuNode, setContextMenuNode] = useState<{
 		value: string;
@@ -56,14 +55,51 @@ function ElementTree({ tree }: ElementTreeProps) {
 		null,
 	);
 
-	const isStudying = useAppSelector(selectStudyStatus) === "studying";
-	const { treeController, filteredData, search, handleSearchChange } =
-		useElementTreeExpansion(data, selected?.id ?? null, isStudying);
+	const {
+		data,
+		selected,
+		openNode,
+		treeController,
+		filteredData,
+		search,
+		handleSearchChange,
+	} = state;
 
-	useTauriEvent<ElementCreatedEventDto>(ELEMENT_CREATED_EVENT, payload => {
-		void dispatch(loadElementTree());
-		if (payload.parentId) treeController.expand(payload.parentId);
+	const containerRef = useRef<HTMLDivElement>(null);
+	useFocusOnRequest("tree", () => {
+		const items =
+			containerRef.current?.querySelectorAll<HTMLElement>(
+				"[role=treeitem]",
+			);
+		const target =
+			Array.from(items ?? []).find(
+				item => item.dataset.value === selected?.id,
+			) ?? items?.[0];
+		target?.setAttribute("data-focus-ring", "true");
+		target?.focus();
 	});
+
+	// Hand app shortcuts on tree items to the app's hotkeys, before Mantine's nodes swallow them.
+	useEffect(() => {
+		const container = containerRef.current;
+		if (!container) return;
+		const passThrough = (event: KeyboardEvent) => {
+			const target = event.target as HTMLElement;
+			if (target.getAttribute("role") !== "treeitem") return;
+			if (!PASS_THROUGH_SHORTCUTS.some(s => matchesShortcut(s, event)))
+				return;
+			event.stopPropagation();
+			event.preventDefault();
+			document.documentElement.dispatchEvent(
+				new KeyboardEvent("keydown", event),
+			);
+		};
+		container.addEventListener("keydown", passThrough, { capture: true });
+		return () =>
+			container.removeEventListener("keydown", passThrough, {
+				capture: true,
+			});
+	}, []);
 
 	function renderNode(payload: RenderTreeNodePayload) {
 		const { node } = payload;
@@ -106,6 +142,20 @@ function ElementTree({ tree }: ElementTreeProps) {
 			tree={treeController}
 			renderNode={renderNode}
 			withLines
+			onKeyDown={event => {
+				// Mantine's tree moves focus with the arrows; this opens the focused element.
+				const target = event.target as HTMLElement;
+				if (
+					!matchesShortcut(
+						OPEN_FOCUSED_TREE_ELEMENT_SHORTCUT,
+						event.nativeEvent,
+					) ||
+					target.getAttribute("role") !== "treeitem"
+				)
+					return;
+				event.preventDefault();
+				if (target.dataset.value) openNode(target.dataset.value);
+			}}
 			onDragDrop={({ draggedNode, targetNode, position }) => {
 				const draggedType = findNodeType(data, draggedNode);
 				const targetType = findNodeType(data, targetNode);
@@ -126,7 +176,7 @@ function ElementTree({ tree }: ElementTreeProps) {
 	);
 
 	return (
-		<Stack gap="xs">
+		<Stack gap="xs" ref={containerRef}>
 			<TextInput
 				placeholder="Search..."
 				leftSection={<MagnifyingGlassIcon size={16} />}

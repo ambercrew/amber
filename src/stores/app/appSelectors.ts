@@ -15,6 +15,12 @@ export const selectIsSettingsModalOpened = (state: RootState) =>
 export const selectIsPriorityModalOpened = (state: RootState) =>
 	state.app.priorityModalOpened;
 
+export const selectIsDueDateModalOpened = (state: RootState) =>
+	state.app.dueDateModalOpened;
+
+export const selectIsShortcutsModalOpened = (state: RootState) =>
+	state.app.shortcutsModalOpened;
+
 export const selectIsStudySessionSettingsModalOpened = (state: RootState) =>
 	state.app.studySessionSettingsModalOpened;
 

@@ -30,6 +30,7 @@ import {
 } from "../../../../../commands/useAppHotkeys";
 import {
 	RESET_ZOOM_SHORTCUT,
+	ZOOM_IN_ALT_SHORTCUT,
 	ZOOM_IN_SHORTCUT,
 	ZOOM_OUT_SHORTCUT,
 } from "../../../../../config/shortcuts";
@@ -66,6 +67,7 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 	useAppHotkeys(
 		[
 			[ZOOM_IN_SHORTCUT, () => zoom?.zoomIn()],
+			[ZOOM_IN_ALT_SHORTCUT, () => zoom?.zoomIn()],
 			[ZOOM_OUT_SHORTCUT, () => zoom?.zoomOut()],
 			[RESET_ZOOM_SHORTCUT, () => zoom?.requestZoom(1)],
 		] satisfies AppHotkeyItem[],

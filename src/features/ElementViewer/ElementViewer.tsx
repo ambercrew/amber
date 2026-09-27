@@ -8,14 +8,12 @@ import PdfLearningAssetView from "./PdfView/components/PdfLearningAssetView";
 import SearchHighlightOverlay from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightOverlay";
 import useAppSelector from "../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../stores/elements/elementsSelectors";
-import { selectStudyStatus } from "../../stores/study/studySelectors";
 import { updateCard, updateExtract } from "../../api/elements/api/elementsApi";
 import { useElementViewerButtons } from "./hooks/useElementViewerButtons";
 import { useHighlightCreatedHandler } from "./hooks/useHighlightCreatedHandler";
 
 export default function ElementViewer() {
 	const currentElement = useAppSelector(selectCurrentElement);
-	const studyStatus = useAppSelector(selectStudyStatus);
 	const elementId = currentElement?.data?.meta?.elementId;
 	const buttons = useElementViewerButtons();
 	const handleHighlightCreated = useHighlightCreatedHandler(elementId);
@@ -104,7 +102,6 @@ export default function ElementViewer() {
 					meta={currentElement.data.meta}
 					buttons={buttons}
 					onHighlightCreated={handleHighlightCreated}
-					autoFocus={studyStatus === "editing"}
 				/>
 			)}
 			{currentElement.type === "extract" && (
@@ -112,7 +109,6 @@ export default function ElementViewer() {
 					elementId={elementId}
 					extract={currentElement.data}
 					buttons={buttons}
-					autoFocus={studyStatus === "editing"}
 					onChange={handleChange}
 					onHighlightCreated={handleHighlightCreated}
 				/>

@@ -247,6 +247,6 @@ describe("StudySessionBar", () => {
 
 		const tooltip = await screen.findByRole("tooltip");
 		expect(tooltip).not.toHaveTextContent(formatRelativeDueDate(due));
-		expect(tooltip).toHaveTextContent("Won't repeat (3)");
+		expect(tooltip).toHaveTextContent("Won't repeat (F)");
 	});
 });

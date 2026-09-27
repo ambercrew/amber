@@ -13,6 +13,10 @@ import {
 import FloatingMenuBar, {
 	FloatingMenuBarItem,
 } from "../../../../components/FloatingMenuBar/FloatingMenuBar";
+import {
+	AppHotkeyItem,
+	useAppHotkeys,
+} from "../../../../commands/useAppHotkeys";
 import useAppDispatch from "../../../../hooks/useAppDispatch";
 import useAppSelector from "../../../../hooks/useAppSelector";
 import { paths } from "../../../../paths";
@@ -285,6 +289,18 @@ export default function PdfFloatingMenu({
 			handleOpenHighlight,
 			handleRemoveHighlight,
 		],
+	);
+
+	// This menu only mounts while text is selected, so its shortcuts can be global.
+	useAppHotkeys(
+		items.flatMap(item =>
+			!item.divider &&
+			item.shortcut &&
+			item.onClick &&
+			item.isVisible !== false
+				? [[item.shortcut, item.onClick] satisfies AppHotkeyItem]
+				: [],
+		),
 	);
 
 	return (

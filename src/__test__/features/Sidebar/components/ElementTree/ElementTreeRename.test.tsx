@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NodeDto } from "../../../../../api/elements/dto/nodeDto";
-import ElementTree from "../../../../../features/Sidebar/components/ElementTree/ElementTree";
+import ElementTreeHarness from "../../../../test-utils/ElementTreeHarness";
 import { renameElementAction } from "../../../../../stores/elements/elementsActions";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
 
@@ -30,7 +30,7 @@ describe("ElementTree rename", () => {
 	beforeEach(() => window.localStorage.clear());
 
 	function render() {
-		return renderWithProviders(<ElementTree tree={TREE} />);
+		return renderWithProviders(<ElementTreeHarness tree={TREE} />);
 	}
 
 	it("Should focus the rename input when a node is double-clicked", async () => {

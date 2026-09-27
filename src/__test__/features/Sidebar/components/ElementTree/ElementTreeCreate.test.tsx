@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NodeDto } from "../../../../../api/elements/dto/nodeDto";
-import ElementTree from "../../../../../features/Sidebar/components/ElementTree/ElementTree";
+import ElementTreeHarness from "../../../../test-utils/ElementTreeHarness";
 import {
 	createExtractAction,
 	createFolderAction,
@@ -55,13 +55,15 @@ describe("ElementTree create child", () => {
 	beforeEach(() => window.localStorage.clear());
 
 	function render() {
-		return renderWithProviders(<ElementTree tree={TREE} />);
+		return renderWithProviders(<ElementTreeHarness tree={TREE} />);
 	}
 
 	it("Should dispatch createFolderAction with the parent folder id when Folder is clicked", async () => {
 		// Arrange
 
-		vi.mocked(createFolderAction).mockReturnValue(() => Promise.resolve());
+		vi.mocked(createFolderAction).mockReturnValue(() =>
+			Promise.resolve(true),
+		);
 
 		const user = userEvent.setup();
 		render();
@@ -94,7 +96,9 @@ describe("ElementTree create child", () => {
 	it("Should dispatch createExtractAction with the learning asset as parent when Extract is clicked", async () => {
 		// Arrange
 
-		vi.mocked(createExtractAction).mockReturnValue(() => Promise.resolve());
+		vi.mocked(createExtractAction).mockReturnValue(() =>
+			Promise.resolve(true),
+		);
 
 		const user = userEvent.setup();
 		render();
@@ -131,7 +135,9 @@ describe("ElementTree create child", () => {
 	it("Should use a name containing the element label and a timestamp when creating", async () => {
 		// Arrange
 
-		vi.mocked(createFolderAction).mockReturnValue(() => Promise.resolve());
+		vi.mocked(createFolderAction).mockReturnValue(() =>
+			Promise.resolve(true),
+		);
 
 		const user = userEvent.setup();
 		render();
@@ -166,7 +172,9 @@ describe("ElementTree create child", () => {
 	it("Should expand the parent node after a child is created via the context menu", async () => {
 		// Arrange
 
-		vi.mocked(createFolderAction).mockReturnValue(() => Promise.resolve());
+		vi.mocked(createFolderAction).mockReturnValue(() =>
+			Promise.resolve(true),
+		);
 
 		const user = userEvent.setup();
 		render();

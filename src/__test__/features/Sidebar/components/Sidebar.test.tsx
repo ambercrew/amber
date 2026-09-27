@@ -19,7 +19,11 @@ describe("Sidebar", () => {
 	function render() {
 		return renderWithProviders(
 			<AppShell>
-				<Sidebar onCollapse={() => undefined} />
+				<Sidebar
+					onCollapse={() => undefined}
+					onExpand={() => undefined}
+					onToggle={() => undefined}
+				/>
 			</AppShell>,
 		);
 	}

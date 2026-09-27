@@ -151,8 +151,8 @@ function renderMenu({
 			}),
 		},
 	});
-	vi.mocked(createExtractAction).mockReturnValue(() => Promise.resolve());
-	vi.mocked(createCardAction).mockReturnValue(() => Promise.resolve());
+	vi.mocked(createExtractAction).mockReturnValue(() => Promise.resolve(true));
+	vi.mocked(createCardAction).mockReturnValue(() => Promise.resolve(true));
 
 	const onHighlightCreated = vi.fn();
 	renderWithProviders(

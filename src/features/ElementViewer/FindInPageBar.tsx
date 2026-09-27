@@ -8,8 +8,13 @@ import {
 	TextAaIcon,
 	XIcon,
 } from "@phosphor-icons/react";
+import AppTooltip from "../../components/AppTooltip/AppTooltip";
 import AutosizeTextInput from "../../components/AutosizeTextInput/AutosizeTextInput";
-import { FIND_IN_PAGE_SHORTCUT } from "../../config/shortcuts";
+import {
+	FIND_IN_PAGE_SHORTCUT,
+	FIND_NEXT_SHORTCUT,
+	FIND_PREVIOUS_SHORTCUT,
+} from "../../config/shortcuts";
 import { useAppHotkeys } from "../../commands/useAppHotkeys";
 import useAppDispatch from "../../hooks/useAppDispatch";
 import useAppSelector from "../../hooks/useAppSelector";
@@ -65,17 +70,16 @@ export default function FindInPageBar() {
 		if (opened) setInputValue(query);
 	}
 
-	// GlobalHotkeys already opens the bar on mod+F; this only refocuses the
-	// input when the bar is already open, since opening it doesn't remount it.
+	// GlobalHotkeys already opens the bar on mod+F; these only apply while it's
+	// open, so the keys stay free for everything else when it's closed.
 	useAppHotkeys(
-		[
-			[
-				FIND_IN_PAGE_SHORTCUT,
-				() => {
-					if (opened) inputRef.current?.focus();
-				},
-			],
-		],
+		opened
+			? [
+					[FIND_IN_PAGE_SHORTCUT, () => inputRef.current?.focus()],
+					[FIND_NEXT_SHORTCUT, onNext],
+					[FIND_PREVIOUS_SHORTCUT, onPrevious],
+				]
+			: [],
 		[],
 		true,
 	);
@@ -155,20 +159,28 @@ export default function FindInPageBar() {
 								? "No results"
 								: `${currentIndex + 1} / ${totalMatches}`}
 						</Text>
-						<ActionIcon
-							variant="subtle"
-							onClick={onPrevious}
-							disabled={totalMatches === 0}
-							aria-label="Previous match">
-							<CaretUpIcon size={18} />
-						</ActionIcon>
-						<ActionIcon
-							variant="subtle"
-							onClick={onNext}
-							disabled={totalMatches === 0}
-							aria-label="Next match">
-							<CaretDownIcon size={18} />
-						</ActionIcon>
+						<AppTooltip
+							label="Previous match"
+							shortcut={FIND_PREVIOUS_SHORTCUT}>
+							<ActionIcon
+								variant="subtle"
+								onClick={onPrevious}
+								disabled={totalMatches === 0}
+								aria-label="Previous match">
+								<CaretUpIcon size={18} />
+							</ActionIcon>
+						</AppTooltip>
+						<AppTooltip
+							label="Next match"
+							shortcut={FIND_NEXT_SHORTCUT}>
+							<ActionIcon
+								variant="subtle"
+								onClick={onNext}
+								disabled={totalMatches === 0}
+								aria-label="Next match">
+								<CaretDownIcon size={18} />
+							</ActionIcon>
+						</AppTooltip>
 						<ActionIcon
 							variant={caseSensitive ? "filled" : "subtle"}
 							onClick={() =>

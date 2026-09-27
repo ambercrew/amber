@@ -3,14 +3,20 @@ import { NavigateFunction } from "react-router";
 import { notifications } from "@mantine/notifications";
 import {
 	ArrowCounterClockwiseIcon,
+	ArrowLeftIcon,
+	ArrowRightIcon,
 	ArrowsClockwiseIcon,
 	ArrowsDownUpIcon,
 	BookOpenIcon,
 	BookmarkSimpleIcon,
+	CalendarBlankIcon,
+	CardsIcon,
+	ChatCircleTextIcon,
 	EraserIcon,
 	FadersHorizontalIcon,
 	GearIcon,
 	KeyboardIcon,
+	TreeStructureIcon,
 	MagnifyingGlassIcon,
 	MagnifyingGlassMinusIcon,
 	MagnifyingGlassPlusIcon,
@@ -18,13 +24,16 @@ import {
 	MoonIcon,
 	PencilSimpleIcon,
 	ShuffleIcon,
+	SidebarSimpleIcon,
 	UploadSimpleIcon,
 } from "@phosphor-icons/react";
 import { AppDispatch, RootState } from "../stores/store";
 import { setVirtualKeyboardSuppressedAction } from "../stores/app/appActions";
 import {
+	openDueDateModal,
 	openImportModal,
 	openPriorityModal,
+	openShortcutsModal,
 	openSettingsModal,
 	openStudyProfileModal,
 	openStudySessionSettingsModal,
@@ -42,6 +51,7 @@ import { isCurrentlyDark } from "./commandUtils";
 import {
 	selectCanZoomAppWide,
 	selectCurrentElement,
+	selectElementTreeError,
 } from "../stores/elements/elementsSelectors";
 import { sync } from "../stores/sync/syncActions";
 import { selectIsSyncing } from "../stores/sync/syncSelector";
@@ -57,19 +67,45 @@ import { isCoarsePointer } from "../utils/pointer";
 import { selectIsVirtualKeyboardSuppressed } from "../stores/app/appSelectors";
 import { ZOOM_STEP, clampZoom } from "../utils/zoom";
 import {
+	CREATE_CARD_SHORTCUT,
 	FIND_IN_PAGE_SHORTCUT,
+	FOCUS_AI_CHAT_SHORTCUT,
+	FOCUS_TREE_SHORTCUT,
+	GO_BACK_SHORTCUT,
+	GO_FORWARD_SHORTCUT,
 	IMPORT_SHORTCUT,
+	OPEN_DUE_DATE_SHORTCUT,
 	OPEN_PRIORITY_SHORTCUT,
 	OPEN_SETTINGS_SHORTCUT,
 	RESET_ZOOM_SHORTCUT,
 	SET_READ_POINT_SHORTCUT,
+	SHOW_SHORTCUTS_SHORTCUT,
+	TOGGLE_LEFT_SIDEBAR_SHORTCUT,
+	TOGGLE_RIGHT_SIDEBAR_SHORTCUT,
 	TOGGLE_STUDY_SESSION_SHORTCUT,
+	ZOOM_IN_ALT_SHORTCUT,
 	ZOOM_IN_SHORTCUT,
 	ZOOM_OUT_SHORTCUT,
 } from "../config/shortcuts";
+import { TOGGLE_LEFT_SIDEBAR_REQUESTED } from "../types/events/toggleLeftSidebarRequestedEvent";
+import { requestFocus } from "../hooks/useFocusRequest";
+import { TOGGLE_RIGHT_SIDEBAR_REQUESTED } from "../types/events/toggleRightSidebarRequestedEvent";
+import { createCardAction } from "../stores/elements/elementsActions";
+import { hasDue } from "../utils/elementDue";
+import { newCardDto } from "../features/Sidebar/components/ElementTree/elementTreeUtils";
+import { paths } from "../paths";
 
 export const commandIds = [
 	"import",
+	"toggle-left-sidebar",
+	"toggle-right-sidebar",
+	"show-shortcuts",
+	"go-back",
+	"go-forward",
+	"focus-tree",
+	"create-card",
+	"open-due-date",
+	"focus-ai-chat",
 	"manage-study-profiles",
 	"enter-study-mode",
 	"enter-edit-mode",
@@ -91,10 +127,14 @@ export const commandIds = [
 export type CommandId = (typeof commandIds)[number];
 
 export const commandGroups = [
-	"General",
+	"App",
+	"Navigation",
+	"Find in page",
+	"Zoom",
+	"AI",
+	"Element actions",
+	"Editor",
 	"Study",
-	"Settings",
-	"Learning Asset",
 ] as const;
 export type CommandGroup = (typeof commandGroups)[number];
 
@@ -103,6 +143,12 @@ export interface Command {
 	group: CommandGroup;
 	label: string | ((state: RootState) => string);
 	shortcut?: string; // useHotkeys format: 'mod+L', 'mod+shift+P', 'alt+ArrowUp'
+	/** Further keys that also run the command but aren't displayed, e.g. `mod+[plus]` beside `mod+=`. */
+	extraShortcuts?: string[];
+	/** Describes the shortcut in the help when one key runs several commands; the others are left out. */
+	shortcutLabel?: string;
+	/** Keep the shortcuts from firing while typing in a text field or the editor. */
+	outsideTextFields?: boolean;
 	icon?: ReactNode;
 	enabled?: (state: RootState) => boolean;
 	execute: (
@@ -115,11 +161,115 @@ export interface Command {
 export const commandsById: Record<CommandId, Command> = {
 	import: {
 		id: "import",
-		group: "General",
+		group: "Element actions",
 		label: "Import",
 		shortcut: IMPORT_SHORTCUT,
 		icon: createElement(UploadSimpleIcon),
 		execute: dispatch => dispatch(openImportModal()),
+	},
+	"toggle-left-sidebar": {
+		id: "toggle-left-sidebar",
+		group: "App",
+		label: "Toggle left sidebar",
+		shortcut: TOGGLE_LEFT_SIDEBAR_SHORTCUT,
+		icon: createElement(SidebarSimpleIcon),
+		execute: () =>
+			window.dispatchEvent(new Event(TOGGLE_LEFT_SIDEBAR_REQUESTED)),
+	},
+	"toggle-right-sidebar": {
+		id: "toggle-right-sidebar",
+		group: "App",
+		label: "Toggle right sidebar",
+		shortcut: TOGGLE_RIGHT_SIDEBAR_SHORTCUT,
+		icon: createElement(SidebarSimpleIcon, { mirrored: true }),
+		execute: () =>
+			window.dispatchEvent(new Event(TOGGLE_RIGHT_SIDEBAR_REQUESTED)),
+	},
+	"show-shortcuts": {
+		id: "show-shortcuts",
+		group: "App",
+		label: "Show keyboard shortcuts",
+		shortcut: SHOW_SHORTCUTS_SHORTCUT,
+		icon: createElement(KeyboardIcon),
+		enabled: () => !isCoarsePointer(),
+		execute: dispatch => dispatch(openShortcutsModal()),
+	},
+	"go-back": {
+		id: "go-back",
+		group: "Navigation",
+		label: "Go back",
+		shortcut: GO_BACK_SHORTCUT,
+		outsideTextFields: true,
+		icon: createElement(ArrowLeftIcon),
+		enabled: () => canGoBack(),
+		execute: (_dispatch, _getState, navigate) => void navigate(-1),
+	},
+	"go-forward": {
+		id: "go-forward",
+		group: "Navigation",
+		label: "Go forward",
+		shortcut: GO_FORWARD_SHORTCUT,
+		outsideTextFields: true,
+		icon: createElement(ArrowRightIcon),
+		execute: (_dispatch, _getState, navigate) => void navigate(1),
+	},
+	"focus-tree": {
+		id: "focus-tree",
+		group: "Navigation",
+		label: "Focus current element in the tree",
+		shortcut: FOCUS_TREE_SHORTCUT,
+		icon: createElement(TreeStructureIcon),
+		execute: () => requestFocus("tree"),
+	},
+	"create-card": {
+		id: "create-card",
+		group: "Element actions",
+		label: "New card on this element",
+		shortcut: CREATE_CARD_SHORTCUT,
+		icon: createElement(CardsIcon),
+		enabled: state => {
+			const type = selectCurrentElement(state)?.type;
+			return !!type && type !== "card";
+		},
+		execute: (dispatch, getState, navigate) => {
+			const parent =
+				selectCurrentElement(getState())?.data.meta.elementId;
+			if (!parent || parent.type === "card") return;
+			const id = crypto.randomUUID();
+			void dispatch(createCardAction(newCardDto(parent, id))).then(
+				created => {
+					if (created) void navigate(paths.element("card", id));
+					// The tree may be hidden, so its error alert can't be relied on.
+					else
+						notifications.show({
+							color: "red",
+							title: "Couldn't create the card",
+							message: selectElementTreeError(getState()),
+						});
+				},
+			);
+		},
+	},
+	"open-due-date": {
+		id: "open-due-date",
+		group: "Element actions",
+		label: "Set due date",
+		shortcut: OPEN_DUE_DATE_SHORTCUT,
+		icon: createElement(CalendarBlankIcon),
+		enabled: state => {
+			const type = selectCurrentElement(state)?.type;
+			return !!type && hasDue(type);
+		},
+		execute: dispatch => dispatch(openDueDateModal()),
+	},
+	"focus-ai-chat": {
+		id: "focus-ai-chat",
+		group: "AI",
+		label: "Ask AI",
+		shortcut: FOCUS_AI_CHAT_SHORTCUT,
+		icon: createElement(ChatCircleTextIcon),
+		enabled: state => selectSettings(state)?.enableAi ?? false,
+		execute: () => requestFocus("aiChat"),
 	},
 	"manage-study-profiles": {
 		id: "manage-study-profiles",
@@ -130,7 +280,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"open-settings": {
 		id: "open-settings",
-		group: "Settings",
+		group: "App",
 		label: "Open settings",
 		shortcut: OPEN_SETTINGS_SHORTCUT,
 		icon: createElement(GearIcon),
@@ -138,7 +288,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"toggle-theme": {
 		id: "toggle-theme",
-		group: "Settings",
+		group: "App",
 		label: state =>
 			isCurrentlyDark(state)
 				? "Switch to light theme"
@@ -155,6 +305,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "enter-study-mode",
 		group: "Study",
 		label: "Enter study mode",
+		shortcutLabel: "Switch between study and edit mode",
 		shortcut: TOGGLE_STUDY_SESSION_SHORTCUT,
 		icon: createElement(BookOpenIcon),
 		enabled: state => selectStudyStatus(state) !== "studying",
@@ -175,7 +326,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"set-read-point": {
 		id: "set-read-point",
-		group: "Learning Asset",
+		group: "Element actions",
 		label: "Set read point",
 		shortcut: SET_READ_POINT_SHORTCUT,
 		icon: createElement(BookmarkSimpleIcon),
@@ -187,7 +338,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"clear-read-point": {
 		id: "clear-read-point",
-		group: "Learning Asset",
+		group: "Element actions",
 		label: "Clear read point",
 		icon: createElement(EraserIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
@@ -198,7 +349,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"go-to-read-point": {
 		id: "go-to-read-point",
-		group: "Learning Asset",
+		group: "Element actions",
 		label: "Go to read point",
 		icon: createElement(MapPinIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
@@ -208,8 +359,8 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"open-priority": {
 		id: "open-priority",
-		group: "Study",
-		label: "Set element priority",
+		group: "Element actions",
+		label: "Set priority",
 		shortcut: OPEN_PRIORITY_SHORTCUT,
 		icon: createElement(ArrowsDownUpIcon),
 		enabled: state => selectCurrentElement(state) !== null,
@@ -224,7 +375,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"find-in-page": {
 		id: "find-in-page",
-		group: "General",
+		group: "Find in page",
 		label: "Find in page",
 		shortcut: FIND_IN_PAGE_SHORTCUT,
 		icon: createElement(MagnifyingGlassIcon),
@@ -233,7 +384,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	sync: {
 		id: "sync",
-		group: "General",
+		group: "App",
 		label: state => (selectIsSyncing(state) ? "Syncing..." : "Sync"),
 		icon: createElement(ArrowsClockwiseIcon),
 		enabled: state =>
@@ -244,9 +395,10 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"zoom-in": {
 		id: "zoom-in",
-		group: "Settings",
+		group: "Zoom",
 		label: "Zoom in",
 		shortcut: ZOOM_IN_SHORTCUT,
+		extraShortcuts: [ZOOM_IN_ALT_SHORTCUT],
 		icon: createElement(MagnifyingGlassPlusIcon),
 		enabled: state => !isMobile() && selectCanZoomAppWide(state),
 		execute: (dispatch, getState) => {
@@ -262,7 +414,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"zoom-out": {
 		id: "zoom-out",
-		group: "Settings",
+		group: "Zoom",
 		label: "Zoom out",
 		shortcut: ZOOM_OUT_SHORTCUT,
 		icon: createElement(MagnifyingGlassMinusIcon),
@@ -280,7 +432,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"disable-virtual-keyboard": {
 		id: "disable-virtual-keyboard",
-		group: "Settings",
+		group: "App",
 		label: "Disable on-screen keyboard",
 		icon: createElement(KeyboardIcon),
 		enabled: state =>
@@ -289,7 +441,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"enable-virtual-keyboard": {
 		id: "enable-virtual-keyboard",
-		group: "Settings",
+		group: "App",
 		label: "Enable on-screen keyboard",
 		icon: createElement(KeyboardIcon),
 		// Deliberately not gated on the pointer type: suppression outlives a
@@ -301,7 +453,7 @@ export const commandsById: Record<CommandId, Command> = {
 	},
 	"reset-zoom": {
 		id: "reset-zoom",
-		group: "Settings",
+		group: "Zoom",
 		label: "Reset zoom",
 		shortcut: RESET_ZOOM_SHORTCUT,
 		icon: createElement(ArrowCounterClockwiseIcon),
@@ -315,6 +467,12 @@ export const commandsById: Record<CommandId, Command> = {
 		},
 	},
 };
+
+// React Router numbers its history entries; the first one has nothing behind it.
+function canGoBack() {
+	const state = window.history.state as { idx?: number } | null;
+	return (state?.idx ?? 0) > 0;
+}
 
 /** Declaration order, for consumers that list/iterate commands rather than look one up by id. */
 export const commands: Command[] = Object.values(commandsById);

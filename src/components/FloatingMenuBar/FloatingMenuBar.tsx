@@ -18,6 +18,7 @@ export interface FloatingMenuBarButton {
 	showLabel?: boolean;
 	color?: MantineColor;
 	Icon: React.ComponentType<{ size?: number }>;
+	shortcut?: string;
 	isActive?: boolean;
 	isVisible?: boolean;
 	onClick?: () => void;
@@ -78,7 +79,10 @@ const FloatingMenuBar = forwardRef<HTMLDivElement, Props>(
 								orientation="vertical"
 							/>
 						) : item.showLabel ? (
-							<AppTooltip key={item.name} label={item.title}>
+							<AppTooltip
+								key={item.name}
+								label={item.title}
+								shortcut={item.shortcut}>
 								<Button
 									variant={
 										item.isActive ? "filled" : "subtle"
@@ -96,7 +100,10 @@ const FloatingMenuBar = forwardRef<HTMLDivElement, Props>(
 								</Button>
 							</AppTooltip>
 						) : (
-							<AppTooltip key={item.name} label={item.title}>
+							<AppTooltip
+								key={item.name}
+								label={item.title}
+								shortcut={item.shortcut}>
 								<ActionIcon
 									variant={
 										item.isActive ? "filled" : "subtle"

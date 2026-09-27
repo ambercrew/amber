@@ -33,6 +33,8 @@ function renderModal(opened: boolean) {
 				studyProfileModalOpened: false,
 				settingsModalOpened: opened,
 				priorityModalOpened: false,
+				dueDateModalOpened: false,
+				shortcutsModalOpened: false,
 				studySessionSettingsModalOpened: false,
 				authModalOpened: false,
 				authModalInitialTab: "sign-in",

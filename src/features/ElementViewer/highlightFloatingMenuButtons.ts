@@ -6,10 +6,17 @@ import {
 	SparkleIcon,
 } from "@phosphor-icons/react";
 import { FloatingMenuBarButton } from "../../components/FloatingMenuBar/FloatingMenuBar";
+import {
+	ADD_TO_AI_CONTEXT_SHORTCUT,
+	CREATE_CLOZE_SHORTCUT,
+	CREATE_EXTRACT_SHORTCUT,
+	OPEN_HIGHLIGHT_SHORTCUT,
+	REMOVE_HIGHLIGHT_SHORTCUT,
+} from "../../config/shortcuts";
 
 type ButtonMetadata = Pick<
 	FloatingMenuBarButton,
-	"name" | "title" | "label" | "showLabel" | "color" | "Icon"
+	"name" | "title" | "label" | "showLabel" | "color" | "Icon" | "shortcut"
 >;
 
 /**
@@ -25,6 +32,7 @@ export const EXTRACT_BUTTON: ButtonMetadata = {
 	label: "Extract",
 	showLabel: true,
 	Icon: ScissorsIcon,
+	shortcut: CREATE_EXTRACT_SHORTCUT,
 };
 
 export const CLOZE_BUTTON: ButtonMetadata = {
@@ -33,12 +41,14 @@ export const CLOZE_BUTTON: ButtonMetadata = {
 	label: "Cloze",
 	showLabel: true,
 	Icon: CardsIcon,
+	shortcut: CREATE_CLOZE_SHORTCUT,
 };
 
 export const ADD_AI_CONTEXT_BUTTON: ButtonMetadata = {
 	name: "add-ai-context",
 	title: "Add to AI Context",
 	Icon: SparkleIcon,
+	shortcut: ADD_TO_AI_CONTEXT_SHORTCUT,
 };
 
 /** Acts on the highlight (if any) under the current selection. */
@@ -46,6 +56,7 @@ export const OPEN_HIGHLIGHT_BUTTON: ButtonMetadata = {
 	name: "open-highlight",
 	title: "Open",
 	Icon: ArrowSquareOutIcon,
+	shortcut: OPEN_HIGHLIGHT_SHORTCUT,
 };
 
 export const REMOVE_HIGHLIGHT_BUTTON: ButtonMetadata = {
@@ -53,4 +64,5 @@ export const REMOVE_HIGHLIGHT_BUTTON: ButtonMetadata = {
 	title: "Remove Highlight",
 	color: "red",
 	Icon: EraserIcon,
+	shortcut: REMOVE_HIGHLIGHT_SHORTCUT,
 };

@@ -26,6 +26,7 @@ import { Rating } from "../../../types/study/rating";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import { useAppHotkeys } from "../../../commands/useAppHotkeys";
+import { useRunCommand } from "../../../commands/useRunCommand";
 import {
 	FINISH_LEARNING_ASSET_SHORTCUT,
 	GRADE_AGAIN_SHORTCUT,
@@ -33,6 +34,7 @@ import {
 	GRADE_GOOD_SHORTCUT,
 	GRADE_HARD_SHORTCUT,
 	NEXT_LEARNING_ASSET_SHORTCUT,
+	PICK_DUE_DATE_SHORTCUT,
 	SHOW_ANSWER_SHORTCUT,
 	SKIP_LEARNING_ASSET_SHORTCUT,
 } from "../../../config/shortcuts";
@@ -53,6 +55,7 @@ function formatElapsed(totalSeconds: number): string {
 function StudySessionBar() {
 	const dispatch = useAppDispatch();
 	const navigate = useNavigate();
+	const runCommand = useRunCommand();
 	const current = useAppSelector(selectStudyCurrentElement);
 	const queue = useAppSelector(selectStudyQueue);
 	const totalCount = useAppSelector(selectStudyTotalCount);
@@ -115,36 +118,56 @@ function StudySessionBar() {
 		action(current);
 	};
 
-	useAppHotkeys([
-		[
-			SHOW_ANSWER_SHORTCUT,
-			() => {
-				if (answerHidden) dispatch(answerShown());
-			},
-		],
-		[GRADE_AGAIN_SHORTCUT, gradeShortcut("again")],
-		[GRADE_HARD_SHORTCUT, gradeShortcut("hard")],
-		[GRADE_GOOD_SHORTCUT, gradeShortcut("good")],
-		[GRADE_EASY_SHORTCUT, gradeShortcut("easy")],
-		[
-			SKIP_LEARNING_ASSET_SHORTCUT,
-			learningAssetShortcut(
-				id => void dispatch(skipLearningAssetAction(id, navigate)),
-			),
-		],
-		[
-			NEXT_LEARNING_ASSET_SHORTCUT,
-			learningAssetShortcut(
-				id => void dispatch(nextLearningAssetAction(id, navigate)),
-			),
-		],
-		[
-			FINISH_LEARNING_ASSET_SHORTCUT,
-			learningAssetShortcut(
-				id => void dispatch(finishLearningAssetAction(id, navigate)),
-			),
-		],
-	]);
+	// Only bound mid-session, so these keys stay free the rest of the time.
+	useAppHotkeys(
+		current
+			? [
+					[
+						SHOW_ANSWER_SHORTCUT,
+						() => {
+							if (answerHidden) dispatch(answerShown());
+						},
+					],
+					[GRADE_AGAIN_SHORTCUT, gradeShortcut("again")],
+					[GRADE_HARD_SHORTCUT, gradeShortcut("hard")],
+					[GRADE_GOOD_SHORTCUT, gradeShortcut("good")],
+					[GRADE_EASY_SHORTCUT, gradeShortcut("easy")],
+					[
+						SKIP_LEARNING_ASSET_SHORTCUT,
+						learningAssetShortcut(
+							id =>
+								void dispatch(
+									skipLearningAssetAction(id, navigate),
+								),
+						),
+					],
+					[
+						NEXT_LEARNING_ASSET_SHORTCUT,
+						learningAssetShortcut(
+							id =>
+								void dispatch(
+									nextLearningAssetAction(id, navigate),
+								),
+						),
+					],
+					[
+						PICK_DUE_DATE_SHORTCUT,
+						learningAssetShortcut(() =>
+							runCommand("open-due-date"),
+						),
+					],
+					[
+						FINISH_LEARNING_ASSET_SHORTCUT,
+						learningAssetShortcut(
+							id =>
+								void dispatch(
+									finishLearningAssetAction(id, navigate),
+								),
+						),
+					],
+				]
+			: [],
+	);
 
 	if (!current) return null;
 

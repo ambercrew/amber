@@ -21,8 +21,8 @@ function HookWrapper({
 }
 
 function renderHandler() {
-	vi.mocked(createCardAction).mockReturnValue(() => Promise.resolve());
-	vi.mocked(createExtractAction).mockReturnValue(() => Promise.resolve());
+	vi.mocked(createCardAction).mockReturnValue(() => Promise.resolve(true));
+	vi.mocked(createExtractAction).mockReturnValue(() => Promise.resolve(true));
 
 	let handleHighlightCreated!: (payload: HighlightCreatedPayload) => void;
 	renderWithProviders(

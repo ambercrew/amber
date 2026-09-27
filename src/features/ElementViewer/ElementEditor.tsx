@@ -29,7 +29,6 @@ export interface ElementEditorSearchProps {
 interface ElementEditorProps {
 	initialContent: string;
 	buttons: FloatingMenuItem[];
-	autoFocus?: boolean;
 	onHighlightCreated?: (payload: HighlightCreatedPayload) => void;
 	onChange: (content: string) => Promise<void>;
 	/** Receives the editor's root element (see `RootElementPlugin`). */
@@ -47,7 +46,6 @@ interface ElementEditorProps {
 export default function ElementEditor({
 	initialContent,
 	buttons,
-	autoFocus,
 	onHighlightCreated,
 	onChange,
 	onRootElement,
@@ -92,7 +90,6 @@ export default function ElementEditor({
 			)}
 			<Editor
 				initialContent={initialContent}
-				autoFocus={autoFocus}
 				onHighlightCreated={onHighlightCreated}
 				contextMenuItems={contextMenuItems}>
 				<FloatingMenuPlugin buttons={buttons} />

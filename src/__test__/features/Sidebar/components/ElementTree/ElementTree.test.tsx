@@ -3,7 +3,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { listen } from "@tauri-apps/api/event";
 import { NodeDto } from "../../../../../api/elements/dto/nodeDto";
-import ElementTree from "../../../../../features/Sidebar/components/ElementTree/ElementTree";
+import ElementTreeHarness from "../../../../test-utils/ElementTreeHarness";
 import { ElementId } from "../../../../../types/elements/elementId";
 import {
 	LOCATION_DISPLAY_TEST_ID,
@@ -78,7 +78,7 @@ describe("ElementTree search", () => {
 	function render() {
 		return renderWithProviders(
 			<MantineProvider>
-				<ElementTree tree={TREE} />
+				<ElementTreeHarness tree={TREE} />
 			</MantineProvider>,
 		);
 	}
@@ -340,7 +340,7 @@ describe("ElementTree sorting", () => {
 		const user = userEvent.setup();
 		renderWithProviders(
 			<MantineProvider>
-				<ElementTree tree={tree} />
+				<ElementTreeHarness tree={tree} />
 			</MantineProvider>,
 		);
 
@@ -395,7 +395,7 @@ describe("ElementTree sorting", () => {
 		];
 		renderWithProviders(
 			<MantineProvider>
-				<ElementTree tree={tree} />
+				<ElementTreeHarness tree={tree} />
 			</MantineProvider>,
 		);
 
@@ -411,5 +411,58 @@ describe("ElementTree sorting", () => {
 		const idx = (name: string) => items.indexOf(name);
 		expect(idx("First Folder")).toBeLessThan(idx("Middle LearningAsset"));
 		expect(idx("Middle LearningAsset")).toBeLessThan(idx("Last Folder"));
+	});
+});
+
+describe("ElementTree keyboard", () => {
+	beforeEach(() => {
+		window.localStorage.clear();
+		vi.mocked(listen).mockResolvedValue(() => {
+			/* Empty */
+		});
+	});
+
+	function render() {
+		return renderWithProviders(
+			<MantineProvider>
+				<ElementTreeHarness tree={TREE} />
+			</MantineProvider>,
+		);
+	}
+
+	it("Should open the next element when alt+ArrowDown is pressed on a focused tree item", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		render();
+		act(() => screen.getAllByRole("treeitem")[1].focus());
+
+		// Act
+
+		await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+
+		// Assert
+
+		expect(screen.getByTestId(LOCATION_DISPLAY_TEST_ID)).toHaveTextContent(
+			"/folder/folder-science",
+		);
+	});
+
+	it("Should open the focused element when Enter is pressed on a tree item", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		render();
+		act(() => screen.getAllByRole("treeitem")[1].focus());
+
+		// Act
+
+		await user.keyboard("{Enter}");
+
+		// Assert
+
+		expect(screen.getByTestId(LOCATION_DISPLAY_TEST_ID)).toHaveTextContent(
+			"/folder/folder-art",
+		);
 	});
 });

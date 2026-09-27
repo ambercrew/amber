@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import { NodeDto } from "../../../../../api/elements/dto/nodeDto";
-import ElementTree from "../../../../../features/Sidebar/components/ElementTree/ElementTree";
+import ElementTreeHarness from "../../../../test-utils/ElementTreeHarness";
 import { useIsCoarsePointer } from "../../../../../hooks/useIsCoarsePointer";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
 
@@ -21,7 +21,7 @@ describe("ElementTreeNode actions menu", () => {
 	beforeEach(() => window.localStorage.clear());
 
 	function renderMenuButton() {
-		renderWithProviders(<ElementTree tree={TREE} />);
+		renderWithProviders(<ElementTreeHarness tree={TREE} />);
 		return screen.getByLabelText("Open actions menu");
 	}
 

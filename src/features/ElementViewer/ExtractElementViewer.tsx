@@ -13,7 +13,6 @@ interface ExtractElementViewerProps {
 	elementId: ElementId;
 	extract: ExtractResponseDto;
 	buttons: FloatingMenuItem[];
-	autoFocus: boolean;
 	onChange: (content: string) => Promise<void>;
 	onHighlightCreated?: (payload: HighlightCreatedPayload) => void;
 }
@@ -22,7 +21,6 @@ export default function ExtractElementViewer({
 	elementId,
 	extract,
 	buttons,
-	autoFocus,
 	onChange,
 	onHighlightCreated,
 }: ExtractElementViewerProps) {
@@ -37,7 +35,6 @@ export default function ExtractElementViewer({
 				buttons={buttons}
 				onChange={onChange}
 				onHighlightCreated={onHighlightCreated}
-				autoFocus={autoFocus}
 				search={{
 					editorKey: "extract",
 					query,

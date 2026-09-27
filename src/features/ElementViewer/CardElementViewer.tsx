@@ -57,7 +57,6 @@ export default function CardElementViewer({
 						buttons={buttons}
 						onChange={onFrontChange}
 						onHighlightCreated={onHighlightCreated}
-						autoFocus={status === "editing"}
 						search={{
 							editorKey: "front",
 							query,

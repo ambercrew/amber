@@ -67,9 +67,15 @@ function parseShortcut(shortcut: string): ParsedShortcut {
 	};
 }
 
+/** `?` or `+` needs shift on most layouts, so shift can't be part of what identifies them. */
+function isPunctuation(key: string | undefined) {
+	return key?.length === 1 && !LATIN_CHARACTER.test(key);
+}
+
 function modifiersMatch(shortcut: ParsedShortcut, event: KeyboardEvent) {
 	if (shortcut.alt !== event.altKey) return false;
-	if (shortcut.shift !== event.shiftKey) return false;
+	const ignoreShift = !shortcut.shift && isPunctuation(shortcut.key);
+	if (!ignoreShift && shortcut.shift !== event.shiftKey) return false;
 
 	if (shortcut.mod) return event.ctrlKey || event.metaKey;
 
@@ -90,6 +96,8 @@ export function matchesShortcut(shortcut: string, event: KeyboardEvent) {
 	const expected = normalizeKey(parsed.key);
 	if (event.key && normalizeKey(event.key) === expected) return true;
 
+	// A physical key means a different character with shift, so shift must match exactly here.
+	if (parsed.shift !== event.shiftKey) return false;
 	const producesLatinCharacter =
 		event.key?.length !== 1 || LATIN_CHARACTER.test(event.key);
 	if (producesLatinCharacter) return false;

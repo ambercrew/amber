@@ -116,6 +116,7 @@ export function useElementViewerButtons(): FloatingMenuItem[] {
 			// Acts on the highlight (if any) under the current selection.
 			{
 				...OPEN_HIGHLIGHT_BUTTON,
+				actsOnCaret: true,
 				isActive: () => false,
 				isVisible: selection =>
 					!!$getHighlightNodeFromSelection(selection),
@@ -140,6 +141,7 @@ export function useElementViewerButtons(): FloatingMenuItem[] {
 			},
 			{
 				...REMOVE_HIGHLIGHT_BUTTON,
+				actsOnCaret: true,
 				isActive: () => false,
 				isVisible: selection =>
 					!!$getHighlightNodeFromSelection(selection),

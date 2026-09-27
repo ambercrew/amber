@@ -32,6 +32,8 @@ import ImportModal from "../../Import/components/ImportModal.tsx";
 import StudyProfileModal from "../../Study/components/StudyProfileModal.tsx";
 import SettingsModal from "../../Settings/components/SettingsModal.tsx";
 import PriorityModal from "../../Aside/components/PriorityModal.tsx";
+import DueDateModal from "../../Aside/components/DueDateModal.tsx";
+import ShortcutsModal from "./ShortcutsModal.tsx";
 import StudySessionSettingsModal from "../../Study/components/StudySessionSettingsModal.tsx";
 import AuthModal from "../../Auth/components/AuthModal.tsx";
 import VerifyEmailModal from "../../Auth/components/VerifyEmailModal.tsx";
@@ -216,6 +218,8 @@ function App() {
 					<StudyProfileModal />
 					<SettingsModal />
 					<PriorityModal />
+					<DueDateModal />
+					<ShortcutsModal />
 					<StudySessionSettingsModal />
 					<AuthModal />
 					<VerifyEmailModal />
@@ -248,7 +252,11 @@ function App() {
 					</AppShell.Footer>
 
 					<AppShell.Navbar style={safeAreaTop}>
-						<Sidebar onCollapse={() => splitter.collapse(0)} />
+						<Sidebar
+							onCollapse={() => splitter.collapse(0)}
+							onExpand={() => splitter.expand(0)}
+							onToggle={() => splitter.toggleCollapse(0)}
+						/>
 						{!isSmallScreen && (
 							<ResizeHandle
 								side="right"
@@ -299,7 +307,11 @@ function App() {
 					</AppShell.Main>
 
 					<AppShell.Aside style={safeAreaTop}>
-						<Aside onCollapse={() => setAsideExpanded(false)} />
+						<Aside
+							onCollapse={() => setAsideExpanded(false)}
+							onExpand={() => setAsideExpanded(true)}
+							onToggle={() => setAsideExpanded(v => !v)}
+						/>
 						{!isSmallScreen && (
 							<ResizeHandle
 								side="left"

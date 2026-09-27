@@ -100,12 +100,15 @@ function withTreeRefresh(operation: () => Promise<void>) {
 	};
 }
 
+/** Resolves to whether the operation succeeded; failures are reported as a tree error. */
 function withErrorHandling(operation: () => Promise<void>) {
 	return async (dispatch: AppDispatch) => {
 		try {
 			await operation();
+			return true;
 		} catch (error) {
 			dispatch(setTreeError(errorToString(error)));
+			return false;
 		}
 	};
 }

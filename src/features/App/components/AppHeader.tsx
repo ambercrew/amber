@@ -6,7 +6,11 @@ import { useLocation } from "react-router";
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
-import { SPOTLIGHT_SHORTCUT } from "../../../config/shortcuts";
+import {
+	SPOTLIGHT_SHORTCUT,
+	TOGGLE_LEFT_SIDEBAR_SHORTCUT,
+	TOGGLE_RIGHT_SIDEBAR_SHORTCUT,
+} from "../../../config/shortcuts";
 import StudyModeToggle from "../../Study/components/StudyModeToggle";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import { BrowserIcon, HomeIcon } from "../../../config/icons";
@@ -54,7 +58,9 @@ function AppHeader({ onToggleSidebar, onToggleAside }: AppHeaderProps) {
 			wrap="nowrap"
 			justify="space-between">
 			<Group gap={0} align="center" wrap="nowrap" miw={0}>
-				<AppTooltip label="Toggle left sidebar">
+				<AppTooltip
+					label="Toggle left sidebar"
+					shortcut={TOGGLE_LEFT_SIDEBAR_SHORTCUT}>
 					<ActionIcon
 						variant="subtle"
 						size="lg"
@@ -87,7 +93,9 @@ function AppHeader({ onToggleSidebar, onToggleAside }: AppHeaderProps) {
 						<CommandIcon size={18} />
 					</ActionIcon>
 				</AppTooltip>
-				<AppTooltip label="Toggle right sidebar">
+				<AppTooltip
+					label="Toggle right sidebar"
+					shortcut={TOGGLE_RIGHT_SIDEBAR_SHORTCUT}>
 					<ActionIcon
 						variant="subtle"
 						size="lg"
