@@ -85,6 +85,10 @@ jobs:
       # upstream removed in pkgforge-dev/Anylinux-AppImages@e3de1528; pin a commit that has them.
       ANYLINUX_LIB_SOURCE: https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/df9cd3246ccbcf61eb22fc321a52277351047b4b/useful-tools/lib/anylinux.c
       GTK_CLASS_FIX_SOURCE: https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/df9cd3246ccbcf61eb22fc321a52277351047b4b/useful-tools/lib/gtk-class-fix.c
+      # CEF dlopens GL/Vulkan, so quick-sharun doesn't detect them; bundle Mesa to match the bundled
+      # glibc, since host drivers built against a newer glibc fail to load (glXQueryExtensionsString NULL).
+      DEPLOY_OPENGL: "1"
+      DEPLOY_VULKAN: "1"
     steps:
       - uses: actions/checkout@v5
       - name: setup node
@@ -107,6 +111,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          # Mesa GL/EGL/Vulkan drivers for the AppImage (see DEPLOY_OPENGL above).
+          sudo apt-get install -y libgl1-mesa-dri libglx-mesa0 libegl-mesa0 libgbm1 mesa-vulkan-drivers libvulkan1
 
       # The AppImage/deb/rpm bundlers only ship libcef.so and the CEF resource
       # files when the CLI resolves a `cef_path`, which upstream cannot do.
