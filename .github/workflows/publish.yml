@@ -319,14 +319,24 @@ jobs:
       - name: build Android APK and AAB
         run: npm run android:build -- --apk --aab
 
+      # Upload by release id: a draft has no tag yet, so tag lookups can miss it and create a duplicate release.
       - name: upload Android artifacts to release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: v${{ needs.create-release.outputs.version }}
-          draft: true
-          files: |
-            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+        run: |
+          repo="${{ github.repository }}"
+          id="${{ needs.create-release.outputs.release_id }}"
+          for f in src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk \
+                   src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab; do
+            name=$(basename "$f")
+            # Replace an asset left by a previous run of this job.
+            existing=$(gh api "repos/$repo/releases/$id/assets" --paginate \
+              --jq ".[] | select(.name == \"$name\") | .id")
+            if [ -n "$existing" ]; then
+              gh api --method DELETE "repos/$repo/releases/assets/$existing"
+            fi
+            gh api --method POST \
+              "https://uploads.github.com/repos/$repo/releases/$id/assets?name=$name" \
+              -H "Content-Type: application/octet-stream" --input "$f" --jq '.browser_download_url'
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
