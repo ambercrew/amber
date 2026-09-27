@@ -463,6 +463,89 @@ async fn ensure_success_response(
             )),
             Err(err) => Err(AmberBackendClientError::Deserialization(Box::new(err))),
         },
-        _ => Err(AmberBackendClientError::UnexpectedResponse),
+        _ => Err(unexpected_response(response).await),
+    }
+}
+
+/// Longest raw body kept in an error, so an HTML error page can't flood the UI.
+const MAX_RAW_BODY_CHARS: usize = 300;
+
+/// Describes an unexpected response by the server's problem details, falling back to its raw body.
+async fn unexpected_response(response: Response) -> AmberBackendClientError {
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    let detail = problem_details_message(&body)
+        .or_else(|| {
+            let raw = body.trim();
+            (!raw.is_empty()).then(|| raw.chars().take(MAX_RAW_BODY_CHARS).collect())
+        })
+        .unwrap_or_else(|| status.canonical_reason().unwrap_or("no details").to_owned());
+
+    log::error!("Unexpected backend response {status}: {body}");
+    AmberBackendClientError::UnexpectedResponse {
+        status: status.as_u16(),
+        detail,
+    }
+}
+
+/// ASP.NET fills `detail` for handled errors but only `title` for unhandled ones.
+fn problem_details_message(body: &str) -> Option<String> {
+    let json: serde_json::Value = serde_json::from_str(body).ok()?;
+    ["detail", "title"]
+        .iter()
+        .find_map(|key| json.get(key)?.as_str().filter(|s| !s.is_empty()))
+        .map(str::to_owned)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn problem_details_message_with_detail_returns_detail() {
+        // Arrange
+
+        let body = r#"{"title":"Bad Request","detail":"Batch is too large","status":400}"#;
+
+        // Act
+
+        let actual = problem_details_message(body);
+
+        // Assert
+
+        assert_eq!(Some("Batch is too large".to_owned()), actual);
+    }
+
+    #[test]
+    fn problem_details_message_without_detail_returns_title() {
+        // Arrange
+
+        let body = r#"{"title":"An error occurred while processing your request.","status":500}"#;
+
+        // Act
+
+        let actual = problem_details_message(body);
+
+        // Assert
+
+        assert_eq!(
+            Some("An error occurred while processing your request.".to_owned()),
+            actual
+        );
+    }
+
+    #[test]
+    fn problem_details_message_non_json_body_returns_none() {
+        // Arrange
+
+        let body = "<html>Bad Gateway</html>";
+
+        // Act
+
+        let actual = problem_details_message(body);
+
+        // Assert
+
+        assert_eq!(None, actual);
     }
 }

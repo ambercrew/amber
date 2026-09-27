@@ -14,11 +14,11 @@ pub enum AmberBackendClientError {
     InvalidCredentials,
     #[error("Unauthorized!")]
     Unauthorized,
-    #[error("The application received an unexpected response!")]
-    UnexpectedResponse,
-    #[error("An unknown error occurred while sending the request")]
+    #[error("The server responded with {status}: {detail}")]
+    UnexpectedResponse { status: u16, detail: String },
+    #[error("An unknown error occurred while sending the request: {0}")]
     Unknown(#[source] SourceError),
-    #[error("Failed to deserialize the response")]
+    #[error("Failed to deserialize the response: {0}")]
     Deserialization(#[source] SourceError),
     #[error("{0}")]
     BadRequest(String),
@@ -39,6 +39,10 @@ impl PartialEq for AmberBackendClientError {
         match (self, other) {
             (Self::BadRequest(a), Self::BadRequest(b)) => a == b,
             (Self::InsufficientStorage(a), Self::InsufficientStorage(b)) => a == b,
+            (
+                Self::UnexpectedResponse { status: a, .. },
+                Self::UnexpectedResponse { status: b, .. },
+            ) => a == b,
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }
     }
