@@ -15,6 +15,7 @@ import PageTitle, {
 } from "../../components/PageTitle/PageTitle";
 import { FolderElementIcon, HomeIcon } from "../../config/icons";
 import { useFolderTrail } from "./hooks/useFolderTrail";
+import HomeStatistics from "./HomeStatistics/HomeStatistics";
 import useAppDispatch from "../../hooks/useAppDispatch";
 import useAppSelector from "../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../stores/elements/elementsSelectors";
@@ -51,46 +52,49 @@ export default function FolderView() {
 
 	return (
 		<Container size="md" py="lg">
-			<Paper withBorder radius="md" p="md">
-				<Stack gap="lg">
-					<PageTitle
-						icon={folder ? <FolderElementIcon /> : <HomeIcon />}
-						title={
-							trail.length === 0 ? (
-								"Home"
-							) : (
-								<Group gap="xs" wrap="nowrap">
-									<Text fz={PAGE_TITLE_FONT_SIZE}>/</Text>
-									<Breadcrumbs
-										fz={PAGE_TITLE_FONT_SIZE}
-										separator="/">
-										{crumbs}
-									</Breadcrumbs>
-								</Group>
-							)
-						}
-						description={
-							folder
-								? "Import content into this folder, or pick one of its elements from the sidebar."
-								: "The root of your collection. Import something to get started, or pick an element from the sidebar."
-						}
-					/>
+			<Stack gap="md">
+				<Paper withBorder radius="md" p="md">
+					<Stack gap="lg">
+						<PageTitle
+							icon={folder ? <FolderElementIcon /> : <HomeIcon />}
+							title={
+								trail.length === 0 ? (
+									"Home"
+								) : (
+									<Group gap="xs" wrap="nowrap">
+										<Text fz={PAGE_TITLE_FONT_SIZE}>/</Text>
+										<Breadcrumbs
+											fz={PAGE_TITLE_FONT_SIZE}
+											separator="/">
+											{crumbs}
+										</Breadcrumbs>
+									</Group>
+								)
+							}
+							description={
+								folder
+									? "Import content into this folder, or pick one of its elements from the sidebar."
+									: "The root of your collection. Import something to get started, or pick an element from the sidebar."
+							}
+						/>
 
-					<Group>
-						<Button
-							variant="default"
-							size="xl"
-							h="auto"
-							py="md"
-							onClick={() => dispatch(openImportModal())}>
-							<Stack align="center" gap={4}>
-								<UploadSimpleIcon size={28} />
-								<Text>Import file or web page…</Text>
-							</Stack>
-						</Button>
-					</Group>
-				</Stack>
-			</Paper>
+						<Group>
+							<Button
+								variant="default"
+								size="xl"
+								h="auto"
+								py="md"
+								onClick={() => dispatch(openImportModal())}>
+								<Stack align="center" gap={4}>
+									<UploadSimpleIcon size={28} />
+									<Text>Import file or web page…</Text>
+								</Stack>
+							</Button>
+						</Group>
+					</Stack>
+				</Paper>
+				{!folder && <HomeStatistics />}
+			</Stack>
 		</Container>
 	);
 }

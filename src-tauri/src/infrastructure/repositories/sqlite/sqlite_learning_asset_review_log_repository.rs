@@ -24,12 +24,13 @@ impl LearningAssetReviewLogRepository for SqliteLearningAssetReviewLogRepository
         let action = log.action.as_str();
 
         sqlx::query!(
-            r#"INSERT INTO learning_asset_review_logs (id, element_id, reviewed_at, action)
-            VALUES ($1, $2, datetime($3), $4)"#,
+            r#"INSERT INTO learning_asset_review_logs (id, element_id, reviewed_at, action, duration_ms)
+            VALUES ($1, $2, datetime($3), $4, $5)"#,
             log.id.hyphenated(),
             log.element_id.map(|id| id.hyphenated()),
             log.reviewed_at,
             action,
+            log.duration_ms,
         )
         .execute(&mut *tx)
         .await?;
@@ -118,6 +119,7 @@ mod tests {
             element_id: Some(element_id),
             reviewed_at: Utc::now(),
             action: LearningAssetAction::Next,
+            duration_ms: Some(90_000),
         };
 
         // Act

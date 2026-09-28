@@ -24,8 +24,9 @@ export function getCardScheduling(cardId: string): Promise<CardSchedulingDto> {
 
 export function nextLearningAsset(
 	elementId: ElementId,
+	durationMs: number | null,
 ): Promise<LearningAssetReviewDto> {
-	return invoke("next_learning_asset", { elementId });
+	return invoke("next_learning_asset", { elementId, durationMs });
 }
 
 export function previewNextLearningAsset(
@@ -36,8 +37,9 @@ export function previewNextLearningAsset(
 
 export function finishLearningAsset(
 	elementId: ElementId,
+	durationMs: number | null,
 ): Promise<LearningAssetReviewDto> {
-	return invoke("finish_learning_asset", { elementId });
+	return invoke("finish_learning_asset", { elementId, durationMs });
 }
 
 export function unfinishLearningAsset(

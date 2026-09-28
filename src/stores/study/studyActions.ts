@@ -51,8 +51,7 @@ export function gradeCardAction(
 	navigate: NavigateFunction,
 ) {
 	return async (dispatch: AppDispatch, getState: () => RootState) => {
-		const shownAt = getState().study.shownAt;
-		const durationMs = shownAt ? Date.now() - shownAt : null;
+		const durationMs = elapsedSinceShown(getState());
 		const elementId: ElementId = { type: "card", id: cardId };
 		const currentIndex = selectStudyIndex(getState());
 
@@ -136,6 +135,16 @@ export function applyScheduleChangeAction(navigate: NavigateFunction) {
 	};
 }
 
+// Caps logged time so an element left open (or a clock change) can't record absurd study time.
+const MAX_LOGGED_DURATION_MS = 60 * 60 * 1000;
+
+// Time spent on the current session element, logged as study time.
+function elapsedSinceShown(state: RootState): number | null {
+	const shownAt = state.study.shownAt;
+	if (!shownAt) return null;
+	return Math.min(Math.max(Date.now() - shownAt, 0), MAX_LOGGED_DURATION_MS);
+}
+
 // The element the session is on, which is always the one being viewed.
 function currentSessionElement(
 	state: RootState,
@@ -167,7 +176,7 @@ export function nextLearningAssetAction(
 ) {
 	return async (dispatch: AppDispatch, getState: () => RootState) => {
 		const currentIndex = selectStudyIndex(getState());
-		await nextLearningAsset(elementId);
+		await nextLearningAsset(elementId, elapsedSinceShown(getState()));
 		dispatch(learningAssetAdvanced({ elementType: elementId.type }));
 		await advanceSession(
 			dispatch,
@@ -204,7 +213,7 @@ export function finishLearningAssetAction(
 ) {
 	return async (dispatch: AppDispatch, getState: () => RootState) => {
 		const currentIndex = selectStudyIndex(getState());
-		await finishLearningAsset(elementId);
+		await finishLearningAsset(elementId, elapsedSinceShown(getState()));
 		dispatch(learningAssetFinished({ elementType: elementId.type }));
 		await advanceSession(
 			dispatch,

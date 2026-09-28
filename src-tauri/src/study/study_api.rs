@@ -120,12 +120,13 @@ pub async fn get_card_scheduling(
 pub async fn next_learning_asset(
     injector: State<'_, Arc<Injector>>,
     element_id: ElementId,
+    duration_ms: Option<u32>,
 ) -> Result<LearningAssetReviewResponseDto, ApiError> {
     let scope = injector.start_scope();
     let result = scope
         .resolve::<dyn LearningAssetSchedulingService>()
         .await
-        .next(element_id)
+        .next(element_id, duration_ms)
         .await?;
     scope.save_changes().await?;
     Ok(result.into())
@@ -149,12 +150,13 @@ pub async fn preview_next_learning_asset(
 pub async fn finish_learning_asset(
     injector: State<'_, Arc<Injector>>,
     element_id: ElementId,
+    duration_ms: Option<u32>,
 ) -> Result<LearningAssetReviewResponseDto, ApiError> {
     let scope = injector.start_scope();
     let result = scope
         .resolve::<dyn LearningAssetSchedulingService>()
         .await
-        .finish(element_id)
+        .finish(element_id, duration_ms)
         .await?;
     scope.save_changes().await?;
     Ok(result.into())

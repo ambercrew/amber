@@ -11,10 +11,11 @@ use crate::study::services::profile_resolution_service::ProfileResolutionError;
 pub trait LearningAssetSchedulingService: Send + Sync {
     /// Advances the element to its next interval (`interval_days * interval_multiplier`, or
     /// `profile.initial_interval_days` on the first pass), floored by
-    /// `profile.min_interval_days`.
+    /// `profile.min_interval_days`. `duration_ms` is the time spent reading, logged as study time.
     async fn next(
         &self,
         element_id: ElementId,
+        duration_ms: Option<u32>,
     ) -> Result<LearningAssetReview, LearningAssetSchedulingError>;
 
     /// Computes the due date that `next` would produce, without persisting it.
@@ -24,10 +25,11 @@ pub trait LearningAssetSchedulingService: Send + Sync {
     ) -> Result<DateTime<Utc>, LearningAssetSchedulingError>;
 
     /// Marks the element finished. Leaves `due` and `interval_days` untouched,
-    /// which is what makes undo trivial.
+    /// which is what makes undo trivial. `duration_ms` is logged as in `next`.
     async fn finish(
         &self,
         element_id: ElementId,
+        duration_ms: Option<u32>,
     ) -> Result<LearningAssetReview, LearningAssetSchedulingError>;
 
     /// Marks each of `element_ids` finished. See `finish`.

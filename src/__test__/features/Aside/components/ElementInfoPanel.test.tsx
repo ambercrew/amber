@@ -253,6 +253,7 @@ describe("ElementInfoPanel", () => {
 		await waitFor(() => {
 			expect(finishLearningAsset).toHaveBeenCalledWith(
 				element.data.meta.elementId,
+				null,
 			);
 		});
 	});

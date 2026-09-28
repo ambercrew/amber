@@ -526,6 +526,69 @@ describe("nextLearningAssetAction", () => {
 		);
 	});
 
+	it("Should send the time spent reading when advancing a learning asset", async () => {
+		// Arrange
+
+		vi.mocked(nextLearningAsset).mockResolvedValue(LEARNING_ASSET_REVIEW);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [
+					learningAssetQueueItem("1"),
+					learningAssetQueueItem("2"),
+				],
+				shownAt: Date.now() - 5000,
+			},
+			elements: elementsStateFor(learningAssetElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(
+			nextLearningAssetAction(
+				{ type: "learningAsset", id: "1" },
+				navigate,
+			),
+		);
+
+		// Assert
+
+		const durationMs = vi.mocked(nextLearningAsset).mock.lastCall?.[1];
+		expect(durationMs).toBeGreaterThanOrEqual(5000);
+	});
+
+	it("Should send zero time spent when the clock moved back since the element was shown", async () => {
+		// Arrange
+
+		vi.mocked(nextLearningAsset).mockResolvedValue(LEARNING_ASSET_REVIEW);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [
+					learningAssetQueueItem("1"),
+					learningAssetQueueItem("2"),
+				],
+				shownAt: Date.now() + 60_000,
+			},
+			elements: elementsStateFor(learningAssetElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(
+			nextLearningAssetAction(
+				{ type: "learningAsset", id: "1" },
+				navigate,
+			),
+		);
+
+		// Assert
+
+		expect(vi.mocked(nextLearningAsset).mock.lastCall?.[1]).toBe(0);
+	});
+
 	it("Should increment the extract count instead of the learning asset count when advancing an extract", async () => {
 		// Arrange
 

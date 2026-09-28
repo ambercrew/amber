@@ -13,5 +13,6 @@ pub mod sqlite_meta_repository;
 pub mod sqlite_rows;
 pub mod sqlite_saved_search_repository;
 pub mod sqlite_search_repository;
+pub mod sqlite_statistics_repository;
 pub mod sqlite_study_profile_repository;
 pub mod sqlite_trash_repository;

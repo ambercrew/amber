@@ -65,6 +65,7 @@ use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_re
 use crate::infrastructure::repositories::sqlite::sqlite_ai_repository::SqliteAiRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_bibliographical_source_repository::SqliteBibliographicalSourceRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_saved_search_repository::SqliteSavedSearchRepository;
+use crate::infrastructure::repositories::sqlite::sqlite_statistics_repository::SqliteStatisticsRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_search_repository::SqliteSearchRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_study_profile_repository::SqliteStudyProfileRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_trash_repository::SqliteTrashRepository;
@@ -87,6 +88,9 @@ use crate::bibliographical_sources::services::bibliographical_source_service::Bi
 use crate::saved_searches::repositories::saved_search_repository::SavedSearchRepository;
 use crate::saved_searches::services::implementations::default_saved_search_service::DefaultSavedSearchService;
 use crate::saved_searches::services::saved_search_service::SavedSearchService;
+use crate::statistics::repositories::statistics_repository::StatisticsRepository;
+use crate::statistics::services::implementations::default_statistics_service::DefaultStatisticsService;
+use crate::statistics::services::statistics_service::StatisticsService;
 use crate::search::repositories::search_repository::SearchRepository;
 use crate::search::services::implementations::default_search_service::DefaultSearchService;
 use crate::search::services::search_service::SearchService;
@@ -334,6 +338,15 @@ pub async fn create_injector<R: tauri::Runtime>(
 
     register_scope!(injector, dyn SearchRepository, SqliteSearchRepository);
     register_scope!(injector, dyn SearchService, DefaultSearchService);
+
+    // Statistics
+
+    register_scope!(
+        injector,
+        dyn StatisticsRepository,
+        SqliteStatisticsRepository
+    );
+    register_scope!(injector, dyn StatisticsService, DefaultStatisticsService);
 
     // Settings
 

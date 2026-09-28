@@ -50,6 +50,7 @@
 		"@lexical/mark": "0.50.0",
 		"@lexical/react": "0.50.0",
 		"@lexical/utils": "0.50.0",
+		"@mantine/charts": "^9.6.2",
 		"@mantine/colors-generator": "^9.6.1",
 		"@mantine/core": "^9.6.1",
 		"@mantine/dates": "^9.6.1",

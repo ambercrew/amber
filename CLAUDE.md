@@ -104,6 +104,7 @@ The `EventManager` trait (impl: `TauriEventManager`, `common/services/implementa
 - **sync** — Cloud sync via protobuf messages (see Sync below)
 - **backup** — Background auto-backup service
 - **app_info** — Small app-level queries (e.g. store-build detection)
+- **statistics** — Read-only aggregates for the Home page (element counts, study time and daily review activity, bucketed by local day)
 - **database** — SQLite connection management
 
 ### Sync

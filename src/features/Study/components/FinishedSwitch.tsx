@@ -31,7 +31,7 @@ function FinishedSwitch({
 	function handleChange(next: boolean) {
 		persist(next, async () => {
 			const review = next
-				? await finishLearningAsset(elementId)
+				? await finishLearningAsset(elementId, null)
 				: await unfinishLearningAsset(elementId);
 			onChanged?.(review);
 		});

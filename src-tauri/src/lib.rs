@@ -13,6 +13,7 @@ mod saved_searches;
 mod search;
 mod secrets;
 mod settings;
+mod statistics;
 mod study;
 mod sync;
 mod system_chrome;
@@ -35,6 +36,7 @@ use import::import_api::*;
 use saved_searches::saved_search_api::*;
 use search::search_api::*;
 use settings::settings_api::*;
+use statistics::statistics_api::*;
 use study::study_api::*;
 use study::study_profile_api::*;
 use sync::sync_api::*;
@@ -221,6 +223,8 @@ pub async fn run() {
             reset_repetitions_bulk,
             get_fuzz_factor,
             set_fuzz_factor,
+            // Statistics
+            get_home_statistics,
             // Study profiles
             list_study_profiles,
             create_study_profile,

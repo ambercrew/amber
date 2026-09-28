@@ -38,6 +38,7 @@ impl LearningAssetSchedulingService for DefaultLearningAssetSchedulingService {
     async fn next(
         &self,
         element_id: ElementId,
+        duration_ms: Option<u32>,
     ) -> Result<LearningAssetReview, LearningAssetSchedulingError> {
         let existing = self
             .learning_asset_review_repository
@@ -57,7 +58,7 @@ impl LearningAssetSchedulingService for DefaultLearningAssetSchedulingService {
         self.learning_asset_review_repository
             .upsert(&review)
             .await?;
-        self.append_log(element_id, now, LearningAssetAction::Next)
+        self.append_log(element_id, now, LearningAssetAction::Next, duration_ms)
             .await?;
 
         Ok(review)
@@ -79,6 +80,7 @@ impl LearningAssetSchedulingService for DefaultLearningAssetSchedulingService {
     async fn finish(
         &self,
         element_id: ElementId,
+        duration_ms: Option<u32>,
     ) -> Result<LearningAssetReview, LearningAssetSchedulingError> {
         let now = Utc::now();
         let existing = self
@@ -103,7 +105,7 @@ impl LearningAssetSchedulingService for DefaultLearningAssetSchedulingService {
         self.learning_asset_review_repository
             .upsert(&review)
             .await?;
-        self.append_log(element_id, now, LearningAssetAction::Finish)
+        self.append_log(element_id, now, LearningAssetAction::Finish, duration_ms)
             .await?;
         emit_element_due_changed(&self.event_manager).await;
 
@@ -115,7 +117,7 @@ impl LearningAssetSchedulingService for DefaultLearningAssetSchedulingService {
         element_ids: Vec<ElementId>,
     ) -> Result<(), LearningAssetSchedulingError> {
         for element_id in element_ids {
-            self.finish(element_id).await?;
+            self.finish(element_id, None).await?;
         }
         Ok(())
     }
@@ -247,6 +249,7 @@ impl DefaultLearningAssetSchedulingService {
         element_id: ElementId,
         reviewed_at: chrono::DateTime<Utc>,
         action: LearningAssetAction,
+        duration_ms: Option<u32>,
     ) -> Result<(), LearningAssetSchedulingError> {
         self.learning_asset_review_log_repository
             .create(&LearningAssetReviewLog {
@@ -254,6 +257,7 @@ impl DefaultLearningAssetSchedulingService {
                 element_id: Some(element_id.id()),
                 reviewed_at,
                 action,
+                duration_ms,
             })
             .await?;
         Ok(())
@@ -380,7 +384,7 @@ mod tests {
 
         // Act
 
-        let review = service.next(element_id).await.unwrap();
+        let review = service.next(element_id, None).await.unwrap();
 
         // Assert
 
@@ -395,11 +399,11 @@ mod tests {
         let scope = injector.start_scope();
         let element_id = create_test_learning_asset(&scope).await;
         let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
-        service.next(element_id).await.unwrap();
+        service.next(element_id, None).await.unwrap();
 
         // Act
 
-        let review = service.next(element_id).await.unwrap();
+        let review = service.next(element_id, None).await.unwrap();
 
         // Assert
 
@@ -414,11 +418,11 @@ mod tests {
         let scope = injector.start_scope();
         let element_id = create_test_learning_asset_with_interval_multiplier(&scope, 1.5).await;
         let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
-        service.next(element_id).await.unwrap();
+        service.next(element_id, None).await.unwrap();
 
         // Act
 
-        let review = service.next(element_id).await.unwrap();
+        let review = service.next(element_id, None).await.unwrap();
 
         // Assert
 
@@ -433,11 +437,11 @@ mod tests {
         let scope = injector.start_scope();
         let element_id = create_test_learning_asset(&scope).await;
         let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
-        let before = service.next(element_id).await.unwrap();
+        let before = service.next(element_id, None).await.unwrap();
 
         // Act
 
-        let after = service.finish(element_id).await.unwrap();
+        let after = service.finish(element_id, None).await.unwrap();
 
         // Assert
 
@@ -454,8 +458,8 @@ mod tests {
         let scope = injector.start_scope();
         let element_id = create_test_learning_asset(&scope).await;
         let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
-        service.next(element_id).await.unwrap();
-        service.finish(element_id).await.unwrap();
+        service.next(element_id, None).await.unwrap();
+        service.finish(element_id, None).await.unwrap();
 
         // Act
 
@@ -531,8 +535,8 @@ mod tests {
         let first_id = create_test_learning_asset(&scope).await;
         let second_id = create_test_learning_asset(&scope).await;
         let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
-        service.finish(first_id).await.unwrap();
-        service.finish(second_id).await.unwrap();
+        service.finish(first_id, None).await.unwrap();
+        service.finish(second_id, None).await.unwrap();
 
         // Act
 
@@ -584,7 +588,7 @@ mod tests {
         let scope = injector.start_scope();
         let element_id = create_test_learning_asset(&scope).await;
         let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
-        let before = service.next(element_id).await.unwrap();
+        let before = service.next(element_id, None).await.unwrap();
         let due = Utc::now() + Duration::days(10);
 
         // Act
@@ -610,8 +614,8 @@ mod tests {
         let scope = injector.start_scope();
         let element_id = create_test_learning_asset(&scope).await;
         let service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
-        service.next(element_id).await.unwrap();
-        service.finish(element_id).await.unwrap();
+        service.next(element_id, None).await.unwrap();
+        service.finish(element_id, None).await.unwrap();
         let due = Utc::now() + Duration::days(3);
 
         // Act
