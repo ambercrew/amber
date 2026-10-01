@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ElementId } from "../../../types/elements/elementId";
 import {
 	EffectiveProfileDto,
+	OptimizedFsrsParamsDto,
 	StudyProfileDto,
 	StudyProfileRequestDto,
 } from "../dto/studyProfileDto";
@@ -53,4 +54,14 @@ export function getEffectiveStudyProfile(
 	elementId: ElementId,
 ): Promise<EffectiveProfileDto> {
 	return invoke("get_effective_study_profile", { elementId });
+}
+
+export function optimizeStudyProfileFsrsParams(
+	id: string,
+	relearningStepCount: number,
+): Promise<OptimizedFsrsParamsDto> {
+	return invoke("optimize_study_profile_fsrs_params", {
+		id,
+		relearningStepCount,
+	});
 }

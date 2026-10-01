@@ -12,7 +12,7 @@ import { heatmapLevel } from "../../../utils/heatmapLevel";
 import { heatmapYearLayout } from "../../../utils/heatmapRectSize";
 
 /** Opacity of each heatmap shade, lightest first; any length works. */
-const SHADE_PERCENTS = [20, 30, 40, 50, 62, 75, 88, 100];
+const SHADE_PERCENTS = [20, 30, 40, 50, 60, 70, 80, 90, 100];
 
 // Shades of the primary color that read on both light and dark backgrounds.
 const HEATMAP_COLORS = SHADE_PERCENTS.map(

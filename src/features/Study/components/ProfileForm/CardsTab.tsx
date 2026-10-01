@@ -1,14 +1,26 @@
-import { NumberInput, Stack, Textarea, TextInput } from "@mantine/core";
+import {
+	Button,
+	Group,
+	NumberInput,
+	Stack,
+	Text,
+	Textarea,
+	TextInput,
+} from "@mantine/core";
 import { UseFormReturnType } from "@mantine/form";
+import { MagicWandIcon } from "@phosphor-icons/react";
 import FieldLabel from "../../../../components/FieldLabel/FieldLabel";
 import { ProfileFormValues } from "./profileFormValues";
+import { FsrsOptimization } from "./useFsrsOptimization";
 
 interface CardsTabProps {
 	form: UseFormReturnType<ProfileFormValues>;
+	/** `null` while creating a profile, which has no review history to optimize on. */
+	optimization: FsrsOptimization | null;
 }
 
 /** How cards and clozes are reviewed, using FSRS. */
-function CardsTab({ form }: CardsTabProps) {
+function CardsTab({ form, optimization }: CardsTabProps) {
 	return (
 		<Stack gap="sm">
 			<NumberInput
@@ -24,17 +36,45 @@ function CardsTab({ form }: CardsTabProps) {
 				decimalScale={2}
 				{...form.getInputProps("desiredRetention")}
 			/>
-			<Textarea
-				label={
-					<FieldLabel
-						label="FSRS weights"
-						tooltip="Advanced: the FSRS model weights used to schedule cards. Leave as-is unless you know what you're doing."
-					/>
-				}
-				autosize
-				minRows={2}
-				{...form.getInputProps("fsrsParams")}
-			/>
+			<Stack gap={4}>
+				<Textarea
+					label={
+						<FieldLabel
+							label="FSRS weights"
+							tooltip="Advanced: the FSRS model weights used to schedule cards. Leave as-is unless you know what you're doing, or use Optimize to train them on your own review history."
+						/>
+					}
+					autosize
+					minRows={2}
+					// Locked while optimizing so the result can't overwrite an edit.
+					disabled={optimization?.isOptimizing}
+					{...form.getInputProps("fsrsParams")}
+				/>
+				{optimization && (
+					<Group gap="xs" wrap="nowrap">
+						<Button
+							type="button"
+							variant="default"
+							size="xs"
+							leftSection={<MagicWandIcon />}
+							loading={optimization.isOptimizing}
+							onClick={() => void optimization.optimize()}>
+							Optimize
+						</Button>
+						{optimization.errorMessage && (
+							<Text size="xs" c="red">
+								{optimization.errorMessage}
+							</Text>
+						)}
+						{optimization.reviewCount !== null && (
+							<Text size="xs" c="dimmed">
+								Trained on {optimization.reviewCount} reviews.
+								Save to apply.
+							</Text>
+						)}
+					</Group>
+				)}
+			</Stack>
 			<TextInput
 				label={
 					<FieldLabel

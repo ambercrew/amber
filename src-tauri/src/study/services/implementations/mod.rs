@@ -1,5 +1,6 @@
 pub mod default_card_grading_service;
 pub mod default_due_elements_service;
+pub mod default_fsrs_optimization_service;
 pub mod default_learning_asset_scheduling_service;
 pub mod default_profile_resolution_service;
 pub mod default_study_profile_service;

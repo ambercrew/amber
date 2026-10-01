@@ -103,6 +103,8 @@ use crate::study::services::card_grading_service::CardGradingService;
 use crate::study::services::due_elements_service::DueElementsService;
 use crate::study::services::implementations::default_card_grading_service::DefaultCardGradingService;
 use crate::study::services::implementations::default_due_elements_service::DefaultDueElementsService;
+use crate::study::services::fsrs_optimization_service::FsrsOptimizationService;
+use crate::study::services::implementations::default_fsrs_optimization_service::DefaultFsrsOptimizationService;
 use crate::study::services::implementations::default_profile_resolution_service::DefaultProfileResolutionService;
 use crate::study::services::implementations::default_learning_asset_scheduling_service::DefaultLearningAssetSchedulingService;
 use crate::study::services::implementations::default_study_profile_service::DefaultStudyProfileService;
@@ -305,6 +307,11 @@ pub async fn create_injector<R: tauri::Runtime>(
         injector,
         dyn StudyProfileService,
         DefaultStudyProfileService
+    );
+    register_scope!(
+        injector,
+        dyn FsrsOptimizationService,
+        DefaultFsrsOptimizationService
     );
     register_scope!(
         injector,

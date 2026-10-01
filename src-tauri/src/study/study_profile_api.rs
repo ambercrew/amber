@@ -7,7 +7,11 @@ use crate::common::api_error::ApiError;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::study::dto::study_profile_dto::{
-    EffectiveProfileResponseDto, StudyProfileRequestDto, StudyProfileResponseDto,
+    EffectiveProfileResponseDto, OptimizedFsrsParamsResponseDto, StudyProfileRequestDto,
+    StudyProfileResponseDto,
+};
+use crate::study::services::fsrs_optimization_service::{
+    FsrsOptimizationService, train_fsrs_params,
 };
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::study::services::study_profile_service::StudyProfileService;
@@ -146,4 +150,21 @@ pub async fn get_effective_study_profile(
         .resolve_effective_profile(element_id)
         .await?;
     Ok(effective.into())
+}
+
+#[tauri::command]
+pub async fn optimize_study_profile_fsrs_params(
+    injector: State<'_, Arc<Injector>>,
+    id: Uuid,
+    relearning_step_count: usize,
+) -> Result<OptimizedFsrsParamsResponseDto, ApiError> {
+    let training_set = {
+        let scope = injector.start_scope();
+        scope
+            .resolve::<dyn FsrsOptimizationService>()
+            .await
+            .prepare_training_set(id, relearning_step_count)
+            .await?
+    }; // Dropping the scope releases its read transaction before the long training run.
+    Ok(train_fsrs_params(training_set).await?.into())
 }

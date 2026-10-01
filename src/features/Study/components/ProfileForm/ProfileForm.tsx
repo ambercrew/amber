@@ -24,6 +24,7 @@ import FieldLabel from "../../../../components/FieldLabel/FieldLabel";
 import CardsTab from "./CardsTab";
 import QueueTab from "./QueueTab";
 import LearningAssetsAndExtractsTab from "./LearningAssetsAndExtractsTab";
+import { useFsrsOptimization } from "./useFsrsOptimization";
 import {
 	FSRS_PARAM_COUNT,
 	initialValues,
@@ -94,6 +95,8 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 		},
 	});
 
+	const optimization = useFsrsOptimization(form, profile?.id ?? null);
+
 	const description = TABS.find(entry => entry.value === tab)?.description;
 
 	async function handleSubmit(values: ProfileFormValues) {
@@ -151,8 +154,13 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 				values => void handleSubmit(values),
 				handleErrors,
 			)}
-			style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-			<Stack gap="sm" flex={1}>
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				flex: 1,
+				minHeight: 0,
+			}}>
+			<Stack gap="sm" flex={1} mih={0}>
 				<TextInput
 					label={
 						<FieldLabel
@@ -170,14 +178,23 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 					data={TABS.map(({ value, label }) => ({ value, label }))}
 				/>
 
-				{/* Fixed so the modal keeps its height as tabs of different
-				    lengths come and go. */}
-				<ScrollArea h="clamp(220px, 45vh, 360px)" offsetScrollbars>
+				{/* Fixed as a dialog, so its height holds steady as tabs switch;
+				    grows to fill the space above the buttons when full screen. */}
+				<ScrollArea
+					h="clamp(220px, 45vh, 360px)"
+					flex="1 1 auto"
+					mih={0}
+					offsetScrollbars>
 					<Stack gap="sm">
 						<Text size="sm" c="dimmed">
 							{description}
 						</Text>
-						{tab === "cards" && <CardsTab form={form} />}
+						{tab === "cards" && (
+							<CardsTab
+								form={form}
+								optimization={profile ? optimization : null}
+							/>
+						)}
 						{tab === "learningAssets" && (
 							<LearningAssetsAndExtractsTab form={form} />
 						)}

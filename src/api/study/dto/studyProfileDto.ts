@@ -48,3 +48,8 @@ export interface EffectiveProfileDto {
 	source: ProfileSource;
 	inheritedFrom: ElementId | null;
 }
+
+export interface OptimizedFsrsParamsDto {
+	fsrsParams: number[];
+	reviewCount: number;
+}

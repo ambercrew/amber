@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use crate::elements::value_objects::element_id::ElementId;
 use crate::study::entities::study_profile::StudyProfile;
+use crate::study::services::fsrs_optimization_service::FsrsOptimization;
 use crate::study::services::profile_resolution_service::{EffectiveProfile, ProfileSource};
 use crate::study::services::study_profile_service::StudyProfileFields;
 use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
@@ -121,6 +122,22 @@ impl From<EffectiveProfile> for EffectiveProfileResponseDto {
             profile: effective.profile.into(),
             source,
             inherited_from,
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OptimizedFsrsParamsResponseDto {
+    pub fsrs_params: Vec<f32>,
+    pub review_count: usize,
+}
+
+impl From<FsrsOptimization> for OptimizedFsrsParamsResponseDto {
+    fn from(optimization: FsrsOptimization) -> Self {
+        OptimizedFsrsParamsResponseDto {
+            fsrs_params: optimization.params,
+            review_count: optimization.review_count,
         }
     }
 }

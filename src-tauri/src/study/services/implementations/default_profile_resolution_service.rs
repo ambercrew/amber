@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -67,6 +68,33 @@ impl ProfileResolutionService for DefaultProfileResolutionService {
             source: ProfileSource::Default,
         })
     }
+
+    async fn cards_using_profile(
+        &self,
+        profile_id: Uuid,
+        card_ids: &[Uuid],
+    ) -> Result<HashSet<Uuid>, ProfileResolutionError> {
+        let is_default = self
+            .study_profile_repository
+            .get_default_or_oldest()
+            .await?
+            .is_some_and(|default| default.id == profile_id);
+        let mut owners = HashMap::new();
+        let mut cards = HashSet::new();
+        for &card_id in card_ids {
+            let found = self
+                .find_profile_owner(ElementId::Card(card_id), &mut owners)
+                .await?;
+            let uses_profile = match found {
+                Some((found_id, _)) => found_id == profile_id,
+                None => is_default,
+            };
+            if uses_profile {
+                cards.insert(card_id);
+            }
+        }
+        Ok(cards)
+    }
 }
 
 impl DefaultProfileResolutionService {
@@ -88,23 +116,46 @@ impl DefaultProfileResolutionService {
         &self,
         element_id: ElementId,
     ) -> Result<Option<(Uuid, ProfileSource)>, ProfileResolutionError> {
-        let mut current = element_id;
+        let found = self
+            .find_profile_owner(element_id, &mut HashMap::new())
+            .await?;
+        Ok(found.map(|(profile_id, owner)| {
+            let source = if owner == element_id {
+                ProfileSource::Direct
+            } else {
+                ProfileSource::Inherited { from: owner }
+            };
+            (profile_id, source)
+        }))
+    }
 
-        loop {
+    /// The profile of the nearest element, `element_id` itself or an ancestor, that has one,
+    /// and that element. `owners` caches each walk for elements sharing ancestors.
+    async fn find_profile_owner(
+        &self,
+        element_id: ElementId,
+        owners: &mut HashMap<ElementId, Option<(Uuid, ElementId)>>,
+    ) -> Result<Option<(Uuid, ElementId)>, ProfileResolutionError> {
+        let mut walked = Vec::new();
+        let mut current = element_id;
+        let found = loop {
+            if let Some(&cached) = owners.get(&current) {
+                break cached;
+            }
+            walked.push(current);
             let meta = self.meta_repository.get_by_id(current.id()).await?;
             if let Some(profile_id) = meta.study_profile_id {
-                let source = if current == element_id {
-                    ProfileSource::Direct
-                } else {
-                    ProfileSource::Inherited { from: current }
-                };
-                return Ok(Some((profile_id, source)));
+                break Some((profile_id, current));
             }
             match meta.parent {
                 Some(parent) => current = parent,
-                None => return Ok(None),
+                None => break None,
             }
+        };
+        for element in walked {
+            owners.insert(element, found);
         }
+        Ok(found)
     }
 
     fn new_default_profile() -> StudyProfile {
@@ -438,5 +489,89 @@ mod tests {
         // Assert
 
         assert_eq!(ProfileSource::Default, resolved.source);
+    }
+
+    async fn create_meta(
+        meta_repo: &Arc<dyn MetaRepository>,
+        id: ElementId,
+        parent: Option<ElementId>,
+        study_profile_id: Option<Uuid>,
+    ) {
+        meta_repo
+            .create_meta(&Meta {
+                study_profile_id,
+                ..make_meta(id, parent)
+            })
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn cards_using_profile_nested_cards_returns_inherited_and_direct_cards() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let meta_repo = scope.resolve::<dyn MetaRepository>().await;
+        let profile_repo = scope.resolve::<dyn StudyProfileRepository>().await;
+        let service = scope.resolve::<dyn ProfileResolutionService>().await;
+        let default = DefaultProfileResolutionService::new_default_profile();
+        profile_repo.create(&default).await.unwrap();
+        let profile = StudyProfile {
+            id: Uuid::new_v4(),
+            is_default: false,
+            ..DefaultProfileResolutionService::new_default_profile()
+        };
+        profile_repo.create(&profile).await.unwrap();
+        let folder = ElementId::Folder(Uuid::new_v4());
+        create_meta(&meta_repo, folder, None, Some(profile.id)).await;
+        let [inherited, overridden, direct, unassigned] = [(); 4].map(|_| Uuid::new_v4());
+        create_meta(&meta_repo, ElementId::Card(inherited), Some(folder), None).await;
+        create_meta(
+            &meta_repo,
+            ElementId::Card(overridden),
+            Some(folder),
+            Some(default.id),
+        )
+        .await;
+        create_meta(&meta_repo, ElementId::Card(direct), None, Some(profile.id)).await;
+        create_meta(&meta_repo, ElementId::Card(unassigned), None, None).await;
+
+        // Act
+
+        let cards = service
+            .cards_using_profile(profile.id, &[inherited, overridden, direct, unassigned])
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(HashSet::from([inherited, direct]), cards);
+    }
+
+    #[tokio::test]
+    async fn cards_using_profile_default_profile_includes_cards_without_profile() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let meta_repo = scope.resolve::<dyn MetaRepository>().await;
+        let profile_repo = scope.resolve::<dyn StudyProfileRepository>().await;
+        let service = scope.resolve::<dyn ProfileResolutionService>().await;
+        let default = DefaultProfileResolutionService::new_default_profile();
+        profile_repo.create(&default).await.unwrap();
+        let unassigned = Uuid::new_v4();
+        create_meta(&meta_repo, ElementId::Card(unassigned), None, None).await;
+
+        // Act
+
+        let cards = service
+            .cards_using_profile(default.id, &[unassigned])
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(HashSet::from([unassigned]), cards);
     }
 }

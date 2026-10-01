@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use injector_derive::ScopeInjectable;
-
 use crate::common::repository_error::RepositoryError;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 use crate::study::entities::card_review_log::CardReviewLog;
 use crate::study::repositories::card_review_log_repository::CardReviewLogRepository;
+use crate::study::value_objects::rating::Rating;
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use injector_derive::ScopeInjectable;
 
 #[derive(ScopeInjectable)]
 pub struct SqliteCardReviewLogRepository {
@@ -22,7 +23,8 @@ impl CardReviewLogRepository for SqliteCardReviewLogRepository {
         let rating = log.rating.as_str();
 
         sqlx::query!(
-            r#"INSERT INTO card_review_logs (id, card_id, reviewed_at, rating, duration_ms)
+            r#"INSERT INTO card_review_logs
+                (id, card_id, reviewed_at, rating, duration_ms)
             VALUES ($1, $2, datetime($3), $4, $5)"#,
             log.id.hyphenated(),
             log.card_id.map(|id| id.hyphenated()),
@@ -35,11 +37,41 @@ impl CardReviewLogRepository for SqliteCardReviewLogRepository {
 
         Ok(())
     }
+
+    async fn get_card_histories(&self) -> Result<Vec<CardReviewLog>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query!(
+            r#"SELECT
+                id AS "id!: uuid::fmt::Hyphenated",
+                card_id AS "card_id: uuid::fmt::Hyphenated",
+                reviewed_at AS "reviewed_at!: DateTime<Utc>",
+                rating AS "rating!: String",
+                duration_ms AS "duration_ms: u32"
+            FROM card_review_logs
+            WHERE card_id IS NOT NULL
+            ORDER BY card_id, reviewed_at, rowid"#,
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| CardReviewLog {
+                id: row.id.into_uuid(),
+                card_id: row.card_id.map(|id| id.into_uuid()),
+                reviewed_at: row.reviewed_at,
+                rating: Rating::from(row.rating.as_str()),
+                duration_ms: row.duration_ms,
+            })
+            .collect())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
+    use chrono::{Duration, TimeZone};
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
     use uuid::Uuid;
@@ -73,14 +105,7 @@ mod tests {
         injector
     }
 
-    #[tokio::test]
-    async fn create_valid_log_succeeds() {
-        // Arrange
-
-        let injector = initialize_test_injector().await;
-        let scope = injector.start_scope();
-        let card_repo = scope.resolve::<dyn CardRepository>().await;
-        let repo = scope.resolve::<dyn CardReviewLogRepository>().await;
+    async fn create_card(card_repo: &Arc<dyn CardRepository>) -> Uuid {
         let card_id = Uuid::new_v4();
         card_repo
             .create(Card {
@@ -101,13 +126,29 @@ mod tests {
             })
             .await
             .unwrap();
-        let log = CardReviewLog {
+        card_id
+    }
+
+    fn make_log(card_id: Uuid, reviewed_at: DateTime<Utc>) -> CardReviewLog {
+        CardReviewLog {
             id: Uuid::new_v4(),
             card_id: Some(card_id),
-            reviewed_at: Utc::now(),
+            reviewed_at,
             rating: Rating::Good,
             duration_ms: Some(1500),
-        };
+        }
+    }
+
+    #[tokio::test]
+    async fn create_valid_log_succeeds() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let repo = scope.resolve::<dyn CardReviewLogRepository>().await;
+        let card_id = create_card(&card_repo).await;
+        let log = make_log(card_id, Utc::now());
 
         // Act
 
@@ -116,5 +157,34 @@ mod tests {
         // Assert
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn get_card_histories_logs_of_two_cards_returns_them_ordered_by_card_then_time() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let repo = scope.resolve::<dyn CardReviewLogRepository>().await;
+        let mut card_ids = [create_card(&card_repo).await, create_card(&card_repo).await];
+        card_ids.sort_by_key(|id| id.hyphenated().to_string());
+        let start = Utc.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap();
+        let expected = vec![
+            make_log(card_ids[0], start),
+            make_log(card_ids[0], start + Duration::days(2)),
+            make_log(card_ids[1], start + Duration::days(1)),
+        ];
+        for log in expected.iter().rev() {
+            repo.create(log).await.unwrap();
+        }
+
+        // Act
+
+        let actual = repo.get_card_histories().await.unwrap();
+
+        // Assert
+
+        assert_eq!(expected, actual);
     }
 }

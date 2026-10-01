@@ -1,5 +1,8 @@
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::value_objects::element_id::ElementId;
@@ -22,6 +25,14 @@ pub trait ProfileResolutionService: Send + Sync {
         &self,
         element_id: ElementId,
     ) -> Result<EffectiveProfile, ProfileResolutionError>;
+
+    /// The cards among `card_ids` whose effective profile is `profile_id`, by the same
+    /// resolution as `resolve_profile`.
+    async fn cards_using_profile(
+        &self,
+        profile_id: Uuid,
+        card_ids: &[Uuid],
+    ) -> Result<HashSet<Uuid>, ProfileResolutionError>;
 }
 
 #[derive(Debug, Clone, PartialEq)]

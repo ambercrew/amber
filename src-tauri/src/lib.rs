@@ -235,6 +235,7 @@ pub async fn run() {
             assign_study_profile,
             assign_study_profile_bulk,
             get_effective_study_profile,
+            optimize_study_profile_fsrs_params,
             // Bibliographical sources
             list_bibliographical_sources,
             get_bibliographical_source,

@@ -42,7 +42,7 @@ function ManageAccountModal() {
 			title="Manage account"
 			navAriaLabel="Open account navigation"
 			sections={SECTIONS}
-			size="lg"
+			size="xl"
 		/>
 	);
 }

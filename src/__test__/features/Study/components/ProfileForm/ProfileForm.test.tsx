@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ProfileForm from "../../../../../features/Study/components/ProfileForm/ProfileForm";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
@@ -6,6 +6,7 @@ import {
 	cloneStudyProfile,
 	createStudyProfile,
 	deleteStudyProfile,
+	optimizeStudyProfileFsrsParams,
 	setDefaultStudyProfile,
 	updateStudyProfile,
 } from "../../../../../api/study/api/studyProfileApi";
@@ -704,5 +705,199 @@ describe("ProfileForm", () => {
 			expect(deleteStudyProfile).toHaveBeenCalledWith(profile.id);
 		});
 		expect(onSaved).toHaveBeenCalledTimes(1);
+	});
+
+	it("Should fill the FSRS weights with the optimized ones when Optimize succeeds", async () => {
+		// Arrange
+
+		const profile = makeProfile({ relearningSteps: ["10m", "1h"] });
+		vi.mocked(optimizeStudyProfileFsrsParams).mockResolvedValue({
+			fsrsParams: Array.from({ length: 21 }, () => 0.123456),
+			reviewCount: 500,
+		});
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+
+		// Act
+
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: "Optimize" }));
+
+		// Assert
+
+		expect(
+			await screen.findByText("Trained on 500 reviews. Save to apply."),
+		).toBeVisible();
+		expect(
+			screen.getByRole("textbox", { name: "FSRS weights" }),
+		).toHaveValue(Array.from({ length: 21 }, () => "0.1235").join(", "));
+		expect(optimizeStudyProfileFsrsParams).toHaveBeenCalledWith(
+			profile.id,
+			2,
+		);
+	});
+
+	it("Should show the error inline when Optimize fails", async () => {
+		// Arrange
+
+		const profile = makeProfile();
+		vi.mocked(optimizeStudyProfileFsrsParams).mockRejectedValue(
+			"Not enough review history",
+		);
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+
+		// Act
+
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: "Optimize" }));
+
+		// Assert
+
+		expect(
+			await screen.findByText("Not enough review history"),
+		).toBeVisible();
+	});
+
+	it("Should not offer Optimize when creating a new profile", async () => {
+		// Arrange
+
+		renderWithProviders(
+			<ProfileForm
+				profile={null}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+
+		// Act
+
+		await openCardsTab();
+
+		// Assert
+
+		expect(
+			screen.queryByRole("button", { name: "Optimize" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("Should hide the trained notice when the optimized weights are edited by hand", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		vi.mocked(optimizeStudyProfileFsrsParams).mockResolvedValue({
+			fsrsParams: Array.from({ length: 21 }, () => 0.5),
+			reviewCount: 500,
+		});
+		renderWithProviders(
+			<ProfileForm
+				profile={makeProfile()}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+		await user.click(screen.getByRole("button", { name: "Optimize" }));
+		await screen.findByText("Trained on 500 reviews. Save to apply.");
+
+		// Act
+
+		await user.type(
+			screen.getByRole("textbox", { name: "FSRS weights" }),
+			"1",
+		);
+
+		// Assert
+
+		expect(
+			screen.queryByText("Trained on 500 reviews. Save to apply."),
+		).not.toBeInTheDocument();
+	});
+
+	it("Should lock the FSRS weights while Optimize is running", async () => {
+		// Arrange
+
+		vi.mocked(optimizeStudyProfileFsrsParams).mockReturnValue(
+			new Promise(() => {}),
+		);
+		renderWithProviders(
+			<ProfileForm
+				profile={makeProfile()}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+
+		// Act
+
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: "Optimize" }));
+
+		// Assert
+
+		expect(
+			screen.getByRole("textbox", { name: "FSRS weights" }),
+		).toBeDisabled();
+	});
+
+	it("Should apply and announce the optimized weights when they arrive after switching tabs", async () => {
+		// Arrange
+
+		let resolveOptimization: (value: {
+			fsrsParams: number[];
+			reviewCount: number;
+		}) => void = () => {};
+		vi.mocked(optimizeStudyProfileFsrsParams).mockReturnValue(
+			new Promise(resolve => {
+				resolveOptimization = resolve;
+			}),
+		);
+		renderWithProviders(
+			<ProfileForm
+				profile={makeProfile()}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: "Optimize" }));
+		await openQueueTab();
+
+		// Act
+
+		await act(async () => {
+			resolveOptimization({
+				fsrsParams: Array.from({ length: 21 }, () => 0.5),
+				reviewCount: 500,
+			});
+		});
+		await openCardsTab();
+
+		// Assert
+
+		expect(
+			screen.getByText("Trained on 500 reviews. Save to apply."),
+		).toBeVisible();
+		expect(
+			screen.getByRole("textbox", { name: "FSRS weights" }),
+		).toHaveValue(Array.from({ length: 21 }, () => "0.5").join(", "));
 	});
 });
