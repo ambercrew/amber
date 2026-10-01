@@ -32,12 +32,6 @@ function Aside({ onCollapse, onExpand, onToggle }: AsideProps) {
 	});
 
 	const tabs: SidebarTab[] = [
-		{
-			value: "info",
-			title: "Element info",
-			icon: <InfoIcon size={16} />,
-			panel: <ElementInfoPanel />,
-		},
 		...(aiEnabled
 			? [
 					{
@@ -49,11 +43,17 @@ function Aside({ onCollapse, onExpand, onToggle }: AsideProps) {
 					},
 				]
 			: []),
+		{
+			value: "info",
+			title: "Element info",
+			icon: <InfoIcon size={16} />,
+			panel: <ElementInfoPanel />,
+		},
 	];
 
 	return (
 		<CollapsibleSidebar
-			defaultValue="info"
+			defaultValue="ai"
 			onCollapse={onCollapse}
 			collapsePosition="left"
 			localStorageKey={LOCAL_STORAGE_KEY}
