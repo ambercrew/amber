@@ -3,7 +3,8 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { calculateZoomLevel } from "@lexical/utils";
-import { Box, Image } from "@mantine/core";
+import { Box, Image, Popover } from "@mantine/core";
+import { ArrowsOutIcon } from "@phosphor-icons/react";
 import {
 	$getNodeByKey,
 	CLICK_COMMAND,
@@ -12,6 +13,9 @@ import {
 	mergeRegister,
 } from "lexical";
 import { $isImageNode } from "./ImageNode";
+import { openImageLightbox } from "./imageLightbox";
+import FloatingMenuBar from "../../../FloatingMenuBar/FloatingMenuBar";
+import { useIsEditorFocused } from "../../hooks/useIsEditorFocused";
 
 interface Props {
 	src: string;
@@ -54,6 +58,7 @@ export default function ImageComponent({
 		useLexicalNodeSelection(nodeKey);
 	const [isResizing, setIsResizing] = useState(false);
 	const isEditable = useLexicalEditable();
+	const isEditorFocused = useIsEditorFocused();
 	const imageRef = useRef<HTMLImageElement | null>(null);
 
 	const onClick = useCallback(
@@ -112,39 +117,66 @@ export default function ImageComponent({
 	};
 
 	const isFocused = (isSelected || isResizing) && isEditable;
+	const openLightbox = () => openImageLightbox(src, altText);
 
 	return (
-		<Box
-			component="span"
-			pos="relative"
-			display="inline-block"
-			// Subtracting the image resizer from max width to not have x-scroll.
-			maw="calc(100% - 8px)"
-			style={{ cursor: "default" }}>
-			<Image
-				ref={imageRef}
-				src={src}
-				alt={altText}
-				draggable={isSelected}
-				w={width}
-				h={height}
-				m={0}
-				fit="fill"
-				radius={0}
-				style={{
-					outline: isFocused
-						? "2px solid var(--mantine-primary-color-filled)"
-						: undefined,
-				}}
-			/>
-			{isEditable && isFocused && (
-				<ImageResizer
-					imageRef={imageRef}
-					onResizeStart={onResizeStart}
-					onResizeEnd={onResizeEnd}
+		// Node selection survives blur, so also gate on focus to keep it from floating over modals.
+		<Popover
+			opened={isSelected && isEditable && isEditorFocused && !isResizing}
+			position="bottom"
+			offset={8}
+			trapFocus={false}
+			returnFocus={false}
+			transitionProps={{ transition: "pop", duration: 120 }}>
+			<Popover.Target>
+				<Box
+					component="span"
+					pos="relative"
+					display="inline-block"
+					// Subtracting the image resizer from max width to not have x-scroll.
+					maw="calc(100% - 8px)"
+					style={{ cursor: "default" }}>
+					<Image
+						ref={imageRef}
+						src={src}
+						alt={altText}
+						draggable={isSelected}
+						w={width}
+						h={height}
+						m={0}
+						fit="fill"
+						radius={0}
+						onDoubleClick={openLightbox}
+						style={{
+							outline: isFocused
+								? "2px solid var(--mantine-primary-color-filled)"
+								: undefined,
+						}}
+					/>
+					{isEditable && isFocused && (
+						<ImageResizer
+							imageRef={imageRef}
+							onResizeStart={onResizeStart}
+							onResizeEnd={onResizeEnd}
+						/>
+					)}
+				</Box>
+			</Popover.Target>
+			<Popover.Dropdown p={0} bd={0} bg="transparent">
+				<FloatingMenuBar
+					items={[
+						{
+							name: "view",
+							title: "View image",
+							label: "View",
+							showLabel: true,
+							Icon: ArrowsOutIcon,
+							onClick: openLightbox,
+						},
+					]}
 				/>
-			)}
-		</Box>
+			</Popover.Dropdown>
+		</Popover>
 	);
 }
 

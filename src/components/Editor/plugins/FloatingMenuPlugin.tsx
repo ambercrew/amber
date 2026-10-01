@@ -1,17 +1,9 @@
-import {
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-	useSyncExternalStore,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
 	$getSelection,
 	$isRangeSelection,
-	BLUR_COMMAND,
 	COMMAND_PRIORITY_LOW,
-	FOCUS_COMMAND,
 	KEY_DOWN_COMMAND,
 	LexicalEditor,
 	RangeSelection,
@@ -22,6 +14,7 @@ import FloatingMenuBar, {
 	FloatingMenuBarItem,
 } from "../../FloatingMenuBar/FloatingMenuBar";
 import { matchesShortcut } from "../../../commands/useAppHotkeys";
+import { useIsEditorFocused } from "../hooks/useIsEditorFocused";
 
 export interface FloatingMenuButton {
 	divider?: false;
@@ -97,41 +90,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 	const [visibleState, setVisibleState] = useState<Record<string, boolean>>(
 		{},
 	);
-	const subscribeToFocus = useCallback(
-		(onStoreChange: () => void) => {
-			const unregisterBlur = editor.registerCommand(
-				BLUR_COMMAND,
-				() => {
-					onStoreChange();
-					return false;
-				},
-				COMMAND_PRIORITY_LOW,
-			);
-			const unregisterFocus = editor.registerCommand(
-				FOCUS_COMMAND,
-				() => {
-					onStoreChange();
-					return false;
-				},
-				COMMAND_PRIORITY_LOW,
-			);
-			return () => {
-				unregisterBlur();
-				unregisterFocus();
-			};
-		},
-		[editor],
-	);
-	const getFocusSnapshot = useCallback(
-		() => editor.getRootElement() === document.activeElement,
-		[editor],
-	);
-	// The root element can gain focus before this subscription is registered;
-	// useSyncExternalStore re-checks the snapshot right after commit, so that isn't missed.
-	const isEditorFocused = useSyncExternalStore(
-		subscribeToFocus,
-		getFocusSnapshot,
-	);
+	const isEditorFocused = useIsEditorFocused();
 	const [isMenuFocused, setIsMenuFocused] = useState(false);
 	const menuRef = useRef<HTMLDivElement>(null);
 	const escapedRef = useRef(false);
