@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
 	Group,
 	PasswordInput,
-	SegmentedControl,
+	Select,
 	Stack,
 	Switch,
 	TextInput,
@@ -19,6 +19,40 @@ import {
 	AiProviderSettings,
 } from "../../../api/settings/dto/settingsDto";
 
+interface ProviderInfo {
+	label: string;
+	modelPlaceholder: string;
+	embeddingsModelPlaceholder: string;
+	requiresApiKey: boolean;
+}
+
+const providers: Record<AiProvider, ProviderInfo> = {
+	ollama: {
+		label: "Ollama",
+		modelPlaceholder: "e.g. llama3.1",
+		embeddingsModelPlaceholder: "e.g. nomic-embed-text",
+		requiresApiKey: false,
+	},
+	openAI: {
+		label: "OpenAI",
+		modelPlaceholder: "e.g. gpt-4o-mini",
+		embeddingsModelPlaceholder: "e.g. text-embedding-3-small",
+		requiresApiKey: true,
+	},
+	openRouter: {
+		label: "OpenRouter",
+		modelPlaceholder: "e.g. openai/gpt-4o-mini",
+		embeddingsModelPlaceholder: "e.g. openai/text-embedding-3-small",
+		requiresApiKey: true,
+	},
+	gemini: {
+		label: "Gemini",
+		modelPlaceholder: "e.g. gemini-2.5-flash",
+		embeddingsModelPlaceholder: "e.g. gemini-embedding-001",
+		requiresApiKey: true,
+	},
+};
+
 function AiTab() {
 	const settings = useAppSelector(selectSettings);
 	const dispatch = useAppDispatch();
@@ -27,12 +61,9 @@ function AiTab() {
 
 	if (!settings) return null;
 
-	const providerSettings: AiProviderSettings =
-		settings.aiProvider === "openAI"
-			? settings.openai
-			: settings.aiProvider === "openRouter"
-				? settings.openrouter
-				: settings.ollama;
+	const provider = settings.aiProvider;
+	const providerInfo = providers[provider];
+	const { apiKeyIsSet, ...providerSettings } = settings.aiProviders[provider];
 
 	function handleEnableAiChange(checked: boolean) {
 		void dispatch(
@@ -40,7 +71,8 @@ function AiTab() {
 		);
 	}
 
-	function handleProviderChange(value: string) {
+	function handleProviderChange(value: string | null) {
+		if (!value) return;
 		void dispatch(
 			saveSettings(
 				buildUpdateSettingsRequest({ aiProvider: value as AiProvider }),
@@ -49,35 +81,20 @@ function AiTab() {
 	}
 
 	function handleProviderSettingsChange(change: Partial<AiProviderSettings>) {
-		if (!settings) return;
-		const key =
-			settings.aiProvider === "openAI"
-				? "openai"
-				: settings.aiProvider === "openRouter"
-					? "openrouter"
-					: "ollama";
 		void dispatch(
 			saveSettings(
 				buildUpdateSettingsRequest({
-					[key]: { ...providerSettings, ...change },
+					aiProviders: {
+						[provider]: { ...providerSettings, ...change },
+					},
 				}),
 			),
 		);
 	}
 
 	function handleApiKeyBlur() {
-		if (!apiKey || !settings) return;
-		const key =
-			settings.aiProvider === "openRouter" ? "openrouter" : "openai";
-		const currentProviderSettings =
-			key === "openrouter" ? settings.openrouter : settings.openai;
-		void dispatch(
-			saveSettings(
-				buildUpdateSettingsRequest({
-					[key]: { ...currentProviderSettings, apiKey },
-				}),
-			),
-		);
+		if (!apiKey) return;
+		handleProviderSettingsChange({ apiKey });
 		setApiKey("");
 	}
 
@@ -99,16 +116,16 @@ function AiTab() {
 					<Stack gap="xs">
 						<FieldLabel
 							label="Provider"
-							tooltip="Which service runs the AI models. Ollama runs them locally on this machine, OpenAI and OpenRouter run them in the cloud with your API key."
+							tooltip="Which service runs the AI models. Ollama runs them locally on this machine, OpenAI, OpenRouter and Gemini run them in the cloud with your API key."
 						/>
-						<SegmentedControl
-							value={settings.aiProvider}
+						<Select
+							value={provider}
 							onChange={handleProviderChange}
-							data={[
-								{ label: "Ollama", value: "ollama" },
-								{ label: "OpenAI", value: "openAI" },
-								{ label: "OpenRouter", value: "openRouter" },
-							]}
+							data={Object.entries(providers).map(
+								([value, { label }]) => ({ label, value }),
+							)}
+							allowDeselect={false}
+							withAlignedLabels
 						/>
 					</Stack>
 
@@ -118,14 +135,8 @@ function AiTab() {
 							tooltip="The model used for chat and other AI features. It must be available from the selected provider."
 						/>
 						<TextInput
-							key={`model-${settings.aiProvider}`}
-							placeholder={
-								settings.aiProvider === "ollama"
-									? "e.g. llama3.1"
-									: settings.aiProvider === "openRouter"
-										? "e.g. openai/gpt-4o-mini"
-										: "e.g. gpt-4o-mini"
-							}
+							key={`model-${provider}`}
+							placeholder={providerInfo.modelPlaceholder}
 							defaultValue={providerSettings.modelName ?? ""}
 							onBlur={e =>
 								handleProviderSettingsChange({
@@ -141,13 +152,9 @@ function AiTab() {
 							tooltip="The model used to semantically search documents you upload to a chat. It must be available from the selected provider."
 						/>
 						<TextInput
-							key={`embeddings-${settings.aiProvider}`}
+							key={`embeddings-${provider}`}
 							placeholder={
-								settings.aiProvider === "ollama"
-									? "e.g. nomic-embed-text"
-									: settings.aiProvider === "openRouter"
-										? "e.g. openai/text-embedding-3-small"
-										: "e.g. text-embedding-3-small"
+								providerInfo.embeddingsModelPlaceholder
 							}
 							defaultValue={
 								providerSettings.embeddingsModelName ?? ""
@@ -161,22 +168,18 @@ function AiTab() {
 						/>
 					</Stack>
 
-					{(settings.aiProvider === "openAI" ||
-						settings.aiProvider === "openRouter") && (
+					{providerInfo.requiresApiKey && (
 						<Stack gap="xs">
 							<FieldLabel
 								label="API key"
-								tooltip={`Your ${settings.aiProvider === "openRouter" ? "OpenRouter" : "OpenAI"} API key, used to authenticate requests. It is stored securely in your operating system's secret store.`}
+								tooltip={`Your ${providerInfo.label} API key, used to authenticate requests. It is stored securely in your operating system's secret store.`}
 							/>
 							<PasswordInput
+								key={`api-key-${provider}`}
 								placeholder={
-									(
-										settings.aiProvider === "openRouter"
-											? settings.openrouterApiKeyIsSet
-											: settings.openaiApiKeyIsSet
-									)
+									apiKeyIsSet
 										? "API key is set"
-										: `Enter your ${settings.aiProvider === "openRouter" ? "OpenRouter" : "OpenAI"} API key`
+										: `Enter your ${providerInfo.label} API key`
 								}
 								value={apiKey}
 								onChange={e => setApiKey(e.currentTarget.value)}

@@ -144,6 +144,11 @@ function AiPanel() {
 					icon={<WarningIcon size={16} />}
 					mb="xs"
 					withCloseButton
+					// Long unbroken errors (URLs, JSON) must wrap or they push the close button off-screen.
+					styles={{
+						body: { minWidth: 0 },
+						message: { overflowWrap: "anywhere" },
+					}}
 					onClose={() => {
 						clearErrorMessage();
 						clearStreamError();

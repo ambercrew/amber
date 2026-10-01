@@ -8,35 +8,22 @@ use crate::SourceError;
 use crate::ai_integration::clients::multi_client::MultiClient;
 use crate::ai_integration::clients::multi_client::multi_embedding_model::MultiEmbeddingModel;
 use crate::ai_integration::entities::document::Document;
+#[cfg(not(test))]
+use crate::settings::value_objects::ai_provider::AiProvider;
 
 #[derive(Error, Debug)]
 pub enum AiClientProviderError {
     #[error("AI is not enabled in settings!")]
     AiNotEnabled,
     #[cfg(not(test))]
-    #[error("Ollama model name is not set in settings!")]
-    OllamaModelNameIsNotFilled,
+    #[error("{0} model name is not set in settings!")]
+    ModelNameIsNotFilled(AiProvider),
     #[cfg(not(test))]
-    #[error("Ollama embeddings model name is not set in settings!")]
-    OllamaEmbeddingsModelNameIsNotFilled,
+    #[error("{0} embeddings model name is not set in settings!")]
+    EmbeddingsModelNameIsNotFilled(AiProvider),
     #[cfg(not(test))]
-    #[error("OpenAI API key is not set in settings!")]
-    OpenAIApiKeyNotSet,
-    #[cfg(not(test))]
-    #[error("OpenAI model name is not set in settings!")]
-    OpenAIModelNameIsNotFilled,
-    #[cfg(not(test))]
-    #[error("OpenAI embeddings model name is not set in settings!")]
-    OpenAIEmbeddingsModelNameIsNotFilled,
-    #[cfg(not(test))]
-    #[error("OpenRouter API key is not set in settings!")]
-    OpenRouterApiKeyNotSet,
-    #[cfg(not(test))]
-    #[error("OpenRouter model name is not set in settings!")]
-    OpenRouterModelNameIsNotFilled,
-    #[cfg(not(test))]
-    #[error("OpenRouter embeddings model name is not set in settings!")]
-    OpenRouterEmbeddingsModelNameIsNotFilled,
+    #[error("{0} API key is not set in settings!")]
+    ApiKeyNotSet(AiProvider),
     #[error("Failed to connect to the embeddings database")]
     ConnectingToEmbeddingsDatabase(#[source] SourceError),
     #[error(transparent)]

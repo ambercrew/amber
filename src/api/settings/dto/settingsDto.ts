@@ -1,11 +1,17 @@
 export type Theme = "FollowSystem" | "Light" | "Dark";
 export type Font = { type: "systemDefault" } | { type: "named"; value: string };
-export type AiProvider = "ollama" | "openAI" | "openRouter";
+export type AiProvider = "ollama" | "openAI" | "openRouter" | "gemini";
 
 export interface AiProviderSettings {
 	modelName: string | null;
 	embeddingsModelName: string | null;
 	apiKey?: string | null;
+}
+
+export interface AiProviderSettingsDto {
+	modelName: string | null;
+	embeddingsModelName: string | null;
+	apiKeyIsSet: boolean;
 }
 
 export default interface SettingsDto {
@@ -21,9 +27,5 @@ export default interface SettingsDto {
 
 	enableAi: boolean;
 	aiProvider: AiProvider;
-	ollama: AiProviderSettings;
-	openai: AiProviderSettings;
-	openaiApiKeyIsSet: boolean;
-	openrouter: AiProviderSettings;
-	openrouterApiKeyIsSet: boolean;
+	aiProviders: Record<AiProvider, AiProviderSettingsDto>;
 }

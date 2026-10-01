@@ -17,11 +17,28 @@ const settings: SettingsDto = {
 	trashRetentionDays: 30,
 	enableAi: false,
 	aiProvider: "ollama",
-	ollama: { modelName: null, embeddingsModelName: null },
-	openai: { modelName: null, embeddingsModelName: null },
-	openaiApiKeyIsSet: false,
-	openrouter: { modelName: null, embeddingsModelName: null },
-	openrouterApiKeyIsSet: false,
+	aiProviders: {
+		ollama: {
+			modelName: null,
+			embeddingsModelName: null,
+			apiKeyIsSet: false,
+		},
+		openAI: {
+			modelName: null,
+			embeddingsModelName: null,
+			apiKeyIsSet: false,
+		},
+		openRouter: {
+			modelName: null,
+			embeddingsModelName: null,
+			apiKeyIsSet: false,
+		},
+		gemini: {
+			modelName: null,
+			embeddingsModelName: null,
+			apiKeyIsSet: false,
+		},
+	},
 };
 
 function renderModal(opened: boolean) {

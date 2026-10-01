@@ -7,7 +7,7 @@ use rig::client::EmbeddingsClient;
 use rig::client::{BearerAuth, Nothing, ProviderClient};
 use rig::embeddings::EmbeddingModel;
 #[cfg(not(test))]
-use rig::providers::{ollama, openai, openrouter};
+use rig::providers::{gemini, ollama, openai, openrouter};
 use rig::sqlite::SqliteVectorStore;
 use tokio::fs;
 use tokio_rusqlite::Connection;
@@ -60,8 +60,26 @@ pub struct DefaultAiClientProvider {
     mock_client: Arc<MockClient>,
 }
 
-pub const OPENAI_API_KEY_SECRET: &str = "openai_api_key";
-pub const OPENROUTER_API_KEY_SECRET: &str = "openrouter_api_key";
+#[cfg(not(test))]
+impl DefaultAiClientProvider {
+    async fn get_api_key(&self, provider: AiProvider) -> Result<String, AiClientProviderError> {
+        let secret = provider
+            .api_key_secret()
+            .ok_or(AiClientProviderError::ApiKeyNotSet(provider))?;
+        self.secrets_repository
+            .get_secret(secret)
+            .await
+            .filter(|key| !key.is_empty())
+            .ok_or(AiClientProviderError::ApiKeyNotSet(provider))
+    }
+}
+
+#[cfg(not(test))]
+fn non_empty(value: Option<String>) -> Option<String> {
+    value
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+}
 
 #[async_trait]
 impl AiClientProvider for DefaultAiClientProvider {
@@ -76,43 +94,28 @@ impl AiClientProvider for DefaultAiClientProvider {
 
         #[cfg(not(test))]
         {
-            match settings.ai_provider {
-                AiProvider::Ollama => match ollama::Client::from_val(Nothing.into()) {
-                    Ok(client) => Ok(MultiClient::Ollama(client)),
-                    Err(err) => {
-                        log::error!("Error creating the Ollama client: {:?}", err);
-                        Err(AiClientProviderError::CreateClient)
-                    }
-                },
-                AiProvider::OpenAI => {
-                    let api_key = self
-                        .secrets_repository
-                        .get_secret(OPENAI_API_KEY_SECRET)
-                        .await
-                        .ok_or(AiClientProviderError::OpenAIApiKeyNotSet)?;
-                    match openai::CompletionsClient::from_val(BearerAuth::from(api_key)) {
-                        Ok(client) => Ok(MultiClient::OpenAI(client)),
-                        Err(err) => {
-                            log::error!("Error creating the OpenAI client: {:?}", err);
-                            Err(AiClientProviderError::CreateClient)
-                        }
-                    }
+            let provider = settings.ai_provider;
+            let client = match provider {
+                AiProvider::Ollama => {
+                    ollama::Client::from_val(Nothing.into()).map(MultiClient::Ollama)
                 }
-                AiProvider::OpenRouter => {
-                    let api_key = self
-                        .secrets_repository
-                        .get_secret(OPENROUTER_API_KEY_SECRET)
-                        .await
-                        .ok_or(AiClientProviderError::OpenRouterApiKeyNotSet)?;
-                    match openrouter::Client::from_val(BearerAuth::from(api_key)) {
-                        Ok(client) => Ok(MultiClient::OpenRouter(client)),
-                        Err(err) => {
-                            log::error!("Error creating the OpenRouter client: {:?}", err);
-                            Err(AiClientProviderError::CreateClient)
-                        }
-                    }
-                }
-            }
+                AiProvider::OpenAI => openai::CompletionsClient::from_val(BearerAuth::from(
+                    self.get_api_key(provider).await?,
+                ))
+                .map(MultiClient::OpenAI),
+                AiProvider::OpenRouter => openrouter::Client::from_val(BearerAuth::from(
+                    self.get_api_key(provider).await?,
+                ))
+                .map(MultiClient::OpenRouter),
+                AiProvider::Gemini => gemini::Client::from_val(gemini::client::GeminiApiKey::from(
+                    self.get_api_key(provider).await?,
+                ))
+                .map(MultiClient::Gemini),
+            };
+            client.map_err(|err| {
+                log::error!("Error creating the {provider} client: {:?}", err);
+                AiClientProviderError::CreateClient
+            })
         }
     }
 
@@ -123,63 +126,11 @@ impl AiClientProvider for DefaultAiClientProvider {
         #[cfg(not(test))]
         {
             let settings = self.settings_repository.get_settings().await;
-
-            match settings.ai_provider {
-                AiProvider::Ollama => {
-                    if settings.ollama.model_name.is_none() {
-                        return Err(AiClientProviderError::OllamaModelNameIsNotFilled);
-                    }
-                    let model_name = settings
-                        .ollama
-                        .model_name
-                        .as_ref()
-                        .unwrap()
-                        .clone()
-                        .trim()
-                        .to_string();
-                    if model_name.is_empty() {
-                        return Err(AiClientProviderError::OllamaModelNameIsNotFilled);
-                    }
-                    log::info!("Using the Ollama model with name '{model_name}'.");
-                    Ok(model_name)
-                }
-                AiProvider::OpenAI => {
-                    if settings.openai.model_name.is_none() {
-                        return Err(AiClientProviderError::OpenAIModelNameIsNotFilled);
-                    }
-                    let model_name = settings
-                        .openai
-                        .model_name
-                        .as_ref()
-                        .unwrap()
-                        .clone()
-                        .trim()
-                        .to_string();
-                    if model_name.is_empty() {
-                        return Err(AiClientProviderError::OpenAIModelNameIsNotFilled);
-                    }
-                    log::info!("Using the OpenAI model with name '{model_name}'.");
-                    Ok(model_name)
-                }
-                AiProvider::OpenRouter => {
-                    if settings.openrouter.model_name.is_none() {
-                        return Err(AiClientProviderError::OpenRouterModelNameIsNotFilled);
-                    }
-                    let model_name = settings
-                        .openrouter
-                        .model_name
-                        .as_ref()
-                        .unwrap()
-                        .clone()
-                        .trim()
-                        .to_string();
-                    if model_name.is_empty() {
-                        return Err(AiClientProviderError::OpenRouterModelNameIsNotFilled);
-                    }
-                    log::info!("Using the OpenRouter model with name '{model_name}'.");
-                    Ok(model_name)
-                }
-            }
+            let provider = settings.ai_provider;
+            let model_name = non_empty(settings.ai_provider_settings(provider).model_name)
+                .ok_or(AiClientProviderError::ModelNameIsNotFilled(provider))?;
+            log::info!("Using the {provider} model with name '{model_name}'.");
+            Ok(model_name)
         }
     }
 
@@ -194,67 +145,17 @@ impl AiClientProvider for DefaultAiClientProvider {
         #[cfg(not(test))]
         {
             let settings = self.settings_repository.get_settings().await;
-
-            match settings.ai_provider {
-                AiProvider::Ollama => {
-                    if settings.ollama.embeddings_model_name.is_none() {
-                        return Err(AiClientProviderError::OllamaEmbeddingsModelNameIsNotFilled);
-                    }
-                    let model_name = settings
-                        .ollama
-                        .embeddings_model_name
-                        .as_ref()
-                        .unwrap()
-                        .clone()
-                        .trim()
-                        .to_string();
-                    if model_name.is_empty() {
-                        return Err(AiClientProviderError::OllamaEmbeddingsModelNameIsNotFilled);
-                    }
-                    log::info!("Using the Ollama embeddings model with name '{model_name}'.");
-                    Ok(model_name)
-                }
-                AiProvider::OpenAI => {
-                    if settings.openai.embeddings_model_name.is_none() {
-                        return Err(AiClientProviderError::OpenAIEmbeddingsModelNameIsNotFilled);
-                    }
-                    let model_name = settings
-                        .openai
-                        .embeddings_model_name
-                        .as_ref()
-                        .unwrap()
-                        .clone()
-                        .trim()
-                        .to_string();
-                    if model_name.is_empty() {
-                        return Err(AiClientProviderError::OpenAIEmbeddingsModelNameIsNotFilled);
-                    }
-                    log::info!("Using the OpenAI embeddings model with name '{model_name}'.");
-                    Ok(model_name)
-                }
-                AiProvider::OpenRouter => {
-                    if settings.openrouter.embeddings_model_name.is_none() {
-                        return Err(
-                            AiClientProviderError::OpenRouterEmbeddingsModelNameIsNotFilled,
-                        );
-                    }
-                    let model_name = settings
-                        .openrouter
-                        .embeddings_model_name
-                        .as_ref()
-                        .unwrap()
-                        .clone()
-                        .trim()
-                        .to_string();
-                    if model_name.is_empty() {
-                        return Err(
-                            AiClientProviderError::OpenRouterEmbeddingsModelNameIsNotFilled,
-                        );
-                    }
-                    log::info!("Using the OpenRouter embeddings model with name '{model_name}'.");
-                    Ok(model_name)
-                }
-            }
+            let provider = settings.ai_provider;
+            let model_name = non_empty(
+                settings
+                    .ai_provider_settings(provider)
+                    .embeddings_model_name,
+            )
+            .ok_or(AiClientProviderError::EmbeddingsModelNameIsNotFilled(
+                provider,
+            ))?;
+            log::info!("Using the {provider} embeddings model with name '{model_name}'.");
+            Ok(model_name)
         }
     }
 

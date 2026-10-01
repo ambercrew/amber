@@ -60,7 +60,7 @@ async fn read_settings_from_file(
     if let Err(err) = file.read_to_string(&mut file_content).await {
         return Err(SettingsRepositoryError::ErrorReadingFile(Box::new(err)));
     }
-    match serde_json::from_str(&file_content) {
+    match Settings::from_json(&file_content) {
         Ok(settings) => Ok(settings),
         Err(err) => Err(SettingsRepositoryError::Parsing(Box::new(err))),
     }

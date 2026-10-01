@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
-use crate::settings::value_objects::{
-    ai_provider::AiProvider, ai_provider_settings::AiProviderSettings, font::Font, theme::Theme,
+use crate::settings::{
+    dto::ai_provider_settings_dto::AiProviderSettingsDto,
+    value_objects::{ai_provider::AiProvider, font::Font, theme::Theme},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,9 +22,6 @@ pub struct SettingsDto {
 
     pub enable_ai: bool,
     pub ai_provider: AiProvider,
-    pub ollama: AiProviderSettings,
-    pub openai: AiProviderSettings,
-    pub openai_api_key_is_set: bool,
-    pub openrouter: AiProviderSettings,
-    pub openrouter_api_key_is_set: bool,
+    /// Holds an entry for every provider.
+    pub ai_providers: HashMap<AiProvider, AiProviderSettingsDto>,
 }

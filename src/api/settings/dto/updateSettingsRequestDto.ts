@@ -13,9 +13,7 @@ export default interface UpdateSettingsRequestDto {
 
 	enableAi: boolean | null;
 	aiProvider: AiProvider | null;
-	ollama: AiProviderSettings | null;
-	openai: AiProviderSettings | null;
-	openrouter: AiProviderSettings | null;
+	aiProviders: Partial<Record<AiProvider, AiProviderSettings>> | null;
 }
 
 /**
@@ -37,9 +35,7 @@ export function buildUpdateSettingsRequest(
 		trashRetentionDays: null,
 		enableAi: null,
 		aiProvider: null,
-		ollama: null,
-		openai: null,
-		openrouter: null,
+		aiProviders: null,
 		...overrides,
 	};
 }

@@ -1,6 +1,7 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::settings::value_objects::{
     ai_provider::AiProvider, ai_provider_settings::AiProviderSettings,
@@ -40,12 +41,38 @@ pub struct Settings {
     pub enable_ai: bool,
     #[serde(default)]
     pub ai_provider: AiProvider,
+    /// Per-provider settings, keyed by provider; a missing entry means defaults.
     #[serde(default)]
-    pub ollama: AiProviderSettings,
-    #[serde(default)]
-    pub openai: AiProviderSettings,
-    #[serde(default)]
-    pub openrouter: AiProviderSettings,
+    pub ai_providers: HashMap<AiProvider, AiProviderSettings>,
+}
+
+/// Top-level keys that older settings files used for per-provider settings,
+/// before they moved under `aiProviders`.
+const LEGACY_AI_PROVIDER_KEYS: [(&str, AiProvider); 3] = [
+    ("ollama", AiProvider::Ollama),
+    ("openai", AiProvider::OpenAI),
+    ("openrouter", AiProvider::OpenRouter),
+];
+
+fn migrate_legacy_ai_providers(value: &mut Value) -> serde_json::Result<()> {
+    let Some(object) = value.as_object_mut() else {
+        return Ok(());
+    };
+
+    let mut ai_providers: HashMap<AiProvider, AiProviderSettings> = match object.get("aiProviders")
+    {
+        Some(existing) => serde_json::from_value(existing.clone())?,
+        None => HashMap::new(),
+    };
+    for (key, provider) in LEGACY_AI_PROVIDER_KEYS {
+        if let Some(legacy) = object.remove(key) {
+            let legacy = serde_json::from_value(legacy)?;
+            ai_providers.entry(provider).or_insert(legacy);
+        }
+    }
+    object.insert("aiProviders".into(), serde_json::to_value(ai_providers)?);
+
+    Ok(())
 }
 
 fn default_trash_retention_days() -> u32 {
@@ -70,14 +97,27 @@ impl Default for Settings {
             trash_retention_days: DEFAULT_TRASH_RETENTION_DAYS,
             enable_ai: true,
             ai_provider: AiProvider::default(),
-            ollama: AiProviderSettings::default(),
-            openai: AiProviderSettings::default(),
-            openrouter: AiProviderSettings::default(),
+            ai_providers: HashMap::new(),
         }
     }
 }
 
 impl Settings {
+    /// Parses a settings file, migrating legacy fields to their current shape first.
+    pub fn from_json(json: &str) -> serde_json::Result<Self> {
+        let mut value: Value = serde_json::from_str(json)?;
+        migrate_legacy_ai_providers(&mut value)?;
+        serde_json::from_value(value)
+    }
+
+    /// The settings of `provider`, or its defaults if none were saved.
+    pub fn ai_provider_settings(&self, provider: AiProvider) -> AiProviderSettings {
+        self.ai_providers
+            .get(&provider)
+            .cloned()
+            .unwrap_or_default()
+    }
+
     pub fn new(base_database_location: PathBuf, profile: SettingsProfile) -> Self {
         Settings {
             base_database_directory: base_database_location,
@@ -91,9 +131,7 @@ impl Settings {
             trash_retention_days: DEFAULT_TRASH_RETENTION_DAYS,
             enable_ai: true,
             ai_provider: AiProvider::default(),
-            ollama: AiProviderSettings::default(),
-            openai: AiProviderSettings::default(),
-            openrouter: AiProviderSettings::default(),
+            ai_providers: HashMap::new(),
         }
     }
 
@@ -149,5 +187,74 @@ mod tests {
         // Assert
 
         assert_eq!(base.join("user1"), actual);
+    }
+
+    #[test]
+    pub fn from_json_legacy_provider_fields_migrated_to_ai_providers() {
+        // Arrange
+
+        let json = r#"{
+            "baseDatabaseDirectory": "/data/amber",
+            "profile": "Default",
+            "theme": "FollowSystem",
+            "zoomPercentage": 100.0,
+            "autoSync": true,
+            "aiProvider": "openRouter",
+            "ollama": { "modelName": "llama3.1", "embeddingsModelName": null, "apiKey": null },
+            "openai": { "modelName": "gpt-4o", "embeddingsModelName": null, "apiKey": null },
+            "openrouter": { "modelName": "openai/gpt-4o-mini", "embeddingsModelName": null, "apiKey": null }
+        }"#;
+
+        // Act
+
+        let actual = Settings::from_json(json).unwrap();
+
+        // Assert
+
+        assert_eq!(AiProvider::OpenRouter, actual.ai_provider);
+        assert_eq!(
+            Some("llama3.1".to_string()),
+            actual.ai_provider_settings(AiProvider::Ollama).model_name
+        );
+        assert_eq!(
+            Some("gpt-4o".to_string()),
+            actual.ai_provider_settings(AiProvider::OpenAI).model_name
+        );
+        assert_eq!(
+            Some("openai/gpt-4o-mini".to_string()),
+            actual
+                .ai_provider_settings(AiProvider::OpenRouter)
+                .model_name
+        );
+        assert_eq!(
+            None,
+            actual.ai_provider_settings(AiProvider::Gemini).model_name
+        );
+    }
+
+    #[test]
+    pub fn from_json_serialized_settings_round_tripped_ai_providers() {
+        // Arrange
+
+        let mut settings = Settings::new(PathBuf::from("/data/amber"), SettingsProfile::Default);
+        settings.ai_providers.insert(
+            AiProvider::Gemini,
+            AiProviderSettings {
+                model_name: Some("gemini-2.5-flash".to_string()),
+                ..Default::default()
+            },
+        );
+        let json = serde_json::to_string(&settings).unwrap();
+
+        // Act
+
+        let actual = Settings::from_json(&json).unwrap();
+
+        // Assert
+
+        assert_eq!(
+            Some("gemini-2.5-flash".to_string()),
+            actual.ai_provider_settings(AiProvider::Gemini).model_name
+        );
     }
 }

@@ -4,9 +4,6 @@ use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
 
 use crate::{
-    ai_integration::services::implementations::default_ai_client_provider::{
-        OPENAI_API_KEY_SECRET, OPENROUTER_API_KEY_SECRET,
-    },
     database::database_connection_manager::DatabaseConnectionManager,
     secrets::repositories::secrets_repository::SecretsRepository,
     settings::{
@@ -71,28 +68,17 @@ impl SettingsUpdater for DefaultSettingsUpdater {
         if let Some(ai_provider) = new_settings.ai_provider {
             settings.ai_provider = ai_provider;
         }
-        if let Some(mut ollama) = new_settings.ollama {
-            // Ollama has no API key concept today; drop whatever was sent
-            // rather than persisting it in plain-text settings.
-            ollama.api_key = None;
-            settings.ollama = ollama;
-        }
 
-        let mut openai_api_key_to_save = None;
-        if let Some(mut openai) = new_settings.openai {
-            // The key is a secret, so it's pulled out here and saved via
-            // `SecretsRepository` below instead of being persisted as part
-            // of the plain-text settings file.
-            openai_api_key_to_save = openai.api_key.take();
-            settings.openai = openai;
-        }
-
-        let mut openrouter_api_key_to_save = None;
-        if let Some(mut openrouter) = new_settings.openrouter {
-            // Same as the OpenAI key above: pulled out and saved via
-            // `SecretsRepository` instead of the plain-text settings file.
-            openrouter_api_key_to_save = openrouter.api_key.take();
-            settings.openrouter = openrouter;
+        let mut api_keys_to_save = Vec::new();
+        for (provider, mut provider_settings) in new_settings.ai_providers.unwrap_or_default() {
+            // Keys are secrets: pulled out here and saved via `SecretsRepository` below,
+            // never persisted in the plain-text settings file (dropped for keyless providers).
+            if let Some(api_key) = provider_settings.api_key.take()
+                && let Some(secret) = provider.api_key_secret()
+            {
+                api_keys_to_save.push((secret, api_key));
+            }
+            settings.ai_providers.insert(provider, provider_settings);
         }
 
         if change_database_location {
@@ -121,15 +107,8 @@ impl SettingsUpdater for DefaultSettingsUpdater {
 
         self.settings_repository.save_settings(settings).await?;
 
-        if let Some(api_key) = &openai_api_key_to_save {
-            self.secrets_repository
-                .set_secret(OPENAI_API_KEY_SECRET, api_key)
-                .await?;
-        }
-        if let Some(api_key) = &openrouter_api_key_to_save {
-            self.secrets_repository
-                .set_secret(OPENROUTER_API_KEY_SECRET, api_key)
-                .await?;
+        for (secret, api_key) in &api_keys_to_save {
+            self.secrets_repository.set_secret(secret, api_key).await?;
         }
 
         Ok(())
@@ -150,7 +129,8 @@ mod tests {
             entities::settings::Settings,
             services::settings_updater::SettingsUpdater,
             value_objects::{
-                ai_provider_settings::AiProviderSettings, database_location::DatabaseLocation,
+                ai_provider::AiProvider, ai_provider_settings::AiProviderSettings,
+                database_location::DatabaseLocation,
             },
         },
         test_utils::create_test_injector,
@@ -277,11 +257,17 @@ mod tests {
         // Arrange
 
         let request = UpdateSettingsRequestDto {
-            openai: Some(AiProviderSettings {
-                model_name: Some("gpt-4o".to_string()),
-                api_key: Some("sk-test-key".to_string()),
-                ..Default::default()
-            }),
+            ai_providers: Some(
+                [(
+                    AiProvider::OpenAI,
+                    AiProviderSettings {
+                        model_name: Some("gpt-4o".to_string()),
+                        api_key: Some("sk-test-key".to_string()),
+                        ..Default::default()
+                    },
+                )]
+                .into(),
+            ),
             ..Default::default()
         };
 
@@ -298,14 +284,15 @@ mod tests {
         let secret = scope
             .resolve::<dyn SecretsRepository>()
             .await
-            .get_secret(OPENAI_API_KEY_SECRET)
+            .get_secret(AiProvider::OpenAI.api_key_secret().unwrap())
             .await;
         assert_eq!(Some("sk-test-key".to_string()), secret);
 
         let settings = scope.resolve::<dyn SettingsRepository>().await;
         let saved = settings.get_settings().await;
-        assert_eq!(Some("gpt-4o".to_string()), saved.openai.model_name);
-        assert_eq!(None, saved.openai.api_key);
+        let saved_openai = saved.ai_provider_settings(AiProvider::OpenAI);
+        assert_eq!(Some("gpt-4o".to_string()), saved_openai.model_name);
+        assert_eq!(None, saved_openai.api_key);
     }
 
     #[tokio::test]
@@ -313,10 +300,16 @@ mod tests {
         // Arrange
 
         let request = UpdateSettingsRequestDto {
-            openai: Some(AiProviderSettings {
-                model_name: Some("gpt-4o".to_string()),
-                ..Default::default()
-            }),
+            ai_providers: Some(
+                [(
+                    AiProvider::OpenAI,
+                    AiProviderSettings {
+                        model_name: Some("gpt-4o".to_string()),
+                        ..Default::default()
+                    },
+                )]
+                .into(),
+            ),
             ..Default::default()
         };
 
@@ -333,7 +326,7 @@ mod tests {
         let secret = scope
             .resolve::<dyn SecretsRepository>()
             .await
-            .get_secret(OPENAI_API_KEY_SECRET)
+            .get_secret(AiProvider::OpenAI.api_key_secret().unwrap())
             .await;
         assert_eq!(None, secret);
     }

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +23,6 @@ pub struct UpdateSettingsRequestDto {
 
     pub enable_ai: Option<bool>,
     pub ai_provider: Option<AiProvider>,
-    pub ollama: Option<AiProviderSettings>,
-    pub openai: Option<AiProviderSettings>,
-    pub openrouter: Option<AiProviderSettings>,
+    /// Only the providers present are updated; `api_key` is stored as a secret.
+    pub ai_providers: Option<HashMap<AiProvider, AiProviderSettings>>,
 }

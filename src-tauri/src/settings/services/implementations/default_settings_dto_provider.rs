@@ -1,16 +1,15 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
 
 use crate::{
-    ai_integration::services::implementations::default_ai_client_provider::{
-        OPENAI_API_KEY_SECRET, OPENROUTER_API_KEY_SECRET,
-    },
     secrets::repositories::secrets_repository::SecretsRepository,
     settings::{
-        dto::settings_dto::SettingsDto, repositories::settings_repository::SettingsRepository,
+        dto::{ai_provider_settings_dto::AiProviderSettingsDto, settings_dto::SettingsDto},
+        repositories::settings_repository::SettingsRepository,
         services::settings_dto_provider::SettingsDtoProvider,
+        value_objects::ai_provider::AiProvider,
     },
 };
 
@@ -24,16 +23,27 @@ pub struct DefaultSettingsDtoProvider {
 impl SettingsDtoProvider for DefaultSettingsDtoProvider {
     async fn get_settings_dto(&self) -> SettingsDto {
         let settings = self.settings_repository.get_settings().await;
-        let openai_api_key_is_set = self
-            .secrets_repository
-            .get_secret(OPENAI_API_KEY_SECRET)
-            .await
-            .is_some_and(|k| !k.is_empty());
-        let openrouter_api_key_is_set = self
-            .secrets_repository
-            .get_secret(OPENROUTER_API_KEY_SECRET)
-            .await
-            .is_some_and(|k| !k.is_empty());
+
+        let mut ai_providers = HashMap::new();
+        for provider in AiProvider::ALL {
+            let api_key_is_set = match provider.api_key_secret() {
+                Some(secret) => self
+                    .secrets_repository
+                    .get_secret(secret)
+                    .await
+                    .is_some_and(|k| !k.is_empty()),
+                None => false,
+            };
+            let provider_settings = settings.ai_provider_settings(provider);
+            ai_providers.insert(
+                provider,
+                AiProviderSettingsDto {
+                    model_name: provider_settings.model_name,
+                    embeddings_model_name: provider_settings.embeddings_model_name,
+                    api_key_is_set,
+                },
+            );
+        }
 
         SettingsDto {
             base_database_directory: settings.base_database_directory_as_string(),
@@ -46,11 +56,7 @@ impl SettingsDtoProvider for DefaultSettingsDtoProvider {
             trash_retention_days: settings.trash_retention_days,
             enable_ai: settings.enable_ai,
             ai_provider: settings.ai_provider,
-            ollama: settings.ollama,
-            openai: settings.openai,
-            openai_api_key_is_set,
-            openrouter: settings.openrouter,
-            openrouter_api_key_is_set,
+            ai_providers,
         }
     }
 }
