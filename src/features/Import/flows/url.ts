@@ -29,19 +29,36 @@ export async function runUrlImport(
 	const resolvedUrl = page.finalUrl || url;
 
 	if (page.kind === "pdf") {
-		const bytes = base64ToArrayBuffer(page.bytesBase64);
-		const file = new File([bytes], filenameFromUrl(resolvedUrl), {
-			type: "application/pdf",
-		});
+		const file = new File(
+			[base64ToArrayBuffer(page.bytesBase64)],
+			filenameFromUrl(resolvedUrl, "pdf"),
+			{ type: "application/pdf" },
+		);
 		// URL-imported PDFs have no import-modal toggle to opt out of extraction,
 		// so they always convert to an editable document as before.
+		return runFileImport([file], ctx, true, undefined, resolvedUrl);
+	}
+
+	if (page.kind === "epub") {
+		const file = new File(
+			[base64ToArrayBuffer(page.bytesBase64)],
+			filenameFromUrl(resolvedUrl, "epub"),
+			{ type: "application/epub+zip" },
+		);
+		return runFileImport([file], ctx, true, undefined, resolvedUrl);
+	}
+
+	if (page.kind === "markdown") {
+		const file = new File([page.text], filenameFromUrl(resolvedUrl, "md"), {
+			type: "text/markdown",
+		});
 		return runFileImport([file], ctx, true, undefined, resolvedUrl);
 	}
 
 	if (page.kind === "other") {
 		return {
 			kind: "fetch-failed",
-			message: "This link isn't an article or PDF.",
+			message: "This link isn't an article, PDF, EPUB or Markdown file.",
 		};
 	}
 
@@ -134,7 +151,25 @@ function hasContent(html: string): boolean {
 	);
 }
 
-function filenameFromUrl(url: string): string {
-	const last = url.split("/").filter(Boolean).pop() ?? "document.pdf";
-	return last.toLowerCase().endsWith(".pdf") ? last : `${last}.pdf`;
+const EXTENSION_PATTERNS = {
+	pdf: /\.pdf$/i,
+	epub: /\.epub$/i,
+	md: /\.(md|markdown)$/i,
+};
+
+/** Names the fetched file after the URL's last path segment, so runFileImport can title it and detect its type. */
+function filenameFromUrl(
+	url: string,
+	extension: keyof typeof EXTENSION_PATTERNS,
+): string {
+	let name = "document";
+	try {
+		name = new URL(url).pathname.split("/").filter(Boolean).pop() ?? name;
+		name = decodeURIComponent(name);
+	} catch {
+		// Keep whatever was parsed so far.
+	}
+	return EXTENSION_PATTERNS[extension].test(name)
+		? name
+		: `${name}.${extension}`;
 }

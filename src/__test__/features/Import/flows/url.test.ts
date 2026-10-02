@@ -97,7 +97,7 @@ describe("runUrlImport", () => {
 
 		expect(actual).toEqual({
 			kind: "fetch-failed",
-			message: "This link isn't an article or PDF.",
+			message: "This link isn't an article, PDF, EPUB or Markdown file.",
 		});
 	});
 
@@ -148,6 +148,77 @@ describe("runUrlImport", () => {
 
 		const [, , , , location] = vi.mocked(runFileImport).mock.calls[0];
 		expect(location).toBe("https://example.com/doc.pdf");
+	});
+
+	it("Should delegate to runFileImport when the fetched page is an epub", async () => {
+		// Arrange
+
+		vi.mocked(fetchPage).mockResolvedValue({
+			kind: "epub",
+			finalUrl: "https://example.com/books/1.epub?download=1",
+			bytesBase64: btoa("PK\x03\x04fake"),
+		});
+		vi.mocked(runFileImport).mockResolvedValue(null);
+		const ctx = makeCtx();
+
+		// Act
+
+		const actual = await runUrlImport("https://example.com/books/1", ctx);
+
+		// Assert
+
+		expect(actual).toBeNull();
+		const [files, , , , location] = vi.mocked(runFileImport).mock.calls[0];
+		expect(files[0].name).toBe("1.epub");
+		expect(location).toBe("https://example.com/books/1.epub?download=1");
+	});
+
+	it("Should delegate the markdown text to runFileImport when the fetched page is markdown", async () => {
+		// Arrange
+
+		vi.mocked(fetchPage).mockResolvedValue({
+			kind: "markdown",
+			finalUrl: "https://example.com/docs/Read%20Me.markdown",
+			text: "# Title",
+		});
+		vi.mocked(runFileImport).mockResolvedValue(null);
+		const ctx = makeCtx();
+
+		// Act
+
+		const actual = await runUrlImport(
+			"https://example.com/docs/Read%20Me.markdown",
+			ctx,
+		);
+
+		// Assert
+
+		expect(actual).toBeNull();
+		const [files, , , , location] = vi.mocked(runFileImport).mock.calls[0];
+		expect(files[0].name).toBe("Read Me.markdown");
+		expect(await files[0].text()).toBe("# Title");
+		expect(location).toBe("https://example.com/docs/Read%20Me.markdown");
+	});
+
+	it("Should name the markdown file after the url when it has no extension", async () => {
+		// Arrange
+
+		vi.mocked(fetchPage).mockResolvedValue({
+			kind: "markdown",
+			finalUrl: "https://example.com/notes",
+			text: "# Title",
+		});
+		vi.mocked(runFileImport).mockResolvedValue(null);
+		const ctx = makeCtx();
+
+		// Act
+
+		await runUrlImport("https://example.com/notes", ctx);
+
+		// Assert
+
+		const [files] = vi.mocked(runFileImport).mock.calls[0];
+		expect(files[0].name).toBe("notes.md");
 	});
 
 	it("Should hydrate lazy images before parsing the article", async () => {

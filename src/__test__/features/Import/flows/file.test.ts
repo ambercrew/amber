@@ -371,6 +371,39 @@ describe("runFileImport", () => {
 		);
 	});
 
+	it("Should resolve relative links against the location when given one", async () => {
+		// Arrange
+
+		vi.mocked(extractMarkdown).mockReturnValue({
+			title: "Markdown Title",
+			authors: null,
+			publicationDate: null,
+			html: '<p><img src="diagram.png"></p>',
+		});
+		vi.mocked(normalize).mockResolvedValue("<p>normalized</p>");
+		vi.mocked(createBibliographicalSource).mockResolvedValue(makeSource());
+		const ctx = makeCtx();
+
+		// Act
+
+		await runFileImport(
+			[markdownFile()],
+			ctx,
+			true,
+			undefined,
+			"https://example.com/docs/notes.md",
+		);
+
+		// Assert
+
+		expect(normalize).toHaveBeenCalledWith(
+			'<p><img src="diagram.png"></p>',
+			{
+				baseUrl: "https://example.com/docs/notes.md",
+			},
+		);
+	});
+
 	it("Should return no-content when markdown extraction reports no readable content", async () => {
 		// Arrange
 

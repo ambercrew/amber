@@ -11,6 +11,13 @@ pub enum FetchedPageDto {
         bytes_base64: String,
     },
     #[serde(rename_all = "camelCase")]
+    Epub {
+        final_url: String,
+        bytes_base64: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    Markdown { final_url: String, text: String },
+    #[serde(rename_all = "camelCase")]
     Other {
         final_url: String,
         content_type: String,

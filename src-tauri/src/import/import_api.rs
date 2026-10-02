@@ -27,33 +27,68 @@ pub async fn fetch_page(url: String) -> Result<FetchedPageDto, ApiError> {
     let response = client.get(&url).send().await?;
 
     let final_url = response.url().to_string();
+    let path = response.url().path().to_lowercase();
     let content_type = response
         .headers()
         .get(CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
-        .to_string();
+        .to_lowercase();
 
     let bytes = read_capped(response, MAX_PAGE_BYTES).await?;
 
-    if content_type.contains("pdf") || bytes.starts_with(b"%PDF-") {
-        return Ok(FetchedPageDto::Pdf {
+    Ok(match classify_page(&content_type, &path, &bytes) {
+        PageKind::Pdf => FetchedPageDto::Pdf {
             final_url,
             bytes_base64: general_purpose::STANDARD.encode(&bytes),
-        });
-    }
-
-    if content_type.contains("html") || content_type.is_empty() {
-        return Ok(FetchedPageDto::Html {
+        },
+        PageKind::Epub => FetchedPageDto::Epub {
+            final_url,
+            bytes_base64: general_purpose::STANDARD.encode(&bytes),
+        },
+        PageKind::Markdown => FetchedPageDto::Markdown {
             final_url,
             text: String::from_utf8_lossy(&bytes).into_owned(),
-        });
-    }
-
-    Ok(FetchedPageDto::Other {
-        final_url,
-        content_type,
+        },
+        PageKind::Html => FetchedPageDto::Html {
+            final_url,
+            text: String::from_utf8_lossy(&bytes).into_owned(),
+        },
+        PageKind::Other => FetchedPageDto::Other {
+            final_url,
+            content_type,
+        },
     })
+}
+
+#[derive(Debug, PartialEq)]
+enum PageKind {
+    Pdf,
+    Epub,
+    Markdown,
+    Html,
+    Other,
+}
+
+// Servers often send EPUB as `application/octet-stream` and Markdown as `text/plain`, so the URL's extension breaks the tie.
+fn classify_page(content_type: &str, path: &str, bytes: &[u8]) -> PageKind {
+    if content_type.contains("pdf") || bytes.starts_with(b"%PDF-") {
+        return PageKind::Pdf;
+    }
+    let is_zip = bytes.starts_with(b"PK\x03\x04");
+    if is_zip && (content_type.contains("epub") || path.ends_with(".epub")) {
+        return PageKind::Epub;
+    }
+    let has_markdown_extension = path.ends_with(".md") || path.ends_with(".markdown");
+    if content_type.contains("markdown")
+        || (has_markdown_extension && !content_type.contains("html"))
+    {
+        return PageKind::Markdown;
+    }
+    if content_type.contains("html") || content_type.is_empty() {
+        return PageKind::Html;
+    }
+    PageKind::Other
 }
 
 #[tauri::command]
@@ -245,6 +280,115 @@ pub(super) fn sniff_image_mime(bytes: &[u8]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn classify_page_epub_content_type_returns_epub() {
+        // Arrange
+
+        let bytes = b"PK\x03\x04rest";
+
+        // Act
+
+        let kind = classify_page("application/epub+zip", "/book", bytes);
+
+        // Assert
+
+        assert_eq!(kind, PageKind::Epub);
+    }
+
+    #[test]
+    fn classify_page_octet_stream_with_epub_extension_returns_epub() {
+        // Arrange
+
+        let bytes = b"PK\x03\x04rest";
+
+        // Act
+
+        let kind = classify_page("application/octet-stream", "/books/1.epub", bytes);
+
+        // Assert
+
+        assert_eq!(kind, PageKind::Epub);
+    }
+
+    #[test]
+    fn classify_page_zip_without_epub_hint_returns_other() {
+        // Arrange
+
+        let bytes = b"PK\x03\x04rest";
+
+        // Act
+
+        let kind = classify_page("application/zip", "/archive.zip", bytes);
+
+        // Assert
+
+        assert_eq!(kind, PageKind::Other);
+    }
+
+    #[test]
+    fn classify_page_markdown_content_type_returns_markdown() {
+        // Arrange
+
+        let bytes = b"# Title";
+
+        // Act
+
+        let kind = classify_page("text/markdown; charset=utf-8", "/notes", bytes);
+
+        // Assert
+
+        assert_eq!(kind, PageKind::Markdown);
+    }
+
+    #[test]
+    fn classify_page_plain_text_with_md_extension_returns_markdown() {
+        // Arrange
+
+        let bytes = b"# Title";
+
+        // Act
+
+        let kind = classify_page(
+            "text/plain; charset=utf-8",
+            "/user/repo/main/readme.md",
+            bytes,
+        );
+
+        // Assert
+
+        assert_eq!(kind, PageKind::Markdown);
+    }
+
+    #[test]
+    fn classify_page_html_with_md_extension_returns_html() {
+        // Arrange
+
+        let bytes = b"<html></html>";
+
+        // Act
+
+        let kind = classify_page("text/html", "/user/repo/blob/main/readme.md", bytes);
+
+        // Assert
+
+        assert_eq!(kind, PageKind::Html);
+    }
+
+    #[test]
+    fn classify_page_pdf_magic_returns_pdf() {
+        // Arrange
+
+        let bytes = b"%PDF-1.7";
+
+        // Act
+
+        let kind = classify_page("application/octet-stream", "/file", bytes);
+
+        // Assert
+
+        assert_eq!(kind, PageKind::Pdf);
+    }
 
     #[test]
     fn extract_pdf_html_pdf_with_text_layer_returns_html_and_reports_progress() {

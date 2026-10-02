@@ -63,7 +63,10 @@ export async function runFileImport(
 				: isEpub
 					? await extractEpub(bytes)
 					: extractMarkdown(new TextDecoder().decode(bytes));
-			const content = await normalize(extraction.html, { baseUrl: null });
+			// A URL import passes its URL, so relative links and images resolve against it.
+			const content = await normalize(extraction.html, {
+				baseUrl: location ?? null,
+			});
 			const resolvedTitle = plausibleTitle(extraction.title) ?? title;
 
 			const bibliographicalSource = await ctx.dispatch(
