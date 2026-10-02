@@ -30,6 +30,11 @@ export function hydrateLazyImages(doc: Document): void {
 			const best = srcset ? largestSrcsetCandidate(srcset) : null;
 			if (best) img.setAttribute("src", best);
 		}
+
+		// Defuddle swaps a lazy image's src for any attribute ending in an image extension,
+		// e.g. Wikipedia's `resource` link to the File: page, so a usable src stops being lazy.
+		if (/^(https?:)?\/\//.test(img.getAttribute("src") ?? ""))
+			img.removeAttribute("loading");
 	});
 }
 

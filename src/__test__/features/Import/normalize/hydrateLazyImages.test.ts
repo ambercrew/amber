@@ -124,4 +124,36 @@ describe("hydrateLazyImages", () => {
 		expect(first.getAttribute("src")).toBe("https://example.com/one.png");
 		expect(second.getAttribute("src")).toBe("https://example.com/two.png");
 	});
+
+	it("Should drop lazy loading when an image has a usable src", () => {
+		// Arrange
+
+		const doc = parse(
+			'<img src="//thumb.example.org/330px-plot.png" resource="https://en.wikipedia.org/wiki/File:Plot.png" loading="lazy">',
+		);
+
+		// Act
+
+		hydrateLazyImages(doc);
+
+		// Assert
+
+		expect(doc.querySelector("img")?.hasAttribute("loading")).toBe(false);
+	});
+
+	it("Should keep lazy loading when an image's src is a placeholder", () => {
+		// Arrange
+
+		const doc = parse(
+			'<img src="data:image/gif;base64,R0lGOD" data-src="https://example.com/real.png" loading="lazy">',
+		);
+
+		// Act
+
+		hydrateLazyImages(doc);
+
+		// Assert
+
+		expect(doc.querySelector("img")?.getAttribute("loading")).toBe("lazy");
+	});
 });

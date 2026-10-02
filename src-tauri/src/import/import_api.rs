@@ -101,7 +101,8 @@ pub async fn fetch_image(
     if let Some(referer) = referer {
         request = request.header(REFERER, referer);
     }
-    let response = request.send().await?;
+    // An error page (404, rate limit) would otherwise be stored as the image.
+    let response = request.send().await?.error_for_status()?;
 
     let declared_mime = response
         .headers()
