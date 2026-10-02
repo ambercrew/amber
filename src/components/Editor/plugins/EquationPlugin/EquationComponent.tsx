@@ -17,6 +17,7 @@ import { $isEquationNode } from "./EquationNode";
 
 interface Props {
 	equation: string;
+	display?: boolean;
 	nodeKey: string;
 }
 
@@ -32,7 +33,11 @@ function $isSoleSelection(nodeKey: string): boolean {
 	return nodes.length === 1 && nodes[0].getKey() === nodeKey;
 }
 
-export default function EquationComponent({ equation, nodeKey }: Props) {
+export default function EquationComponent({
+	equation,
+	display = false,
+	nodeKey,
+}: Props) {
 	const [editor] = useLexicalComposerContext();
 	const [editing, setEditing] = useState(false);
 	const [draft, setDraft] = useState(equation);
@@ -87,14 +92,14 @@ export default function EquationComponent({ equation, nodeKey }: Props) {
 	const html = useMemo(() => {
 		try {
 			return renderToString(equation, {
-				displayMode: false,
+				displayMode: display,
 				throwOnError: false,
 				output: "html",
 			});
 		} catch {
 			return equation;
 		}
-	}, [equation]);
+	}, [equation, display]);
 
 	/**
 	 * Leaves the equation selected and focused once the field unmounts, so
@@ -166,9 +171,14 @@ export default function EquationComponent({ equation, nodeKey }: Props) {
 			onDoubleClick={startEditing}
 			style={{
 				cursor: "pointer",
-				display: "inline-block",
+				display: display ? "block" : "inline-block",
 				maxWidth: "100%",
+				// KaTeX's invisible struts overflow by a few px; the padding
+				// absorbs them and the negative margin keeps the line height.
 				overflowX: "auto",
+				overflowY: "hidden",
+				padding: "0.2em 2px",
+				margin: "-0.2em 0",
 				verticalAlign: "top",
 				borderRadius: "var(--mantine-radius-xs)",
 				outline: isSoleSelection

@@ -1,5 +1,6 @@
 import { sanitizeHtml } from "../../../utils/sanitizeHtml";
 import { localizeImage } from "../images/localize";
+import { convertMath } from "./convertMath";
 
 export interface NormalizeOptions {
 	/** Used to resolve relative image URLs and as the Referer header when
@@ -7,14 +8,17 @@ export interface NormalizeOptions {
 	baseUrl: string | null;
 }
 
-/** Sanitizes HTML and localizes its images. The result is stored directly as
+/** Converts math to equations, sanitizes HTML, and localizes its images. The result is stored directly as
  * a LearningAsset's content — the editor already knows how to load HTML. */
 export async function normalize(
 	html: string,
 	opts: NormalizeOptions,
 ): Promise<string> {
-	const sanitized = sanitizeHtml(html);
-	const doc = new DOMParser().parseFromString(sanitized, "text/html");
+	const parser = new DOMParser();
+	const raw = parser.parseFromString(html, "text/html");
+	convertMath(raw);
+	const sanitized = sanitizeHtml(raw.body.innerHTML);
+	const doc = parser.parseFromString(sanitized, "text/html");
 	const images = Array.from(doc.querySelectorAll("img[src]"));
 
 	const absoluteByAttr = new Map<string, string>();

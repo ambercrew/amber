@@ -7,7 +7,7 @@ import { createImportedPdfLearningAsset } from "../createImportedPdfLearningAsse
 import { createBibliographicalSourceAction } from "../../../stores/bibliographicalSources/bibliographicalSourcesActions";
 import { ImportContext } from "../importContext";
 import errorToString from "../../../utils/errorToString";
-import { bytesToBase64 } from "../bytesToBase64";
+import { bytesToBase64 } from "../../../utils/bytesToBase64";
 
 export type FileImportError =
 	| { kind: "unsupported-file" }

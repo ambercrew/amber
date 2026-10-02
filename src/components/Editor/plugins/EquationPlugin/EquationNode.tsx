@@ -10,33 +10,40 @@ import {
 } from "lexical";
 import { render } from "katex";
 import EquationComponent from "./EquationComponent";
+import {
+	createEquationElement,
+	decodeEquation,
+	EQUATION_ATTRIBUTE_NAME,
+	EQUATION_DISPLAY_ATTRIBUTE_NAME,
+	EQUATION_TAG_NAME,
+} from "./equationElement";
 
+// `display` is optional so equations saved before display math still load.
 export type SerializedEquationNode = Spread<
-	{ equation: string },
+	{ equation: string; display?: boolean },
 	SerializedLexicalNode
 >;
 
-const EQUATION_TAG_NAME = "span";
-const EQUATION_ATTRIBUTE_NAME = "data-lexical-equation";
-
 export class EquationNode extends DecoratorNode<JSX.Element> {
 	__equation: string;
+	__display: boolean;
 
 	static getType(): string {
 		return "equation";
 	}
 
 	static clone(node: EquationNode): EquationNode {
-		return new EquationNode(node.__equation, node.__key);
+		return new EquationNode(node.__equation, node.__display, node.__key);
 	}
 
-	constructor(equation = "", key?: NodeKey) {
+	constructor(equation = "", display = false, key?: NodeKey) {
 		super(key);
 		this.__equation = equation;
+		this.__display = display;
 	}
 
 	createDOM(): HTMLElement {
-		return document.createElement(EQUATION_TAG_NAME);
+		return document.createElement(this.__display ? "div" : "span");
 	}
 
 	updateDOM(): boolean {
@@ -44,10 +51,13 @@ export class EquationNode extends DecoratorNode<JSX.Element> {
 	}
 
 	exportDOM(): DOMExportOutput {
-		const element = document.createElement(EQUATION_TAG_NAME);
-		element.setAttribute(EQUATION_ATTRIBUTE_NAME, btoa(this.__equation));
+		const element = createEquationElement(
+			document,
+			this.__equation,
+			this.__display,
+		);
 		render(this.__equation, element, {
-			displayMode: false,
+			displayMode: this.__display,
 			throwOnError: false,
 			output: "html",
 		});
@@ -74,11 +84,15 @@ export class EquationNode extends DecoratorNode<JSX.Element> {
 		return {
 			...super.exportJSON(),
 			equation: this.__equation,
+			display: this.__display,
 		};
 	}
 
 	static importJSON(serialized: SerializedEquationNode): EquationNode {
-		return $createEquationNode(serialized.equation);
+		return $createEquationNode(
+			serialized.equation,
+			serialized.display ?? false,
+		);
 	}
 
 	getEquation(): string {
@@ -92,13 +106,15 @@ export class EquationNode extends DecoratorNode<JSX.Element> {
 	}
 
 	getTextContent(): string {
-		return `$${this.__equation}$`;
+		const delimiter = this.__display ? "$$" : "$";
+		return `${delimiter}${this.__equation}${delimiter}`;
 	}
 
 	decorate(): JSX.Element {
 		return (
 			<EquationComponent
 				equation={this.__equation}
+				display={this.__display}
 				nodeKey={this.__key}
 			/>
 		);
@@ -107,12 +123,17 @@ export class EquationNode extends DecoratorNode<JSX.Element> {
 
 function $convertEquationElement(element: HTMLElement) {
 	const encoded = element.getAttribute(EQUATION_ATTRIBUTE_NAME);
-	const equation = encoded ? atob(encoded) : "";
-	return { node: $createEquationNode(equation) };
+	const equation = encoded ? decodeEquation(encoded) : "";
+	const display =
+		element.getAttribute(EQUATION_DISPLAY_ATTRIBUTE_NAME) === "true";
+	return { node: $createEquationNode(equation, display) };
 }
 
-export function $createEquationNode(equation = ""): EquationNode {
-	return $applyNodeReplacement(new EquationNode(equation));
+export function $createEquationNode(
+	equation = "",
+	display = false,
+): EquationNode {
+	return $applyNodeReplacement(new EquationNode(equation, display));
 }
 
 export function $isEquationNode(

@@ -2,7 +2,7 @@ import {
 	extractPdf as invokeExtractPdf,
 	getPdfPageCount as invokeGetPdfPageCount,
 } from "../../../api/import/api/importApi";
-import { bytesToBase64 } from "../bytesToBase64";
+import { bytesToBase64 } from "../../../utils/bytesToBase64";
 
 export interface PdfExtraction {
 	title: string | null;

@@ -23,6 +23,27 @@ describe("normalize", () => {
 		expect(actual).toBe("<p>kept</p>");
 	});
 
+	it("Should keep math as an equation element through sanitizing when given MathML", async () => {
+		// Arrange
+
+		vi.mocked(localizeImage).mockResolvedValue({
+			ok: false,
+			originalUrl: "unused",
+		});
+		const html =
+			'<p>See <math display="block" data-latex="E = mc^2"><mi>E</mi></math></p>';
+
+		// Act
+
+		const actual = await normalize(html, { baseUrl: null });
+
+		// Assert
+
+		expect(actual).toBe(
+			`<p>See <span data-lexical-equation="${btoa("E = mc^2")}" data-lexical-equation-display="true"></span></p>`,
+		);
+	});
+
 	it("Should replace an image src with the localized src when localization succeeds", async () => {
 		// Arrange
 

@@ -12,7 +12,7 @@ import {
 } from "@mantine/core";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { SlashMenuPlugin } from "./plugins/SlashMenuPlugin";
-import { EquationPlugin } from "./plugins/EquationPlugin/EquationPlugin";
+import { EquationExtension } from "./plugins/EquationPlugin/EquationExtension";
 import { HighlightPlugin } from "./plugins/HighlightPlugin/HighlightPlugin";
 import { HighlightCreatedPayload } from "./plugins/HighlightPlugin/highlightCommands";
 import { ImagePlugin } from "./plugins/ImagePlugin/ImagePlugin";
@@ -94,7 +94,10 @@ function EditorContent({
 	const editorExtension = useMemo(
 		() =>
 			defineExtension({
-				dependencies: [...editorExtensionDependencies],
+				dependencies: [
+					...editorExtensionDependencies,
+					EquationExtension,
+				],
 				theme: {
 					...editorTheme,
 					text: {
@@ -139,7 +142,6 @@ function EditorContent({
 								}
 							/>
 							<SlashMenuPlugin />
-							<EquationPlugin />
 							<ImagePlugin />
 							<LinkClickPlugin
 								onContextMenuLink={handleContextMenuLink}

@@ -2,7 +2,7 @@ import { $generateNodesFromSerializedNodes } from "@lexical/clipboard";
 import { buildEditorFromExtensions, defineExtension } from "@lexical/extension";
 import { $generateNodesFromDOM } from "@lexical/html";
 import { $insertNodes, $setSelection, type LexicalEditor } from "lexical";
-import { marked } from "marked";
+import { markdownToHtml } from "../../utils/markdownToHtml";
 import { sanitizeHtml } from "../../utils/sanitizeHtml";
 import {
 	editorExtensionDependencies,
@@ -45,13 +45,9 @@ export function htmlToLexicalJson(html: string): string {
 	});
 }
 
-/**
- * Converts Markdown into serialized Lexical editor state JSON, by rendering
- * it to HTML (the same renderer used for AI chat messages, see
- * MessageBubble.tsx) and sanitizing before parsing it into Lexical nodes.
- */
+/** Converts Markdown (TeX math included) into serialized Lexical editor state JSON. */
 export function markdownToLexicalJson(markdown: string): string {
-	const html = marked.parse(markdown, { async: false });
+	const html = markdownToHtml(markdown);
 	return htmlToLexicalJson(sanitizeHtml(html));
 }
 

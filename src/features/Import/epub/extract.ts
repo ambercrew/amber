@@ -1,5 +1,5 @@
 import { extractEpub as invokeExtractEpub } from "../../../api/import/api/importApi";
-import { bytesToBase64 } from "../bytesToBase64";
+import { bytesToBase64 } from "../../../utils/bytesToBase64";
 
 export interface EpubExtraction {
 	title: string | null;

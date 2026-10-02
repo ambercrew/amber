@@ -1,4 +1,4 @@
-import { marked } from "marked";
+import { markdownToHtml } from "../../../utils/markdownToHtml";
 import { deriveTitle } from "../deriveTitle";
 
 export interface MarkdownExtraction {
@@ -9,7 +9,7 @@ export interface MarkdownExtraction {
 }
 
 export function extractMarkdown(text: string): MarkdownExtraction {
-	const html = marked.parse(text, { async: false });
+	const html = markdownToHtml(text);
 	if (html.trim().length === 0) {
 		throw new Error("no-content");
 	}
