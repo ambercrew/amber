@@ -44,14 +44,9 @@ export function createScheduler(profile: StudyProfileDto): FSRS {
 		generatorParameters({
 			w: profile.fsrsParams.length > 0 ? profile.fsrsParams : undefined,
 			request_retention: profile.desiredRetention,
-			learning_steps:
-				profile.learningSteps.length > 0
-					? (profile.learningSteps as Steps)
-					: undefined,
-			relearning_steps:
-				profile.relearningSteps.length > 0
-					? (profile.relearningSteps as Steps)
-					: undefined,
+			// An empty list means no steps, not ts-fsrs's defaults.
+			learning_steps: profile.learningSteps as Steps,
+			relearning_steps: profile.relearningSteps as Steps,
 		}),
 	);
 }

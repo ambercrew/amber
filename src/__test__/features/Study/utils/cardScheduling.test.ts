@@ -13,8 +13,8 @@ const PROFILE: StudyProfileDto = {
 	desiredRetention: 0.9,
 	// Empty means "use the FSRS defaults".
 	fsrsParams: [],
-	learningSteps: [],
-	relearningSteps: [],
+	learningSteps: ["1m", "10m"],
+	relearningSteps: ["10m"],
 	initialIntervalMultiplier: 1.2,
 	initialIntervalDays: 1,
 	minIntervalDays: 1,
@@ -29,6 +29,13 @@ const CUSTOM_STEPS_PROFILE: StudyProfileDto = {
 	id: "profile-2",
 	learningSteps: ["5m", "15m"],
 	relearningSteps: ["30m"],
+};
+
+const NO_STEPS_PROFILE: StudyProfileDto = {
+	...PROFILE,
+	id: "profile-3",
+	learningSteps: [],
+	relearningSteps: [],
 };
 
 const NEW_CARD: CardReviewDto = {
@@ -197,5 +204,36 @@ describe("scheduleAllRatings", () => {
 
 		expect(actual.state).toBe("relearning");
 		expect(minutesUntilDue(actual.due)).toBe(30);
+	});
+
+	it("Should send a new card straight to review when rated Good with no learning steps", () => {
+		// Arrange
+
+		const review = NEW_CARD;
+
+		// Act
+
+		const actual = scheduleAllRatings(NO_STEPS_PROFILE, review, NOW).good;
+
+		// Assert
+
+		expect(actual.state).toBe("review");
+		expect(actual.scheduledDays).toBeGreaterThanOrEqual(1);
+	});
+
+	it("Should keep a lapsed review card in review days out when rated Again with no relearning steps", () => {
+		// Arrange
+
+		const review = REVIEW_CARD;
+
+		// Act
+
+		const actual = scheduleAllRatings(NO_STEPS_PROFILE, review, NOW).again;
+
+		// Assert
+
+		expect(actual.state).toBe("review");
+		expect(actual.lapses).toBe(1);
+		expect(minutesUntilDue(actual.due)).toBe(actual.scheduledDays * 1440);
 	});
 });

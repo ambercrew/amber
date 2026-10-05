@@ -79,20 +79,20 @@ function CardsTab({ form, optimization }: CardsTabProps) {
 				label={
 					<FieldLabel
 						label="Learning steps"
-						tooltip="Same-day intervals a new card repeats before entering the long-term review schedule, separated by spaces (e.g. 1m 10m). Leave empty to use the default steps."
+						tooltip="Same-day intervals a new card repeats before entering the long-term review schedule, separated by spaces (e.g. 1m 10m). Leave empty to skip them and let FSRS schedule new cards directly."
 					/>
 				}
-				placeholder="1m 10m"
+				placeholder="None"
 				{...form.getInputProps("learningSteps")}
 			/>
 			<TextInput
 				label={
 					<FieldLabel
 						label="Relearning steps"
-						tooltip="Same-day intervals a card repeats after being rated Again before returning to the long-term review schedule, separated by spaces (e.g. 10m). Leave empty to use the default steps."
+						tooltip="Same-day intervals a card repeats after being rated Again before returning to the long-term review schedule, separated by spaces (e.g. 10m). Leave empty to skip them and let FSRS reschedule lapsed cards directly."
 					/>
 				}
-				placeholder="10m"
+				placeholder="None"
 				{...form.getInputProps("relearningSteps")}
 			/>
 		</Stack>

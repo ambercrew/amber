@@ -77,9 +77,9 @@ pub struct StudyProfileRequestDto {
     pub name: String,
     pub desired_retention: f32,
     pub fsrs_params: Vec<f32>,
-    /// Empty means "use ts-fsrs's own defaults".
+    /// Empty means no steps: cards go straight to FSRS's long-term schedule.
     pub learning_steps: Vec<StepUnit>,
-    /// Empty means "use ts-fsrs's own defaults".
+    /// Empty means no steps: lapsed cards go straight back to FSRS's long-term schedule.
     pub relearning_steps: Vec<StepUnit>,
     pub initial_interval_multiplier: f32,
     pub initial_interval_days: f32,
@@ -93,8 +93,8 @@ impl From<StudyProfileRequestDto> for StudyProfileFields {
             name: dto.name,
             desired_retention: dto.desired_retention,
             fsrs_params: Some(dto.fsrs_params),
-            learning_steps: (!dto.learning_steps.is_empty()).then_some(dto.learning_steps),
-            relearning_steps: (!dto.relearning_steps.is_empty()).then_some(dto.relearning_steps),
+            learning_steps: Some(dto.learning_steps),
+            relearning_steps: Some(dto.relearning_steps),
             initial_interval_multiplier: dto.initial_interval_multiplier,
             initial_interval_days: dto.initial_interval_days,
             min_interval_days: dto.min_interval_days,

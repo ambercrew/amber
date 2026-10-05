@@ -13,6 +13,10 @@ const DEFAULT_FSRS_PARAMS = [
 	0.0912, 0.0658, 0.1542,
 ];
 
+// Mirrors ts-fsrs's default steps, so a new profile starts with them.
+const DEFAULT_LEARNING_STEPS = ["1m", "10m"];
+const DEFAULT_RELEARNING_STEPS = ["10m"];
+
 export const FSRS_PARAM_COUNT = 21;
 
 export interface ProfileFormValues extends Omit<
@@ -115,8 +119,12 @@ export function initialValues(
 		name: profile?.name ?? "New profile",
 		desiredRetention: profile?.desiredRetention ?? 0.9,
 		fsrsParams: (profile?.fsrsParams ?? DEFAULT_FSRS_PARAMS).join(", "),
-		learningSteps: (profile?.learningSteps ?? []).join(" "),
-		relearningSteps: (profile?.relearningSteps ?? []).join(" "),
+		learningSteps: (profile?.learningSteps ?? DEFAULT_LEARNING_STEPS).join(
+			" ",
+		),
+		relearningSteps: (
+			profile?.relearningSteps ?? DEFAULT_RELEARNING_STEPS
+		).join(" "),
 		initialIntervalMultiplier: profile?.initialIntervalMultiplier ?? 1.2,
 		initialIntervalDays: profile?.initialIntervalDays ?? 1,
 		minIntervalDays: profile?.minIntervalDays ?? 1,

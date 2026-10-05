@@ -101,6 +101,30 @@ describe("ProfileForm", () => {
 		expect(screen.getByRole("button", { name: "Create" })).toBeVisible();
 	});
 
+	it("Should prefill the default learning and relearning steps when profile is null", async () => {
+		// Arrange
+
+		// Act
+
+		renderWithProviders(
+			<ProfileForm
+				profile={null}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+
+		// Assert
+
+		expect(
+			screen.getByRole("textbox", { name: "Learning steps" }),
+		).toHaveValue("1m 10m");
+		expect(
+			screen.getByRole("textbox", { name: "Relearning steps" }),
+		).toHaveValue("10m");
+	});
+
 	it("Should not render Clone, Delete or Make default for a new profile", () => {
 		// Arrange
 
@@ -244,7 +268,7 @@ describe("ProfileForm", () => {
 		expect(updateStudyProfile).not.toHaveBeenCalled();
 	});
 
-	it("Should render an empty learning steps input when the profile has no custom steps", async () => {
+	it("Should render an empty learning steps input when the profile has no steps", async () => {
 		// Arrange
 
 		const profile = makeProfile({ learningSteps: [] });
@@ -262,7 +286,9 @@ describe("ProfileForm", () => {
 
 		// Assert
 
-		expect(screen.getByPlaceholderText("1m 10m")).toHaveValue("");
+		expect(
+			screen.getByRole("textbox", { name: "Learning steps" }),
+		).toHaveValue("");
 	});
 
 	it("Should render the learning steps separated by spaces when the profile has custom steps", async () => {
