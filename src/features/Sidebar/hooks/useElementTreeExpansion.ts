@@ -41,9 +41,26 @@ export function useElementTreeExpansion(
 	// Ancestor ids that were auto-expanded to reveal the current study element but
 	// were not expanded beforehand — collapsed again once study moves past them.
 	const studyAutoExpandedRef = useRef<string[]>([]);
+	const wasStudyingRef = useRef(isStudying);
 
 	// Reveal the selected element by expanding its ancestors whenever navigation changes it.
 	useEffect(() => {
+		const sessionEnded = wasStudyingRef.current && !isStudying;
+		wasStudyingRef.current = isStudying;
+
+		// The last studied element stays selected, so collapse what study opened instead of revealing it.
+		if (sessionEnded) {
+			const collapsed = Object.fromEntries(
+				studyAutoExpandedRef.current.map(id => [id, false]),
+			);
+			studyAutoExpandedRef.current = [];
+			treeController.setExpandedState({
+				...treeController.expandedState,
+				...collapsed,
+			});
+			return;
+		}
+
 		if (!selectedId || data.length === 0) return;
 		const ancestors = getAncestorsOf(data, selectedId) ?? [];
 

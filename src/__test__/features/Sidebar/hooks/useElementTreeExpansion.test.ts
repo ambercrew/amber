@@ -325,6 +325,69 @@ describe("useElementTreeExpansion", () => {
 		).toBe(true);
 	});
 
+	it("Should collapse ancestors that were not previously expanded when the study session ends", async () => {
+		// Arrange — study reveals cell-card's ancestors
+
+		const { result, rerender } = renderHook<
+			ReturnType<typeof useElementTreeExpansion>,
+			{ isStudying: boolean }
+		>(
+			({ isStudying }) =>
+				useElementTreeExpansion(DATA, "cell-card", isStudying),
+			{ initialProps: { isStudying: true } },
+		);
+		await flushMicrotasks();
+
+		// Act — the session ends with cell-card still selected
+
+		rerender({ isStudying: false });
+		await flushMicrotasks();
+
+		// Assert
+
+		expect(
+			result.current.treeController.expandedState["science-folder"],
+		).toBeFalsy();
+		expect(
+			result.current.treeController.expandedState[
+				"biology-learningAsset"
+			],
+		).toBeFalsy();
+	});
+
+	it("Should keep an ancestor expanded when the study session ends if it was expanded beforehand", async () => {
+		// Arrange — science-folder is manually expanded before studying reaches cell-card
+
+		const { result, rerender } = renderHook<
+			ReturnType<typeof useElementTreeExpansion>,
+			{ selectedId: string | null; isStudying: boolean }
+		>(
+			({ selectedId, isStudying }) =>
+				useElementTreeExpansion(DATA, selectedId, isStudying),
+			{ initialProps: { selectedId: null, isStudying: true } },
+		);
+		act(() => result.current.treeController.expand("science-folder"));
+		await flushMicrotasks();
+		rerender({ selectedId: "cell-card", isStudying: true });
+		await flushMicrotasks();
+
+		// Act
+
+		rerender({ selectedId: "cell-card", isStudying: false });
+		await flushMicrotasks();
+
+		// Assert
+
+		expect(
+			result.current.treeController.expandedState["science-folder"],
+		).toBe(true);
+		expect(
+			result.current.treeController.expandedState[
+				"biology-learningAsset"
+			],
+		).toBeFalsy();
+	});
+
 	it("Should not persist study auto-expansion to storage", async () => {
 		// Arrange / Act — cell-card is revealed while studying
 
