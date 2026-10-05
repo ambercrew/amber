@@ -4,7 +4,7 @@ import {
 	Box,
 	Group,
 	Kbd,
-	useMatches,
+	SimpleGrid,
 	Stack,
 	Table,
 	Text,
@@ -50,6 +50,21 @@ interface CommandRow {
 interface ContextSection extends Omit<ShortcutSection, "rows"> {
 	rows: (ShortcutRow | CommandRow)[];
 }
+
+// General keys first, then working with content and studying.
+const SECTION_ORDER: Record<CommandGroup, number> = {
+	App: 0,
+	Navigation: 1,
+	"Find in page": 2,
+	Zoom: 3,
+	AI: 4,
+	Elements: 5,
+	Editor: 6,
+	Study: 7,
+};
+
+// Splits the sections into two columns of roughly equal height.
+const SECOND_COLUMN_START: CommandGroup = "Elements";
 
 // Keys that aren't commands, filed under the command group they belong with.
 const CONTEXT_SECTIONS: ContextSection[] = [
@@ -247,15 +262,16 @@ function mergeSections(sections: ShortcutSection[]): ShortcutSection[] {
 			existing.note ??= section.note;
 		} else byTitle.set(section.title, { ...section });
 	}
-	return [...byTitle.values()].filter(section => section.rows.length > 0);
+	return [...byTitle.values()]
+		.filter(section => section.rows.length > 0)
+		.sort((a, b) => SECTION_ORDER[a.title] - SECTION_ORDER[b.title]);
 }
 
 function ShortcutSectionTable({ section }: { section: ShortcutSection }) {
 	const display = useShortcutDisplay();
 
 	return (
-		// Kept whole in one column, with the gap as margin since columns ignore Stack gaps.
-		<Stack gap={4} mb="lg" style={{ breakInside: "avoid" }}>
+		<Stack gap={4} mb="lg">
 			<Title order={5}>{section.title}</Title>
 			{section.note && (
 				<Text size="xs" c="dimmed">
@@ -305,7 +321,14 @@ function ShortcutsModal() {
 		...commandSections(store.getState()),
 		...contextSections(store.getState()),
 	]);
-	const columnCount = useMatches({ base: 1, md: 2 });
+	const columns = [
+		sections.filter(
+			s => SECTION_ORDER[s.title] < SECTION_ORDER[SECOND_COLUMN_START],
+		),
+		sections.filter(
+			s => SECTION_ORDER[s.title] >= SECTION_ORDER[SECOND_COLUMN_START],
+		),
+	];
 
 	return (
 		<AppModal
@@ -317,19 +340,18 @@ function ShortcutsModal() {
 			<Text size="sm" c="dimmed" mb="md">
 				Letters work in either case, so S also works as s.
 			</Text>
-			{/* CSS columns balance the rendered heights and keep the sections in order. */}
-			<Box
-				style={{
-					columnCount,
-					columnGap: "var(--mantine-spacing-xl)",
-				}}>
-				{sections.map(section => (
-					<ShortcutSectionTable
-						key={section.title}
-						section={section}
-					/>
+			<SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
+				{columns.map(column => (
+					<Box key={column[0]?.title}>
+						{column.map(section => (
+							<ShortcutSectionTable
+								key={section.title}
+								section={section}
+							/>
+						))}
+					</Box>
 				))}
-			</Box>
+			</SimpleGrid>
 		</AppModal>
 	);
 }
