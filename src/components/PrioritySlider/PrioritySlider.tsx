@@ -14,6 +14,8 @@ interface PrioritySliderProps {
 	onPercentileChange: (value: string | number) => void;
 	onSliderChange: (value: number) => void;
 	onSliderChangeEnd: (value: number) => void;
+	/** Focuses the position input on mount. */
+	autoFocusPosition?: boolean;
 }
 
 /** Position + percentile inputs paired with a priority slider, shared between
@@ -28,6 +30,7 @@ function PrioritySlider({
 	onPercentileChange,
 	onSliderChange,
 	onSliderChangeEnd,
+	autoFocusPosition = false,
 }: PrioritySliderProps) {
 	return (
 		<Stack gap="lg">
@@ -38,6 +41,8 @@ function PrioritySlider({
 				max={total}
 				value={position}
 				onChange={onPositionChange}
+				autoFocus={autoFocusPosition}
+				data-autofocus={autoFocusPosition || undefined}
 			/>
 			<NumberInput
 				label="Percentile"

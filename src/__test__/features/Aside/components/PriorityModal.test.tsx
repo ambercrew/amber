@@ -162,6 +162,24 @@ describe("PriorityModal", () => {
 		expect(screen.getByText("Position 3 of 5")).toBeInTheDocument();
 	});
 
+	it("Should focus the position input when the dialog opens", async () => {
+		// Arrange
+
+		// Act
+
+		renderWithProviders(<PriorityModal />, {
+			preloadedState: {
+				app: appStateFor(true),
+				elements: elementsStateFor(cardElement()),
+			},
+		});
+		const positionInput = await screen.findByLabelText("Position");
+
+		// Assert
+
+		await waitFor(() => expect(positionInput).toHaveFocus());
+	});
+
 	it("Should set priority by position and reload details when the position input changes", async () => {
 		// Arrange
 

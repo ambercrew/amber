@@ -62,6 +62,7 @@ function PriorityModalBody({
 			onPercentileChange={controls.handlePercentileChange}
 			onSliderChange={controls.handleSliderChange}
 			onSliderChangeEnd={controls.handleSliderChangeEnd}
+			autoFocusPosition
 		/>
 	);
 }
