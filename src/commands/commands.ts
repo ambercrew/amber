@@ -222,6 +222,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "create-card",
 		group: "Elements",
 		label: "New card under current element",
+		searchOnly: true,
 		shortcut: CREATE_CARD_SHORTCUT,
 		icon: createElement(CardsIcon),
 		enabled: state => {
@@ -272,6 +273,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "set-read-point",
 		group: "Elements",
 		label: "Set read point",
+		searchOnly: true,
 		shortcut: SET_READ_POINT_SHORTCUT,
 		icon: createElement(BookmarkSimpleIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
@@ -284,6 +286,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "go-to-read-point",
 		group: "Elements",
 		label: "Go to read point",
+		searchOnly: true,
 		icon: createElement(MapPinIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
 		execute: () => {
