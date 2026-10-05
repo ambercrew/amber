@@ -7,6 +7,7 @@ use serde_json::Value;
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::ai_integration::prompts::CREATE_CARD_DESCRIPTION;
 use crate::common::services::lexical_json_converter::{
     LexicalJsonConverter, LexicalJsonConverterError,
 };
@@ -64,11 +65,7 @@ impl Tool for CreateCard {
     type Output = String;
 
     fn description(&self) -> String {
-        "Creates a card for the user to review later with spaced repetition, with a \
-        front and a back. Use this when the user asks you to make a card, or when \
-        turning a fact or definition they're learning into a card would help them memorize \
-        it."
-        .to_string()
+        CREATE_CARD_DESCRIPTION.to_string()
     }
 
     fn parameters(&self) -> Value {
