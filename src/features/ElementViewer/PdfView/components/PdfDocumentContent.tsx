@@ -61,39 +61,20 @@ export default function PdfDocumentContent({
 	learningAssetId,
 	readPoint,
 }: PdfDocumentContentProps) {
-	const dispatch = useAppDispatch();
 	const { activeDocumentId } = useActiveDocument();
 	const documentState = useDocumentState(activeDocumentId);
-	const isLoaded = documentState?.status === "loaded";
-
-	useEffect(() => {
-		dispatch(setZoomOwnedByCurrentView(true));
-		return () => {
-			dispatch(setZoomOwnedByCurrentView(false));
-		};
-	}, [dispatch]);
-
-	usePdfAnnotationsPersistence(activeDocumentId, learningAssetId);
-	usePdfZoomPersistence(
-		isLoaded ? (activeDocumentId ?? null) : null,
-		learningAssetId,
-	);
-	const { recordHighlightReadPoint } = usePdfReadPoint({
-		learningAssetId,
-		documentId: isLoaded ? (activeDocumentId ?? null) : null,
-		initial: readPoint,
-	});
-	usePdfFindInPage(isLoaded ? (activeDocumentId ?? null) : null);
-	const linkRenderers = usePdfLinkNavigationRenderer(
-		isLoaded ? (activeDocumentId ?? null) : null,
-	);
-
-	const [pinned, setPinned] = useState(true);
 
 	if (documentState?.status === "error") {
 		return (
 			<Center h="100%">
-				<Text c="red">Could not load the PDF.</Text>
+				<Stack align="center" gap="xs" maw={420} ta="center">
+					<Text c="red">This PDF could not be opened.</Text>
+					<Text size="sm" c="dimmed">
+						It may be damaged or use a format the viewer doesn’t
+						support. Try importing it again with “Extract content”
+						enabled.
+					</Text>
+				</Stack>
 			</Center>
 		);
 	}
@@ -110,6 +91,46 @@ export default function PdfDocumentContent({
 			</Center>
 		);
 	}
+
+	return (
+		<LoadedPdfDocument
+			documentId={activeDocumentId}
+			learningAssetId={learningAssetId}
+			readPoint={readPoint}
+		/>
+	);
+}
+
+interface LoadedPdfDocumentProps extends PdfDocumentContentProps {
+	documentId: string;
+}
+
+// Mounted only once the document loads: embedpdf's per-document hooks throw for a document that never opened.
+function LoadedPdfDocument({
+	documentId: activeDocumentId,
+	learningAssetId,
+	readPoint,
+}: LoadedPdfDocumentProps) {
+	const dispatch = useAppDispatch();
+
+	useEffect(() => {
+		dispatch(setZoomOwnedByCurrentView(true));
+		return () => {
+			dispatch(setZoomOwnedByCurrentView(false));
+		};
+	}, [dispatch]);
+
+	usePdfAnnotationsPersistence(activeDocumentId, learningAssetId);
+	usePdfZoomPersistence(activeDocumentId, learningAssetId);
+	const { recordHighlightReadPoint } = usePdfReadPoint({
+		learningAssetId,
+		documentId: activeDocumentId,
+		initial: readPoint,
+	});
+	usePdfFindInPage(activeDocumentId);
+	const linkRenderers = usePdfLinkNavigationRenderer(activeDocumentId);
+
+	const [pinned, setPinned] = useState(true);
 
 	return (
 		// Fixed, always full-height, never resized by the header (a resize

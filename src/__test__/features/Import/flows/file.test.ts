@@ -75,7 +75,7 @@ function nonPdfFile(name = "document.txt"): File {
 }
 
 describe("runFileImport", () => {
-	it("Should return unsupported-file when the file lacks PDF/EPUB magic bytes and a markdown extension", async () => {
+	it("Should return unsupported-file when the file is not a PDF, EPUB, or markdown file", async () => {
 		// Arrange
 
 		const ctx = makeCtx();
@@ -113,6 +113,25 @@ describe("runFileImport", () => {
 			3,
 			"source-1",
 		);
+	});
+
+	it("Should import as a pdf when the header is preceded by other bytes", async () => {
+		// Arrange
+
+		vi.mocked(getPdfPageCount).mockResolvedValue(1);
+		vi.mocked(createBibliographicalSource).mockResolvedValue(makeSource());
+		const bytes = new TextEncoder().encode("\r\n%PDF-1.4 rest of file");
+		const file = new File([bytes], "report.pdf", { type: "" });
+		const ctx = makeCtx();
+
+		// Act
+
+		const actual = await runFileImport([file], ctx, false);
+
+		// Assert
+
+		expect(actual).toBeNull();
+		expect(createImportedPdfLearningAsset).toHaveBeenCalled();
 	});
 
 	it("Should extract, normalize, and create a learning asset for a valid pdf", async () => {

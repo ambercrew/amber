@@ -28,7 +28,7 @@ export async function runFileImport(
 ): Promise<FileImportError | null> {
 	for (const file of files) {
 		const bytes = await file.arrayBuffer();
-		const isPdf = hasPdfMagic(bytes);
+		const isPdf = isPdfFile(file);
 		const isEpub = !isPdf && hasEpubMagic(bytes);
 		const isMarkdown = !isPdf && !isEpub && hasMarkdownExtension(file.name);
 		if (!isPdf && !isEpub && !isMarkdown)
@@ -107,9 +107,9 @@ export async function runFileImport(
 	return null;
 }
 
-export function hasPdfMagic(bytes: ArrayBuffer): boolean {
-	const head = new Uint8Array(bytes.slice(0, 5));
-	return String.fromCharCode(...head) === "%PDF-";
+// Not a magic-byte check: valid PDFs may have junk before their `%PDF-` header.
+export function isPdfFile(file: File): boolean {
+	return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
 }
 
 function hasEpubMagic(bytes: ArrayBuffer): boolean {

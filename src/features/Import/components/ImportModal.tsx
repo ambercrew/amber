@@ -23,7 +23,7 @@ import { closeImportModal } from "../../../stores/app/appReducer";
 import { asUrl, classifyPaste } from "../classify";
 import { PastedContent, runContentImport } from "../flows/content";
 import { importRawPage, runUrlImport, UrlImportError } from "../flows/url";
-import { FileImportError, hasPdfMagic, runFileImport } from "../flows/file";
+import { FileImportError, isPdfFile, runFileImport } from "../flows/file";
 import { PdfProgress } from "../pdf/extract";
 import { ImportContext } from "../importContext";
 import ImportPrioritySection from "./ImportPrioritySection";
@@ -74,29 +74,14 @@ function ImportModal() {
 
 	const [value, setValue] = useState("");
 	const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
-	const [isPdf, setIsPdf] = useState(false);
 	const [extractPdfContent, setExtractPdfContent] = useState(false);
 	const [phase, setPhase] = useState<Phase>({ kind: "idle" });
 	const parent = currentElement?.data.meta.elementId ?? null;
 	const priority = useImportPriority(opened, parent);
 	const openRef = useRef<() => void>(null);
 	const cancelledRef = useRef(false);
-	const pdfDetectionTokenRef = useRef(0);
 
-	function updatePendingFiles(files: File[] | null) {
-		setPendingFiles(files);
-		const token = ++pdfDetectionTokenRef.current;
-		if (!files || files.length === 0) {
-			setIsPdf(false);
-			return;
-		}
-		void Promise.all(files.map(file => file.arrayBuffer())).then(
-			buffers => {
-				if (pdfDetectionTokenRef.current !== token) return;
-				setIsPdf(buffers.some(hasPdfMagic));
-			},
-		);
-	}
+	const isPdf = pendingFiles?.some(isPdfFile) ?? false;
 
 	async function context(): Promise<ImportContext> {
 		return {
@@ -109,7 +94,7 @@ function ImportModal() {
 
 	function reset() {
 		setValue("");
-		updatePendingFiles(null);
+		setPendingFiles(null);
 		setExtractPdfContent(false);
 		setPhase({ kind: "idle" });
 		priority.reset();
@@ -224,7 +209,7 @@ function ImportModal() {
 				return;
 			case "file":
 				e.preventDefault();
-				updatePendingFiles(input.files);
+				setPendingFiles(input.files);
 				return;
 			case "content":
 				e.preventDefault();
@@ -252,7 +237,7 @@ function ImportModal() {
 				activateOnClick={false}
 				disabled={isImporting}
 				openRef={openRef}
-				onDrop={files => updatePendingFiles(files)}
+				onDrop={files => setPendingFiles(files)}
 				onReject={() =>
 					setPhase({
 						kind: "error",
@@ -316,7 +301,7 @@ function ImportModal() {
 												size="sm"
 												aria-label={`Remove ${file.name}`}
 												onClick={() =>
-													updatePendingFiles(
+													setPendingFiles(
 														pendingFiles &&
 															pendingFiles.length >
 																1
