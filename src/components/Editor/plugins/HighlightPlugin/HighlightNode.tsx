@@ -29,11 +29,11 @@ function applyHighlightAttributes(
 	element.classList.add(styles.highlight);
 	element.style.setProperty(
 		"--highlight-bg-light",
-		`var(--mantine-color-${color}-2)`,
+		`var(--mantine-color-${color}-4)`,
 	);
 	element.style.setProperty(
 		"--highlight-bg-dark",
-		`var(--mantine-color-${color}-9)`,
+		`var(--mantine-color-${color}-5)`,
 	);
 	element.setAttribute(HIGHLIGHT_ID_ATTRIBUTE, id);
 	element.setAttribute(HIGHLIGHT_COLOR_ATTRIBUTE, color);
