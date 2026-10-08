@@ -8,6 +8,7 @@ import { epubFormat } from "../../../features/Import/epub/format";
 import { markdownFormat } from "../../../features/Import/markdown/format";
 import { htmlFormat } from "../../../features/Import/html/format";
 import { textFormat } from "../../../features/Import/text/format";
+import { docxFormat } from "../../../features/Import/docx/format";
 
 const ZIP_HEADER = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
 
@@ -22,6 +23,7 @@ describe("detectFileFormat", () => {
 		["page.xhtml", "", htmlFormat],
 		["notes.txt", "", textFormat],
 		["notes.markdown", "", markdownFormat],
+		["report.docx", "", docxFormat],
 	])(
 		"Should detect the format by extension when given %s",
 		(name, type, expected) => {
@@ -53,6 +55,16 @@ describe("detectFileFormat", () => {
 		// Assert
 
 		expect(actual).toBe(epubFormat);
+	});
+
+	it("Should detect a docx by extension when it also has a ZIP signature", () => {
+		// Arrange & Act
+
+		const actual = detect("report.docx", "", ZIP_HEADER);
+
+		// Assert
+
+		expect(actual).toBe(docxFormat);
 	});
 
 	it("Should fall back to the reported type when the name and bytes reveal nothing", () => {
@@ -98,6 +110,6 @@ describe("SUPPORTED_FORMATS_ALL", () => {
 
 		// Assert
 
-		expect(actual).toBe("PDF, EPUB, Markdown, HTML, and text");
+		expect(actual).toBe("PDF, EPUB, DOCX, Markdown, HTML, and text");
 	});
 });

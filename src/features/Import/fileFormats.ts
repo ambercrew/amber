@@ -4,10 +4,12 @@ import { epubFormat } from "./epub/format";
 import { markdownFormat } from "./markdown/format";
 import { htmlFormat } from "./html/format";
 import { textFormat } from "./text/format";
+import { docxFormat } from "./docx/format";
 
 export const FILE_FORMATS: FileFormat[] = [
 	pdfFormat,
 	epubFormat,
+	docxFormat,
 	markdownFormat,
 	htmlFormat,
 	textFormat,
