@@ -103,6 +103,16 @@ describe("ElementsBrowser", () => {
 		).toBeInTheDocument();
 	});
 
+	it("Should show the number of results in the selection row when nothing is selected", async () => {
+		// Arrange, Act
+
+		render();
+
+		// Assert
+
+		expect(await screen.findByText("3 results")).toBeInTheDocument();
+	});
+
 	it("Should add a filter chip and re-run search when a filter is added", async () => {
 		// Arrange
 

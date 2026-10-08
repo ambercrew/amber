@@ -47,9 +47,20 @@ type OpenModal =
 	| "delete"
 	| null;
 
+function selectionLabel(selectedCount: number, resultCount: number): string {
+	if (selectedCount === 0) {
+		return resultCount === 1 ? "1 result" : `${resultCount} results`;
+	}
+	if (selectedCount === resultCount && resultCount > 1) {
+		return `All ${resultCount} selected`;
+	}
+	return `${selectedCount} of ${resultCount} selected`;
+}
+
 interface BulkActionsBarProps {
 	selectedIds: ElementId[];
 	selectedResults: SearchElementResultDto[];
+	resultCount: number;
 	profiles: StudyProfileDto[];
 	sources: BibliographicalSourceResponseDto[];
 	onClearSelection: () => void;
@@ -59,6 +70,7 @@ interface BulkActionsBarProps {
 export default function BulkActionsBar({
 	selectedIds,
 	selectedResults,
+	resultCount,
 	profiles,
 	sources,
 	onClearSelection,
@@ -116,9 +128,7 @@ export default function BulkActionsBar({
 		<>
 			<Group gap="xs" wrap="wrap" align="center">
 				<Text size="sm" c="dimmed">
-					{hasSelection
-						? `${selectedIds.length} selected`
-						: "No elements selected"}
+					{selectionLabel(selectedIds.length, resultCount)}
 				</Text>
 				<Menu
 					position="bottom-start"

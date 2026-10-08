@@ -57,11 +57,13 @@ const SOURCE: BibliographicalSourceResponseDto = {
 interface RenderProps {
 	selectedIds?: ElementId[];
 	selectedResults?: SearchElementResultDto[];
+	resultCount?: number;
 }
 
 function render({
 	selectedIds = [ELEMENT_ID],
 	selectedResults = [SELECTED_RESULT],
+	resultCount = 3,
 }: RenderProps = {}) {
 	const onClearSelection = vi.fn();
 	const onActionComplete = vi.fn();
@@ -70,6 +72,7 @@ function render({
 		<BulkActionsBar
 			selectedIds={selectedIds}
 			selectedResults={selectedResults}
+			resultCount={resultCount}
 			profiles={[PROFILE]}
 			sources={[SOURCE]}
 			onClearSelection={onClearSelection}
@@ -102,7 +105,7 @@ describe("BulkActionsBar", () => {
 		// Assert
 
 		expect(screen.getByRole("button", { name: "Actions" })).toBeDisabled();
-		expect(screen.getByText("No elements selected")).toBeInTheDocument();
+		expect(screen.getByText("3 results")).toBeInTheDocument();
 	});
 
 	it("Should enable the Actions button and show the selection count when elements are selected", () => {
@@ -115,7 +118,34 @@ describe("BulkActionsBar", () => {
 		expect(
 			screen.getByRole("button", { name: "Actions" }),
 		).not.toBeDisabled();
-		expect(screen.getByText("1 selected")).toBeInTheDocument();
+		expect(screen.getByText("1 of 3 selected")).toBeInTheDocument();
+	});
+
+	it("Should use the singular label when there is one result and nothing is selected", () => {
+		// Arrange, Act
+
+		render({ selectedIds: [], selectedResults: [], resultCount: 1 });
+
+		// Assert
+
+		expect(screen.getByText("1 result")).toBeInTheDocument();
+	});
+
+	it("Should show the total with All when every result is selected", () => {
+		// Arrange
+
+		const selectedIds: ElementId[] = [
+			ELEMENT_ID,
+			{ type: "extract", id: "extract-1" },
+		];
+
+		// Act
+
+		render({ selectedIds, resultCount: 2 });
+
+		// Assert
+
+		expect(screen.getByText("All 2 selected")).toBeInTheDocument();
 	});
 
 	it("Should open the reset repetitions modal when Reset repetitions is clicked", async () => {

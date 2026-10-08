@@ -182,6 +182,7 @@ export default function ElementsBrowser() {
 					<BulkActionsBar
 						selectedIds={selectedIds}
 						selectedResults={selectedResults}
+						resultCount={results.length}
 						profiles={profiles}
 						sources={sources}
 						onClearSelection={() => setSelectedIds([])}
