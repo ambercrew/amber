@@ -1,5 +1,5 @@
 import { PropsWithChildren } from "react";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router";
 import {
@@ -29,8 +29,24 @@ import { useElementViewerButtons } from "../../../../features/ElementViewer/hook
 import { FloatingMenuButton } from "../../../../components/Editor/plugins/FloatingMenuPlugin";
 import { setupStore } from "../../../../stores/store";
 import SettingsDto from "../../../../api/settings/dto/settingsDto";
+import type { trashElementAction } from "../../../../stores/trash/trashActions";
+import { NodeDto } from "../../../../api/elements/dto/nodeDto";
+import { ElementId } from "../../../../types/elements/elementId";
 
-const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
+const { mockNavigate, mockTrashElementAction } = vi.hoisted(() => ({
+	mockNavigate: vi.fn(),
+	mockTrashElementAction: vi.fn<typeof trashElementAction>(
+		() => async () => undefined,
+	),
+}));
+
+vi.mock(
+	import("../../../../stores/trash/trashActions"),
+	async importOriginal => {
+		const actual = await importOriginal();
+		return { ...actual, trashElementAction: mockTrashElementAction };
+	},
+);
 
 vi.mock(import("react-router"), async importOriginal => {
 	const actual = await importOriginal();
@@ -77,9 +93,23 @@ interface Segment {
 	highlight?: { id: string; color: MantineColor };
 }
 
-function makeStore(enableAi = false) {
+function makeTreeNode(elementId: ElementId): NodeDto {
+	return {
+		meta: { elementId, name: elementId.id, position: "a" },
+		children: { folders: [], learningAssets: [], extracts: [], cards: [] },
+	};
+}
+
+function makeStore(enableAi = false, existing: ElementId[] = []) {
 	return setupStore({
 		settings: { settings: { ...BASE_SETTINGS, enableAi } },
+		elements: {
+			tree: existing.map(makeTreeNode),
+			isLoading: false,
+			error: null,
+			currentElement: null,
+			zoomOwnedByCurrentView: false,
+		},
 	});
 }
 
@@ -93,23 +123,34 @@ function makeWrapper(store: ReturnType<typeof makeStore>) {
 	};
 }
 
-function renderButtons(store: ReturnType<typeof makeStore> = makeStore()) {
-	const { result } = renderHook(() => useElementViewerButtons(), {
+function renderViewerButtons(
+	store: ReturnType<typeof makeStore> = makeStore(),
+) {
+	return renderHook(() => useElementViewerButtons(), {
 		wrapper: makeWrapper(store),
-	});
-	return result.current;
+	}).result;
+}
+
+function renderButtons(store: ReturnType<typeof makeStore> = makeStore()) {
+	return renderViewerButtons(store).current.buttons;
+}
+
+function findButton(
+	buttons: ReturnType<typeof renderButtons>,
+	name: string,
+): FloatingMenuButton {
+	const button = buttons.find(
+		(b): b is FloatingMenuButton => !("divider" in b) && b.name === name,
+	);
+	if (!button) throw new Error(`Button "${name}" not found`);
+	return button;
 }
 
 function getButton(
 	name: string,
 	store: ReturnType<typeof makeStore> = makeStore(),
 ): FloatingMenuButton {
-	const buttons = renderButtons(store);
-	const button = buttons.find(
-		(b): b is FloatingMenuButton => !("divider" in b) && b.name === name,
-	);
-	if (!button) throw new Error(`Button "${name}" not found`);
-	return button;
+	return findButton(renderButtons(store), name);
 }
 
 function createTestEditor(): LexicalEditor {
@@ -212,6 +253,7 @@ function getMarkTagNames(editor: LexicalEditor): string[] {
 describe("useElementViewerButtons", () => {
 	afterEach(() => {
 		mockNavigate.mockReset();
+		mockTrashElementAction.mockClear();
 	});
 
 	describe("extract button", () => {
@@ -287,6 +329,19 @@ describe("useElementViewerButtons", () => {
 	});
 
 	describe("remove-highlight button", () => {
+		function clickRemove(
+			result: ReturnType<typeof renderViewerButtons>,
+			editor: LexicalEditor,
+		) {
+			act(() => {
+				findButton(result.current.buttons, "remove-highlight").onClick(
+					editor,
+					false,
+					vi.fn(),
+				);
+			});
+		}
+
 		it("Should not be visible when selection has no highlight", () => {
 			// Arrange
 
@@ -327,10 +382,10 @@ describe("useElementViewerButtons", () => {
 			expect(isVisible).toBe(true);
 		});
 
-		it("Should unwrap the highlight under selection when clicked", () => {
+		it("Should unwrap without confirming when no element of the highlight exists", () => {
 			// Arrange
 
-			const button = getButton("remove-highlight");
+			const result = renderViewerButtons();
 			const editor = createTestEditor();
 			setContent(editor, [
 				{ text: "Alpha", highlight: { id: "id-1", color: "yellow" } },
@@ -339,18 +394,21 @@ describe("useElementViewerButtons", () => {
 
 			// Act
 
-			button.onClick(editor, false, vi.fn());
-			editor.update(() => undefined, { discrete: true });
+			clickRemove(result, editor);
 
 			// Assert
 
 			expect(getMarkTagNames(editor)).toEqual([]);
+			expect(result.current.pendingHighlightRemoval).toBeNull();
+			expect(mockTrashElementAction).not.toHaveBeenCalled();
 		});
 
-		it("Should unwrap every highlight under selection when it spans multiple highlights", () => {
+		it("Should ask for confirmation with only existing elements when clicked", () => {
 			// Arrange
 
-			const button = getButton("remove-highlight");
+			const result = renderViewerButtons(
+				makeStore(false, [{ type: "card", id: "id-2" }]),
+			);
 			const editor = createTestEditor();
 			setContent(editor, [
 				{ text: "Alpha", highlight: { id: "id-1", color: "yellow" } },
@@ -361,12 +419,102 @@ describe("useElementViewerButtons", () => {
 
 			// Act
 
-			button.onClick(editor, false, vi.fn());
-			editor.update(() => undefined, { discrete: true });
+			clickRemove(result, editor);
+
+			// Assert
+
+			expect(result.current.pendingHighlightRemoval).toEqual({
+				editor,
+				highlightIds: ["id-1", "id-2"],
+				elementIds: [{ type: "card", id: "id-2" }],
+			});
+			expect(getMarkTagNames(editor)).toEqual(["id-1", "id-2"]);
+			expect(mockTrashElementAction).not.toHaveBeenCalled();
+		});
+
+		it("Should leave the highlight in place when the removal is cancelled", () => {
+			// Arrange
+
+			const result = renderViewerButtons(
+				makeStore(false, [{ type: "extract", id: "id-1" }]),
+			);
+			const editor = createTestEditor();
+			setContent(editor, [
+				{ text: "Alpha", highlight: { id: "id-1", color: "yellow" } },
+			]);
+			selectSegments(editor, 0, 0);
+			clickRemove(result, editor);
+
+			// Act
+
+			act(() => result.current.cancelHighlightRemoval());
+
+			// Assert
+
+			expect(result.current.pendingHighlightRemoval).toBeNull();
+			expect(getMarkTagNames(editor)).toEqual(["id-1"]);
+			expect(mockTrashElementAction).not.toHaveBeenCalled();
+		});
+
+		it("Should unwrap every node of the highlight and trash its extract when confirmed", () => {
+			// Arrange
+
+			const result = renderViewerButtons(
+				makeStore(false, [{ type: "extract", id: "id-1" }]),
+			);
+			const editor = createTestEditor();
+			setContent(editor, [
+				{ text: "Alpha", highlight: { id: "id-1", color: "yellow" } },
+				{ text: " Bravo " },
+				{ text: "Charlie", highlight: { id: "id-1", color: "yellow" } },
+				{ text: " Delta " },
+				{ text: "Echo", highlight: { id: "id-2", color: "yellow" } },
+			]);
+			selectSegments(editor, 0, 0);
+			clickRemove(result, editor);
+
+			// Act
+
+			act(() => result.current.confirmHighlightRemoval());
+
+			// Assert
+
+			expect(getMarkTagNames(editor)).toEqual(["id-2"]);
+			expect(mockTrashElementAction).toHaveBeenCalledExactlyOnceWith({
+				type: "extract",
+				id: "id-1",
+			});
+		});
+
+		it("Should trash each existing element once when confirmed after selecting several highlights", () => {
+			// Arrange
+
+			const result = renderViewerButtons(
+				makeStore(false, [
+					{ type: "extract", id: "id-1" },
+					{ type: "card", id: "id-2" },
+				]),
+			);
+			const editor = createTestEditor();
+			setContent(editor, [
+				{ text: "Alpha", highlight: { id: "id-1", color: "yellow" } },
+				{ text: "Bravo", highlight: { id: "id-1", color: "yellow" } },
+				{ text: "Charlie", highlight: { id: "id-2", color: "blue" } },
+			]);
+			selectSegments(editor, 0, 2);
+			clickRemove(result, editor);
+
+			// Act
+
+			act(() => result.current.confirmHighlightRemoval());
 
 			// Assert
 
 			expect(getMarkTagNames(editor)).toEqual([]);
+			expect(mockTrashElementAction.mock.calls).toEqual([
+				[{ type: "extract", id: "id-1" }],
+				[{ type: "card", id: "id-2" }],
+			]);
 		});
 	});
 

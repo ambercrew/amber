@@ -3,6 +3,7 @@ import CardElementViewer from "./CardElementViewer";
 import ExtractElementViewer from "./ExtractElementViewer";
 import FindInPageBar from "./FindInPageBar";
 import FolderView from "./FolderView";
+import RemoveHighlightModal from "./RemoveHighlightModal";
 import LearningAssetView from "./LearningAssetView/LearningAssetView";
 import PdfLearningAssetView from "./PdfView/components/PdfLearningAssetView";
 import SearchHighlightOverlay from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightOverlay";
@@ -15,7 +16,12 @@ import { useHighlightCreatedHandler } from "./hooks/useHighlightCreatedHandler";
 export default function ElementViewer() {
 	const currentElement = useAppSelector(selectCurrentElement);
 	const elementId = currentElement?.data?.meta?.elementId;
-	const buttons = useElementViewerButtons();
+	const {
+		buttons,
+		pendingHighlightRemoval,
+		confirmHighlightRemoval,
+		cancelHighlightRemoval,
+	} = useElementViewerButtons();
 	const handleHighlightCreated = useHighlightCreatedHandler(elementId);
 
 	const frontContentRef = useRef("");
@@ -84,6 +90,11 @@ export default function ElementViewer() {
 		<>
 			<FindInPageBar />
 			<SearchHighlightOverlay />
+			<RemoveHighlightModal
+				removal={pendingHighlightRemoval}
+				onConfirm={confirmHighlightRemoval}
+				onClose={cancelHighlightRemoval}
+			/>
 			{currentElement.type === "card" && (
 				<CardElementViewer
 					elementId={elementId}
