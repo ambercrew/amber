@@ -14,6 +14,7 @@ import {
 	CREATE_HIGHLIGHT_COMMAND,
 	HighlightCreatedPayload,
 } from "./highlightCommands";
+import { $trimSelectionWhitespace } from "./trimSelectionWhitespace";
 
 interface Props {
 	onHighlightCreated?: (payload: HighlightCreatedPayload) => void;
@@ -35,8 +36,9 @@ export function HighlightPlugin({ onHighlightCreated }: Props) {
 				if (!$isRangeSelection(selection) || selection.isCollapsed()) {
 					return false;
 				}
+				if (!selection.getTextContent().trim()) return false;
+				$trimSelectionWhitespace(selection);
 				const selectionText = selection.getTextContent();
-				if (!selectionText?.trim()) return false;
 
 				const { nodes: selectionNodes } =
 					$generateJSONFromSelectedNodes<SerializedLexicalNodeTree>(
