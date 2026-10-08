@@ -1,6 +1,6 @@
-import { extractPdf, getPdfPageCount, PdfProgress } from "../pdf/extract";
-import { extractEpub } from "../epub/extract";
-import { extractMarkdown } from "../markdown/extract";
+import { getPdfPageCount, PdfProgress } from "../pdf/extract";
+import { pdfFormat } from "../pdf/format";
+import { detectFileFormat } from "../fileFormats";
 import { normalize } from "../normalize";
 import { createImportedLearningAsset } from "../createImportedLearningAsset";
 import { createImportedPdfLearningAsset } from "../createImportedPdfLearningAsset";
@@ -13,11 +13,10 @@ export type FileImportError =
 	| { kind: "unsupported-file" }
 	| { kind: "no-text-layer" }
 	| { kind: "no-content" }
-	| { kind: "pdf-failed"; message: string }
-	| { kind: "epub-failed"; message: string }
-	| { kind: "markdown-failed"; message: string };
+	| { kind: "extraction-failed"; message: string };
 
-const TITLE_SUFFIX_PATTERN = /\.(docx?|pdf|pptx?|xlsx?|epub|md|markdown)$/i;
+const TITLE_SUFFIX_PATTERN =
+	/\.(docx?|pdf|pptx?|xlsx?|epub|md|markdown|x?html?|txt)$/i;
 
 export async function runFileImport(
 	files: File[],
@@ -28,16 +27,13 @@ export async function runFileImport(
 ): Promise<FileImportError | null> {
 	for (const file of files) {
 		const bytes = await file.arrayBuffer();
-		const isPdf = isPdfFile(file);
-		const isEpub = !isPdf && hasEpubMagic(bytes);
-		const isMarkdown = !isPdf && !isEpub && hasMarkdownExtension(file.name);
-		if (!isPdf && !isEpub && !isMarkdown)
-			return { kind: "unsupported-file" };
+		const format = detectFileFormat(file, bytes);
+		if (format === null) return { kind: "unsupported-file" };
 
 		const title = file.name.replace(TITLE_SUFFIX_PATTERN, "");
 
 		try {
-			if (isPdf && !extractPdfContent) {
+			if (format === pdfFormat && !extractPdfContent) {
 				const pageCount = await getPdfPageCount(bytes);
 				const bibliographicalSource = await ctx.dispatch(
 					createBibliographicalSourceAction({
@@ -58,11 +54,7 @@ export async function runFileImport(
 				continue;
 			}
 
-			const extraction = isPdf
-				? await extractPdf(bytes, onProgress)
-				: isEpub
-					? await extractEpub(bytes)
-					: extractMarkdown(new TextDecoder().decode(bytes));
+			const extraction = await format.extract(bytes, onProgress);
 			// A URL import passes its URL, so relative links and images resolve against it.
 			const content = await normalize(extraction.html, {
 				baseUrl: location ?? null,
@@ -93,38 +85,11 @@ export async function runFileImport(
 			if (message === "no-content") {
 				return { kind: "no-content" };
 			}
-			return {
-				kind: isPdf
-					? "pdf-failed"
-					: isEpub
-						? "epub-failed"
-						: "markdown-failed",
-				message,
-			};
+			return { kind: "extraction-failed", message };
 		}
 	}
 
 	return null;
-}
-
-// Not a magic-byte check: valid PDFs may have junk before their `%PDF-` header.
-export function isPdfFile(file: File): boolean {
-	return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-}
-
-function hasEpubMagic(bytes: ArrayBuffer): boolean {
-	const head = new Uint8Array(bytes.slice(0, 4));
-	return (
-		head.length === 4 &&
-		head[0] === 0x50 &&
-		head[1] === 0x4b &&
-		head[2] === 0x03 &&
-		head[3] === 0x04
-	);
-}
-
-function hasMarkdownExtension(name: string): boolean {
-	return /\.(md|markdown)$/i.test(name);
 }
 
 function plausibleTitle(title: string | null): string | null {

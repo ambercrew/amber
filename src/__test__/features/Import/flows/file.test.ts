@@ -5,6 +5,8 @@ import {
 } from "../../../../features/Import/pdf/extract";
 import { extractEpub } from "../../../../features/Import/epub/extract";
 import { extractMarkdown } from "../../../../features/Import/markdown/extract";
+import { extractHtml } from "../../../../features/Import/html/extract";
+import { extractText } from "../../../../features/Import/text/extract";
 import { normalize } from "../../../../features/Import/normalize";
 import { createImportedLearningAsset } from "../../../../features/Import/createImportedLearningAsset";
 import { createImportedPdfLearningAsset } from "../../../../features/Import/createImportedPdfLearningAsset";
@@ -18,6 +20,8 @@ type Thunk = (dispatch: AppDispatch, getState: () => RootState) => unknown;
 vi.mock(import("../../../../features/Import/pdf/extract"));
 vi.mock(import("../../../../features/Import/epub/extract"));
 vi.mock(import("../../../../features/Import/markdown/extract"));
+vi.mock(import("../../../../features/Import/html/extract"));
+vi.mock(import("../../../../features/Import/text/extract"));
 vi.mock(import("../../../../features/Import/normalize"));
 vi.mock(import("../../../../features/Import/createImportedLearningAsset"));
 vi.mock(import("../../../../features/Import/createImportedPdfLearningAsset"));
@@ -70,19 +74,27 @@ function markdownFile(name = "notes.md"): File {
 	return new File(["# Title\n\ncontent"], name, { type: "text/markdown" });
 }
 
-function nonPdfFile(name = "document.txt"): File {
-	return new File(["not a pdf"], name, { type: "text/plain" });
+function htmlFile(name = "page.html"): File {
+	return new File(["<p>content</p>"], name, { type: "text/html" });
+}
+
+function textFile(name = "notes.txt"): File {
+	return new File(["content"], name, { type: "text/plain" });
+}
+
+function unsupportedFile(name = "image.png"): File {
+	return new File(["not a document"], name, { type: "image/png" });
 }
 
 describe("runFileImport", () => {
-	it("Should return unsupported-file when the file is not a PDF, EPUB, or markdown file", async () => {
+	it("Should return unsupported-file when the file is not a PDF, EPUB, markdown, HTML, or text file", async () => {
 		// Arrange
 
 		const ctx = makeCtx();
 
 		// Act
 
-		const actual = await runFileImport([nonPdfFile()], ctx, true);
+		const actual = await runFileImport([unsupportedFile()], ctx, true);
 
 		// Assert
 
@@ -246,7 +258,7 @@ describe("runFileImport", () => {
 		expect(actual).toEqual({ kind: "no-text-layer" });
 	});
 
-	it("Should return pdf-failed with the error message when extraction rejects with any other error", async () => {
+	it("Should return extraction-failed with the error message when extraction rejects with any other error", async () => {
 		// Arrange
 
 		vi.mocked(extractPdf).mockRejectedValue("corrupt file");
@@ -258,7 +270,10 @@ describe("runFileImport", () => {
 
 		// Assert
 
-		expect(actual).toEqual({ kind: "pdf-failed", message: "corrupt file" });
+		expect(actual).toEqual({
+			kind: "extraction-failed",
+			message: "corrupt file",
+		});
 	});
 
 	it("Should report progress via the onProgress callback", async () => {
@@ -338,7 +353,7 @@ describe("runFileImport", () => {
 		expect(actual).toEqual({ kind: "no-content" });
 	});
 
-	it("Should return epub-failed with the error message when epub extraction rejects with any other error", async () => {
+	it("Should return extraction-failed with the error message when epub extraction rejects with any other error", async () => {
 		// Arrange
 
 		vi.mocked(extractEpub).mockRejectedValue("corrupt epub");
@@ -351,7 +366,7 @@ describe("runFileImport", () => {
 		// Assert
 
 		expect(actual).toEqual({
-			kind: "epub-failed",
+			kind: "extraction-failed",
 			message: "corrupt epub",
 		});
 	});
@@ -440,7 +455,7 @@ describe("runFileImport", () => {
 		expect(actual).toEqual({ kind: "no-content" });
 	});
 
-	it("Should return markdown-failed with the error message when markdown extraction throws any other error", async () => {
+	it("Should return extraction-failed with the error message when markdown extraction throws any other error", async () => {
 		// Arrange
 
 		vi.mocked(extractMarkdown).mockImplementation(() => {
@@ -455,8 +470,111 @@ describe("runFileImport", () => {
 		// Assert
 
 		expect(actual).toEqual({
-			kind: "markdown-failed",
+			kind: "extraction-failed",
 			message: "bad markdown",
+		});
+	});
+
+	it("Should extract, normalize, and create a learning asset for an HTML file", async () => {
+		// Arrange
+
+		vi.mocked(extractHtml).mockReturnValue({
+			title: "Page Title",
+			authors: "Jane Doe",
+			publicationDate: null,
+			html: "<p>html content</p>",
+		});
+		vi.mocked(normalize).mockResolvedValue("<p>normalized</p>");
+		vi.mocked(createBibliographicalSource).mockResolvedValue(makeSource());
+		const ctx = makeCtx();
+
+		// Act
+
+		const actual = await runFileImport([htmlFile()], ctx, true);
+
+		// Assert
+
+		expect(actual).toBeNull();
+		expect(extractMarkdown).not.toHaveBeenCalled();
+		expect(normalize).toHaveBeenCalledWith("<p>html content</p>", {
+			baseUrl: null,
+		});
+		expect(createImportedLearningAsset).toHaveBeenCalledWith(
+			ctx,
+			"Page Title",
+			"<p>normalized</p>",
+			"source-1",
+		);
+	});
+
+	it("Should title a text file after its file name when the extraction has no title", async () => {
+		// Arrange
+
+		vi.mocked(extractText).mockReturnValue({
+			title: null,
+			authors: null,
+			publicationDate: null,
+			html: "<p>text content</p>",
+		});
+		vi.mocked(normalize).mockResolvedValue("<p>normalized</p>");
+		vi.mocked(createBibliographicalSource).mockResolvedValue(makeSource());
+		const ctx = makeCtx();
+
+		// Act
+
+		const actual = await runFileImport([textFile("notes.txt")], ctx, true);
+
+		// Assert
+
+		expect(actual).toBeNull();
+		expect(createImportedLearningAsset).toHaveBeenCalledWith(
+			ctx,
+			"notes",
+			"<p>normalized</p>",
+			"source-1",
+		);
+	});
+
+	it("Should import as markdown when a .md file is reported as text/plain", async () => {
+		// Arrange
+
+		vi.mocked(extractMarkdown).mockReturnValue({
+			title: "Markdown Title",
+			authors: null,
+			publicationDate: null,
+			html: "<p>markdown content</p>",
+		});
+		vi.mocked(normalize).mockResolvedValue("<p>normalized</p>");
+		vi.mocked(createBibliographicalSource).mockResolvedValue(makeSource());
+		const ctx = makeCtx();
+
+		// Act
+
+		await runFileImport([textFile("notes.md")], ctx, true);
+
+		// Assert
+
+		expect(extractMarkdown).toHaveBeenCalled();
+		expect(extractText).not.toHaveBeenCalled();
+	});
+
+	it("Should return extraction-failed with the error message when HTML extraction throws", async () => {
+		// Arrange
+
+		vi.mocked(extractHtml).mockImplementation(() => {
+			throw new Error("bad html");
+		});
+		const ctx = makeCtx();
+
+		// Act
+
+		const actual = await runFileImport([htmlFile()], ctx, true);
+
+		// Assert
+
+		expect(actual).toEqual({
+			kind: "extraction-failed",
+			message: "bad html",
 		});
 	});
 });

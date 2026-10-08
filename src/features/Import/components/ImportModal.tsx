@@ -10,7 +10,7 @@ import {
 	Stack,
 	Text,
 } from "@mantine/core";
-import { Dropzone, PDF_MIME_TYPE } from "@mantine/dropzone";
+import { Dropzone } from "@mantine/dropzone";
 import { ArrowsInSimpleIcon, FileIcon, XIcon } from "@phosphor-icons/react";
 import AppModal from "../../../components/AppModal/AppModal";
 import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
@@ -23,7 +23,13 @@ import { closeImportModal } from "../../../stores/app/appReducer";
 import { asUrl, classifyPaste } from "../classify";
 import { PastedContent, runContentImport } from "../flows/content";
 import { importRawPage, runUrlImport, UrlImportError } from "../flows/url";
-import { FileImportError, isPdfFile, runFileImport } from "../flows/file";
+import { FileImportError, runFileImport } from "../flows/file";
+import { isPdfFile } from "../pdf/format";
+import {
+	FILE_FORMATS_ACCEPT,
+	SUPPORTED_FORMATS_ALL,
+	SUPPORTED_FORMATS_ANY,
+} from "../fileFormats";
 import { PdfProgress } from "../pdf/extract";
 import { ImportContext } from "../importContext";
 import ImportPrioritySection from "./ImportPrioritySection";
@@ -53,15 +59,13 @@ function describeError(error: UrlImportError | FileImportError): {
 			};
 		case "unsupported-file":
 			return {
-				message: "Only PDF, EPUB, and Markdown files are supported.",
+				message: `Only ${SUPPORTED_FORMATS_ALL} files are supported.`,
 			};
 		case "no-text-layer":
 			return { message: "This PDF has no selectable text." };
 		case "no-content":
 			return { message: "This file has no readable content." };
-		case "pdf-failed":
-		case "epub-failed":
-		case "markdown-failed":
+		case "extraction-failed":
 			return { message: error.message };
 	}
 }
@@ -229,11 +233,7 @@ function ImportModal() {
 			closeOnClickOutside={!isImporting}
 			closeOnEscape={!isImporting}>
 			<Dropzone
-				accept={[
-					...PDF_MIME_TYPE,
-					"application/epub+zip",
-					"text/markdown",
-				]}
+				accept={FILE_FORMATS_ACCEPT}
 				activateOnClick={false}
 				disabled={isImporting}
 				openRef={openRef}
@@ -241,8 +241,7 @@ function ImportModal() {
 				onReject={() =>
 					setPhase({
 						kind: "error",
-						message:
-							"Only PDF, EPUB, and Markdown files are supported.",
+						message: `Only ${SUPPORTED_FORMATS_ALL} files are supported.`,
 					})
 				}
 				p={0}
@@ -366,7 +365,7 @@ function ImportModal() {
 								)}
 							{!pendingFiles && (
 								<Text size="sm" c="dimmed">
-									or drop a PDF, EPUB, or Markdown file
+									or drop a {SUPPORTED_FORMATS_ANY} file
 									anywhere here —{" "}
 									<Anchor
 										size="sm"

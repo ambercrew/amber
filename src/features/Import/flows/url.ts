@@ -5,10 +5,15 @@ import errorToString from "../../../utils/errorToString";
 import { base64ToArrayBuffer } from "../../../utils/base64ToArrayBuffer";
 import { normalize } from "../normalize";
 import { hydrateLazyImages } from "../normalize/hydrateLazyImages";
+import { hasContent } from "../html/extract";
 import { deriveTitle } from "../deriveTitle";
 import { createImportedLearningAsset } from "../createImportedLearningAsset";
 import { ImportContext } from "../importContext";
 import { runFileImport, FileImportError } from "./file";
+import { FileFormat, hasExtension } from "../fileFormat";
+import { pdfFormat } from "../pdf/format";
+import { epubFormat } from "../epub/format";
+import { markdownFormat } from "../markdown/format";
 
 export type UrlImportError =
 	| { kind: "fetch-failed"; message: string }
@@ -28,30 +33,20 @@ export async function runUrlImport(
 
 	const resolvedUrl = page.finalUrl || url;
 
-	if (page.kind === "pdf") {
-		const file = new File(
-			[base64ToArrayBuffer(page.bytesBase64)],
-			filenameFromUrl(resolvedUrl, "pdf"),
-			{ type: "application/pdf" },
+	if (page.kind === "pdf" || page.kind === "epub") {
+		const format = page.kind === "pdf" ? pdfFormat : epubFormat;
+		const file = asFile(
+			base64ToArrayBuffer(page.bytesBase64),
+			resolvedUrl,
+			format,
 		);
 		// URL-imported PDFs have no import-modal toggle to opt out of extraction,
 		// so they always convert to an editable document as before.
 		return runFileImport([file], ctx, true, undefined, resolvedUrl);
 	}
 
-	if (page.kind === "epub") {
-		const file = new File(
-			[base64ToArrayBuffer(page.bytesBase64)],
-			filenameFromUrl(resolvedUrl, "epub"),
-			{ type: "application/epub+zip" },
-		);
-		return runFileImport([file], ctx, true, undefined, resolvedUrl);
-	}
-
 	if (page.kind === "markdown") {
-		const file = new File([page.text], filenameFromUrl(resolvedUrl, "md"), {
-			type: "text/markdown",
-		});
+		const file = asFile(page.text, resolvedUrl, markdownFormat);
 		return runFileImport([file], ctx, true, undefined, resolvedUrl);
 	}
 
@@ -137,31 +132,8 @@ async function importArticleHtml(
 	);
 }
 
-const MEDIA_SELECTOR = "img, picture, video, audio, iframe, svg, table";
-
-/** Defuddle always returns something — when it finds no article it falls back
- * to the (possibly empty) page body. Treat markup with neither text nor media
- * as "no article" so the caller can offer the raw page instead. */
-function hasContent(html: string): boolean {
-	if (html.length === 0) return false;
-	const doc = new DOMParser().parseFromString(html, "text/html");
-	return (
-		(doc.body.textContent ?? "").trim().length > 0 ||
-		doc.body.querySelector(MEDIA_SELECTOR) !== null
-	);
-}
-
-const EXTENSION_PATTERNS = {
-	pdf: /\.pdf$/i,
-	epub: /\.epub$/i,
-	md: /\.(md|markdown)$/i,
-};
-
 /** Names the fetched file after the URL's last path segment, so runFileImport can title it and detect its type. */
-function filenameFromUrl(
-	url: string,
-	extension: keyof typeof EXTENSION_PATTERNS,
-): string {
+function asFile(content: BlobPart, url: string, format: FileFormat): File {
 	let name = "document";
 	try {
 		name = new URL(url).pathname.split("/").filter(Boolean).pop() ?? name;
@@ -169,7 +141,6 @@ function filenameFromUrl(
 	} catch {
 		// Keep whatever was parsed so far.
 	}
-	return EXTENSION_PATTERNS[extension].test(name)
-		? name
-		: `${name}.${extension}`;
+	if (!hasExtension(format, name)) name = `${name}.${format.extensions[0]}`;
+	return new File([content], name, { type: format.mimeTypes[0] });
 }
