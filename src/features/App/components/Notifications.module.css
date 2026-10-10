@@ -1,0 +1,4 @@
+/* Mantine renders a container per position; only the bottom ones clear the gesture bar. */
+.root[data-position^="bottom"] {
+	bottom: calc(var(--mantine-spacing-md) + env(safe-area-inset-bottom));
+}

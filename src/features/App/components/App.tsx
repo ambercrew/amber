@@ -3,6 +3,7 @@ import { Outlet } from "react-router";
 import { AppShell, Box, ScrollArea } from "@mantine/core";
 import { useSplitter } from "@mantine/hooks";
 import { Notifications } from "@mantine/notifications";
+import notificationsClasses from "./Notifications.module.css";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { useRedirectIfElementMissing } from "../../../hooks/useRedirectIfElementMissing";
 import {
@@ -50,6 +51,7 @@ import {
 	SAFE_AREA_BOTTOM,
 	SAFE_AREA_TOP,
 	safeAreaTopStyle,
+	safeAreaVerticalStyle,
 } from "../../../utils/safeArea.ts";
 import useBackButtonPress from "../../../hooks/useBackButtonPress.ts";
 import { BackButtonPriority } from "../../../managers/backButtonManager.ts";
@@ -86,6 +88,7 @@ function App() {
 	);
 	const mobile = isMobile();
 	const safeAreaTop = safeAreaTopStyle();
+	const safeAreaVertical = safeAreaVerticalStyle();
 	const studying = studyStatus === "studying";
 	const footerCollapsed = !studying || !pinned;
 
@@ -93,9 +96,9 @@ function App() {
 	// via the fixed *-height variables (not *-offset), so hiding it never reflows
 	// the content.
 	const headerSpace = "var(--app-shell-header-height, 0px)";
-	const footerSpace = studying
-		? `calc(var(--app-shell-footer-height, 0px) + ${SAFE_AREA_BOTTOM})`
-		: "0px";
+	const footerSpace = `calc(${
+		studying ? "var(--app-shell-footer-height, 0px)" : "0px"
+	} + ${SAFE_AREA_BOTTOM})`;
 
 	const splitter = useSplitter({
 		panels: [
@@ -227,7 +230,7 @@ function App() {
 					<VerifyEmailModal />
 					<ManageAccountModal />
 					<SyncingModal />
-					<Notifications />
+					<Notifications classNames={notificationsClasses} />
 					<SafeAreaTopBackdrop />
 
 					<AppShell.Header style={safeAreaTop}>
@@ -253,7 +256,7 @@ function App() {
 						<StudySessionBar />
 					</AppShell.Footer>
 
-					<AppShell.Navbar style={safeAreaTop}>
+					<AppShell.Navbar style={safeAreaVertical}>
 						<Sidebar
 							onCollapse={() => splitter.collapse(0)}
 							onExpand={() => splitter.expand(0)}
@@ -308,7 +311,7 @@ function App() {
 						</ScrollArea>
 					</AppShell.Main>
 
-					<AppShell.Aside style={safeAreaTop}>
+					<AppShell.Aside style={safeAreaVertical}>
 						<Aside
 							onCollapse={() => setAsideExpanded(false)}
 							onExpand={() => setAsideExpanded(true)}

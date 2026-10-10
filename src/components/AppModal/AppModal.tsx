@@ -2,7 +2,7 @@ import { Modal, ModalProps } from "@mantine/core";
 import { useIsSmallScreen } from "../../hooks/useIsSmallScreen";
 import useBackButtonPress from "../../hooks/useBackButtonPress";
 import { BackButtonPriority } from "../../managers/backButtonManager";
-import { safeAreaTopStyle } from "../../utils/safeArea";
+import { safeAreaVerticalStyle } from "../../utils/safeArea";
 
 /** `styles` is owned by this component, which uses it for the safe area. */
 export type AppModalProps = Omit<ModalProps, "styles"> & {
@@ -12,8 +12,8 @@ export type AppModalProps = Omit<ModalProps, "styles"> & {
 
 /**
  * Mantine's `Modal` with the app's defaults: centered, and — while full
- * screen — padded so its header clears the status bar on mobile and closed
- * by Android's back button.
+ * screen — padded so it clears the status and gesture bars on mobile and
+ * closed by Android's back button.
  */
 function AppModal({
 	fullScreen = false,
@@ -51,7 +51,7 @@ function AppModal({
 							// A column that fills the screen, so a body laid
 							// out with `flex`/`mt="auto"` reaches the bottom.
 							content: {
-								...safeAreaTopStyle(),
+								...safeAreaVerticalStyle(),
 								display: "flex",
 								flexDirection: "column",
 							},

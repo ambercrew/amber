@@ -107,9 +107,9 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 			style={{
 				position: "absolute",
 				insetInline: 0,
-				bottom: footerVisible
-					? `calc(var(--mantine-spacing-md) + ${HEADER_AND_FOOTER_HEIGHT}px + ${SAFE_AREA_BOTTOM})`
-					: "var(--mantine-spacing-md)",
+				bottom: `calc(var(--mantine-spacing-md) + ${
+					footerVisible ? HEADER_AND_FOOTER_HEIGHT : 0
+				}px + ${SAFE_AREA_BOTTOM})`,
 				display: "flex",
 				justifyContent: "center",
 				pointerEvents: "none",

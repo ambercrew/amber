@@ -14,3 +14,21 @@ export const SAFE_AREA_BOTTOM = "env(safe-area-inset-bottom)";
 export function safeAreaTopStyle(): CSSProperties | undefined {
 	return isMobile() ? { paddingTop: SAFE_AREA_TOP } : undefined;
 }
+
+/**
+ * Padding that clears the gesture bar for anything drawn at the very bottom of
+ * a mobile screen. Undefined on desktop.
+ */
+export function safeAreaBottomStyle(): CSSProperties | undefined {
+	return isMobile() ? { paddingBottom: SAFE_AREA_BOTTOM } : undefined;
+}
+
+/**
+ * Padding that clears both the status bar and the gesture bar for anything
+ * spanning the full height of a mobile screen. Undefined on desktop.
+ */
+export function safeAreaVerticalStyle(): CSSProperties | undefined {
+	return isMobile()
+		? { ...safeAreaTopStyle(), ...safeAreaBottomStyle() }
+		: undefined;
+}
