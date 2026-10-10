@@ -3,6 +3,7 @@ import PriorityModal from "../../../../features/Aside/components/PriorityModal";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import {
 	getElementDetails,
+	getPriorityNeighbors,
 	setElementPriorityByPosition,
 	setElementPriorityByPercentile,
 } from "../../../../api/elements/api/elementsApi";
@@ -15,6 +16,10 @@ import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
 vi.mock(import("../../../../api/elements/api/elementsApi.ts"));
 
 const cardElementId = { type: "card" as const, id: "card-1" };
+
+function neighbor(name: string) {
+	return { elementId: { type: "extract" as const, id: name }, name };
+}
 
 const profile: StudyProfileDto = {
 	id: "profile-1",
@@ -254,5 +259,164 @@ describe("PriorityModal", () => {
 			cardElementId,
 			75,
 		);
+	});
+
+	it("Should show the current element between the elements before and after when the position has neighbors", async () => {
+		// Arrange
+
+		vi.mocked(getPriorityNeighbors).mockResolvedValue({
+			before: neighbor("Earlier extract"),
+			after: neighbor("Later extract"),
+		});
+
+		// Act
+
+		renderWithProviders(<PriorityModal />, {
+			preloadedState: {
+				app: appStateFor(true),
+				elements: elementsStateFor(cardElement()),
+			},
+		});
+
+		// Assert
+
+		expect(await screen.findByText("Earlier extract")).toBeInTheDocument();
+		expect(screen.getByText("Later extract")).toBeInTheDocument();
+		expect(screen.getByText("Card 1")).toBeInTheDocument();
+		expect(screen.getByText("Current")).toBeInTheDocument();
+		expect(getPriorityNeighbors).toHaveBeenCalledWith(cardElementId, 3);
+	});
+
+	it("Should show only the element after when the position is the front of the queue", async () => {
+		// Arrange
+
+		vi.mocked(getPriorityNeighbors).mockResolvedValue({
+			before: null,
+			after: neighbor("Later extract"),
+		});
+
+		// Act
+
+		renderWithProviders(<PriorityModal />, {
+			preloadedState: {
+				app: appStateFor(true),
+				elements: elementsStateFor(cardElement()),
+			},
+		});
+
+		// Assert
+
+		expect(await screen.findByText("Later extract")).toBeInTheDocument();
+		// An earlier test's result may show first, until this one's arrives.
+		await waitFor(() =>
+			expect(screen.queryByText("Before")).not.toBeInTheDocument(),
+		);
+		expect(screen.getByText("After")).toBeInTheDocument();
+	});
+
+	it("Should load the neighbors of the new position when the position changes", async () => {
+		// Arrange
+
+		vi.mocked(setElementPriorityByPosition).mockReturnValue(
+			new Promise(() => undefined),
+		);
+		vi.mocked(getPriorityNeighbors).mockResolvedValue({
+			before: null,
+			after: null,
+		});
+		renderWithProviders(<PriorityModal />, {
+			preloadedState: {
+				app: appStateFor(true),
+				elements: elementsStateFor(cardElement()),
+			},
+		});
+		const positionInput = await screen.findByLabelText("Position");
+
+		// Act
+
+		fireEvent.change(positionInput, { target: { value: "1" } });
+
+		// Assert
+
+		await waitFor(() =>
+			expect(getPriorityNeighbors).toHaveBeenCalledWith(cardElementId, 1),
+		);
+	});
+
+	it("Should keep showing the neighbors when the dialog reloads after a priority change", async () => {
+		// Arrange
+
+		vi.mocked(getPriorityNeighbors).mockResolvedValueOnce({
+			before: neighbor("Earlier extract"),
+			after: neighbor("Later extract"),
+		});
+		vi.mocked(setElementPriorityByPosition).mockResolvedValue(undefined);
+		vi.mocked(getElementDetails)
+			.mockResolvedValueOnce(makeDetails())
+			.mockResolvedValueOnce(
+				makeDetails({
+					priority: { position: 1, total: 5, percentile: 0 },
+				}),
+			);
+		renderWithProviders(<PriorityModal />, {
+			preloadedState: {
+				app: appStateFor(true),
+				elements: elementsStateFor(cardElement()),
+			},
+		});
+		expect(await screen.findByText("Earlier extract")).toBeInTheDocument();
+		// The reloaded dialog's own request never answers, so only the kept
+		// result can be on screen.
+		vi.mocked(getPriorityNeighbors).mockReturnValue(
+			new Promise(() => undefined),
+		);
+
+		// Act
+
+		fireEvent.change(screen.getByLabelText("Position"), {
+			target: { value: "1" },
+		});
+
+		// Assert
+
+		await waitFor(() => expect(getElementDetails).toHaveBeenCalledTimes(2));
+		await waitFor(() =>
+			expect(screen.getByText("Position 1 of 5")).toBeInTheDocument(),
+		);
+		expect(screen.getByText("Earlier extract")).toBeInTheDocument();
+		expect(screen.getByText("Later extract")).toBeInTheDocument();
+	});
+
+	it("Should replace the neighbors error with the neighbors when a later request succeeds", async () => {
+		// Arrange
+
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		vi.mocked(getPriorityNeighbors)
+			.mockRejectedValueOnce(new Error("Neighbors failed"))
+			.mockResolvedValue({
+				before: neighbor("Earlier extract"),
+				after: null,
+			});
+		vi.mocked(setElementPriorityByPosition).mockReturnValue(
+			new Promise(() => undefined),
+		);
+		renderWithProviders(<PriorityModal />, {
+			preloadedState: {
+				app: appStateFor(true),
+				elements: elementsStateFor(cardElement()),
+			},
+		});
+		expect(await screen.findByText("Neighbors failed")).toBeInTheDocument();
+
+		// Act
+
+		fireEvent.change(screen.getByLabelText("Position"), {
+			target: { value: "2" },
+		});
+
+		// Assert
+
+		expect(await screen.findByText("Earlier extract")).toBeInTheDocument();
+		expect(screen.queryByText("Neighbors failed")).not.toBeInTheDocument();
 	});
 });

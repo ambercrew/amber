@@ -19,6 +19,7 @@ import { PRIORITY_CHANGED } from "../../../types/events/priorityChangedEvent";
 
 interface PriorityModalBodyProps {
 	elementId: ElementId;
+	elementName: string;
 	total: number;
 	initialPosition: number;
 	initialPercentile: number;
@@ -27,6 +28,7 @@ interface PriorityModalBodyProps {
 
 function PriorityModalBody({
 	elementId,
+	elementName,
 	total,
 	initialPosition,
 	initialPercentile,
@@ -54,6 +56,7 @@ function PriorityModalBody({
 
 	return (
 		<PrioritySlider
+			element={{ id: elementId, type: elementId.type, name: elementName }}
 			total={total}
 			position={controls.position}
 			percentile={controls.percentile}
@@ -89,6 +92,7 @@ function PriorityModal() {
 				<PriorityModalBody
 					key={`${elementId.id}-${details.priority.position}-${details.priority.total}`}
 					elementId={elementId}
+					elementName={currentElement?.data.meta.name ?? ""}
 					total={details.priority.total}
 					initialPosition={details.priority.position}
 					initialPercentile={details.priority.percentile}

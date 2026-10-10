@@ -6,7 +6,9 @@ use fractional_index::FractionalIndex;
 use injector_derive::ScopeInjectable;
 
 use crate::elements::repositories::meta_repository::MetaRepository;
-use crate::elements::services::priority_service::{PriorityError, PriorityInfo, PriorityService};
+use crate::elements::services::priority_service::{
+    PriorityError, PriorityInfo, PriorityNeighbors, PriorityService,
+};
 use crate::elements::value_objects::element_id::ElementId;
 use crate::study::value_objects::priority_inheritance_policy::{
     Placement, PriorityInheritancePolicy,
@@ -103,6 +105,22 @@ impl PriorityService for DefaultPriorityService {
         }
     }
 
+    async fn get_neighbors_at_position(
+        &self,
+        id: Option<ElementId>,
+        position: i64,
+    ) -> Result<PriorityNeighbors, PriorityError> {
+        let total = self.meta_repository.count_all().await?;
+        if total == 0 {
+            return Ok(PriorityNeighbors::default());
+        }
+        let clamped_position = match id {
+            Some(_) => position.clamp(1, total),
+            None => clamp_new_element_position(position, total),
+        };
+        self.neighbors_at(id, clamped_position - 1).await
+    }
+
     async fn set_priority_by_percentile(
         &self,
         id: ElementId,
@@ -137,6 +155,27 @@ impl PriorityService for DefaultPriorityService {
 }
 
 impl DefaultPriorityService {
+    /// The elements on either side of the zero-based queue `index`, skipping
+    /// `excluding` (the element being moved, if it already exists).
+    async fn neighbors_at(
+        &self,
+        excluding: Option<ElementId>,
+        index: i64,
+    ) -> Result<PriorityNeighbors, PriorityError> {
+        let before = if index > 0 {
+            self.meta_repository
+                .get_at_priority_offset(excluding, index - 1)
+                .await?
+        } else {
+            None
+        };
+        let after = self
+            .meta_repository
+            .get_at_priority_offset(excluding, index)
+            .await?;
+        Ok(PriorityNeighbors { before, after })
+    }
+
     /// The 1-based slot a brand new element takes under `policy`: its
     /// placement relative to `parent`, held back by the policy's ceiling and
     /// clamped to the queue.
@@ -213,20 +252,8 @@ impl DefaultPriorityService {
         if total == 0 {
             return Ok(());
         }
-        let clamped_position = position.clamp(1, total);
-        let others_total = total - 1;
-        let index = (clamped_position - 1).min(others_total);
-
-        let before = if index > 0 {
-            self.meta_repository
-                .get_at_priority_offset(Some(id), index - 1)
-                .await?
-        } else {
-            None
-        };
-        let after = self
-            .meta_repository
-            .get_at_priority_offset(Some(id), index)
+        let PriorityNeighbors { before, after } = self
+            .neighbors_at(Some(id), position.clamp(1, total) - 1)
             .await?;
 
         let new_priority = match (&before, &after) {
@@ -258,18 +285,8 @@ impl DefaultPriorityService {
         if total == 0 {
             return Ok(FractionalIndex::default());
         }
-        let index = clamp_new_element_position(position, total) - 1;
-
-        let before = if index > 0 {
-            self.meta_repository
-                .get_at_priority_offset(None, index - 1)
-                .await?
-        } else {
-            None
-        };
-        let after = self
-            .meta_repository
-            .get_at_priority_offset(None, index)
+        let PriorityNeighbors { before, after } = self
+            .neighbors_at(None, clamp_new_element_position(position, total) - 1)
             .await?;
 
         let new_priority = match (&before, &after) {
@@ -1104,6 +1121,189 @@ mod tests {
         let a_meta = meta_repo.get_by_id(a_id.id()).await.unwrap();
         let b_meta = meta_repo.get_by_id(b_id.id()).await.unwrap();
         assert!(b_meta.priority < a_meta.priority);
+    }
+
+    #[tokio::test]
+    async fn get_neighbors_at_position_middle_returns_elements_on_either_side() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let ids: Vec<ElementId> = make_queue(&folder_repo, 4)
+            .await
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+
+        // Act — move the last element to position 2
+
+        let actual = service
+            .get_neighbors_at_position(Some(ids[3]), 2)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(Some(ids[0]), actual.before.map(|meta| meta.element_id));
+        assert_eq!(Some(ids[1]), actual.after.map(|meta| meta.element_id));
+    }
+
+    #[tokio::test]
+    async fn get_neighbors_at_position_current_position_skips_the_element_itself() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let ids: Vec<ElementId> = make_queue(&folder_repo, 4)
+            .await
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+
+        // Act — keep the third element at its own position 3
+
+        let actual = service
+            .get_neighbors_at_position(Some(ids[2]), 3)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(Some(ids[1]), actual.before.map(|meta| meta.element_id));
+        assert_eq!(Some(ids[3]), actual.after.map(|meta| meta.element_id));
+    }
+
+    #[tokio::test]
+    async fn get_neighbors_at_position_front_returns_no_element_before() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let ids: Vec<ElementId> = make_queue(&folder_repo, 4)
+            .await
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+
+        // Act — move the last element to the front
+
+        let actual = service
+            .get_neighbors_at_position(Some(ids[3]), 1)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(None, actual.before.map(|meta| meta.element_id));
+        assert_eq!(Some(ids[0]), actual.after.map(|meta| meta.element_id));
+    }
+
+    #[tokio::test]
+    async fn get_neighbors_at_position_back_returns_no_element_after() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let ids: Vec<ElementId> = make_queue(&folder_repo, 4)
+            .await
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+
+        // Act — move the first element to the back
+
+        let actual = service
+            .get_neighbors_at_position(Some(ids[0]), 4)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(Some(ids[3]), actual.before.map(|meta| meta.element_id));
+        assert_eq!(None, actual.after.map(|meta| meta.element_id));
+    }
+
+    #[tokio::test]
+    async fn get_neighbors_at_position_out_of_range_clamps_to_back() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let ids: Vec<ElementId> = make_queue(&folder_repo, 4)
+            .await
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+
+        // Act — ask for a position past the end
+
+        let actual = service
+            .get_neighbors_at_position(Some(ids[0]), 99)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(Some(ids[3]), actual.before.map(|meta| meta.element_id));
+        assert_eq!(None, actual.after.map(|meta| meta.element_id));
+    }
+
+    #[tokio::test]
+    async fn get_neighbors_at_position_new_element_returns_elements_on_either_side() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let ids: Vec<ElementId> = make_queue(&folder_repo, 4)
+            .await
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+
+        // Act — preview a new element at position 2
+
+        let actual = service.get_neighbors_at_position(None, 2).await.unwrap();
+
+        // Assert
+
+        assert_eq!(Some(ids[0]), actual.before.map(|meta| meta.element_id));
+        assert_eq!(Some(ids[1]), actual.after.map(|meta| meta.element_id));
+    }
+
+    #[tokio::test]
+    async fn get_neighbors_at_position_new_element_past_the_end_returns_the_last_element() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let ids: Vec<ElementId> = make_queue(&folder_repo, 4)
+            .await
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+
+        // Act — preview a new element after every existing one
+
+        let actual = service.get_neighbors_at_position(None, 5).await.unwrap();
+
+        // Assert
+
+        assert_eq!(Some(ids[3]), actual.before.map(|meta| meta.element_id));
+        assert_eq!(None, actual.after.map(|meta| meta.element_id));
     }
 
     #[tokio::test]

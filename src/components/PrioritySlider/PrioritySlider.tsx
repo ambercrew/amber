@@ -3,9 +3,13 @@ import {
 	formatPriorityPercentile,
 	PRIORITY_PERCENTILE_DECIMALS,
 } from "../../utils/formatPriorityPercentile";
+import PriorityNeighborsPreview, {
+	PlacedElement,
+} from "./PriorityNeighborsPreview";
 import styles from "./PrioritySlider.module.css";
 
 interface PrioritySliderProps {
+	element: PlacedElement;
 	total: number;
 	position: number;
 	percentile: number;
@@ -22,6 +26,7 @@ interface PrioritySliderProps {
  * `PriorityModal` (repositions an existing element) and the import priority
  * section (chooses where a new element will land). */
 function PrioritySlider({
+	element,
 	total,
 	position,
 	percentile,
@@ -73,6 +78,7 @@ function PrioritySlider({
 					Position {position} of {total}
 				</Text>
 			</Stack>
+			<PriorityNeighborsPreview element={element} position={position} />
 		</Stack>
 	);
 }

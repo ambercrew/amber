@@ -11,6 +11,14 @@ import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import PrioritySlider from "../../../components/PrioritySlider/PrioritySlider";
 import { usePriorityControls } from "../../../components/PrioritySlider/usePriorityControls";
 import { positionToPercentile } from "../../../components/PrioritySlider/priorityMath";
+import { PlacedElement } from "../../../components/PrioritySlider/PriorityNeighborsPreview";
+
+// Imports always create a learning asset, which has no name until it's created.
+const IMPORTED_ELEMENT: PlacedElement = {
+	id: null,
+	type: "learningAsset",
+	name: "This import",
+};
 
 interface ImportPrioritySectionProps {
 	/** Queue size the new element would join, including itself, or `null`
@@ -83,6 +91,7 @@ function PrioritySliderControlled({
 
 	return (
 		<PrioritySlider
+			element={IMPORTED_ELEMENT}
 			total={total}
 			position={controls.position}
 			percentile={controls.percentile}

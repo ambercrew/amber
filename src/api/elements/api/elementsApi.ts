@@ -17,6 +17,7 @@ import { AnyElementDto } from "../dto/anyElementDto";
 import { ElementDetailsResponseDto } from "../dto/elementDetailsDto";
 import { NodeDto } from "../dto/nodeDto";
 import { NewElementPriorityDto } from "../dto/newElementPriorityDto";
+import { PriorityNeighborsResponseDto } from "../dto/priorityNeighborsDto";
 
 export function getElementTree(): Promise<NodeDto[]> {
 	return invoke("get_element_tree");
@@ -177,6 +178,13 @@ export function setElementPriorityByPercentile(
 		elementId,
 		percentile,
 	});
+}
+
+export function getPriorityNeighbors(
+	elementId: ElementId | null,
+	position: number,
+): Promise<PriorityNeighborsResponseDto> {
+	return invoke("get_priority_neighbors", { elementId, position });
 }
 
 export function getPriorityQueueSize(): Promise<number> {

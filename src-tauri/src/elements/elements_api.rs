@@ -18,6 +18,7 @@ use crate::elements::dto::move_element_dto::MoveElementRequestDto;
 use crate::elements::dto::new_element_priority_dto::NewElementPriorityResponseDto;
 use crate::elements::dto::pdf_bytes_dto::PdfBytesDto;
 use crate::elements::dto::pdf_highlights_dto::{PdfHighlightsDto, UpdatePdfHighlightsDto};
+use crate::elements::dto::priority_neighbors_dto::PriorityNeighborsResponseDto;
 use crate::elements::dto::tag_dto::TagResponseDto;
 use crate::elements::dto::tree_dto::NodeDto;
 use crate::elements::dto::update_card_dto::UpdateCardDto;
@@ -495,6 +496,21 @@ pub async fn set_element_priority_by_position(
         .await?;
     scope.save_changes().await?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_priority_neighbors(
+    injector: State<'_, Arc<Injector>>,
+    element_id: Option<ElementId>,
+    position: i64,
+) -> Result<PriorityNeighborsResponseDto, ApiError> {
+    let scope = injector.start_scope();
+    let neighbors = scope
+        .resolve::<dyn PriorityService>()
+        .await
+        .get_neighbors_at_position(element_id, position)
+        .await?;
+    Ok(neighbors.into())
 }
 
 #[tauri::command]

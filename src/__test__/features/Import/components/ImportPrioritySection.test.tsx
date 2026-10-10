@@ -1,6 +1,9 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import ImportPrioritySection from "../../../../features/Import/components/ImportPrioritySection";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+import { getPriorityNeighbors } from "../../../../api/elements/api/elementsApi";
+
+vi.mock(import("../../../../api/elements/api/elementsApi.ts"));
 
 describe("ImportPrioritySection", () => {
 	it("Should keep the slider hidden while collapsed", () => {
@@ -106,5 +109,38 @@ describe("ImportPrioritySection", () => {
 		// Assert
 
 		await waitFor(() => expect(onPositionChange).toHaveBeenCalledWith(1));
+	});
+
+	it("Should show the neighbors for a not-yet-created element when expanded", async () => {
+		// Arrange
+
+		vi.mocked(getPriorityNeighbors).mockResolvedValue({
+			before: {
+				elementId: { type: "extract", id: "earlier" },
+				name: "Earlier extract",
+			},
+			after: {
+				elementId: { type: "card", id: "later" },
+				name: "Later card",
+			},
+		});
+		renderWithProviders(
+			<ImportPrioritySection
+				total={10}
+				position={5}
+				onPositionChange={vi.fn()}
+			/>,
+		);
+
+		// Act
+
+		fireEvent.click(screen.getByText("Priority"));
+
+		// Assert
+
+		expect(await screen.findByText("Earlier extract")).toBeInTheDocument();
+		expect(screen.getByText("Later card")).toBeInTheDocument();
+		expect(screen.getByText("This import")).toBeInTheDocument();
+		expect(getPriorityNeighbors).toHaveBeenCalledWith(null, 5);
 	});
 });

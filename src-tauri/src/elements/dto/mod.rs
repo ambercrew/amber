@@ -13,6 +13,7 @@ pub mod new_element_priority_dto;
 pub mod pdf_bytes_dto;
 pub mod pdf_highlights_dto;
 pub mod priority_info_dto;
+pub mod priority_neighbors_dto;
 pub mod tag_dto;
 pub mod tree_dto;
 pub mod update_card_dto;

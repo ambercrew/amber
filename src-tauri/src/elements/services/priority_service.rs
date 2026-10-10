@@ -6,6 +6,7 @@ use thiserror::Error;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::elements::value_objects::meta::Meta;
 use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
 
 /// Where an element currently stands in the global priority queue.
@@ -17,6 +18,15 @@ pub struct PriorityInfo {
     /// Percentile: 0.00 (highest priority) .. 100.00 (lowest priority),
     /// computed as (position - 1) / (total - 1) * 100.
     pub percentile: f64,
+}
+
+/// The live elements on either side of a slot in the priority queue.
+#[derive(Debug, Clone, Default)]
+pub struct PriorityNeighbors {
+    /// Ranked just ahead of the slot, or `None` at the front of the queue.
+    pub before: Option<Meta>,
+    /// Ranked just behind the slot, or `None` at the back of the queue.
+    pub after: Option<Meta>,
 }
 
 #[async_trait]
@@ -61,6 +71,15 @@ pub trait PriorityService: Send + Sync {
         id: ElementId,
         position: i64,
     ) -> Result<(), PriorityError>;
+
+    /// The elements `id` would sit between at the given 1-based position,
+    /// placed like [`set_priority_by_position`]. `None` previews an element
+    /// not created yet, placed like [`get_priority_for_position`].
+    async fn get_neighbors_at_position(
+        &self,
+        id: Option<ElementId>,
+        position: i64,
+    ) -> Result<PriorityNeighbors, PriorityError>;
 
     /// Moves the element to the given percentile (0..100, clamped) of the queue.
     async fn set_priority_by_percentile(
