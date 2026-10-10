@@ -7,6 +7,7 @@ import { setIsSyncing } from "../../../stores/sync/syncReducer";
 import { setOnline } from "../../../stores/user/userReducer";
 import { sync as syncApi } from "../../../api/sync/api/syncApi";
 import { RootState } from "../../../stores/store";
+import { cleanNotifications, notificationsStore } from "@mantine/notifications";
 
 vi.mock("../../../stores/sync/managers/syncEventManager");
 vi.mock("../../../api/sync/api/syncApi.ts");
@@ -158,5 +159,34 @@ describe("sync", () => {
 
 		expect(syncApi).toHaveBeenCalled();
 		expect(dispatch).toHaveBeenCalledWith(setOnline());
+	});
+
+	it("Should turn the sync notification into the error when the sync fails", async () => {
+		// Arrange
+
+		cleanNotifications();
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		vi.mocked(defaultGlobalSyncEventManager).notifyListeners = vi.fn();
+		vi.mocked(syncApi).mockRejectedValueOnce(new Error("Server down"));
+		const dispatch = vi.fn();
+
+		// Act
+
+		await sync()(
+			dispatch,
+			createGetState({ isEmailVerified: true, isSignedIn: true }),
+		);
+
+		// Assert
+
+		const shown = notificationsStore.getState().notifications;
+		expect(shown).toHaveLength(1);
+		expect(shown[0]).toMatchObject({
+			message: "Server down",
+			color: "red",
+			loading: false,
+		});
+		expect(dispatch).not.toHaveBeenCalledWith(setOnline());
+		expect(dispatch).toHaveBeenLastCalledWith(setIsSyncing(false));
 	});
 });
