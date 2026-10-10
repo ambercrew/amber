@@ -11,20 +11,22 @@ import { formatStudyDuration } from "../../../utils/formatStudyDuration";
 import { heatmapLevel } from "../../../utils/heatmapLevel";
 import { heatmapYearLayout } from "../../../utils/heatmapRectSize";
 
-/** Opacity of each heatmap shade, lightest first; any length works. */
+/** Strength of each heatmap shade, lightest first; any length works. */
 const SHADE_PERCENTS = [20, 30, 40, 50, 60, 70, 80, 90, 100];
 
-// Shades of the primary color that read on both light and dark backgrounds.
-const HEATMAP_COLORS = SHADE_PERCENTS.map(
-	percent =>
-		`color-mix(in srgb, var(--mantine-primary-color-filled) ${percent}%, transparent)`,
-);
+/** Shades of `color` mixed into the empty-day fill, so even the lightest stands
+ * out from an empty day (mixing with transparent would sink toward the page). */
+function shadesOf(color: string): string[] {
+	return SHADE_PERCENTS.map(
+		percent =>
+			`color-mix(in srgb, ${color} ${percent}%, var(--heatmap-empty-rect-bg))`,
+	);
+}
+
+const HEATMAP_COLORS = shadesOf("var(--mantine-primary-color-filled)");
 
 // Gray shades for reviews due on future days, like Anki's forecast.
-const FORECAST_COLORS = SHADE_PERCENTS.map(
-	percent =>
-		`color-mix(in srgb, var(--mantine-color-dimmed) ${percent}%, transparent)`,
-);
+const FORECAST_COLORS = shadesOf("var(--mantine-color-dimmed)");
 
 const HEATMAP_GAP = 3;
 
@@ -54,6 +56,7 @@ export default function ActivityHeatmap({
 	const forecastByDate = new Map(
 		dailyForecast.map(day => [day.date, day.reviews]),
 	);
+	const maxActivity = Math.max(0, ...Object.values(data));
 	const maxForecast = Math.max(0, ...forecastByDate.values());
 
 	return (
@@ -63,6 +66,8 @@ export default function ActivityHeatmap({
 					<Heatmap
 						key={row.startDate}
 						data={data}
+						// Scale from 0 like the forecast; Mantine's default starts at the least active day.
+						domain={[0, maxActivity]}
 						startDate={row.startDate}
 						endDate={row.endDate}
 						rectSize={rectSize}
