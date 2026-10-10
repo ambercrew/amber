@@ -8,6 +8,7 @@ use crate::saved_searches::entities::saved_search_filter::ElementFilter;
 use crate::search::entities::element_search_result::ElementSearchResult;
 use crate::search::repositories::search_repository::SearchRepository;
 use crate::search::services::search_service::SearchService;
+use crate::search::value_objects::search_sort::SearchSort;
 
 #[derive(ScopeInjectable)]
 pub struct DefaultSearchService {
@@ -19,8 +20,9 @@ impl SearchService for DefaultSearchService {
     async fn search_elements(
         &self,
         filters: Vec<ElementFilter>,
+        sort: SearchSort,
         limit: Option<u32>,
     ) -> Result<Vec<ElementSearchResult>, RepositoryError> {
-        self.search_repository.search(&filters, limit).await
+        self.search_repository.search(&filters, sort, limit).await
     }
 }

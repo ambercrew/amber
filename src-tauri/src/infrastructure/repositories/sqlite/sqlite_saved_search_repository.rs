@@ -23,13 +23,16 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
+        let (sort_column, sort_direction) = sort_columns(saved_search);
         sqlx::query!(
-            r#"INSERT INTO saved_searches (id, created_at, modified_at, name)
-            VALUES ($1, datetime($2), datetime($3), $4)"#,
+            r#"INSERT INTO saved_searches (id, created_at, modified_at, name, sort_column, sort_direction)
+            VALUES ($1, datetime($2), datetime($3), $4, $5, $6)"#,
             saved_search.id.hyphenated(),
             saved_search.created_at,
             saved_search.modified_at,
             saved_search.name,
+            sort_column,
+            sort_direction,
         )
         .execute(&mut *tx)
         .await?;
@@ -41,9 +44,12 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
+        let (sort_column, sort_direction) = sort_columns(saved_search);
         sqlx::query!(
-            r#"UPDATE saved_searches SET name = $1 WHERE id = $2"#,
+            r#"UPDATE saved_searches SET name = $1, sort_column = $2, sort_direction = $3 WHERE id = $4"#,
             saved_search.name,
+            sort_column,
+            sort_direction,
             saved_search.id.hyphenated(),
         )
         .execute(&mut *tx)
@@ -74,7 +80,9 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
                 id as "id: _",
                 created_at as "created_at: _",
                 modified_at as "modified_at: _",
-                name
+                name,
+                sort_column,
+                sort_direction
             FROM saved_searches
             WHERE id = $1"#,
             id.hyphenated()
@@ -95,7 +103,9 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
                 id as "id: _",
                 created_at as "created_at: _",
                 modified_at as "modified_at: _",
-                name
+                name,
+                sort_column,
+                sort_direction
             FROM saved_searches
             ORDER BY created_at ASC"#
         )
@@ -167,6 +177,13 @@ impl SavedSearchRepository for SqliteSavedSearchRepository {
     }
 }
 
+fn sort_columns(saved_search: &SavedSearch) -> (Option<&'static str>, Option<&'static str>) {
+    match saved_search.sort {
+        Some(sort) => (Some(sort.column.as_str()), Some(sort.direction.as_str())),
+        None => (None, None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
@@ -175,6 +192,7 @@ mod tests {
     use crate::saved_searches::entities::saved_search_filter::{
         ElementFilter, StringFilterOperator, TagsFilterOperator,
     };
+    use crate::search::value_objects::search_sort::{SearchSort, SearchSortColumn, SortDirection};
     use crate::test_utils::create_test_injector;
 
     use super::*;
@@ -196,6 +214,7 @@ mod tests {
             created_at: now,
             modified_at: now,
             name: "test".into(),
+            sort: None,
         }
     }
 
@@ -319,5 +338,53 @@ mod tests {
         // Assert
 
         assert_eq!(new_filters, actual);
+    }
+
+    #[tokio::test]
+    async fn update_saved_search_with_sort_get_by_id_returns_sort() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn SavedSearchRepository>().await;
+        let saved_search = make_saved_search();
+        repo.create(&saved_search).await.unwrap();
+        let sort = SearchSort {
+            column: SearchSortColumn::Due,
+            direction: SortDirection::Desc,
+        };
+
+        // Act
+
+        repo.update(&SavedSearch {
+            sort: Some(sort),
+            ..saved_search.clone()
+        })
+        .await
+        .unwrap();
+        let actual = repo.get_by_id(saved_search.id).await.unwrap();
+
+        // Assert
+
+        assert_eq!(Some(sort), actual.sort);
+    }
+
+    #[tokio::test]
+    async fn get_by_id_saved_search_without_sort_returns_none() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn SavedSearchRepository>().await;
+        let saved_search = make_saved_search();
+        repo.create(&saved_search).await.unwrap();
+
+        // Act
+
+        let actual = repo.get_by_id(saved_search.id).await.unwrap();
+
+        // Assert
+
+        assert_eq!(None, actual.sort);
     }
 }

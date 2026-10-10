@@ -5,6 +5,8 @@ import { SearchElementResultDto } from "../../../../api/search/dto/searchElement
 import { ElementId } from "../../../../types/elements/elementId";
 import { paths } from "../../../../paths";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+import { DEFAULT_SEARCH_SORT } from "../../../../features/ElementsBrowser/utils/searchSort";
+import { SearchSortDto } from "../../../../api/search/dto/searchSortDto";
 
 const CARD_RESULT: SearchElementResultDto = {
 	type: "card",
@@ -42,20 +44,28 @@ const FOLDER_RESULT: SearchElementResultDto = {
 interface RenderProps {
 	results?: SearchElementResultDto[];
 	selectedIds?: ElementId[];
+	sort?: SearchSortDto;
 }
 
-function render({ results = [], selectedIds = [] }: RenderProps = {}) {
+function render({
+	results = [],
+	selectedIds = [],
+	sort = DEFAULT_SEARCH_SORT,
+}: RenderProps = {}) {
 	const onSelectionChange = vi.fn();
+	const onSortChange = vi.fn();
 
 	renderWithProviders(
 		<SearchResultsTable
 			results={results}
+			sort={sort}
+			onSortChange={onSortChange}
 			selectedIds={selectedIds}
 			onSelectionChange={onSelectionChange}
 		/>,
 	);
 
-	return { onSelectionChange };
+	return { onSelectionChange, onSortChange };
 }
 
 describe("SearchResultsTable", () => {
@@ -251,5 +261,60 @@ describe("SearchResultsTable", () => {
 			"href",
 			paths.element(CARD_RESULT.type, CARD_RESULT.id),
 		);
+	});
+
+	it("Should sort ascending by a column when its header is clicked", () => {
+		// Arrange
+
+		const { onSortChange } = render({ results: [CARD_RESULT] });
+
+		// Act
+
+		fireEvent.click(screen.getByRole("button", { name: "Type" }));
+
+		// Assert
+
+		expect(onSortChange).toHaveBeenCalledWith({
+			column: "type",
+			direction: "asc",
+		});
+	});
+
+	it("Should flip the direction when the sorted column's header is clicked", () => {
+		// Arrange
+
+		const { onSortChange } = render({
+			results: [CARD_RESULT],
+			sort: { column: "due", direction: "asc" },
+		});
+
+		// Act
+
+		fireEvent.click(screen.getByRole("button", { name: "Due" }));
+
+		// Assert
+
+		expect(onSortChange).toHaveBeenCalledWith({
+			column: "due",
+			direction: "desc",
+		});
+	});
+
+	it("Should mark only the sorted column with its direction when results are sorted", () => {
+		// Arrange, Act
+
+		render({
+			results: [CARD_RESULT],
+			sort: { column: "priority", direction: "desc" },
+		});
+
+		// Assert
+
+		expect(
+			screen.getByRole("columnheader", { name: "Priority" }),
+		).toHaveAttribute("aria-sort", "descending");
+		expect(
+			screen.getByRole("columnheader", { name: "Name" }),
+		).not.toHaveAttribute("aria-sort");
 	});
 });

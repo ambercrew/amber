@@ -56,7 +56,7 @@ pub async fn create_saved_search(
     let saved_search = scope
         .resolve::<dyn SavedSearchService>()
         .await
-        .create_saved_search(dto.name, filters)
+        .create_saved_search(dto.name, filters, dto.sort)
         .await?;
     scope.save_changes().await?;
     Ok(saved_search.into())
@@ -89,7 +89,7 @@ pub async fn update_saved_search_filters(
     scope
         .resolve::<dyn SavedSearchService>()
         .await
-        .update_saved_search_filters(id, filters)
+        .update_saved_search_filters(id, filters, dto.sort)
         .await?;
     scope.save_changes().await?;
     Ok(())

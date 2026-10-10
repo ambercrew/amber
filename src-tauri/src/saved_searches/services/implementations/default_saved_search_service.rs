@@ -10,6 +10,7 @@ use crate::saved_searches::entities::saved_search::SavedSearch;
 use crate::saved_searches::entities::saved_search_filter::SavedSearchFilter;
 use crate::saved_searches::repositories::saved_search_repository::SavedSearchRepository;
 use crate::saved_searches::services::saved_search_service::SavedSearchService;
+use crate::search::value_objects::search_sort::SearchSort;
 
 #[derive(ScopeInjectable)]
 pub struct DefaultSavedSearchService {
@@ -33,6 +34,7 @@ impl SavedSearchService for DefaultSavedSearchService {
         &self,
         name: String,
         filters: Vec<SavedSearchFilter>,
+        sort: Option<SearchSort>,
     ) -> Result<SavedSearch, RepositoryError> {
         let now = Utc::now();
         let saved_search = SavedSearch {
@@ -40,6 +42,7 @@ impl SavedSearchService for DefaultSavedSearchService {
             created_at: now,
             modified_at: now,
             name,
+            sort,
         };
         self.saved_search_repository.create(&saved_search).await?;
         self.saved_search_repository
@@ -63,7 +66,12 @@ impl SavedSearchService for DefaultSavedSearchService {
         &self,
         id: Uuid,
         filters: Vec<SavedSearchFilter>,
+        sort: Option<SearchSort>,
     ) -> Result<(), RepositoryError> {
+        let existing = self.saved_search_repository.get_by_id(id).await?;
+        self.saved_search_repository
+            .update(&SavedSearch { sort, ..existing })
+            .await?;
         self.saved_search_repository
             .replace_filters(id, &filters)
             .await
@@ -78,6 +86,7 @@ impl SavedSearchService for DefaultSavedSearchService {
             created_at: now,
             modified_at: now,
             name: format!("{} (copy)", existing.name),
+            sort: existing.sort,
         };
         self.saved_search_repository.create(&clone).await?;
         self.saved_search_repository
@@ -99,6 +108,7 @@ mod tests {
     use crate::saved_searches::entities::saved_search_filter::{
         ElementFilter, StringFilterOperator, TagsFilterOperator,
     };
+    use crate::search::value_objects::search_sort::{SearchSortColumn, SortDirection};
     use crate::test_utils::create_test_injector;
 
     use super::*;
@@ -136,7 +146,7 @@ mod tests {
         // Act
 
         let saved_search = service
-            .create_saved_search("Philosophy backlog".into(), make_filters())
+            .create_saved_search("Philosophy backlog".into(), make_filters(), None)
             .await
             .unwrap();
 
@@ -154,7 +164,7 @@ mod tests {
         let service = scope.resolve::<dyn SavedSearchService>().await;
         let filters = make_filters();
         let saved_search = service
-            .create_saved_search("Original".into(), filters.clone())
+            .create_saved_search("Original".into(), filters.clone(), None)
             .await
             .unwrap();
 
@@ -179,7 +189,7 @@ mod tests {
         let service = scope.resolve::<dyn SavedSearchService>().await;
         let filters = make_filters();
         let saved_search = service
-            .create_saved_search("Original".into(), filters.clone())
+            .create_saved_search("Original".into(), filters.clone(), None)
             .await
             .unwrap();
 
@@ -205,7 +215,7 @@ mod tests {
         let scope = injector.start_scope();
         let service = scope.resolve::<dyn SavedSearchService>().await;
         let saved_search = service
-            .create_saved_search("Original".into(), make_filters())
+            .create_saved_search("Original".into(), make_filters(), None)
             .await
             .unwrap();
         let new_filters = vec![SavedSearchFilter {
@@ -220,7 +230,7 @@ mod tests {
         // Act
 
         service
-            .update_saved_search_filters(saved_search.id, new_filters.clone())
+            .update_saved_search_filters(saved_search.id, new_filters.clone(), None)
             .await
             .unwrap();
         let actual = service
@@ -242,7 +252,7 @@ mod tests {
         let service = scope.resolve::<dyn SavedSearchService>().await;
         let filters = make_filters();
         let saved_search = service
-            .create_saved_search("Original".into(), filters.clone())
+            .create_saved_search("Original".into(), filters.clone(), None)
             .await
             .unwrap();
 
@@ -272,7 +282,7 @@ mod tests {
         let scope = injector.start_scope();
         let service = scope.resolve::<dyn SavedSearchService>().await;
         let saved_search = service
-            .create_saved_search("Original".into(), make_filters())
+            .create_saved_search("Original".into(), make_filters(), None)
             .await
             .unwrap();
 
@@ -284,5 +294,107 @@ mod tests {
         // Assert
 
         assert!(!remaining.iter().any(|s| s.id == saved_search.id));
+    }
+
+    fn due_descending() -> SearchSort {
+        SearchSort {
+            column: SearchSortColumn::Due,
+            direction: SortDirection::Desc,
+        }
+    }
+
+    #[tokio::test]
+    async fn create_saved_search_with_sort_lists_it_with_sort() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn SavedSearchService>().await;
+
+        // Act
+
+        service
+            .create_saved_search("Due soon".into(), make_filters(), Some(due_descending()))
+            .await
+            .unwrap();
+        let actual = service.list_saved_searches().await.unwrap();
+
+        // Assert
+
+        assert_eq!(Some(due_descending()), actual[0].sort);
+    }
+
+    #[tokio::test]
+    async fn update_saved_search_filters_new_sort_replaces_sort_and_keeps_name() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn SavedSearchService>().await;
+        let saved_search = service
+            .create_saved_search("Original".into(), make_filters(), None)
+            .await
+            .unwrap();
+
+        // Act
+
+        service
+            .update_saved_search_filters(saved_search.id, make_filters(), Some(due_descending()))
+            .await
+            .unwrap();
+        let actual = service.list_saved_searches().await.unwrap();
+
+        // Assert
+
+        assert_eq!("Original", actual[0].name);
+        assert_eq!(Some(due_descending()), actual[0].sort);
+    }
+
+    #[tokio::test]
+    async fn duplicate_saved_search_with_sort_copies_sort() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn SavedSearchService>().await;
+        let saved_search = service
+            .create_saved_search("Original".into(), make_filters(), Some(due_descending()))
+            .await
+            .unwrap();
+
+        // Act
+
+        let duplicate = service
+            .duplicate_saved_search(saved_search.id)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(Some(due_descending()), duplicate.sort);
+    }
+
+    #[tokio::test]
+    async fn rename_saved_search_with_sort_keeps_sort() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn SavedSearchService>().await;
+        let saved_search = service
+            .create_saved_search("Original".into(), make_filters(), Some(due_descending()))
+            .await
+            .unwrap();
+
+        // Act
+
+        let renamed = service
+            .rename_saved_search(saved_search.id, "Renamed".into())
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(Some(due_descending()), renamed.sort);
     }
 }

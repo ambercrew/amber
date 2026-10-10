@@ -10,6 +10,7 @@ const SAVED_SEARCH: SavedSearchResponseDto = {
 	name: "Math cards",
 	createdAt: "2026-01-01T00:00:00.000Z",
 	modifiedAt: "2026-01-01T00:00:00.000Z",
+	sort: null,
 };
 
 interface RenderProps {

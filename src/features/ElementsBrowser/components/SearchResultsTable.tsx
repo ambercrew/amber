@@ -6,8 +6,14 @@ import {
 	Group,
 	Table,
 	Text,
+	UnstyledButton,
 } from "@mantine/core";
-import { useRef } from "react";
+import { ReactNode, useRef } from "react";
+import {
+	CaretDownIcon,
+	CaretUpDownIcon,
+	CaretUpIcon,
+} from "@phosphor-icons/react";
 import { Link } from "react-router";
 import { SearchElementResultDto } from "../../../api/search/dto/searchElementResultDto";
 import { ElementId } from "../../../types/elements/elementId";
@@ -16,6 +22,11 @@ import { formatPriorityPercentile } from "../../../utils/formatPriorityPercentil
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import { elementTypeOptions } from "../utils/elementTypeOptions";
 import { elementKey } from "../../../utils/elementKey";
+import { nextSearchSort } from "../utils/searchSort";
+import {
+	SearchSortColumn,
+	SearchSortDto,
+} from "../../../api/search/dto/searchSortDto";
 
 function elementTypeLabel(type: SearchElementResultDto["type"]): string {
 	return (
@@ -27,14 +38,67 @@ function formatDateTime(value: string | null): string {
 	return value ? new Date(value).toLocaleString() : "—";
 }
 
+const SORTABLE_COLUMNS: [SearchSortColumn, string][] = [
+	["name", "Name"],
+	["type", "Type"],
+	["priority", "Priority"],
+	["due", "Due"],
+];
+
+interface SortableThProps {
+	column: SearchSortColumn;
+	sort: SearchSortDto;
+	onSortChange: (sort: SearchSortDto) => void;
+	children: ReactNode;
+}
+
+function SortableTh({ column, sort, onSortChange, children }: SortableThProps) {
+	const sorted = sort.column === column;
+	const Icon = !sorted
+		? CaretUpDownIcon
+		: sort.direction === "asc"
+			? CaretUpIcon
+			: CaretDownIcon;
+
+	return (
+		<Table.Th
+			aria-sort={
+				sorted
+					? sort.direction === "asc"
+						? "ascending"
+						: "descending"
+					: undefined
+			}>
+			<UnstyledButton
+				fw={700}
+				fz="sm"
+				onClick={() => onSortChange(nextSearchSort(sort, column))}>
+				<Group gap={4} wrap="nowrap">
+					{children}
+					<Icon
+						size={14}
+						opacity={sorted ? 1 : 0.4}
+						aria-hidden="true"
+					/>
+				</Group>
+			</UnstyledButton>
+		</Table.Th>
+	);
+}
+
 interface SearchResultsTableProps {
+	/** Already sorted by `sort`, which the backend applies. */
 	results: SearchElementResultDto[];
+	sort: SearchSortDto;
+	onSortChange: (sort: SearchSortDto) => void;
 	selectedIds: ElementId[];
 	onSelectionChange: (ids: ElementId[]) => void;
 }
 
 export default function SearchResultsTable({
 	results,
+	sort,
+	onSortChange,
 	selectedIds,
 	onSelectionChange,
 }: SearchResultsTableProps) {
@@ -108,10 +172,15 @@ export default function SearchResultsTable({
 								onChange={toggleAll}
 							/>
 						</Table.Th>
-						<Table.Th>Name</Table.Th>
-						<Table.Th>Type</Table.Th>
-						<Table.Th>Priority</Table.Th>
-						<Table.Th>Due</Table.Th>
+						{SORTABLE_COLUMNS.map(([column, label]) => (
+							<SortableTh
+								key={column}
+								column={column}
+								sort={sort}
+								onSortChange={onSortChange}>
+								{label}
+							</SortableTh>
+						))}
 						<Table.Th>Tags</Table.Th>
 					</Table.Tr>
 				</Table.Thead>

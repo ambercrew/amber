@@ -135,3 +135,20 @@ CREATE TABLE IF NOT EXISTS sync_delete_guards (
     tbl         TEXT NOT NULL PRIMARY KEY,
     condition   TEXT NOT NULL
 ) WITHOUT ROWID;
+
+-------------------------------------------------------------------------
+
+-- How a saved search orders its results; NULL for searches saved before
+-- sorting existed, which fall back to the Browser's default sort.
+ALTER TABLE saved_searches ADD COLUMN sort_column TEXT;
+ALTER TABLE saved_searches ADD COLUMN sort_direction TEXT;
+
+DROP TRIGGER saved_searches_update_modified_at_after_update;
+
+CREATE TRIGGER saved_searches_update_modified_at_after_update
+    AFTER UPDATE OF name, sort_column, sort_direction ON saved_searches
+BEGIN
+    UPDATE saved_searches
+    SET modified_at = datetime('now')
+    WHERE id = NEW.id;
+END;

@@ -8,6 +8,7 @@ import { listStudyProfiles } from "../../../../api/study/api/studyProfileApi";
 import { listSavedSearches } from "../../../../api/savedSearches/api/savedSearchesApi";
 import { searchElements } from "../../../../api/search/api/searchApi";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+import { DEFAULT_SEARCH_SORT } from "../../../../features/ElementsBrowser/utils/searchSort";
 
 vi.mock(
 	import("../../../../api/bibliographicalSources/api/bibliographicalSourcesApi"),
@@ -96,7 +97,10 @@ describe("ElementsBrowser", () => {
 		expect(listStudyProfiles).toHaveBeenCalled();
 		expect(listSavedSearches).toHaveBeenCalled();
 		await waitFor(() =>
-			expect(searchElements).toHaveBeenCalledWith({ filters: [] }),
+			expect(searchElements).toHaveBeenCalledWith({
+				filters: [],
+				sort: DEFAULT_SEARCH_SORT,
+			}),
 		);
 		expect(
 			await screen.findByText("Intro to calculus"),
@@ -133,6 +137,7 @@ describe("ElementsBrowser", () => {
 		await waitFor(() =>
 			expect(searchElements).toHaveBeenCalledWith({
 				filters: [expect.objectContaining({ field: "tags" })],
+				sort: DEFAULT_SEARCH_SORT,
 			}),
 		);
 	});
@@ -168,7 +173,10 @@ describe("ElementsBrowser", () => {
 			screen.queryByLabelText("Remove Tags filter"),
 		).not.toBeInTheDocument();
 		await waitFor(() =>
-			expect(searchElements).toHaveBeenCalledWith({ filters: [] }),
+			expect(searchElements).toHaveBeenCalledWith({
+				filters: [],
+				sort: DEFAULT_SEARCH_SORT,
+			}),
 		);
 	});
 
@@ -219,5 +227,55 @@ describe("ElementsBrowser", () => {
 		expect(
 			await screen.findByLabelText("Select Intro to calculus"),
 		).toBeChecked();
+	});
+
+	it("Should search with the chosen sort when a column header is clicked", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		render();
+		await screen.findByText("Intro to calculus");
+
+		// Act
+
+		await user.click(screen.getByRole("button", { name: "Due" }));
+
+		// Assert
+
+		await waitFor(() =>
+			expect(searchElements).toHaveBeenLastCalledWith({
+				filters: [],
+				sort: { column: "due", direction: "asc" },
+			}),
+		);
+	});
+
+	it("Should search with the sort from location state when mounted", async () => {
+		// Arrange, Act
+
+		render({
+			initialEntries: [
+				{
+					pathname: "/",
+					state: {
+						elementsBrowser: {
+							filters: [],
+							loadedSavedSearchId: null,
+							selectedIds: [],
+							sort: { column: "priority", direction: "desc" },
+						},
+					},
+				},
+			],
+		});
+
+		// Assert
+
+		await waitFor(() =>
+			expect(searchElements).toHaveBeenCalledWith({
+				filters: [],
+				sort: { column: "priority", direction: "desc" },
+			}),
+		);
 	});
 });

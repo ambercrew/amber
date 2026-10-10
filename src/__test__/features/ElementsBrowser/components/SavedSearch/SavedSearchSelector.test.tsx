@@ -17,6 +17,8 @@ import {
 	updateSavedSearchFilters,
 } from "../../../../../api/savedSearches/api/savedSearchesApi";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
+import { SearchSortDto } from "../../../../../api/search/dto/searchSortDto";
+import { DEFAULT_SEARCH_SORT } from "../../../../../features/ElementsBrowser/utils/searchSort";
 
 vi.mock(import("../../../../../api/savedSearches/api/savedSearchesApi"));
 
@@ -32,7 +34,10 @@ const SAVED_SEARCH: SavedSearchResponseDto = {
 	name: "Math cards",
 	createdAt: "2026-01-01T00:00:00.000Z",
 	modifiedAt: "2026-01-01T00:00:00.000Z",
+	sort: null,
 };
+
+const DUE_DESCENDING: SearchSortDto = { column: "due", direction: "desc" };
 
 function filterDtos(filters: ElementFilter[]): SavedSearchFilterDto[] {
 	return filters.map((filter, index) => ({ index, filter }));
@@ -40,16 +45,19 @@ function filterDtos(filters: ElementFilter[]): SavedSearchFilterDto[] {
 
 interface RenderProps {
 	filters?: ElementFilter[];
+	sort?: SearchSortDto;
 	loadedSavedSearchId?: string | null;
 	savedSearches?: SavedSearchResponseDto[];
 }
 
 function render({
 	filters = [],
+	sort = DEFAULT_SEARCH_SORT,
 	loadedSavedSearchId = null,
 	savedSearches = [],
 }: RenderProps = {}) {
 	const onFiltersChange = vi.fn();
+	const onSortChange = vi.fn();
 	const onLoadedSavedSearchIdChange = vi.fn();
 	const onSavedSearchesChange = vi.fn();
 
@@ -57,6 +65,8 @@ function render({
 		<SavedSearchSelector
 			filters={filters}
 			onFiltersChange={onFiltersChange}
+			sort={sort}
+			onSortChange={onSortChange}
 			loadedSavedSearchId={loadedSavedSearchId}
 			onLoadedSavedSearchIdChange={onLoadedSavedSearchIdChange}
 			savedSearches={savedSearches}
@@ -66,6 +76,7 @@ function render({
 
 	return {
 		onFiltersChange,
+		onSortChange,
 		onLoadedSavedSearchIdChange,
 		onSavedSearchesChange,
 	};
@@ -258,7 +269,10 @@ describe("SavedSearchSelector", () => {
 		await waitFor(() =>
 			expect(updateSavedSearchFilters).toHaveBeenCalledWith(
 				SAVED_SEARCH.id,
-				{ filters: filterDtos([TAGS_FILTER]) },
+				{
+					filters: filterDtos([TAGS_FILTER]),
+					sort: DEFAULT_SEARCH_SORT,
+				},
 			),
 		);
 	});
@@ -284,6 +298,7 @@ describe("SavedSearchSelector", () => {
 			expect(createSavedSearch).toHaveBeenCalledWith({
 				name: "New search",
 				filters: filterDtos([TAGS_FILTER]),
+				sort: DEFAULT_SEARCH_SORT,
 			}),
 		);
 		expect(onLoadedSavedSearchIdChange).toHaveBeenCalledWith(
@@ -388,5 +403,107 @@ describe("SavedSearchSelector", () => {
 			expect(deleteSavedSearch).toHaveBeenCalledWith(SAVED_SEARCH.id),
 		);
 		expect(onLoadedSavedSearchIdChange).toHaveBeenCalledWith(null);
+	});
+
+	it("Should show the Edited badge when the sort differs from the loaded saved search's sort", async () => {
+		// Arrange
+
+		vi.mocked(getSavedSearchFilters).mockResolvedValue([]);
+
+		// Act
+
+		render({
+			sort: DUE_DESCENDING,
+			loadedSavedSearchId: SAVED_SEARCH.id,
+			savedSearches: [SAVED_SEARCH],
+		});
+
+		// Assert
+
+		expect(await screen.findByText("Edited")).toBeInTheDocument();
+	});
+
+	it("Should not show the Edited badge when the sort matches the loaded saved search's sort", async () => {
+		// Arrange
+
+		vi.mocked(getSavedSearchFilters).mockResolvedValue([]);
+
+		// Act
+
+		render({
+			sort: DUE_DESCENDING,
+			loadedSavedSearchId: SAVED_SEARCH.id,
+			savedSearches: [{ ...SAVED_SEARCH, sort: DUE_DESCENDING }],
+		});
+
+		// Assert
+
+		await waitFor(() => expect(getSavedSearchFilters).toHaveBeenCalled());
+		expect(screen.queryByText("Edited")).not.toBeInTheDocument();
+	});
+
+	it("Should apply the saved search's sort when a row is selected from the menu", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		const { onSortChange } = render({
+			savedSearches: [{ ...SAVED_SEARCH, sort: DUE_DESCENDING }],
+		});
+
+		// Act
+
+		await user.click(
+			screen.getByRole("button", { name: /Untitled search/ }),
+		);
+		await user.click(await screen.findByText(SAVED_SEARCH.name));
+
+		// Assert
+
+		await waitFor(() =>
+			expect(onSortChange).toHaveBeenCalledWith(DUE_DESCENDING),
+		);
+	});
+
+	it("Should apply the default sort when a search saved before sorting existed is selected", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		const { onSortChange } = render({
+			sort: DUE_DESCENDING,
+			savedSearches: [SAVED_SEARCH],
+		});
+
+		// Act
+
+		await user.click(
+			screen.getByRole("button", { name: /Untitled search/ }),
+		);
+		await user.click(await screen.findByText(SAVED_SEARCH.name));
+
+		// Assert
+
+		await waitFor(() =>
+			expect(onSortChange).toHaveBeenCalledWith(DEFAULT_SEARCH_SORT),
+		);
+	});
+
+	it("Should restore the saved search's sort when Revert is clicked", async () => {
+		// Arrange
+
+		vi.mocked(getSavedSearchFilters).mockResolvedValue([]);
+		const user = userEvent.setup();
+		const { onSortChange } = render({
+			sort: DUE_DESCENDING,
+			loadedSavedSearchId: SAVED_SEARCH.id,
+			savedSearches: [SAVED_SEARCH],
+		});
+
+		// Act
+
+		await user.click(await screen.findByRole("button", { name: "Revert" }));
+
+		// Assert
+
+		expect(onSortChange).toHaveBeenCalledWith(DEFAULT_SEARCH_SORT);
 	});
 });

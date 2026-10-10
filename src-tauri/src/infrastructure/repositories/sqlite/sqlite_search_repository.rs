@@ -20,6 +20,7 @@ use crate::saved_searches::entities::saved_search_filter::{
 };
 use crate::search::entities::element_search_result::ElementSearchResult;
 use crate::search::repositories::search_repository::SearchRepository;
+use crate::search::value_objects::search_sort::{SearchSort, SearchSortColumn, SortDirection};
 
 #[derive(ScopeInjectable)]
 pub struct SqliteSearchRepository {
@@ -32,6 +33,7 @@ impl SearchRepository for SqliteSearchRepository {
     async fn search(
         &self,
         filters: &[ElementFilter],
+        sort: SearchSort,
         limit: Option<u32>,
     ) -> Result<Vec<ElementSearchResult>, RepositoryError> {
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
@@ -52,7 +54,8 @@ impl SearchRepository for SqliteSearchRepository {
             query_builder.push(")");
         }
 
-        query_builder.push(" ORDER BY m.priority");
+        query_builder.push(" ORDER BY ");
+        query_builder.push(order_by_clause(sort));
 
         // The priority filter runs in memory below, so a SQL LIMIT would cut
         // rows before it; in that case the limit is applied after filtering.
@@ -129,6 +132,26 @@ impl SearchRepository for SqliteSearchRepository {
         }
 
         Ok(results)
+    }
+}
+
+fn order_by_clause(sort: SearchSort) -> String {
+    let direction = match sort.direction {
+        SortDirection::Asc => "ASC",
+        SortDirection::Desc => "DESC",
+    };
+    match sort.column {
+        SearchSortColumn::Priority => format!("m.priority {direction}"),
+        SearchSortColumn::Name => format!("m.name COLLATE NOCASE {direction}, m.priority"),
+        // Alphabetical by the label the UI shows: Card, Extract, Folder, Learning Asset.
+        SearchSortColumn::Type => format!(
+            "CASE m.element_type WHEN 'card' THEN 0 WHEN 'extract' THEN 1 \
+             WHEN 'folder' THEN 2 ELSE 3 END {direction}, m.priority"
+        ),
+        // Elements with nothing due go last in either direction.
+        SearchSortColumn::Due => format!(
+            "COALESCE(cr.due, lar.due) IS NULL, COALESCE(cr.due, lar.due) {direction}, m.priority"
+        ),
     }
 }
 
@@ -638,8 +661,9 @@ mod tests {
         let folder_repository = scope.resolve::<dyn FolderRepository>().await;
         let search_repository = scope.resolve::<dyn SearchRepository>().await;
 
-        let first = make_folder("A", FractionalIndex::default());
-        let second = make_folder("B", FractionalIndex::new_after(&FractionalIndex::default()));
+        // Names in reverse order, so only a priority sort passes.
+        let first = make_folder("B", FractionalIndex::default());
+        let second = make_folder("A", FractionalIndex::new_after(&FractionalIndex::default()));
         let first_id = first.meta.element_id;
         let second_id = second.meta.element_id;
         folder_repository.create(first).await.unwrap();
@@ -647,7 +671,17 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&[], None).await.unwrap();
+        let results = search_repository
+            .search(
+                &[],
+                SearchSort {
+                    column: SearchSortColumn::Priority,
+                    direction: SortDirection::Asc,
+                },
+                None,
+            )
+            .await
+            .unwrap();
 
         // Assert
 
@@ -684,7 +718,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -723,7 +760,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -766,7 +806,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&[], None).await.unwrap();
+        let results = search_repository
+            .search(&[], SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -805,7 +848,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -839,7 +885,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -873,7 +922,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -907,7 +959,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -941,7 +996,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -981,7 +1039,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1025,7 +1086,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1055,7 +1119,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1084,7 +1151,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1118,7 +1188,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1153,7 +1226,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1213,7 +1289,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1269,7 +1348,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1338,7 +1420,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1407,7 +1492,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1450,7 +1538,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1487,7 +1578,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1529,7 +1623,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1575,7 +1672,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&[], None).await.unwrap();
+        let results = search_repository
+            .search(&[], SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1610,7 +1710,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&[], None).await.unwrap();
+        let results = search_repository
+            .search(&[], SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1667,7 +1770,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1697,7 +1803,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1750,7 +1859,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1791,7 +1903,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1842,7 +1957,7 @@ mod tests {
 
         let results = tokio::time::timeout(
             std::time::Duration::from_secs(5),
-            search_repository.search(&filters, None),
+            search_repository.search(&filters, SearchSort::default(), None),
         )
         .await
         .expect("search did not terminate")
@@ -1876,7 +1991,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, None).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1903,7 +2021,10 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&[], Some(2)).await.unwrap();
+        let results = search_repository
+            .search(&[], SearchSort::default(), Some(2))
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1939,11 +2060,252 @@ mod tests {
 
         // Act
 
-        let results = search_repository.search(&filters, Some(1)).await.unwrap();
+        let results = search_repository
+            .search(&filters, SearchSort::default(), Some(1))
+            .await
+            .unwrap();
 
         // Assert
 
         assert_eq!(1, results.len());
         assert_eq!(second_id, results[0].element_id);
+    }
+
+    fn ascending_priorities(count: usize) -> Vec<FractionalIndex> {
+        let mut priorities = vec![FractionalIndex::default()];
+        while priorities.len() < count {
+            let next = FractionalIndex::new_after(priorities.last().unwrap());
+            priorities.push(next);
+        }
+        priorities
+    }
+
+    fn sort(column: SearchSortColumn, direction: SortDirection) -> SearchSort {
+        SearchSort { column, direction }
+    }
+
+    fn names(results: &[ElementSearchResult]) -> Vec<&str> {
+        results.iter().map(|result| result.name.as_str()).collect()
+    }
+
+    #[tokio::test]
+    async fn search_sort_by_name_orders_alphabetically_ignoring_case() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let priorities = ascending_priorities(3);
+        for (name, priority) in ["Cherry", "apple", "Banana"].into_iter().zip(priorities) {
+            folder_repository
+                .create(make_folder(name, priority))
+                .await
+                .unwrap();
+        }
+
+        // Act
+
+        let ascending = search_repository
+            .search(&[], sort(SearchSortColumn::Name, SortDirection::Asc), None)
+            .await
+            .unwrap();
+        let descending = search_repository
+            .search(&[], sort(SearchSortColumn::Name, SortDirection::Desc), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(vec!["apple", "Banana", "Cherry"], names(&ascending));
+        assert_eq!(vec!["Cherry", "Banana", "apple"], names(&descending));
+    }
+
+    #[tokio::test]
+    async fn search_sort_by_type_orders_alphabetically_by_label() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let card_repository = scope.resolve::<dyn CardRepository>().await;
+        let learning_asset_repository = scope.resolve::<dyn LearningAssetRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let priorities = ascending_priorities(3);
+        learning_asset_repository
+            .create(
+                make_learning_asset("Asset", priorities[0].clone()),
+                LearningAssetContent::Extracted(vec![]),
+            )
+            .await
+            .unwrap();
+        folder_repository
+            .create(make_folder("Folder", priorities[1].clone()))
+            .await
+            .unwrap();
+        card_repository
+            .create(make_card("Card", priorities[2].clone()))
+            .await
+            .unwrap();
+
+        // Act
+
+        let results = search_repository
+            .search(&[], sort(SearchSortColumn::Type, SortDirection::Asc), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(vec!["Card", "Folder", "Asset"], names(&results));
+    }
+
+    #[tokio::test]
+    async fn search_sort_by_due_keeps_elements_without_due_date_last_in_both_directions() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repository = scope.resolve::<dyn CardRepository>().await;
+        let card_review_repository = scope.resolve::<dyn CardReviewRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let priorities = ascending_priorities(3);
+        let due_dates = [None, Some(Duration::days(5)), Some(Duration::days(1))];
+        for ((name, due_in), priority) in ["None", "Later", "Sooner"]
+            .into_iter()
+            .zip(due_dates)
+            .zip(priorities)
+        {
+            let card = make_card(name, priority);
+            let card_id = card.meta.element_id.id();
+            card_repository.create(card).await.unwrap();
+            if let Some(due_in) = due_in {
+                card_review_repository
+                    .upsert(&CardReview {
+                        card_id,
+                        due: Utc::now() + due_in,
+                        stability: 1.0,
+                        difficulty: 1.0,
+                        reps: 0,
+                        lapses: 0,
+                        state: CardState::New,
+                        last_reviewed: None,
+                        scheduled_days: 0,
+                        learning_steps: 0,
+                    })
+                    .await
+                    .unwrap();
+            }
+        }
+
+        // Act
+
+        let ascending = search_repository
+            .search(&[], sort(SearchSortColumn::Due, SortDirection::Asc), None)
+            .await
+            .unwrap();
+        let descending = search_repository
+            .search(&[], sort(SearchSortColumn::Due, SortDirection::Desc), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(vec!["Sooner", "Later", "None"], names(&ascending));
+        assert_eq!(vec!["Later", "Sooner", "None"], names(&descending));
+    }
+
+    #[tokio::test]
+    async fn search_sort_by_priority_descending_puts_back_of_queue_first() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let priorities = ascending_priorities(2);
+        for (name, priority) in ["Front", "Back"].into_iter().zip(priorities) {
+            folder_repository
+                .create(make_folder(name, priority))
+                .await
+                .unwrap();
+        }
+
+        // Act
+
+        let results = search_repository
+            .search(
+                &[],
+                sort(SearchSortColumn::Priority, SortDirection::Desc),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(vec!["Back", "Front"], names(&results));
+        assert_eq!(2, results[0].priority.position);
+    }
+
+    #[tokio::test]
+    async fn search_sort_with_same_name_falls_back_to_priority_order() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let priorities = ascending_priorities(2);
+        let front = make_folder("Same", priorities[0].clone());
+        let back = make_folder("Same", priorities[1].clone());
+        let front_id = front.meta.element_id;
+        folder_repository.create(back).await.unwrap();
+        folder_repository.create(front).await.unwrap();
+
+        // Act
+
+        let results = search_repository
+            .search(&[], sort(SearchSortColumn::Name, SortDirection::Desc), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(front_id, results[0].element_id);
+    }
+
+    #[tokio::test]
+    async fn search_default_sort_orders_by_name_ascending() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let priorities = ascending_priorities(2);
+        for (name, priority) in ["Zebra", "Apple"].into_iter().zip(priorities) {
+            folder_repository
+                .create(make_folder(name, priority))
+                .await
+                .unwrap();
+        }
+
+        // Act
+
+        let results = search_repository
+            .search(&[], SearchSort::default(), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(vec!["Apple", "Zebra"], names(&results));
     }
 }

@@ -17,7 +17,9 @@ import {
 	renameSavedSearch,
 	updateSavedSearchFilters,
 } from "../../../../api/savedSearches/api/savedSearchesApi";
+import { SearchSortDto } from "../../../../api/search/dto/searchSortDto";
 import { isSavedSearchEdited } from "../../utils/isSavedSearchEdited";
+import { isSameSearchSort, savedSearchSort } from "../../utils/searchSort";
 import {
 	fromSavedSearchFilterDtos,
 	toSavedSearchFilterDtos,
@@ -31,6 +33,8 @@ import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
 interface SavedSearchSelectorProps {
 	filters: ElementFilter[];
 	onFiltersChange: (filters: ElementFilter[]) => void;
+	sort: SearchSortDto;
+	onSortChange: (sort: SearchSortDto) => void;
 	loadedSavedSearchId: string | null;
 	onLoadedSavedSearchIdChange: (id: string | null) => void;
 	savedSearches: SavedSearchResponseDto[];
@@ -40,6 +44,8 @@ interface SavedSearchSelectorProps {
 export default function SavedSearchSelector({
 	filters,
 	onFiltersChange,
+	sort,
+	onSortChange,
 	loadedSavedSearchId,
 	onLoadedSavedSearchIdChange,
 	savedSearches,
@@ -58,7 +64,9 @@ export default function SavedSearchSelector({
 	const loadedSavedSearch =
 		savedSearches.find(s => s.id === loadedSavedSearchId) ?? null;
 	const edited = loadedSavedSearchId
-		? isSavedSearchEdited(filters, loadedFilters)
+		? isSavedSearchEdited(filters, loadedFilters) ||
+			(loadedSavedSearch !== null &&
+				!isSameSearchSort(sort, savedSearchSort(loadedSavedSearch)))
 		: false;
 
 	useEffect(() => {
@@ -78,6 +86,7 @@ export default function SavedSearchSelector({
 		const loaded = fromSavedSearchFilterDtos(filterDtos);
 		onLoadedSavedSearchIdChange(savedSearch.id);
 		onFiltersChange(loaded);
+		onSortChange(savedSearchSort(savedSearch));
 		setLoadedFilters(loaded);
 		setMenuOpened(false);
 	}
@@ -86,6 +95,7 @@ export default function SavedSearchSelector({
 		const created = await createSavedSearch({
 			name,
 			filters: toSavedSearchFilterDtos(filters),
+			sort,
 		});
 		await refresh();
 		onLoadedSavedSearchIdChange(created.id);
@@ -96,6 +106,7 @@ export default function SavedSearchSelector({
 		if (!loadedSavedSearchId) return;
 		await updateSavedSearchFilters(loadedSavedSearchId, {
 			filters: toSavedSearchFilterDtos(filters),
+			sort,
 		});
 		await refresh();
 		setLoadedFilters(filters);
@@ -103,6 +114,7 @@ export default function SavedSearchSelector({
 
 	function handleRevert() {
 		if (loadedFilters) onFiltersChange(loadedFilters);
+		if (loadedSavedSearch) onSortChange(savedSearchSort(loadedSavedSearch));
 	}
 
 	function handleClear() {
@@ -126,6 +138,7 @@ export default function SavedSearchSelector({
 		await refresh();
 		onLoadedSavedSearchIdChange(duplicated.id);
 		onFiltersChange(loaded);
+		onSortChange(savedSearchSort(duplicated));
 		setLoadedFilters(loaded);
 		setMenuOpened(false);
 	}

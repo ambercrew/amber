@@ -4,6 +4,7 @@ use uuid::Uuid;
 use crate::common::repository_error::RepositoryError;
 use crate::saved_searches::entities::saved_search::SavedSearch;
 use crate::saved_searches::entities::saved_search_filter::SavedSearchFilter;
+use crate::search::value_objects::search_sort::SearchSort;
 
 #[async_trait]
 pub trait SavedSearchService: Send + Sync {
@@ -19,23 +20,25 @@ pub trait SavedSearchService: Send + Sync {
         &self,
         name: String,
         filters: Vec<SavedSearchFilter>,
+        sort: Option<SearchSort>,
     ) -> Result<SavedSearch, RepositoryError>;
 
-    /// Name-only edit; filters are left untouched.
+    /// Name-only edit; filters and sort are left untouched.
     async fn rename_saved_search(
         &self,
         id: Uuid,
         name: String,
     ) -> Result<SavedSearch, RepositoryError>;
 
-    /// Replaces the filters of an existing saved search; name is left untouched.
+    /// Replaces the filters and sort of an existing saved search; name is left untouched.
     async fn update_saved_search_filters(
         &self,
         id: Uuid,
         filters: Vec<SavedSearchFilter>,
+        sort: Option<SearchSort>,
     ) -> Result<(), RepositoryError>;
 
-    /// Creates a copy named `"{name} (copy)"`, filters included.
+    /// Creates a copy named `"{name} (copy)"`, filters and sort included.
     async fn duplicate_saved_search(&self, id: Uuid) -> Result<SavedSearch, RepositoryError>;
 
     async fn delete_saved_search(&self, id: Uuid) -> Result<(), RepositoryError>;

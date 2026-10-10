@@ -26,6 +26,8 @@ import {
 import { SEARCH_DEBOUNCE_MS } from "../config/constants";
 import { createDefaultFilter } from "../utils/createDefaultFilter";
 import { elementKey } from "../../../utils/elementKey";
+import { DEFAULT_SEARCH_SORT } from "../utils/searchSort";
+import { SearchSortDto } from "../../../api/search/dto/searchSortDto";
 import FilterChip from "./Filter/FilterChip";
 import AddFilterMenu from "./Filter/AddFilterMenu";
 import SavedSearchSelector from "./SavedSearch/SavedSearchSelector";
@@ -53,6 +55,9 @@ export default function ElementsBrowser() {
 		SavedSearchResponseDto[]
 	>([]);
 	const [results, setResults] = useState<SearchElementResultDto[]>([]);
+	const [sort, setSort] = useState<SearchSortDto>(
+		locationState?.elementsBrowser?.sort ?? DEFAULT_SEARCH_SORT,
+	);
 	const [selectedIds, setSelectedIds] = useState<ElementId[]>(
 		locationState?.elementsBrowser?.selectedIds ?? [],
 	);
@@ -74,19 +79,19 @@ export default function ElementsBrowser() {
 
 	function runSearch() {
 		const searchId = ++latestSearchId.current;
-		void callApi(() => searchElements({ filters: debouncedFilters })).then(
-			searchResults => {
-				if (searchResults && searchId === latestSearchId.current) {
-					setResults(searchResults);
-				}
-			},
-		);
+		void callApi(() =>
+			searchElements({ filters: debouncedFilters, sort }),
+		).then(searchResults => {
+			if (searchResults && searchId === latestSearchId.current) {
+				setResults(searchResults);
+			}
+		});
 	}
 
 	useEffect(() => {
 		runSearch();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [debouncedFilters]);
+	}, [debouncedFilters, sort]);
 
 	// Results, and the sources/profiles/saved searches feeding the filter UI,
 	// can go stale after a sync pulls in changes from another device.
@@ -107,7 +112,7 @@ export default function ElementsBrowser() {
 				refreshOnSync,
 			);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [debouncedFilters]);
+	}, [debouncedFilters, sort]);
 
 	function updateFilters(next: ElementFilter[]) {
 		setFilters(next);
@@ -118,11 +123,16 @@ export default function ElementsBrowser() {
 		void navigate(location.pathname, {
 			replace: true,
 			state: {
-				elementsBrowser: { filters, loadedSavedSearchId, selectedIds },
+				elementsBrowser: {
+					filters,
+					loadedSavedSearchId,
+					selectedIds,
+					sort,
+				},
 			},
 		});
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [filters, loadedSavedSearchId, selectedIds]);
+	}, [filters, loadedSavedSearchId, selectedIds, sort]);
 
 	function handleAddFilter(field: ElementFilterField) {
 		const filter = createDefaultFilter(field);
@@ -155,6 +165,8 @@ export default function ElementsBrowser() {
 					<SavedSearchSelector
 						filters={filters}
 						onFiltersChange={updateFilters}
+						sort={sort}
+						onSortChange={setSort}
 						loadedSavedSearchId={loadedSavedSearchId}
 						onLoadedSavedSearchIdChange={setLoadedSavedSearchId}
 						savedSearches={savedSearches}
@@ -190,6 +202,8 @@ export default function ElementsBrowser() {
 					/>
 					<SearchResultsTable
 						results={results}
+						sort={sort}
+						onSortChange={setSort}
 						selectedIds={selectedIds}
 						onSelectionChange={setSelectedIds}
 					/>
