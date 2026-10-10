@@ -161,7 +161,7 @@ describe("sync", () => {
 		expect(dispatch).toHaveBeenCalledWith(setOnline());
 	});
 
-	it("Should turn the sync notification into the error when the sync fails", async () => {
+	it("Should show the error in a notification when the sync fails", async () => {
 		// Arrange
 
 		cleanNotifications();
@@ -184,7 +184,6 @@ describe("sync", () => {
 		expect(shown[0]).toMatchObject({
 			message: "Server down",
 			color: "red",
-			loading: false,
 		});
 		expect(dispatch).not.toHaveBeenCalledWith(setOnline());
 		expect(dispatch).toHaveBeenLastCalledWith(setIsSyncing(false));

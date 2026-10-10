@@ -18,15 +18,6 @@ export interface SyncOptions {
 	skipIfKnownOffline?: boolean;
 }
 
-async function runSync(dispatch: AppDispatch) {
-	await defaultGlobalSyncEventManager.notifyListeners(
-		ListenerType.PreSyncStart,
-	);
-	dispatch(setIsSyncing(true));
-	await syncApi();
-	dispatch(setOnline());
-}
-
 export function sync(options?: SyncOptions) {
 	return async function (dispatch: AppDispatch, getState: () => RootState) {
 		if (
@@ -46,14 +37,17 @@ export function sync(options?: SyncOptions) {
 		}
 
 		try {
-			await notifications.promise(runSync(dispatch), {
-				loading: { message: "Syncing…" },
-				success: { message: "Sync complete", autoClose: 1000 },
-				error: e => ({ message: errorToString(e) }),
-			});
+			await defaultGlobalSyncEventManager.notifyListeners(
+				ListenerType.PreSyncStart,
+			);
+			dispatch(setIsSyncing(true));
+			await syncApi();
+			dispatch(setOnline());
+			notifications.show({ message: "Sync complete", autoClose: 1000 });
 		} catch (e) {
 			// eslint-disable-next-line no-console
 			console.error(e);
+			notifications.show({ message: errorToString(e), color: "red" });
 		} finally {
 			await defaultGlobalSyncEventManager.notifyListeners(
 				ListenerType.PreSyncComplete,
