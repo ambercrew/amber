@@ -73,7 +73,7 @@ function StudyProfileModal() {
 			fullScreenOnSmallScreen
 			title="Study profiles"
 			size="lg">
-			<Stack gap="md" flex={1} mih={0}>
+			<Stack gap="md" flex={1}>
 				<Select
 					label="Profile"
 					value={selectedId}

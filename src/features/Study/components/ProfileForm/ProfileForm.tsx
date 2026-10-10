@@ -3,7 +3,6 @@ import {
 	Button,
 	Divider,
 	Group,
-	ScrollArea,
 	SegmentedControl,
 	Stack,
 	Text,
@@ -158,9 +157,8 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 				display: "flex",
 				flexDirection: "column",
 				flex: 1,
-				minHeight: 0,
 			}}>
-			<Stack gap="sm" flex={1} mih={0}>
+			<Stack gap="sm" flex={1}>
 				<TextInput
 					label={
 						<FieldLabel
@@ -178,29 +176,21 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 					data={TABS.map(({ value, label }) => ({ value, label }))}
 				/>
 
-				{/* Fixed as a dialog, so its height holds steady as tabs switch;
-				    grows to fill the space above the buttons when full screen. */}
-				<ScrollArea
-					h="clamp(220px, 45vh, 360px)"
-					flex="1 1 auto"
-					mih={0}
-					offsetScrollbars>
-					<Stack gap="sm">
-						<Text size="sm" c="dimmed">
-							{description}
-						</Text>
-						{tab === "cards" && (
-							<CardsTab
-								form={form}
-								optimization={profile ? optimization : null}
-							/>
-						)}
-						{tab === "learningAssets" && (
-							<LearningAssetsAndExtractsTab form={form} />
-						)}
-						{tab === "queue" && <QueueTab form={form} />}
-					</Stack>
-				</ScrollArea>
+				<Stack gap="sm">
+					<Text size="sm" c="dimmed">
+						{description}
+					</Text>
+					{tab === "cards" && (
+						<CardsTab
+							form={form}
+							optimization={profile ? optimization : null}
+						/>
+					)}
+					{tab === "learningAssets" && (
+						<LearningAssetsAndExtractsTab form={form} />
+					)}
+					{tab === "queue" && <QueueTab form={form} />}
+				</Stack>
 
 				<Divider mt="auto" />
 
