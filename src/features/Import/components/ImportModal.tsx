@@ -11,6 +11,7 @@ import {
 	Text,
 } from "@mantine/core";
 import { Dropzone } from "@mantine/dropzone";
+import { addPendingFiles, fileKey } from "../pendingFiles";
 import { ArrowsInSimpleIcon, FileIcon, XIcon } from "@phosphor-icons/react";
 import AppModal from "../../../components/AppModal/AppModal";
 import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
@@ -213,7 +214,9 @@ function ImportModal() {
 				return;
 			case "file":
 				e.preventDefault();
-				setPendingFiles(input.files);
+				setPendingFiles(pending =>
+					addPendingFiles(pending, input.files),
+				);
 				return;
 			case "content":
 				e.preventDefault();
@@ -237,7 +240,9 @@ function ImportModal() {
 				activateOnClick={false}
 				disabled={isImporting}
 				openRef={openRef}
-				onDrop={files => setPendingFiles(files)}
+				onDrop={files =>
+					setPendingFiles(pending => addPendingFiles(pending, files))
+				}
 				onReject={() =>
 					setPhase({
 						kind: "error",
@@ -273,7 +278,7 @@ function ImportModal() {
 								<Stack gap={4}>
 									{pendingFiles.map((file, index) => (
 										<Group
-											key={`${file.name}-${index}`}
+											key={fileKey(file)}
 											justify="space-between"
 											wrap="nowrap"
 											px="sm"
