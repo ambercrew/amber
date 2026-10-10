@@ -15,4 +15,6 @@ pub trait CardRepository: Send + Sync {
         front: String,
         back: String,
     ) -> Result<(), RepositoryError>;
+    /// Cards whose front or back still embeds a `data:image/` URI.
+    async fn find_ids_with_embedded_images(&self) -> Result<Vec<Uuid>, RepositoryError>;
 }

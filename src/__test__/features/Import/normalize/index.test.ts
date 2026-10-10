@@ -159,6 +159,22 @@ describe("normalize", () => {
 		expect(actual).toBe('<img src="data:image/png;base64,AAAA">');
 	});
 
+	it("Should keep the src without localizing it when it is a stored asset src", async () => {
+		// Arrange
+
+		const src = `amber-asset:${"a".repeat(64)}`;
+		const html = `<img src="${src}">`;
+
+		// Act
+
+		const actual = await normalize(html, { baseUrl: null });
+
+		// Assert
+
+		expect(localizeImage).not.toHaveBeenCalled();
+		expect(actual).toBe(`<img src="${src}">`);
+	});
+
 	it("Should resolve a relative link href against the baseUrl", async () => {
 		// Arrange
 

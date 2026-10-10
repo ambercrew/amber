@@ -85,7 +85,20 @@ async fn create_test_injector_with_sqlite_url(sqlite_url: &str) -> Injector {
         SqliteDatabaseConnectionManager
     );
     register_scope!(injector, dyn SyncStore, SqliteSyncStore);
+    register_scope!(
+        injector,
+        dyn crate::assets::repositories::asset_repository::AssetRepository,
+        crate::infrastructure::repositories::sqlite::sqlite_asset_repository::SqliteAssetRepository
+    );
+    register_scope!(
+        injector,
+        dyn crate::assets::services::asset_service::AssetService,
+        crate::assets::services::implementations::default_asset_service::DefaultAssetService
+    );
     injector.register_singleton(Arc::new(crate::sync::sync_lock::SyncLock::default()));
+    injector.register_singleton(Arc::new(
+        crate::sync::sync_completion::SyncCompletion::default(),
+    ));
 
     injector.register_scope_factory::<PostSyncTasks>(|_| {
         Box::pin(async move { Arc::new(PostSyncTasks::new(vec![])) })

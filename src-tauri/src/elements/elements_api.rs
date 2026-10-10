@@ -30,6 +30,7 @@ use crate::elements::repositories::extract_repository::ExtractRepository;
 use crate::elements::repositories::folder_repository::FolderRepository;
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::repositories::meta_repository::MetaRepository;
+use crate::elements::services::element_content_service::ElementContentService;
 use crate::elements::services::element_creation_service::ElementCreationService;
 use crate::elements::services::element_details_service::ElementDetailsService;
 use crate::elements::services::element_move_service::ElementMoveService;
@@ -164,9 +165,9 @@ pub async fn update_learning_asset(
 ) -> Result<(), ApiError> {
     let scope = injector.start_scope();
     scope
-        .resolve::<dyn LearningAssetRepository>()
+        .resolve::<dyn ElementContentService>()
         .await
-        .update_content(dto.split_id.into(), dto.content)
+        .update_learning_asset(dto)
         .await?;
     scope.save_changes().await?;
     Ok(())
@@ -287,9 +288,9 @@ pub async fn update_extract(
 ) -> Result<(), ApiError> {
     let scope = injector.start_scope();
     scope
-        .resolve::<dyn ExtractRepository>()
+        .resolve::<dyn ElementContentService>()
         .await
-        .update_content(dto.id, dto.content)
+        .update_extract(dto)
         .await?;
     scope.save_changes().await?;
     Ok(())
@@ -334,9 +335,9 @@ pub async fn update_card(
 ) -> Result<(), ApiError> {
     let scope = injector.start_scope();
     scope
-        .resolve::<dyn CardRepository>()
+        .resolve::<dyn ElementContentService>()
         .await
-        .update_content(dto.id, dto.front, dto.back)
+        .update_card(dto)
         .await?;
     scope.save_changes().await?;
     Ok(())

@@ -1,3 +1,4 @@
+pub mod default_element_content_service;
 pub mod default_element_creation_service;
 pub mod default_element_details_service;
 pub mod default_element_index_service;

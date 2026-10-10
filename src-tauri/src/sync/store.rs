@@ -27,6 +27,11 @@ pub trait SyncStore: Send + Sync {
         fk_constraints: &[FkConstraint],
     ) -> Result<(), SyncError>;
 
+    /// Sets when `apply_remote` refuses a remote delete of a `table` row, re-staging it so
+    /// the push resurrects it everywhere. `None` clears it.
+    async fn set_delete_guard(&self, table: &str, condition: Option<&str>)
+    -> Result<(), SyncError>;
+
     /// This device's local cell changes not yet pushed to the server.
     async fn changes_since_last_push(&self) -> Result<ChangeBatch, SyncError>;
 

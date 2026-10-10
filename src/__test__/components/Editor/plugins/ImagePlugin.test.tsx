@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { act, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
@@ -12,10 +12,12 @@ import { ImageNode } from "../../../../components/Editor/plugins/ImagePlugin/Ima
 import { INSERT_IMAGE_COMMAND } from "../../../../components/Editor/plugins/ImagePlugin/imageCommands";
 import { DRAG_DROP_PASTE } from "@lexical/rich-text";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+import { createAsset } from "../../../../api/assets/api/assetsApi";
 
 vi.mock(import("@tauri-apps/plugin-clipboard-manager"), () => ({
 	readImage: vi.fn(),
 }));
+vi.mock(import("../../../../api/assets/api/assetsApi"));
 
 function EditorCapture({
 	onReady,
@@ -57,7 +59,16 @@ function renderEditor() {
 	return capturedEditor as LexicalEditor;
 }
 
+const ASSET_SRC = `amber-asset:${"a".repeat(64)}`;
+
 describe("ImagePlugin", () => {
+	beforeEach(() => {
+		vi.mocked(createAsset).mockResolvedValue({
+			id: "a".repeat(64),
+			src: ASSET_SRC,
+		});
+	});
+
 	it("Should insert an image into the DOM when INSERT_IMAGE_COMMAND is dispatched", async () => {
 		// Arrange
 
@@ -108,6 +119,9 @@ describe("ImagePlugin", () => {
 			return el;
 		});
 		expect(img).toHaveAttribute("alt", "photo.png");
+		expect(JSON.stringify(editor.getEditorState().toJSON())).toContain(
+			ASSET_SRC,
+		);
 	});
 
 	it("Should insert an image into the DOM when an image is pasted via clipboardData.items", async () => {
@@ -198,14 +212,43 @@ describe("ImagePlugin", () => {
 
 		// Assert
 
-		const img = await waitFor(() => {
-			const el = editor.getRootElement()?.querySelector("img");
-			if (!el) throw new Error("Image not yet rendered");
-			return el;
+		await waitFor(() => {
+			if (!editor.getRootElement()?.querySelector("img"))
+				throw new Error("Image not yet rendered");
 		});
-		expect(img).toHaveAttribute("src", "data:image/png;base64,mocked");
+		expect(createAsset).toHaveBeenCalledWith({
+			dataUri: "data:image/png;base64,mocked",
+		});
+		expect(JSON.stringify(editor.getEditorState().toJSON())).toContain(
+			ASSET_SRC,
+		);
 
 		vi.unstubAllGlobals();
 		vi.restoreAllMocks();
+	});
+
+	it("Should show the error and insert nothing when storing a dropped image fails", async () => {
+		// Arrange
+
+		vi.mocked(createAsset).mockRejectedValue(
+			"The image could not be read.",
+		);
+		const editor = renderEditor();
+		const file = new File(["fake-bytes"], "photo.png", {
+			type: "image/png",
+		});
+
+		// Act
+
+		act(() => {
+			editor.dispatchCommand(DRAG_DROP_PASTE, [file]);
+		});
+
+		// Assert
+
+		expect(
+			await screen.findByText("The image could not be read."),
+		).toBeInTheDocument();
+		expect(editor.getRootElement()?.querySelector("img")).toBeNull();
 	});
 });

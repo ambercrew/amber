@@ -15,6 +15,7 @@ import {
 import { $isImageNode } from "./ImageNode";
 import { openImageLightbox } from "./imageLightbox";
 import FloatingMenuBar from "../../../FloatingMenuBar/FloatingMenuBar";
+import { assetIdFromSrc, resolveImageSrc } from "../../../../utils/assetUrl";
 import { useIsEditorFocused } from "../../hooks/useIsEditorFocused";
 
 interface Props {
@@ -138,7 +139,13 @@ export default function ImageComponent({
 					style={{ cursor: "default" }}>
 					<Image
 						ref={imageRef}
-						src={src}
+						src={resolveImageSrc(src)}
+						// CORS-loaded so exportDOM can inline it for external pastes without tainting the canvas.
+						crossOrigin={
+							assetIdFromSrc(src) === null
+								? undefined
+								: "anonymous"
+						}
 						alt={altText}
 						draggable={isSelected}
 						w={width}

@@ -19,6 +19,13 @@ vi.mock("@tauri-apps/plugin-os", () => ({
 	type: vi.fn().mockReturnValue("linux"),
 }));
 
+// `convertFileSrc` reads a URL template the Tauri shell injects; stubbed with the Windows/CEF form.
+vi.mock("@tauri-apps/api/core", async importOriginal => ({
+	...(await importOriginal<typeof import("@tauri-apps/api/core")>()),
+	convertFileSrc: (path: string, protocol = "asset") =>
+		`http://${protocol}.localhost/${encodeURIComponent(path)}`,
+}));
+
 // Real `listen` reaches into Tauri internals jsdom doesn't provide. Tests
 // that care about a specific backend event mock this module themselves and
 // capture the handler instead.

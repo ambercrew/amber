@@ -16,6 +16,9 @@ use crate::ai_integration::services::implementations::default_ai_client_provider
 use crate::ai_integration::services::implementations::default_ai_streamer::DefaultAiStreamer;
 use crate::ai_integration::services::implementations::default_chat_creator::DefaultChatCreator;
 use crate::ai_integration::services::implementations::default_document_uploader::DefaultDocumentUploader;
+use crate::assets::repositories::asset_repository::AssetRepository;
+use crate::assets::services::asset_service::AssetService;
+use crate::assets::services::implementations::default_asset_service::DefaultAssetService;
 use crate::backend::services::{
     authenticator::Authenticator, implementations::default_authenticator::DefaultAuthenticator,
 };
@@ -35,11 +38,13 @@ use crate::elements::repositories::extract_repository::ExtractRepository;
 use crate::elements::repositories::folder_repository::FolderRepository;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
+use crate::elements::services::element_content_service::ElementContentService;
 use crate::elements::services::element_creation_service::ElementCreationService;
 use crate::elements::services::element_details_service::ElementDetailsService;
 use crate::elements::services::element_index_service::ElementIndexService;
 use crate::elements::services::element_move_service::ElementMoveService;
 use crate::elements::services::element_tree_service::ElementTreeService;
+use crate::elements::services::implementations::default_element_content_service::DefaultElementContentService;
 use crate::elements::services::implementations::default_element_creation_service::DefaultElementCreationService;
 use crate::elements::services::implementations::default_element_details_service::DefaultElementDetailsService;
 use crate::elements::services::implementations::default_element_index_service::DefaultElementIndexService;
@@ -52,6 +57,7 @@ use crate::infrastructure::managers::sqlite::sqlite_database_connection_manager:
 use crate::infrastructure::managers::sqlite::sqlite_transaction_manager::SqliteTransactionManager;
 use crate::infrastructure::repositories::disk::disk_secrets_repository::DiskSecretsRepository;
 use crate::infrastructure::repositories::disk::disk_settings_repository::DiskSettingsRepository;
+use crate::infrastructure::repositories::sqlite::sqlite_asset_repository::SqliteAssetRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_card_repository::SqliteCardRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_card_review_log_repository::SqliteCardReviewLogRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_card_review_repository::SqliteCardReviewRepository;
@@ -226,12 +232,20 @@ pub async fn create_injector<R: tauri::Runtime>(
         crate::sync::implementations::sqlite_sync_store::SqliteSyncStore
     );
     injector.register_singleton(Arc::new(crate::sync::sync_lock::SyncLock::default()));
+    injector.register_singleton(Arc::new(
+        crate::sync::sync_completion::SyncCompletion::default(),
+    ));
     register_scope!(
         injector,
         dyn SyncEngine,
         crate::sync::implementations::default_sync_engine::DefaultSyncEngine
     );
     register_post_sync_tasks(&mut injector);
+
+    // Assets
+
+    register_scope!(injector, dyn AssetRepository, SqliteAssetRepository);
+    register_scope!(injector, dyn AssetService, DefaultAssetService);
 
     // Elements
 
@@ -317,6 +331,11 @@ pub async fn create_injector<R: tauri::Runtime>(
         injector,
         dyn ElementCreationService,
         DefaultElementCreationService
+    );
+    register_scope!(
+        injector,
+        dyn ElementContentService,
+        DefaultElementContentService
     );
 
     // Bibliographical sources

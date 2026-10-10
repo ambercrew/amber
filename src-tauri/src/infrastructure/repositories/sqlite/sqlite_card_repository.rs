@@ -5,6 +5,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
+use uuid::fmt::Hyphenated;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::entities::card::Card;
@@ -128,6 +129,17 @@ impl CardRepository for SqliteCardRepository {
         .execute(&mut *tx)
         .await?;
         Ok(())
+    }
+
+    async fn find_ids_with_embedded_images(&self) -> Result<Vec<Uuid>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let ids = sqlx::query_scalar!(
+            r#"SELECT id as "id: Hyphenated" FROM cards
+            WHERE front LIKE '%data:image/%' OR back LIKE '%data:image/%'"#
+        )
+        .fetch_all(tx.as_mut())
+        .await?;
+        Ok(ids.into_iter().map(Hyphenated::into_uuid).collect())
     }
 }
 

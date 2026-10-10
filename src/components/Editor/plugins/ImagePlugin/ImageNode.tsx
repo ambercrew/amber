@@ -6,6 +6,7 @@ import {
 	type DOMConversionOutput,
 	type DOMExportOutput,
 	type EditorConfig,
+	type LexicalEditor,
 	type LexicalNode,
 	type LexicalUpdateJSON,
 	type NodeKey,
@@ -13,6 +14,10 @@ import {
 	type Spread,
 } from "lexical";
 import ImageComponent from "./ImageComponent";
+import {
+	assetIdFromSrc,
+	toCanonicalImageSrc,
+} from "../../../../utils/assetUrl";
 
 export interface ImagePayload {
 	src: string;
@@ -102,9 +107,9 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 		};
 	}
 
-	exportDOM(): DOMExportOutput {
+	exportDOM(editor: LexicalEditor): DOMExportOutput {
 		const element = document.createElement("img");
-		element.setAttribute("src", this.__src);
+		element.setAttribute("src", $exportableImageSrc(editor, this));
 		element.setAttribute("alt", this.__altText);
 		element.setAttribute("width", this.__width.toString());
 		element.setAttribute("height", this.__height.toString());
@@ -171,6 +176,23 @@ export function $isImageNode(
 	return node instanceof ImageNode;
 }
 
+// Exported HTML only reaches the clipboard, where other apps can't load `amber-asset:`, so inline the rendered pixels.
+function $exportableImageSrc(editor: LexicalEditor, node: ImageNode): string {
+	const src = node.getSrc();
+	if (assetIdFromSrc(src) === null) return src;
+	const img = editor.getElementByKey(node.getKey())?.querySelector("img");
+	if (!img?.complete || img.naturalWidth === 0) return src;
+	const canvas = document.createElement("canvas");
+	canvas.width = img.naturalWidth;
+	canvas.height = img.naturalHeight;
+	try {
+		canvas.getContext("2d")?.drawImage(img, 0, 0);
+		return canvas.toDataURL();
+	} catch {
+		return src;
+	}
+}
+
 // Reads the width/height *attributes* rather than the img.width/img.height
 // IDL properties. Those properties fall back to 0 when the element hasn't
 // loaded and has no attribute to reflect -- which is always true for the
@@ -192,7 +214,7 @@ function $convertImageElement(domNode: Node): DOMConversionOutput | null {
 	return {
 		node: $createImageNode({
 			altText: alt,
-			src,
+			src: toCanonicalImageSrc(src),
 			width: $parsePositiveIntAttribute(domNode, "width"),
 			height: $parsePositiveIntAttribute(domNode, "height"),
 		}),

@@ -85,6 +85,17 @@ async fn get_note_title(tx: &DbTransaction, id: &str) -> Option<String> {
         .map(|row| row.try_get("title").unwrap())
 }
 
+async fn get_note(tx: &DbTransaction, id: &str) -> Option<(Option<String>, Option<String>)> {
+    let mut guard = tx.lock().await;
+    let conn = guard.as_mut();
+    sqlx::query("SELECT title, body FROM notes WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(&mut *conn)
+        .await
+        .unwrap()
+        .map(|row| (row.try_get("title").unwrap(), row.try_get("body").unwrap()))
+}
+
 async fn note_exists(tx: &DbTransaction, id: &str) -> bool {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
@@ -1118,6 +1129,153 @@ async fn apply_remote_tombstone_deletes_base_row_and_persists() {
     );
 }
 
+const KEEP_TITLE_GUARD: &str = "(SELECT title FROM notes WHERE id = ?1) = 'Keep'";
+
+#[tokio::test]
+async fn apply_remote_tombstone_guarded_row_keeps_row_and_restages_its_cells() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    engine
+        .set_delete_guard("notes", Some(KEEP_TITLE_GUARD))
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Keep", "Body").await;
+    let far = far_future_ms();
+    let tombstone_hlc = Hlc::new(far, 0, DeviceId::from_name("remote-device")).format();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", merge::DELETED_COL, None, far, 0)],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert!(note_exists(&tx, "1").await);
+    assert!(
+        get_cell(&tx, "notes", "1", merge::DELETED_COL)
+            .await
+            .is_none()
+    );
+    let local_device = local_device_id(&scope).await;
+    for col in ["title", "body"] {
+        let (_, hlc, device_id) = get_cell(&tx, "notes", "1", col).await.unwrap();
+        assert!(hlc > tombstone_hlc, "{col} must outrank the tombstone");
+        assert_eq!(device_id, local_device);
+    }
+}
+
+#[tokio::test]
+async fn apply_remote_tombstone_guard_not_met_deletes_row() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    engine
+        .set_delete_guard("notes", Some(KEEP_TITLE_GUARD))
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Other", "Body").await;
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell(
+                    "1",
+                    merge::DELETED_COL,
+                    None,
+                    far_future_ms(),
+                    0,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert!(!note_exists(&tx, "1").await);
+}
+
+#[tokio::test]
+async fn apply_remote_tombstone_guarded_row_restaged_cells_are_pushed() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    engine
+        .set_delete_guard("notes", Some(KEEP_TITLE_GUARD))
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Keep", "Body").await;
+    let pushed = engine.changes_since_last_push().await.unwrap();
+    let last_hlc = Hlc::parse(&pushed.cells.last().unwrap().hlc).unwrap();
+    engine.mark_pushed(&last_hlc).await.unwrap();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell(
+                    "1",
+                    merge::DELETED_COL,
+                    None,
+                    far_future_ms(),
+                    0,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    let mut cols: Vec<String> = engine
+        .changes_since_last_push()
+        .await
+        .unwrap()
+        .cells
+        .into_iter()
+        .map(|cell| cell.col)
+        .collect();
+    cols.sort();
+    assert_eq!(cols, vec!["body", "title"]);
+}
+
 #[tokio::test]
 async fn apply_remote_stale_update_after_tombstone_is_discarded() {
     // Arrange
@@ -1574,7 +1732,7 @@ async fn apply_remote_composite_primary_key_updates_matching_row() {
 async fn apply_remote_row_mode_recreated_row_after_tombstone_reuses_same_composite_row_id() {
     // Arrange
 
-    // Mirrors `element_tags`: a row-mode table with a natural composite key, so
+    // A row-mode table with a natural composite key, so
     // re-adding reuses the row id and the resurrection is judged against the
     // tombstone's HLC (see `merge::decide`).
 
@@ -2211,6 +2369,137 @@ async fn apply_remote_tombstone_drops_older_cells_but_keeps_newer_ones() {
 }
 
 #[tokio::test]
+async fn apply_remote_tombstone_arriving_after_newer_cells_keeps_row_they_resurrect() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Local", "Body").await;
+    let ms = far_future_ms();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", "title", Some(b"New".to_vec()), ms, 1)],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell("1", merge::DELETED_COL, None, ms, 0)],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(
+        Some((Some("New".to_string()), None)),
+        get_note(&tx, "1").await
+    );
+}
+
+#[tokio::test]
+async fn apply_remote_row_mode_tombstone_after_newer_row_in_same_page_keeps_row() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Row, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    let row = serde_json::json!({ "id": "1", "title": "New", "body": "Body" });
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![
+                    remote_cell(
+                        "1",
+                        merge::ROW_COL,
+                        Some(serde_json::to_vec(&row).unwrap()),
+                        ms,
+                        1,
+                    ),
+                    remote_cell("1", merge::DELETED_COL, None, ms, 0),
+                ],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(Some("New".to_string()), get_note_title(&tx, "1").await);
+}
+
+#[tokio::test]
+async fn apply_remote_guarded_tombstone_followed_by_newer_cells_in_same_page_keeps_row() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    engine
+        .set_delete_guard("notes", Some(KEEP_TITLE_GUARD))
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Other", "Body").await;
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![
+                    remote_cell("1", merge::DELETED_COL, None, ms, 0),
+                    remote_cell("1", "title", Some(b"New".to_vec()), ms, 1),
+                    remote_cell("1", "body", Some(b"New body".to_vec()), ms, 1),
+                ],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(
+        Some((Some("New".to_string()), Some("New body".to_string()))),
+        get_note(&tx, "1").await
+    );
+}
+
+#[tokio::test]
 async fn apply_remote_cell_older_than_tombstone_is_not_kept_in_sync_cells() {
     // Arrange
 
@@ -2265,8 +2554,7 @@ async fn create_parents_table(tx: &DbTransaction) {
         .unwrap();
 }
 
-/// Self-referential FK case: `parent_id` references this same table's `id`
-/// (e.g. `meta.parent_id -> meta.element_id`).
+/// Self-referential FK case: `parent_id` references this same table's `id`.
 async fn create_self_referencing_table(tx: &DbTransaction) {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
@@ -2287,7 +2575,7 @@ async fn insert_parent(tx: &DbTransaction, id: &str) {
 }
 
 /// No SQL `FOREIGN KEY` to `parents` — an implicit reference enforced only
-/// through a configured `FkConstraint`, like `meta.parent_id` in `bootstrap.rs`.
+/// through a configured `FkConstraint` (e.g. a self-referencing parent id).
 async fn create_children_table(tx: &DbTransaction) {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();

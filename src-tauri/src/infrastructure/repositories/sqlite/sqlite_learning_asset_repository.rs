@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
+use uuid::fmt::Hyphenated;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::entities::learning_asset::{
@@ -246,6 +247,26 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
         .execute(&mut *tx)
         .await?;
         Ok(())
+    }
+
+    async fn find_split_ids_with_embedded_images(
+        &self,
+    ) -> Result<Vec<LearningAssetSplitId>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let rows = sqlx::query!(
+            r#"SELECT learning_asset_id as "learning_asset_id: Hyphenated", seq
+            FROM learning_asset_splits
+            WHERE content LIKE '%data:image/%'"#
+        )
+        .fetch_all(tx.as_mut())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| LearningAssetSplitId {
+                learning_asset_id: row.learning_asset_id.into_uuid(),
+                seq: row.seq as u32,
+            })
+            .collect())
     }
 
     async fn update_read_point(

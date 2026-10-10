@@ -125,3 +125,24 @@ pub(crate) async fn register_table(
 
     Ok(())
 }
+
+/// Replaces `table`'s delete guard (see `TableSyncConfig::delete_guard`); `None` clears it.
+pub(crate) async fn set_delete_guard(
+    tx: &mut SqliteConnection,
+    table: &str,
+    condition: Option<&str>,
+) -> Result<(), SyncError> {
+    sqlx::query("DELETE FROM sync_delete_guards WHERE tbl = ?1")
+        .bind(table)
+        .execute(&mut *tx)
+        .await?;
+    if let Some(condition) = condition {
+        sqlx::query("INSERT INTO sync_delete_guards(tbl, condition) VALUES (?1, ?2)")
+            .bind(table)
+            .bind(condition)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    Ok(())
+}

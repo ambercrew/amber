@@ -39,6 +39,10 @@ pub trait LearningAssetRepository: Send + Sync {
         split_id: LearningAssetSplitId,
         content: String,
     ) -> Result<(), RepositoryError>;
+    /// Splits whose content still embeds a `data:image/` URI.
+    async fn find_split_ids_with_embedded_images(
+        &self,
+    ) -> Result<Vec<LearningAssetSplitId>, RepositoryError>;
     async fn update_read_point(
         &self,
         learning_asset_id: Uuid,

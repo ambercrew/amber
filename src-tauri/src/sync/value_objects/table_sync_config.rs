@@ -7,4 +7,7 @@ pub struct TableSyncConfig {
     pub name: &'static str,
     pub granularity: Granularity,
     pub fk_constraints: Vec<FkConstraint>,
+    /// SQL condition (primary key bound as `?1`, `?2`, …) under which a remote delete
+    /// is refused and the row re-pushed, resurrecting it everywhere.
+    pub delete_guard: Option<&'static str>,
 }

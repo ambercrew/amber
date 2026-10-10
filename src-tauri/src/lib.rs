@@ -1,5 +1,6 @@
 mod ai_integration;
 mod app_info;
+mod assets;
 mod backend;
 mod backup;
 mod bibliographical_sources;
@@ -27,6 +28,7 @@ use tauri::Manager;
 
 use ai_integration::ai_api::*;
 use app_info::app_info_api::*;
+use assets::assets_api::*;
 use backend::api::auth_api::*;
 use backend::api::user_api::*;
 use bibliographical_sources::bibliographical_sources_api::*;
@@ -47,6 +49,8 @@ use trash::trash_api::*;
 use tauri_plugin_window_state::StateFlags;
 use tokio::runtime::Handle;
 
+use crate::assets::background::spawn_asset_maintenance_task;
+use crate::assets::protocol::{ASSET_PROTOCOL, handle_asset_request};
 use crate::backup::background::spawn_backup_task;
 use crate::common::utils::create_injector::create_injector;
 use crate::infrastructure::value_objects::app_data_directory::AppDataDirectory;
@@ -95,7 +99,8 @@ pub async fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(system_chrome::plugin::init());
+        .plugin(system_chrome::plugin::init())
+        .register_asynchronous_uri_scheme_protocol(ASSET_PROTOCOL, handle_asset_request);
 
     #[cfg(desktop)]
     {
@@ -145,6 +150,9 @@ pub async fn run() {
             // Starting the trash retention purge, which also runs once right away.
             spawn_trash_purge_task(injector.clone());
 
+            // Moving embedded images into the asset store and sweeping unreferenced ones.
+            spawn_asset_maintenance_task(injector.clone());
+
             // Starting the backup service.
             spawn_backup_task(injector);
 
@@ -168,6 +176,8 @@ pub async fn run() {
             delete_user,
             get_user_information,
             update_user_information,
+            // Assets
+            create_asset,
             // Elements
             get_element_tree,
             get_element_by_id,

@@ -8,6 +8,7 @@ pub mod post_sync_tasks;
 pub mod sql_functions;
 pub mod store;
 pub mod sync_api;
+pub mod sync_completion;
 pub mod sync_lock;
 pub mod utils;
 pub mod value_objects;

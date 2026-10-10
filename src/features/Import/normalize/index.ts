@@ -1,4 +1,5 @@
 import { sanitizeHtml } from "../../../utils/sanitizeHtml";
+import { assetIdFromSrc, toCanonicalImageSrc } from "../../../utils/assetUrl";
 import { localizeImage } from "../images/localize";
 import { convertMath } from "./convertMath";
 
@@ -27,6 +28,11 @@ export async function normalize(
 	for (const img of images) {
 		const src = img.getAttribute("src");
 		if (!src) continue;
+		// Already stored (e.g. by EPUB extraction); only canonicalize a runtime asset URL.
+		if (assetIdFromSrc(src) !== null) {
+			img.setAttribute("src", toCanonicalImageSrc(src));
+			continue;
+		}
 
 		const absolute = resolveUrl(src, opts.baseUrl);
 		if (absolute === null) {

@@ -35,6 +35,15 @@ impl SyncStore for SqliteSyncStore {
         register::register_table(guard.as_mut(), table, granularity, fk_constraints).await
     }
 
+    async fn set_delete_guard(
+        &self,
+        table: &str,
+        condition: Option<&str>,
+    ) -> Result<(), SyncError> {
+        let mut guard = self.tx.lock().await;
+        register::set_delete_guard(guard.as_mut(), table, condition).await
+    }
+
     async fn changes_since_last_push(&self) -> Result<ChangeBatch, SyncError> {
         let mut guard = self.tx.lock().await;
         push_pull::changes_since_last_push(guard.as_mut()).await

@@ -79,6 +79,36 @@ describe("sanitizeHtml", () => {
 		expect(actual).toContain("data:image/png;base64,AAAA");
 	});
 
+	it("Should keep the src when it is a stored asset src", () => {
+		// Arrange
+
+		const src = `amber-asset:${"a".repeat(64)}`;
+		const html = `<img src="${src}">`;
+
+		// Act
+
+		const actual = sanitizeHtml(html);
+
+		// Assert
+
+		expect(actual).toContain(src);
+	});
+
+	it("Should keep the src when it is a runtime asset url", () => {
+		// Arrange
+
+		const src = `amber-asset://localhost/${"a".repeat(64)}`;
+		const html = `<img src="${src}">`;
+
+		// Act
+
+		const actual = sanitizeHtml(html);
+
+		// Assert
+
+		expect(actual).toContain(src);
+	});
+
 	it("Should strip a disallowed non-http, non-data protocol from src", () => {
 		// Arrange
 

@@ -8,6 +8,7 @@ use fractional_index::FractionalIndex;
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
 
+use crate::assets::services::asset_service::AssetService;
 use crate::common::event_manager::EventManager;
 use crate::elements::dto::create_card_dto::CreateCardDto;
 use crate::elements::dto::create_extract_dto::CreateExtractDto;
@@ -56,6 +57,7 @@ pub struct DefaultElementCreationService {
     profile_resolution_service: Arc<dyn ProfileResolutionService>,
     meta_repository: Arc<dyn MetaRepository>,
     event_manager: Arc<dyn EventManager>,
+    asset_service: Arc<dyn AssetService>,
 }
 
 #[async_trait]
@@ -152,16 +154,16 @@ impl ElementCreationService for DefaultElementCreationService {
                     .ok_or(ElementCreationError::InvalidPdfPageCount)?;
                 LearningAssetContent::Pdf { bytes, page_count }
             }
-            LearningAssetType::Extracted => LearningAssetContent::Extracted(
-                dto.splits
-                    .into_iter()
-                    .enumerate()
-                    .map(|(seq, content)| LearningAssetSplit {
+            LearningAssetType::Extracted => {
+                let mut splits = Vec::with_capacity(dto.splits.len());
+                for (seq, content) in dto.splits.into_iter().enumerate() {
+                    splits.push(LearningAssetSplit {
                         seq: seq as u32,
-                        content,
-                    })
-                    .collect(),
-            ),
+                        content: self.asset_service.ingest_content(content).await?,
+                    });
+                }
+                LearningAssetContent::Extracted(splits)
+            }
         };
         self.learning_asset_repository
             .create(learning_asset, content)
@@ -201,7 +203,7 @@ impl ElementCreationService for DefaultElementCreationService {
                 created_at: now,
                 modified_at: now,
             },
-            content: dto.content,
+            content: self.asset_service.ingest_content(dto.content).await?,
             interval_multiplier: profile.initial_interval_multiplier,
         };
         self.extract_repository.create(extract).await?;
@@ -241,8 +243,8 @@ impl ElementCreationService for DefaultElementCreationService {
                 created_at: now,
                 modified_at: now,
             },
-            front: dto.front,
-            back: dto.back,
+            front: self.asset_service.ingest_content(dto.front).await?,
+            back: self.asset_service.ingest_content(dto.back).await?,
         };
         self.card_repository.create(card).await?;
         self.ensure_card_review(dto.id, element_id).await?;

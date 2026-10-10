@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { Alert } from "@mantine/core";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { readImage } from "@tauri-apps/plugin-clipboard-manager";
 import { DRAG_DROP_PASTE } from "@lexical/rich-text";
@@ -20,6 +22,8 @@ import {
 } from "lexical";
 import { $createImageNode, ImageNode } from "./ImageNode";
 import { INSERT_IMAGE_COMMAND } from "./imageCommands";
+import { createAsset } from "../../../../api/assets/api/assetsApi";
+import useApi, { type CallApiFn } from "../../../../hooks/useApi";
 
 const ACCEPTABLE_IMAGE_TYPES = [
 	"image/png",
@@ -32,6 +36,7 @@ const ACCEPTABLE_IMAGE_TYPES = [
 
 export function ImagePlugin() {
 	const [editor] = useLexicalComposerContext();
+	const { errorMessage, callApi, clearErrorMessage } = useApi();
 
 	useEffect(() => {
 		if (!editor.hasNodes([ImageNode])) {
@@ -65,13 +70,13 @@ export function ImagePlugin() {
 					const files = getPastedImageFiles(items);
 					if (files.length > 0) {
 						event.preventDefault();
-						void insertImageFiles(editor, files);
+						void insertImageFiles(editor, callApi, files);
 						return true;
 					}
 
 					if (!hasTextItem(items)) {
 						event.preventDefault();
-						void insertImageFromNativeClipboard(editor);
+						void insertImageFromNativeClipboard(editor, callApi);
 						return true;
 					}
 
@@ -82,15 +87,37 @@ export function ImagePlugin() {
 			editor.registerCommand(
 				DRAG_DROP_PASTE,
 				files => {
-					void insertImageFiles(editor, files);
+					void insertImageFiles(editor, callApi, files);
 					return true;
 				},
 				COMMAND_PRIORITY_LOW,
 			),
 		);
-	}, [editor]);
+	}, [editor, callApi]);
 
-	return null;
+	if (!errorMessage) return null;
+	return (
+		<Alert
+			color="red"
+			icon={<WarningCircleIcon />}
+			title="Couldn't store the image"
+			withCloseButton
+			onClose={clearErrorMessage}>
+			{errorMessage}
+		</Alert>
+	);
+}
+
+// Stores the image before inserting it, so base64 never enters the document and autosaves don't resend it.
+async function insertStoredImage(
+	editor: LexicalEditor,
+	callApi: CallApiFn,
+	dataUri: string,
+	altText: string,
+) {
+	const asset = await callApi(() => createAsset({ dataUri }));
+	if (!asset) return;
+	editor.dispatchCommand(INSERT_IMAGE_COMMAND, { altText, src: asset.src });
 }
 
 function getPastedImageFiles(items: DataTransferItemList): File[] {
@@ -103,22 +130,22 @@ function getPastedImageFiles(items: DataTransferItemList): File[] {
 	return files;
 }
 
-async function insertImageFiles(editor: LexicalEditor, files: File[]) {
+async function insertImageFiles(
+	editor: LexicalEditor,
+	callApi: CallApiFn,
+	files: File[],
+) {
+	let filesResult: Awaited<ReturnType<typeof mediaFileReader>>;
 	try {
-		const filesResult = await mediaFileReader(
-			files,
-			ACCEPTABLE_IMAGE_TYPES,
-		);
-		for (const { file, result } of filesResult) {
-			if (isMimeType(file, ACCEPTABLE_IMAGE_TYPES)) {
-				editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
-					altText: file.name,
-					src: result,
-				});
-			}
-		}
+		filesResult = await mediaFileReader(files, ACCEPTABLE_IMAGE_TYPES);
 	} catch {
 		// A file failed to decode; nothing to paste.
+		return;
+	}
+	for (const { file, result } of filesResult) {
+		if (isMimeType(file, ACCEPTABLE_IMAGE_TYPES)) {
+			await insertStoredImage(editor, callApi, result, file.name);
+		}
 	}
 }
 
@@ -142,21 +169,23 @@ function hasTextItem(items: DataTransferItemList): boolean {
 // with no "file" kind item to read. The clipboard-manager plugin reads the
 // OS clipboard natively instead of through the webview's DOM paste event, so
 // it sees the actual image bytes regardless of what the DOM exposed.
-async function insertImageFromNativeClipboard(editor: LexicalEditor) {
+async function insertImageFromNativeClipboard(
+	editor: LexicalEditor,
+	callApi: CallApiFn,
+) {
+	let src: string;
 	try {
 		const image = await readImage();
 		const [rgba, { width, height }] = await Promise.all([
 			image.rgba(),
 			image.size(),
 		]);
-		const src = rgbaToPngDataUrl(rgba, width, height);
-		editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
-			altText: "Pasted image",
-			src,
-		});
+		src = rgbaToPngDataUrl(rgba, width, height);
 	} catch {
 		// Clipboard didn't actually contain a readable image; nothing to paste.
+		return;
 	}
+	await insertStoredImage(editor, callApi, src, "Pasted image");
 }
 
 function rgbaToPngDataUrl(

@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use sqlx::{Row, SqliteConnection};
 
-use crate::generated_code::ChangeBatch;
+use crate::generated_code::{CellChange, ChangeBatch};
 use crate::sync::errors::SyncError;
 use crate::sync::hlc::{Hlc, HlcClock};
 use crate::sync::utils::merge::{self, MergeAction};
@@ -245,7 +245,9 @@ async fn apply_remote_inner(
     clock: &HlcClock,
 ) -> Result<(), SyncError> {
     let registry = load_registry(tx).await?;
+    let delete_guards = load_delete_guards(tx).await?;
     let mut column_cache: HashMap<String, Vec<ColumnInfo>> = HashMap::new();
+    let mut guarded_deletes: Vec<(&CellChange, Granularity)> = Vec::new();
 
     for cell in &batch.cells {
         let incoming_hlc = Hlc::parse(&cell.hlc)?;
@@ -303,18 +305,12 @@ async fn apply_remote_inner(
             MergeAction::SetColumn { col, value } => {
                 pending.push(&cell.tbl, &cell.row_id, col, value).await;
             }
+            MergeAction::DeleteRow if delete_guards.contains_key(&cell.tbl) => {
+                // The guard reads other tables, so it waits for the rest of the page.
+                guarded_deletes.push((cell, granularity));
+            }
             MergeAction::DeleteRow => {
-                // A delete makes buffered column updates for this row moot.
-                pending.remove(&cell.tbl, &cell.row_id).await;
-                drop_cells_older_than(tx, &cell.tbl, &cell.row_id, &cell.hlc).await?;
-                apply_action(
-                    tx,
-                    &cell.tbl,
-                    &cell.row_id,
-                    MergeAction::DeleteRow,
-                    &mut column_cache,
-                )
-                .await?;
+                delete_row(tx, cell, granularity, pending, &mut column_cache).await?;
             }
             other => {
                 apply_action(tx, &cell.tbl, &cell.row_id, other, &mut column_cache).await?;
@@ -322,7 +318,184 @@ async fn apply_remote_inner(
         }
     }
 
+    if guarded_deletes.is_empty() {
+        return Ok(());
+    }
+    try_flush_pending(tx, pending).await?;
+    for (cell, granularity) in guarded_deletes {
+        if !is_latest_tombstone(tx, cell).await? {
+            continue;
+        }
+        if is_delete_refused(
+            tx,
+            &cell.tbl,
+            &cell.row_id,
+            delete_guards.get(&cell.tbl),
+            &mut column_cache,
+        )
+        .await?
+        {
+            restage_row(tx, &cell.tbl, &cell.row_id, &mut column_cache).await?;
+        } else {
+            delete_row(tx, cell, granularity, pending, &mut column_cache).await?;
+        }
+    }
+    // Materializes rows that newer cells resurrected after their guarded delete.
+    try_flush_pending(tx, pending).await?;
+
     Ok(())
+}
+
+async fn delete_row(
+    tx: &mut SqliteConnection,
+    cell: &CellChange,
+    granularity: Granularity,
+    pending: &PendingBuffer,
+    column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
+) -> Result<(), SyncError> {
+    // A delete makes buffered column updates for this row moot.
+    pending.remove(&cell.tbl, &cell.row_id).await;
+    drop_cells_older_than(tx, &cell.tbl, &cell.row_id, &cell.hlc).await?;
+    apply_action(
+        tx,
+        &cell.tbl,
+        &cell.row_id,
+        MergeAction::DeleteRow,
+        column_cache,
+    )
+    .await?;
+    replay_cells_newer_than(tx, cell, granularity, pending, column_cache).await
+}
+
+/// Re-applies the row's cells that outrank its tombstone, so a delete applied after
+/// them (out of order, or deferred by a guard) still ends with them resurrecting the row.
+async fn replay_cells_newer_than(
+    tx: &mut SqliteConnection,
+    tombstone: &CellChange,
+    granularity: Granularity,
+    pending: &PendingBuffer,
+    column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
+) -> Result<(), SyncError> {
+    let newer: Vec<(String, Option<Vec<u8>>)> = sqlx::query_as(
+        "SELECT col, value FROM sync_cells
+         WHERE tbl = ?1 AND row_id = ?2 AND col <> ?3 AND hlc > ?4
+         ORDER BY hlc",
+    )
+    .bind(&tombstone.tbl)
+    .bind(&tombstone.row_id)
+    .bind(merge::DELETED_COL)
+    .bind(&tombstone.hlc)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    for (col, value) in newer {
+        match granularity {
+            Granularity::Column => {
+                pending
+                    .push(&tombstone.tbl, &tombstone.row_id, col, value)
+                    .await;
+            }
+            Granularity::Row => {
+                let value = value.ok_or_else(|| SyncError::InvalidRowPayload {
+                    table: tombstone.tbl.clone(),
+                    reason: "row-mode '__row' cell had a NULL value".to_string(),
+                })?;
+                apply_action(
+                    tx,
+                    &tombstone.tbl,
+                    &tombstone.row_id,
+                    MergeAction::UpsertRow { value },
+                    column_cache,
+                )
+                .await?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Whether `cell` is still the row's tombstone, i.e. no later cell in its page replaced it.
+async fn is_latest_tombstone(
+    tx: &mut SqliteConnection,
+    cell: &CellChange,
+) -> Result<bool, SyncError> {
+    let hlc: Option<String> = sqlx::query_scalar(
+        "SELECT hlc FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 AND col = ?3",
+    )
+    .bind(&cell.tbl)
+    .bind(&cell.row_id)
+    .bind(merge::DELETED_COL)
+    .fetch_optional(&mut *tx)
+    .await?;
+    Ok(hlc.as_deref() == Some(cell.hlc.as_str()))
+}
+
+/// Whether `table`'s delete guard holds for this existing row, i.e. the remote
+/// delete must be refused. A row absent locally has nothing to keep.
+async fn is_delete_refused(
+    tx: &mut SqliteConnection,
+    table: &str,
+    row_id: &str,
+    guard: Option<&String>,
+    column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
+) -> Result<bool, SyncError> {
+    let Some(guard) = guard else {
+        return Ok(false);
+    };
+    let columns = get_or_load_columns(tx, table, column_cache).await?;
+    let pk_columns = primary_key_columns(table, &columns)?;
+    let pk_values = parse_row_id(table, row_id, pk_columns.len())?;
+    if !row_exists(tx, table, &pk_columns, &pk_values).await? {
+        return Ok(false);
+    }
+
+    let mut query = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT ({guard})")));
+    for value in &pk_values {
+        query = query.bind(value);
+    }
+    Ok(query.fetch_one(&mut *tx).await?)
+}
+
+/// Resurrects a refused-delete row: forgets the tombstone and re-stages every cell
+/// via its `au` trigger, under an HLC that outranks the tombstone everywhere.
+async fn restage_row(
+    tx: &mut SqliteConnection,
+    table: &str,
+    row_id: &str,
+    column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
+) -> Result<(), SyncError> {
+    drop_cell(tx, table, row_id, merge::DELETED_COL).await?;
+
+    let columns = get_or_load_columns(tx, table, column_cache).await?;
+    let pk_columns = primary_key_columns(table, &columns)?;
+    let pk_values = parse_row_id(table, row_id, pk_columns.len())?;
+    let pk_predicate: String = pk_columns
+        .iter()
+        .enumerate()
+        .map(|(i, c)| format!("{} = ?{}", quote_ident(&c.name), i + 1))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    let touch_col = quote_ident(&pk_columns[0].name);
+    let sql = format!(
+        "UPDATE {} SET {touch_col} = {touch_col} WHERE {pk_predicate}",
+        quote_ident(table)
+    );
+
+    // The triggers only stage local changes, so lift the applying guard meanwhile.
+    clear_applying(tx).await?;
+    sqlx::query("INSERT INTO sync_backfilling(x) VALUES (1)")
+        .execute(&mut *tx)
+        .await?;
+    let mut query = sqlx::query(sqlx::AssertSqlSafe(sql));
+    for value in &pk_values {
+        query = query.bind(value);
+    }
+    query.execute(&mut *tx).await?;
+    sqlx::query("DELETE FROM sync_backfilling")
+        .execute(&mut *tx)
+        .await?;
+    mark_applying(tx).await
 }
 
 /// Drops a row's cells older than its new tombstone `hlc`, mirroring what the
@@ -561,6 +734,21 @@ async fn load_registry(
     }
 
     Ok(registry)
+}
+
+async fn load_delete_guards(
+    tx: &mut SqliteConnection,
+) -> Result<HashMap<String, String>, SyncError> {
+    let rows = sqlx::query("SELECT tbl, condition FROM sync_delete_guards")
+        .fetch_all(&mut *tx)
+        .await?;
+
+    let mut guards = HashMap::with_capacity(rows.len());
+    for row in rows {
+        guards.insert(row.try_get("tbl")?, row.try_get("condition")?);
+    }
+
+    Ok(guards)
 }
 
 async fn get_or_load_columns(

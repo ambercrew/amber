@@ -10,7 +10,9 @@ use zip::ZipArchive;
 use crate::common::api_error::ApiError;
 
 use super::dto::EpubExtractionDto;
-use super::import_api::sniff_image_mime;
+use crate::assets::entities::asset::Asset;
+use crate::assets::utils::image_mime::sniff_image_mime;
+use crate::assets::value_objects::asset_id::AssetId;
 
 const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024;
 
@@ -27,7 +29,13 @@ struct OpfPackage {
     date: Option<String>,
 }
 
-pub fn extract_epub_html(bytes: Vec<u8>) -> Result<EpubExtractionDto, ApiError> {
+/// An EPUB's HTML, whose images reference `images` as `amber-asset:<id>` srcs not yet stored.
+pub struct EpubExtraction {
+    pub dto: EpubExtractionDto,
+    pub images: Vec<Asset>,
+}
+
+pub fn extract_epub_html(bytes: Vec<u8>) -> Result<EpubExtraction, ApiError> {
     let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(|_| invalid_epub_error())?;
 
     let container_xml =
@@ -51,6 +59,7 @@ pub fn extract_epub_html(bytes: Vec<u8>) -> Result<EpubExtractionDto, ApiError> 
 
     let mut html = String::new();
     let mut chapter_count = 0usize;
+    let mut images: Vec<Asset> = Vec::new();
 
     for idref in &package.spine {
         let Some(item) = package.manifest.get(idref) else {
@@ -63,7 +72,13 @@ pub fn extract_epub_html(bytes: Vec<u8>) -> Result<EpubExtractionDto, ApiError> 
         let chapter_text = String::from_utf8_lossy(&chapter_bytes).into_owned();
         let body = extract_body(&chapter_text);
         let chapter_dir = parent_dir(&chapter_path);
-        let inlined = inline_images(&body, &chapter_dir, &mut archive, &resource_media_types);
+        let inlined = localize_images(
+            &body,
+            &chapter_dir,
+            &mut archive,
+            &resource_media_types,
+            &mut images,
+        );
         html.push_str(&inlined);
         chapter_count += 1;
     }
@@ -72,12 +87,15 @@ pub fn extract_epub_html(bytes: Vec<u8>) -> Result<EpubExtractionDto, ApiError> 
         return Err(no_content_error());
     }
 
-    Ok(EpubExtractionDto {
-        title: package.title,
-        authors: package.authors,
-        publication_date: package.date,
-        html,
-        chapter_count,
+    Ok(EpubExtraction {
+        dto: EpubExtractionDto {
+            title: package.title,
+            authors: package.authors,
+            publication_date: package.date,
+            html,
+            chapter_count,
+        },
+        images,
     })
 }
 
@@ -219,11 +237,12 @@ fn extract_body(xhtml: &str) -> String {
     }
 }
 
-fn inline_images(
+fn localize_images(
     html: &str,
     chapter_dir: &str,
     archive: &mut ZipArchive<Cursor<Vec<u8>>>,
     resource_media_types: &HashMap<String, String>,
+    images: &mut Vec<Asset>,
 ) -> String {
     let html = replace_attr(
         html,
@@ -232,6 +251,7 @@ fn inline_images(
         chapter_dir,
         archive,
         resource_media_types,
+        images,
     );
     replace_attr(
         &html,
@@ -240,6 +260,7 @@ fn inline_images(
         chapter_dir,
         archive,
         resource_media_types,
+        images,
     )
 }
 
@@ -250,6 +271,7 @@ fn replace_attr(
     chapter_dir: &str,
     archive: &mut ZipArchive<Cursor<Vec<u8>>>,
     resource_media_types: &HashMap<String, String>,
+    images: &mut Vec<Asset>,
 ) -> String {
     let escaped_tag = regex::escape(tag);
     let escaped_attr = regex::escape(attr);
@@ -272,8 +294,17 @@ fn replace_attr(
 
         let decoded_href = percent_decode(&html_unescape(href));
         let resolved = resolve_path(chapter_dir, &decoded_href);
-        let replacement = inline_image_data_uri(archive, &resolved, resource_media_types)
-            .unwrap_or_else(|| href.to_string());
+        let replacement = match read_image(archive, &resolved, resource_media_types) {
+            Some(EpubImage::Asset(asset)) => {
+                let src = asset.id.src();
+                if !images.iter().any(|image| image.id == asset.id) {
+                    images.push(asset);
+                }
+                src
+            }
+            Some(EpubImage::InlineSvg(data_uri)) => data_uri,
+            None => href.to_string(),
+        };
 
         result.push_str(prefix);
         result.push_str(&replacement);
@@ -285,27 +316,38 @@ fn replace_attr(
     result
 }
 
-fn inline_image_data_uri(
+enum EpubImage {
+    Asset(Asset),
+    // SVG is never stored as an asset; inlined, the frontend keeps it as a broken-asset data URI.
+    InlineSvg(String),
+}
+
+fn read_image(
     archive: &mut ZipArchive<Cursor<Vec<u8>>>,
     path: &str,
     resource_media_types: &HashMap<String, String>,
-) -> Option<String> {
+) -> Option<EpubImage> {
     let bytes = read_entry_bytes(archive, path)?;
-    if bytes.len() > MAX_IMAGE_BYTES {
+    if bytes.is_empty() || bytes.len() > MAX_IMAGE_BYTES {
         return None;
     }
 
-    let mime = resource_media_types
-        .get(path)
-        .filter(|m| !m.is_empty())
-        .cloned()
-        .or_else(|| sniff_image_mime(&bytes))?;
+    let mime_type = sniff_image_mime(&bytes)
+        .or_else(|| resource_media_types.get(path).cloned())
+        .filter(|mime| mime.starts_with("image/"))?;
 
-    Some(format!(
-        "data:{};base64,{}",
-        mime,
-        general_purpose::STANDARD.encode(&bytes)
-    ))
+    if mime_type == "image/svg+xml" {
+        return Some(EpubImage::InlineSvg(format!(
+            "data:image/svg+xml;base64,{}",
+            general_purpose::STANDARD.encode(&bytes)
+        )));
+    }
+
+    Some(EpubImage::Asset(Asset {
+        id: AssetId::from_bytes(&bytes),
+        mime_type,
+        data: bytes,
+    }))
 }
 
 fn read_entry_bytes(archive: &mut ZipArchive<Cursor<Vec<u8>>>, name: &str) -> Option<Vec<u8>> {
@@ -451,7 +493,7 @@ mod tests {
 
         // Assert
 
-        let extraction = result.ok().expect("expected extraction to succeed");
+        let extraction = result.ok().expect("expected extraction to succeed").dto;
         assert!(extraction.html.contains("Chapter 1 content"));
         assert_eq!(extraction.chapter_count, 1);
         assert_eq!(extraction.title, Some("My Book".to_string()));
@@ -509,7 +551,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_epub_html_inlines_images_as_data_uris() {
+    fn extract_epub_html_images_returns_asset_srcs_and_deduplicated_assets() {
         // Arrange
 
         let manifest = r#"
@@ -518,7 +560,7 @@ mod tests {
         "#;
         let spine = r#"<itemref idref="chap1"/>"#;
         let opf_xml = opf(spine, manifest, "");
-        let chapter = br#"<html><body><img src="images/cover.png" alt="cover"/></body></html>"#;
+        let chapter = br#"<html><body><img src="images/cover.png"/><img src="./images/cover.png"/></body></html>"#;
         let png_bytes: &[u8] = &[0x89, b'P', b'N', b'G', 0, 0, 0, 0];
 
         let bytes = build_epub(&[
@@ -535,7 +577,43 @@ mod tests {
         // Assert
 
         let extraction = result.ok().expect("expected extraction to succeed");
-        assert!(extraction.html.contains("data:image/png;base64,"));
-        assert!(!extraction.html.contains("images/cover.png"));
+        let id = AssetId::from_bytes(png_bytes);
+        assert_eq!(extraction.dto.html.matches(&id.src()).count(), 2);
+        assert!(!extraction.dto.html.contains("images/cover.png"));
+        assert_eq!(extraction.images.len(), 1);
+        assert_eq!(extraction.images[0].id, id);
+        assert_eq!(extraction.images[0].mime_type, "image/png");
+    }
+
+    #[test]
+    fn extract_epub_html_svg_image_inlines_data_uri_without_asset() {
+        // Arrange
+
+        let manifest = r#"
+            <item id="chap1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+            <item id="img1" href="images/logo.svg" media-type="image/svg+xml"/>
+        "#;
+        let spine = r#"<itemref idref="chap1"/>"#;
+        let opf_xml = opf(spine, manifest, "");
+        let chapter = br#"<html><body><img src="images/logo.svg"/></body></html>"#;
+        let svg_bytes: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg"/>"#;
+
+        let bytes = build_epub(&[
+            ("META-INF/container.xml", CONTAINER_XML.as_bytes()),
+            ("OEBPS/content.opf", opf_xml.as_bytes()),
+            ("OEBPS/chapter1.xhtml", chapter),
+            ("OEBPS/images/logo.svg", svg_bytes),
+        ]);
+
+        // Act
+
+        let result = extract_epub_html(bytes);
+
+        // Assert
+
+        let extraction = result.ok().expect("expected extraction to succeed");
+        assert!(extraction.dto.html.contains("data:image/svg+xml;base64,"));
+        assert!(!extraction.dto.html.contains("images/logo.svg"));
+        assert!(extraction.images.is_empty());
     }
 }

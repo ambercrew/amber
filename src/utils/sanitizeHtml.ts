@@ -60,9 +60,10 @@ const ALLOWED_ATTR = [
 
 // Also allows relative/protocol-relative URLs (no scheme, or starting with
 // "/" or "//") so that normalize() gets a chance to resolve them against the
-// baseUrl — DOMPurify would otherwise strip them outright.
+// baseUrl — DOMPurify would otherwise strip them outright. Stored assets pass too, canonical
+// (`amber-asset:<id>`) or as the macOS/Linux runtime URL (`amber-asset://localhost/<id>`).
 const ALLOWED_URI_REGEXP =
-	/^(?:https?:|data:image\/|[^a-z]|[a-z\d+.-]+(?:[^a-z\d+.\-:]|$))/i;
+	/^(?:https?:|data:image\/|amber-asset:(?:\/\/localhost\/)?[0-9a-f]{64}$|[^a-z]|[a-z\d+.-]+(?:[^a-z\d+.\-:]|$))/i;
 
 export function sanitizeHtml(html: string): string {
 	return DOMPurify.sanitize(html, {

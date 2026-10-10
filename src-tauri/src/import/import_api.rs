@@ -1,16 +1,21 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use base64::{Engine as _, engine::general_purpose};
+use injector::injector::Injector;
 use pdf_oxide::converters::ConversionOptions;
 use pdf_oxide::document::PdfDocument;
 use pdf_oxide::extractors::xmp::XmpExtractor;
-use tauri::Emitter;
+use tauri::{Emitter, State};
 use tauri_plugin_http::reqwest::{
     self,
     header::{CONTENT_TYPE, REFERER},
 };
 
+use crate::assets::services::asset_service::AssetService;
+use crate::assets::utils::image_mime::sniff_image_mime;
 use crate::common::api_error::ApiError;
+use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 
 use super::dto::{
     EpubExtractionDto, FetchedImageDto, FetchedPageDto, PdfExtractionDto, PdfImportProgressEvent,
@@ -239,12 +244,24 @@ pub async fn get_pdf_page_html(bytes_base64: String, page_index: u32) -> Result<
 }
 
 #[tauri::command]
-pub async fn extract_epub(bytes_base64: String) -> Result<EpubExtractionDto, ApiError> {
+pub async fn extract_epub(
+    injector: State<'_, Arc<Injector>>,
+    bytes_base64: String,
+) -> Result<EpubExtractionDto, ApiError> {
     let bytes = general_purpose::STANDARD.decode(&bytes_base64)?;
 
-    tauri::async_runtime::spawn_blocking(move || extract_epub_html(bytes))
+    let extraction = tauri::async_runtime::spawn_blocking(move || extract_epub_html(bytes))
         .await
-        .map_err(|e| ApiError::new(e.to_string()))?
+        .map_err(|e| ApiError::new(e.to_string()))??;
+
+    // Unreferenced until the learning asset is created; a sweep reclaims them if it never is.
+    let scope = injector.start_scope();
+    let asset_service = scope.resolve::<dyn AssetService>().await;
+    for image in &extraction.images {
+        asset_service.store(image).await?;
+    }
+    scope.save_changes().await?;
+    Ok(extraction.dto)
 }
 
 fn build_client(timeout: Duration) -> Result<reqwest::Client, ApiError> {
@@ -262,20 +279,6 @@ async fn read_capped(response: reqwest::Response, cap: usize) -> Result<Vec<u8>,
         return Err(ApiError::new("The response was too large.".to_string()));
     }
     Ok(bytes.to_vec())
-}
-
-pub(super) fn sniff_image_mime(bytes: &[u8]) -> Option<String> {
-    if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
-        Some("image/png".to_string())
-    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        Some("image/jpeg".to_string())
-    } else if bytes.starts_with(b"GIF8") {
-        Some("image/gif".to_string())
-    } else if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
-        Some("image/webp".to_string())
-    } else {
-        None
-    }
 }
 
 #[cfg(test)]
