@@ -8,6 +8,7 @@ import {
 	UnstyledButton,
 } from "@mantine/core";
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
+import ImportSectionBody from "./ImportSectionBody";
 import PrioritySlider from "../../../components/PrioritySlider/PrioritySlider";
 import { usePriorityControls } from "../../../components/PrioritySlider/usePriorityControls";
 import { positionToPercentile } from "../../../components/PrioritySlider/priorityMath";
@@ -53,15 +54,17 @@ function ImportPrioritySection({
 				</Group>
 			</UnstyledButton>
 			<Collapse expanded={opened}>
-				{total === null || position === null ? (
-					<Loader size="xs" />
-				) : (
-					<PrioritySliderControlled
-						total={total}
-						position={position}
-						onPositionChange={onPositionChange}
-					/>
-				)}
+				<ImportSectionBody>
+					{total === null || position === null ? (
+						<Loader size="xs" />
+					) : (
+						<PrioritySliderControlled
+							total={total}
+							position={position}
+							onPositionChange={onPositionChange}
+						/>
+					)}
+				</ImportSectionBody>
 			</Collapse>
 		</Stack>
 	);

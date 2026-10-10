@@ -8,6 +8,7 @@ import {
 	UnstyledButton,
 } from "@mantine/core";
 import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
+import ImportSectionBody from "./ImportSectionBody";
 import FieldInfoIcon from "../../../components/FieldLabel/FieldInfoIcon";
 
 interface ImportPdfExtractionSectionProps {
@@ -40,22 +41,24 @@ function ImportPdfExtractionSection({
 				</Group>
 			</UnstyledButton>
 			<Collapse expanded={opened}>
-				{isPdf ? (
-					<Group gap="xs">
-						<Switch
-							label="Extract content"
-							checked={extract}
-							onChange={e =>
-								onExtractChange(e.currentTarget.checked)
-							}
-						/>
-						<FieldInfoIcon tooltip="Converts the PDF's text into an editable document instead of a page-accurate PDF viewer. Only applies to PDF files." />
-					</Group>
-				) : (
-					<Text size="sm" c="dimmed">
-						No options for this file.
-					</Text>
-				)}
+				<ImportSectionBody>
+					{isPdf ? (
+						<Group gap="xs">
+							<Switch
+								label="Extract content"
+								checked={extract}
+								onChange={e =>
+									onExtractChange(e.currentTarget.checked)
+								}
+							/>
+							<FieldInfoIcon tooltip="Converts the PDF's text into an editable document instead of a page-accurate PDF viewer. Only applies to PDF files." />
+						</Group>
+					) : (
+						<Text size="sm" c="dimmed">
+							No options for this file.
+						</Text>
+					)}
+				</ImportSectionBody>
 			</Collapse>
 		</Stack>
 	);
