@@ -1,7 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router";
-import { AppShell, Box, ScrollArea } from "@mantine/core";
-import { useSplitter } from "@mantine/hooks";
+import {
+	AppShell,
+	AppShellResizeSection,
+	Box,
+	ScrollArea,
+	useAppShellResize,
+} from "@mantine/core";
+import { useViewportSize } from "@mantine/hooks";
 import { Notifications } from "@mantine/notifications";
 import notificationsClasses from "./Notifications.module.css";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -29,7 +35,6 @@ import { selectStudyStatus } from "../../../stores/study/studySelectors.ts";
 import { selectCurrentElementIsTrashed } from "../../../stores/elements/elementsSelectors.ts";
 import Sidebar from "../../Sidebar/components/Sidebar.tsx";
 import Aside from "../../Aside/components/Aside.tsx";
-import ResizeHandle from "../../../components/ResizeHandle/ResizeHandle.tsx";
 import ImportModal from "../../Import/components/ImportModal.tsx";
 import StudyProfileModal from "../../Study/components/StudyProfileModal.tsx";
 import SettingsModal from "../../Settings/components/SettingsModal.tsx";
@@ -67,6 +72,9 @@ export const HEADER_AND_FOOTER_HEIGHT = 56;
 export const HEADROOM_FIXED_AT = 120;
 const SIDEBAR_DEFAULT = 320;
 const ASIDE_DEFAULT = 320;
+const PANEL_MIN = 160;
+// Dragging a panel narrower than this collapses it.
+const PANEL_COLLAPSE_AT = 120;
 
 function App() {
 	const [mainElement, setMainElement] = useState<HTMLElement | null>(null);
@@ -100,31 +108,46 @@ function App() {
 		studying ? "var(--app-shell-footer-height, 0px)" : "0px"
 	} + ${SAFE_AREA_BOTTOM})`;
 
-	const splitter = useSplitter({
-		panels: [
-			{
-				defaultSize: `${SIDEBAR_DEFAULT}px`,
-				min: "160px",
-				max: "40%",
-				collapsible: true,
-			},
-			{ defaultSize: 100 },
-			{
-				defaultSize: `${ASIDE_DEFAULT}px`,
-				min: "160px",
-				max: "35%",
-				collapsible: true,
-			},
-		],
-		enabled: !isSmallScreen,
-		onCollapseChange: (index, collapsed) => {
-			if (index === 0) setSidebarExpanded(!collapsed);
-			if (index === 2) setAsideExpanded(!collapsed);
+	const { width: viewportWidth } = useViewportSize();
+	// Width each panel had before a drag collapsed it, keyed by panel.
+	const dragCollapsed = useRef<
+		Partial<Record<AppShellResizeSection, number | undefined>>
+	>({});
+	const resize = useAppShellResize({
+		navbar: {
+			min: PANEL_MIN,
+			max: viewportWidth ? viewportWidth * 0.4 : undefined,
+			collapseThreshold: PANEL_COLLAPSE_AT,
+			label: "Resize sidebar",
+		},
+		aside: {
+			min: PANEL_MIN,
+			max: viewportWidth ? viewportWidth * 0.35 : undefined,
+			collapseThreshold: PANEL_COLLAPSE_AT,
+			label: "Resize side panel",
+		},
+		onCollapseChange: (section, collapsed) => {
+			if (collapsed)
+				dragCollapsed.current[section] = resize[section].size;
+			else delete dragCollapsed.current[section];
+			if (section === "navbar") setSidebarExpanded(!collapsed);
+			if (section === "aside") setAsideExpanded(!collapsed);
+		},
+		onResizeEnd: () => {
+			// Otherwise a panel collapsed by dragging reopens at its minimum width.
+			for (const [section, width] of Object.entries(
+				dragCollapsed.current,
+			)) {
+				const controller = resize[section as AppShellResizeSection];
+				if (width === undefined) controller.reset();
+				else controller.setSize(width);
+			}
+			dragCollapsed.current = {};
 		},
 	});
 
 	useCloseSidebarOnSmallScreenNavigation(() => {
-		splitter.collapse(0);
+		setSidebarExpanded(false);
 		setAsideExpanded(false);
 	});
 
@@ -133,7 +156,7 @@ function App() {
 	useBackButtonPress(
 		() => {
 			if (asideExpanded) setAsideExpanded(false);
-			else splitter.collapse(0);
+			else setSidebarExpanded(false);
 		},
 		isSmallScreen && (sidebarExpanded || asideExpanded),
 		BackButtonPriority.Low,
@@ -148,10 +171,6 @@ function App() {
 	useStudySessionSummaryToast();
 	useLexicalConversionBridge();
 	useWheelZoom();
-
-	const navbarWidth =
-		parseFloat(String(splitter.sizes[0])) || SIDEBAR_DEFAULT;
-	const asideWidth = parseFloat(String(splitter.sizes[2])) || ASIDE_DEFAULT;
 
 	useEffect(() => {
 		const contextMenuCb = (e: MouseEvent) => {
@@ -171,8 +190,7 @@ function App() {
 		<MainScrollContext value={mainElement}>
 			<HeadroomOverrideContext value={setPinnedOverride}>
 				<AppShell
-					// eslint-disable-next-line react-hooks/refs
-					ref={splitter.ref}
+					resize={resize}
 					mode="fixed"
 					layout="alt"
 					h="100dvh"
@@ -181,7 +199,7 @@ function App() {
 						"--app-shell-transition-duration": "calc(200ms * 2)",
 					}}
 					navbar={{
-						width: navbarWidth,
+						width: SIDEBAR_DEFAULT,
 						breakpoint: SMALL_SCREEN_BREAKPOINT,
 						collapsed: {
 							desktop: !sidebarExpanded,
@@ -189,7 +207,7 @@ function App() {
 						},
 					}}
 					aside={{
-						width: asideWidth,
+						width: ASIDE_DEFAULT,
 						breakpoint: SMALL_SCREEN_BREAKPOINT,
 						collapsed: {
 							desktop: !asideExpanded,
@@ -237,7 +255,7 @@ function App() {
 						<Box h={HEADER_AND_FOOTER_HEIGHT}>
 							<AppHeader
 								onToggleSidebar={() =>
-									splitter.toggleCollapse(0)
+									setSidebarExpanded(v => !v)
 								}
 								onToggleAside={() => setAsideExpanded(v => !v)}
 							/>
@@ -258,19 +276,10 @@ function App() {
 
 					<AppShell.Navbar style={safeAreaTop}>
 						<Sidebar
-							onCollapse={() => splitter.collapse(0)}
-							onExpand={() => splitter.expand(0)}
-							onToggle={() => splitter.toggleCollapse(0)}
+							onCollapse={() => setSidebarExpanded(false)}
+							onExpand={() => setSidebarExpanded(true)}
+							onToggle={() => setSidebarExpanded(v => !v)}
 						/>
-						{!isSmallScreen && (
-							<ResizeHandle
-								side="right"
-								// eslint-disable-next-line react-hooks/refs
-								handleProps={splitter.getHandleProps({
-									index: 0,
-								})}
-							/>
-						)}
 					</AppShell.Navbar>
 
 					<AppShell.Main
@@ -317,15 +326,6 @@ function App() {
 							onExpand={() => setAsideExpanded(true)}
 							onToggle={() => setAsideExpanded(v => !v)}
 						/>
-						{!isSmallScreen && (
-							<ResizeHandle
-								side="left"
-								// eslint-disable-next-line react-hooks/refs
-								handleProps={splitter.getHandleProps({
-									index: 1,
-								})}
-							/>
-						)}
 					</AppShell.Aside>
 				</AppShell>
 			</HeadroomOverrideContext>
