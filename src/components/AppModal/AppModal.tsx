@@ -50,16 +50,20 @@ function AppModal({
 					? {
 							// A column that fills the screen, so a body laid
 							// out with `flex`/`mt="auto"` reaches the bottom.
+							// Only the body scrolls, so the safe-area padding
+							// and header never scroll under the status bar.
 							content: {
 								...safeAreaVerticalStyle(),
 								display: "flex",
 								flexDirection: "column",
+								overflow: "hidden",
 							},
 							body: {
 								flex: 1,
 								display: "flex",
 								flexDirection: "column",
 								minHeight: 0,
+								overflowY: "auto",
 							},
 						}
 					: undefined
