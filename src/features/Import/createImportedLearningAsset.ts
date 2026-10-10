@@ -1,15 +1,15 @@
 import { htmlToLexicalJson } from "../../components/Editor/lexicalJsonConversion";
-import { paths } from "../../paths";
 import { createLearningAssetAction } from "../../stores/elements/elementsActions";
 import { ImportContext } from "./importContext";
 import { splitContent } from "./splitContent";
 
+/** Creates the learning asset and returns its id; the caller decides whether to open it. */
 export async function createImportedLearningAsset(
 	ctx: ImportContext,
 	name: string,
 	content: string,
 	bibliographicalSourceId?: string | null,
-): Promise<void> {
+): Promise<string> {
 	const id = crypto.randomUUID();
 	await ctx.dispatch(
 		createLearningAssetAction({
@@ -24,5 +24,5 @@ export async function createImportedLearningAsset(
 			initialPriorityPosition: ctx.priorityPosition,
 		}),
 	);
-	await ctx.navigate(paths.element("learningAsset", id));
+	return id;
 }

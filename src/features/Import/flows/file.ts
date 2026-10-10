@@ -1,3 +1,4 @@
+import { paths } from "../../../paths";
 import { getPdfPageCount, PdfProgress } from "../pdf/extract";
 import { pdfFormat } from "../pdf/format";
 import { detectFileFormat } from "../fileFormats";
@@ -18,10 +19,34 @@ export type FileImportError =
 const TITLE_SUFFIX_PATTERN =
 	/\.(docx?|pdf|pptx?|xlsx?|epub|md|markdown|x?html?|txt)$/i;
 
+/** Imports every file, then opens only the last one that was created. */
 export async function runFileImport(
 	files: File[],
 	ctx: ImportContext,
 	extractPdfContent: boolean,
+	onProgress?: (progress: PdfProgress) => void,
+	location?: string | null,
+): Promise<FileImportError | null> {
+	let lastCreatedId: string | null = null;
+	const error = await importFiles(
+		files,
+		ctx,
+		extractPdfContent,
+		id => (lastCreatedId = id),
+		onProgress,
+		location,
+	);
+	if (lastCreatedId !== null) {
+		await ctx.navigate(paths.element("learningAsset", lastCreatedId));
+	}
+	return error;
+}
+
+async function importFiles(
+	files: File[],
+	ctx: ImportContext,
+	extractPdfContent: boolean,
+	onCreated: (id: string) => void,
 	onProgress?: (progress: PdfProgress) => void,
 	location?: string | null,
 ): Promise<FileImportError | null> {
@@ -44,12 +69,14 @@ export async function runFileImport(
 						location: location ?? file.name,
 					}),
 				);
-				await createImportedPdfLearningAsset(
-					ctx,
-					title,
-					bytesToBase64(new Uint8Array(bytes)),
-					pageCount,
-					bibliographicalSource.id,
+				onCreated(
+					await createImportedPdfLearningAsset(
+						ctx,
+						title,
+						bytesToBase64(new Uint8Array(bytes)),
+						pageCount,
+						bibliographicalSource.id,
+					),
 				);
 				continue;
 			}
@@ -71,11 +98,13 @@ export async function runFileImport(
 				}),
 			);
 
-			await createImportedLearningAsset(
-				ctx,
-				resolvedTitle,
-				content,
-				bibliographicalSource.id,
+			onCreated(
+				await createImportedLearningAsset(
+					ctx,
+					resolvedTitle,
+					content,
+					bibliographicalSource.id,
+				),
 			);
 		} catch (err) {
 			const message = errorToString(err);

@@ -1,3 +1,4 @@
+import { paths } from "../../../paths";
 import { normalize } from "../normalize";
 import { deriveTitle } from "../deriveTitle";
 import { createImportedLearningAsset } from "../createImportedLearningAsset";
@@ -17,5 +18,6 @@ export async function runContentImport(
 	const content = await normalize(html, { baseUrl: null });
 	const title = deriveTitle(content, input.text);
 
-	await createImportedLearningAsset(ctx, title, content);
+	const id = await createImportedLearningAsset(ctx, title, content);
+	await ctx.navigate(paths.element("learningAsset", id));
 }

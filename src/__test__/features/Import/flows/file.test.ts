@@ -577,4 +577,65 @@ describe("runFileImport", () => {
 			message: "bad html",
 		});
 	});
+
+	it("Should open only the last imported file when importing multiple files", async () => {
+		// Arrange
+
+		vi.mocked(extractHtml).mockReturnValue({
+			title: null,
+			authors: null,
+			publicationDate: null,
+			html: "<p>content</p>",
+		});
+		vi.mocked(normalize).mockResolvedValue("<p>content</p>");
+		vi.mocked(createBibliographicalSource).mockResolvedValue(makeSource());
+		vi.mocked(createImportedLearningAsset)
+			.mockResolvedValueOnce("first-id")
+			.mockResolvedValueOnce("second-id");
+		const ctx = makeCtx();
+
+		// Act
+
+		await runFileImport(
+			[htmlFile("a.html"), htmlFile("b.html")],
+			ctx,
+			true,
+		);
+
+		// Assert
+
+		expect(ctx.navigate).toHaveBeenCalledOnce();
+		expect(ctx.navigate).toHaveBeenCalledWith("/learningAsset/second-id");
+	});
+
+	it("Should open the last successfully imported file when a later file fails", async () => {
+		// Arrange
+
+		vi.mocked(extractHtml).mockReturnValue({
+			title: null,
+			authors: null,
+			publicationDate: null,
+			html: "<p>content</p>",
+		});
+		vi.mocked(normalize).mockResolvedValue("<p>content</p>");
+		vi.mocked(createBibliographicalSource).mockResolvedValue(makeSource());
+		vi.mocked(createImportedLearningAsset).mockResolvedValueOnce(
+			"first-id",
+		);
+		const ctx = makeCtx();
+
+		// Act
+
+		const actual = await runFileImport(
+			[htmlFile("a.html"), unsupportedFile()],
+			ctx,
+			true,
+		);
+
+		// Assert
+
+		expect(actual).toEqual({ kind: "unsupported-file" });
+		expect(ctx.navigate).toHaveBeenCalledOnce();
+		expect(ctx.navigate).toHaveBeenCalledWith("/learningAsset/first-id");
+	});
 });

@@ -3,6 +3,7 @@ import { fetchPage } from "../../../api/import/api/importApi";
 import { createBibliographicalSourceAction } from "../../../stores/bibliographicalSources/bibliographicalSourcesActions";
 import errorToString from "../../../utils/errorToString";
 import { base64ToArrayBuffer } from "../../../utils/base64ToArrayBuffer";
+import { paths } from "../../../paths";
 import { normalize } from "../normalize";
 import { hydrateLazyImages } from "../normalize/hydrateLazyImages";
 import { hasContent } from "../html/extract";
@@ -124,12 +125,13 @@ async function importArticleHtml(
 		}),
 	);
 
-	await createImportedLearningAsset(
+	const id = await createImportedLearningAsset(
 		ctx,
 		finalTitle,
 		content,
 		bibliographicalSource.id,
 	);
+	await ctx.navigate(paths.element("learningAsset", id));
 }
 
 /** Names the fetched file after the URL's last path segment, so runFileImport can title it and detect its type. */

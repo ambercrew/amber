@@ -47,7 +47,7 @@ describe("createImportedLearningAsset", () => {
 		expect(dispatch).toHaveBeenCalledWith(thunk);
 	});
 
-	it("Should navigate to the newly created learning asset's path", async () => {
+	it("Should return the generated id when the learning asset is created", async () => {
 		// Arrange
 
 		vi.mocked(createLearningAssetAction).mockReturnValue(
@@ -66,11 +66,16 @@ describe("createImportedLearningAsset", () => {
 
 		// Act
 
-		await createImportedLearningAsset(ctx, "Title", "<p>content</p>");
+		const actual = await createImportedLearningAsset(
+			ctx,
+			"Title",
+			"<p>content</p>",
+		);
 
 		// Assert
 
 		const dtoArg = vi.mocked(createLearningAssetAction).mock.calls[0][0];
-		expect(navigate).toHaveBeenCalledWith(`/learningAsset/${dtoArg.id}`);
+		expect(actual).toBe(dtoArg.id);
+		expect(navigate).not.toHaveBeenCalled();
 	});
 });
