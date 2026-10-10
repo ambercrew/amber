@@ -15,6 +15,7 @@ import VerifyEmailBanner from "./VerifyEmailBanner";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectElementTree } from "../../../stores/elements/elementsSelectors";
 import { useElementTreeState } from "../hooks/useElementTreeState";
+import { SAFE_AREA_BOTTOM } from "../../../utils/safeArea";
 
 const LOCAL_STORAGE_KEY = "sidebar";
 
@@ -70,7 +71,9 @@ function Sidebar({ onCollapse, onExpand, onToggle }: SidebarProps) {
 				]}
 			/>
 			<VerifyEmailBanner />
-			<AppShell.Section p="xs">
+			<AppShell.Section
+				p="xs"
+				pb={`max(var(--mantine-spacing-xs), ${SAFE_AREA_BOTTOM})`}>
 				<Group gap="xs" wrap="nowrap">
 					<Box flex={1} miw={0}>
 						<AccountMenu />

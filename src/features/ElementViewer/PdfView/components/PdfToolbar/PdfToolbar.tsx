@@ -130,7 +130,7 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 					backgroundColor: "var(--mantine-color-body)",
 					transform: pinned
 						? "translateY(0)"
-						: "translateY(calc(100% + var(--mantine-spacing-md)))",
+						: `translateY(calc(100% + var(--mantine-spacing-md) + ${SAFE_AREA_BOTTOM}))`,
 					transitionProperty: "transform",
 					transitionDuration: "var(--app-shell-transition-duration)",
 				}}>

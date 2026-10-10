@@ -256,7 +256,7 @@ function App() {
 						<StudySessionBar />
 					</AppShell.Footer>
 
-					<AppShell.Navbar style={safeAreaVertical}>
+					<AppShell.Navbar style={safeAreaTop}>
 						<Sidebar
 							onCollapse={() => splitter.collapse(0)}
 							onExpand={() => splitter.expand(0)}
