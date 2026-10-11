@@ -71,6 +71,12 @@ use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_re
 use crate::infrastructure::repositories::sqlite::sqlite_ai_repository::SqliteAiRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_bibliographical_source_repository::SqliteBibliographicalSourceRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_saved_search_repository::SqliteSavedSearchRepository;
+use crate::infrastructure::repositories::sqlite::sqlite_image_occlusion_repository::SqliteImageOcclusionRepository;
+use crate::image_occlusion::repositories::image_occlusion_repository::ImageOcclusionRepository;
+use crate::image_occlusion::services::image_occlusion_service::ImageOcclusionService;
+use crate::image_occlusion::services::implementations::tauri_occlusion_card_content_builder::TauriOcclusionCardContentBuilder;
+use crate::image_occlusion::services::occlusion_card_content_builder::OcclusionCardContentBuilder;
+use crate::image_occlusion::services::implementations::default_image_occlusion_service::DefaultImageOcclusionService;
 use crate::infrastructure::repositories::sqlite::sqlite_statistics_repository::SqliteStatisticsRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_search_repository::SqliteSearchRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_study_profile_repository::SqliteStudyProfileRepository;
@@ -159,6 +165,11 @@ pub async fn create_injector<R: tauri::Runtime>(
         TauriLexicalJsonConverter<R>
     );
     register_scope!(injector, dyn EventManager, TauriEventManager<R>);
+    register_scope!(
+        injector,
+        dyn OcclusionCardContentBuilder,
+        TauriOcclusionCardContentBuilder<R>
+    );
 
     #[cfg(not(test))]
     let settings = DiskSettingsRepository::get_or_create_settings(
@@ -349,6 +360,19 @@ pub async fn create_injector<R: tauri::Runtime>(
         injector,
         dyn BibliographicalSourceService,
         DefaultBibliographicalSourceService
+    );
+
+    // Image occlusion
+
+    register_scope!(
+        injector,
+        dyn ImageOcclusionRepository,
+        SqliteImageOcclusionRepository
+    );
+    register_scope!(
+        injector,
+        dyn ImageOcclusionService,
+        DefaultImageOcclusionService
     );
 
     // Saved searches

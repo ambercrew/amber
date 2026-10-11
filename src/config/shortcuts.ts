@@ -59,6 +59,19 @@ export const OPEN_HIGHLIGHT_SHORTCUT = "mod+shift+O";
 export const REMOVE_HIGHLIGHT_SHORTCUT = "mod+shift+H";
 export const SLASH_MENU_SHORTCUT = "/";
 
+// Image occlusion editor
+export const OCCLUSION_SELECT_TOOL_SHORTCUT = "V";
+export const OCCLUSION_RECT_TOOL_SHORTCUT = "R";
+export const OCCLUSION_ELLIPSE_TOOL_SHORTCUT = "E";
+export const OCCLUSION_TEXT_TOOL_SHORTCUT = "T";
+export const OCCLUSION_GROUP_SHORTCUT = "G";
+export const OCCLUSION_UNGROUP_SHORTCUT = "shift+G";
+export const OCCLUSION_DELETE_SHORTCUT = "Delete";
+// macOS keyboards have no Delete key; theirs reports Backspace.
+export const OCCLUSION_BACKSPACE_DELETE_SHORTCUT = "Backspace";
+export const OCCLUSION_UNDO_SHORTCUT = "mod+Z";
+export const OCCLUSION_REDO_SHORTCUT = "mod+Y";
+
 // Handled by Lexical itself; Amber must never bind these.
 export const EDITOR_RESERVED_SHORTCUTS = [
 	"mod+B",
@@ -71,4 +84,10 @@ export const EDITOR_RESERVED_SHORTCUTS = [
 	"mod+C",
 	"mod+X",
 	"mod+V",
+];
+
+// Reserved keys reused by full-screen modals, where Lexical never has focus to receive them.
+export const MODAL_REUSED_EDITOR_SHORTCUTS = [
+	OCCLUSION_UNDO_SHORTCUT,
+	OCCLUSION_REDO_SHORTCUT,
 ];

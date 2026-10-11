@@ -61,6 +61,7 @@ import {
 import useBackButtonPress from "../../../hooks/useBackButtonPress.ts";
 import { BackButtonPriority } from "../../../managers/backButtonManager.ts";
 import { useLexicalConversionBridge } from "../hooks/useLexicalConversionBridge.ts";
+import { useOcclusionCardContentsBridge } from "../../ImageOcclusion/hooks/useOcclusionCardContentsBridge";
 import { MainScrollContext } from "../context/mainScrollContext.ts";
 import { HeadroomOverrideContext } from "../context/headroomOverrideContext.ts";
 import { useElementHeadroom } from "../../../hooks/useElementHeadroom.ts";
@@ -170,6 +171,7 @@ function App() {
 	useSessionScheduleChanges();
 	useStudySessionSummaryToast();
 	useLexicalConversionBridge();
+	useOcclusionCardContentsBridge();
 	useWheelZoom();
 
 	useEffect(() => {

@@ -152,3 +152,68 @@ BEGIN
     SET modified_at = datetime('now')
     WHERE id = NEW.id;
 END;
+
+-------------------------------------------------------------------------
+
+-- One image plus its masks, shared by every card generated from it. The image is
+-- referenced by asset id rather than embedded.
+CREATE TABLE image_occlusions(
+    id              TEXT        NOT NULL        PRIMARY KEY,
+    created_at      TEXT        NOT NULL        DEFAULT (datetime('now')),
+    modified_at     TEXT        NOT NULL        DEFAULT (datetime('now')),
+    name            TEXT        NOT NULL,
+    image_asset_id  TEXT        NOT NULL,
+    image_width     INTEGER     NOT NULL,
+    image_height    INTEGER     NOT NULL,
+    shapes          TEXT        NOT NULL        DEFAULT '[]',
+    mode            TEXT        NOT NULL,
+    parent_id       TEXT,
+    FOREIGN KEY (parent_id) REFERENCES meta(element_id) ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE TRIGGER image_occlusions_update_modified_at_after_update
+    AFTER UPDATE OF name, image_asset_id, image_width, image_height, shapes, mode ON image_occlusions
+BEGIN
+    UPDATE image_occlusions
+    SET modified_at = datetime('now')
+    WHERE id = NEW.id;
+END;
+
+-- The image is a reference like any element's, so asset GC keeps it while the occlusion exists.
+CREATE TRIGGER image_occlusions_add_element_asset_after_insert
+    AFTER INSERT ON image_occlusions
+BEGIN
+    INSERT OR IGNORE INTO element_assets(element_id, part, asset_id)
+    VALUES (NEW.id, 0, NEW.image_asset_id);
+END;
+
+CREATE TRIGGER image_occlusions_clear_element_assets_after_delete
+    AFTER DELETE ON image_occlusions
+BEGIN
+    DELETE FROM element_assets WHERE element_id = OLD.id;
+END;
+
+-------------------------------------------------------------------------
+
+-- Links a card to the occlusion target (a mask, or a group of masks) it quizzes.
+CREATE TABLE image_occlusion_cards(
+    card_id         TEXT        NOT NULL        PRIMARY KEY,
+    occlusion_id    TEXT        NOT NULL,
+    target_key      TEXT        NOT NULL,
+    FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (occlusion_id) REFERENCES image_occlusions(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE INDEX image_occlusion_cards_occlusion_id_index ON image_occlusion_cards(occlusion_id);
+
+CREATE INDEX image_occlusions_parent_id_index ON image_occlusions(parent_id);
+
+-- An occlusion lives as long as its cards, so deleting the last one frees its image for asset GC.
+-- Skipped during remote apply: the deleting device syncs the occlusion's own tombstone.
+CREATE TRIGGER image_occlusion_cards_delete_orphaned_occlusion_after_delete
+    AFTER DELETE ON image_occlusion_cards
+    WHEN NOT EXISTS (SELECT 1 FROM sync_applying)
+        AND NOT EXISTS (SELECT 1 FROM image_occlusion_cards WHERE occlusion_id = OLD.occlusion_id)
+BEGIN
+    DELETE FROM image_occlusions WHERE id = OLD.occlusion_id;
+END;

@@ -9,6 +9,7 @@ import {
 	$isClozeHiddenNode,
 } from "../../../components/Editor/plugins/ClozePlugin/ClozeHiddenNode";
 import { $isHighlightNode } from "../../../components/Editor/plugins/HighlightPlugin/HighlightNode";
+import { $isImageNode } from "../../../components/Editor/plugins/ImagePlugin/ImageNode";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import {
 	createCardAction,
@@ -83,7 +84,7 @@ function $buildClozeFront(highlightId: string): void {
 
 // Unwraps every highlight and cloze other than the one just created, so a new
 // extract or cloze copied out of the document doesn't drag unrelated
-// highlights along with it. This only touches the standalone node tree being
+// highlights along with it. Images are detached from their occlusion likewise. This only touches the standalone node tree being
 // copied into the new element — the source document's own highlights are
 // left untouched. `$dfs()` snapshots the tree up front, so replacing/removing
 // nodes while iterating is safe.
@@ -96,6 +97,8 @@ function $stripOtherHighlights(currentHighlightId: string): void {
 			$unwrapMarkNode(node);
 		} else if ($isClozeHiddenNode(node)) {
 			node.replace($createTextNode(node.getHiddenText()));
+		} else if ($isImageNode(node)) {
+			node.detachOcclusion();
 		}
 	}
 }

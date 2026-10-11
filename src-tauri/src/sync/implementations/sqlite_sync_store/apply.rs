@@ -159,6 +159,22 @@ async fn apply_remote_page_inner(
     Ok(())
 }
 
+/// Whether a single-column-key row has a tombstone; tombstones are kept for good, so this outlives the row.
+pub(super) async fn is_row_deleted(
+    tx: &mut SqliteConnection,
+    table: &str,
+    primary_key: &str,
+) -> Result<bool, SyncError> {
+    Ok(sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM sync_cells WHERE tbl = ?1 AND row_id = json_array(?2) AND col = ?3)",
+    )
+    .bind(table)
+    .bind(primary_key)
+    .bind(merge::DELETED_COL)
+    .fetch_one(tx)
+    .await?)
+}
+
 /// Drops incomplete deleted rows, whose missing cells were deleted with them and
 /// would otherwise stall the pull cursor. Returns whether any row is still buffered.
 async fn discard_incomplete_deleted_rows(

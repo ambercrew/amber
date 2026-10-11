@@ -27,7 +27,6 @@ import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import { useAppHotkeys } from "../../../commands/useAppHotkeys";
 import { useRunCommand } from "../../../commands/useRunCommand";
-import { useIsImageLightboxOpen } from "../../../components/ImageLightbox/useIsImageLightboxOpen";
 import {
 	FINISH_LEARNING_ASSET_SHORTCUT,
 	GRADE_AGAIN_SHORTCUT,
@@ -100,7 +99,6 @@ function StudySessionBar() {
 	}, [current, dispatch]);
 
 	const answerHidden = current?.type === "card" && cardPhase === "question";
-	const lightboxOpen = useIsImageLightboxOpen();
 
 	const grade = (rating: Rating) => {
 		if (current?.type !== "card") return;
@@ -121,9 +119,8 @@ function StudySessionBar() {
 	};
 
 	// Only bound mid-session, so these keys stay free the rest of the time.
-	// Paused under the image lightbox, whose focus trap doesn't stop document listeners.
 	useAppHotkeys(
-		current && !lightboxOpen
+		current
 			? [
 					[
 						SHOW_ANSWER_SHORTCUT,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
@@ -14,6 +14,11 @@ import {
 } from "lexical";
 import { $isImageNode } from "./ImageNode";
 import { openImageLightbox } from "./imageLightbox";
+import { ImageMenuItemsContext } from "./imageMenuContext";
+import {
+	ImageOcclusionOverlayContext,
+	OcclusionTarget,
+} from "./imageOcclusionOverlayContext";
 import FloatingMenuBar from "../../../FloatingMenuBar/FloatingMenuBar";
 import { assetIdFromSrc, resolveImageSrc } from "../../../../utils/assetUrl";
 import { useIsEditorFocused } from "../../hooks/useIsEditorFocused";
@@ -23,6 +28,8 @@ interface Props {
 	altText: string;
 	width: "inherit" | number;
 	height: "inherit" | number;
+	occlusionId: string | null;
+	occlusionTarget: OcclusionTarget | null;
 	nodeKey: string;
 }
 
@@ -52,8 +59,12 @@ export default function ImageComponent({
 	altText,
 	width,
 	height,
+	occlusionId,
+	occlusionTarget,
 	nodeKey,
 }: Props) {
+	const getExtraMenuItems = useContext(ImageMenuItemsContext);
+	const renderOcclusionOverlay = useContext(ImageOcclusionOverlayContext);
 	const [editor] = useLexicalComposerContext();
 	const [isSelected, setSelected, clearSelection] =
 		useLexicalNodeSelection(nodeKey);
@@ -118,7 +129,14 @@ export default function ImageComponent({
 	};
 
 	const isFocused = (isSelected || isResizing) && isEditable;
+	// The lightbox shows the bare image, which would give away masked answers, even sibling cards' on the back.
+	const canView = !occlusionTarget;
 	const openLightbox = () => openImageLightbox(src, altText);
+	const setOcclusionId = (id: string) =>
+		editor.update(() => {
+			const node = $getNodeByKey(nodeKey);
+			if ($isImageNode(node)) node.setOcclusionId(id);
+		});
 
 	return (
 		// Node selection survives blur, so also gate on focus to keep it from floating over modals.
@@ -153,13 +171,18 @@ export default function ImageComponent({
 						m={0}
 						fit="fill"
 						radius={0}
-						onDoubleClick={openLightbox}
+						onDoubleClick={canView ? openLightbox : undefined}
 						style={{
 							outline: isFocused
 								? "2px solid var(--mantine-primary-color-filled)"
 								: undefined,
 						}}
 					/>
+					{occlusionId &&
+						renderOcclusionOverlay?.({
+							occlusionId,
+							target: occlusionTarget,
+						})}
 					{isEditable && isFocused && (
 						<ImageResizer
 							imageRef={imageRef}
@@ -172,14 +195,24 @@ export default function ImageComponent({
 			<Popover.Dropdown p={0} bd={0} bg="transparent">
 				<FloatingMenuBar
 					items={[
-						{
-							name: "view",
-							title: "View image",
-							label: "View",
-							showLabel: true,
-							Icon: ArrowsOutIcon,
-							onClick: openLightbox,
-						},
+						...(canView
+							? [
+									{
+										name: "view",
+										title: "View image",
+										label: "View",
+										showLabel: true,
+										Icon: ArrowsOutIcon,
+										onClick: openLightbox,
+									},
+								]
+							: []),
+						...(getExtraMenuItems?.({
+							src,
+							altText,
+							occlusionId,
+							setOcclusionId,
+						}) ?? []),
 					]}
 				/>
 			</Popover.Dropdown>

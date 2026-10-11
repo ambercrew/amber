@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import {
 	$applyNodeReplacement,
+	$isElementNode,
 	DecoratorNode,
 	type DOMConversionMap,
 	type DOMConversionOutput,
@@ -14,6 +15,7 @@ import {
 	type Spread,
 } from "lexical";
 import ImageComponent from "./ImageComponent";
+import { OcclusionTarget } from "./imageOcclusionOverlayContext";
 import {
 	assetIdFromSrc,
 	toCanonicalImageSrc,
@@ -24,6 +26,8 @@ export interface ImagePayload {
 	altText: string;
 	width?: "inherit" | number;
 	height?: "inherit" | number;
+	occlusionId?: string | null;
+	occlusionTarget?: OcclusionTarget | null;
 	key?: NodeKey;
 }
 
@@ -33,6 +37,8 @@ export type SerializedImageNode = Spread<
 		altText: string;
 		width?: number;
 		height?: number;
+		occlusionId?: string;
+		occlusionTarget?: OcclusionTarget;
 	},
 	SerializedLexicalNode
 >;
@@ -42,6 +48,8 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 	__altText: string;
 	__width: "inherit" | number;
 	__height: "inherit" | number;
+	__occlusionId: string | null;
+	__occlusionTarget: OcclusionTarget | null;
 
 	static getType(): string {
 		return "image";
@@ -53,6 +61,8 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 			node.__altText,
 			node.__width,
 			node.__height,
+			node.__occlusionId,
+			node.__occlusionTarget,
 			node.__key,
 		);
 	}
@@ -62,6 +72,8 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 		altText: string,
 		width?: "inherit" | number,
 		height?: "inherit" | number,
+		occlusionId?: string | null,
+		occlusionTarget?: OcclusionTarget | null,
 		key?: NodeKey,
 	) {
 		super(key);
@@ -69,6 +81,8 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 		this.__altText = altText;
 		this.__width = width ?? "inherit";
 		this.__height = height ?? "inherit";
+		this.__occlusionId = occlusionId ?? null;
+		this.__occlusionTarget = occlusionTarget ?? null;
 	}
 
 	static importDOM(): DOMConversionMap | null {
@@ -94,6 +108,8 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 		node.__altText = serializedNode.altText;
 		node.__width = serializedNode.width ?? "inherit";
 		node.__height = serializedNode.height ?? "inherit";
+		node.__occlusionId = serializedNode.occlusionId ?? null;
+		node.__occlusionTarget = serializedNode.occlusionTarget ?? null;
 		return node;
 	}
 
@@ -104,6 +120,8 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 			height: this.__height === "inherit" ? undefined : this.__height,
 			src: this.getSrc(),
 			width: this.__width === "inherit" ? undefined : this.__width,
+			occlusionId: this.__occlusionId ?? undefined,
+			occlusionTarget: this.__occlusionTarget ?? undefined,
 		};
 	}
 
@@ -135,6 +153,20 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 		return this.getLatest().__altText;
 	}
 
+	setOcclusionId(occlusionId: string): this {
+		const writable = this.getWritable();
+		writable.__occlusionId = occlusionId;
+		return writable;
+	}
+
+	/** Unbinds a copy from the occlusion its original belongs to, leaving a plain image. */
+	detachOcclusion(): this {
+		const writable = this.getWritable();
+		writable.__occlusionId = null;
+		writable.__occlusionTarget = null;
+		return writable;
+	}
+
 	setWidthAndHeight(
 		width: "inherit" | number,
 		height: "inherit" | number,
@@ -152,6 +184,8 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 				altText={this.__altText}
 				width={this.__width}
 				height={this.__height}
+				occlusionId={this.__occlusionId}
+				occlusionTarget={this.__occlusionTarget}
 				nodeKey={this.getKey()}
 			/>
 		);
@@ -163,10 +197,20 @@ export function $createImageNode({
 	altText,
 	width,
 	height,
+	occlusionId,
+	occlusionTarget,
 	key,
 }: ImagePayload): ImageNode {
 	return $applyNodeReplacement(
-		new ImageNode(src, altText, width, height, key),
+		new ImageNode(
+			src,
+			altText,
+			width,
+			height,
+			occlusionId,
+			occlusionTarget,
+			key,
+		),
 	);
 }
 
@@ -174,6 +218,15 @@ export function $isImageNode(
 	node: LexicalNode | null | undefined,
 ): node is ImageNode {
 	return node instanceof ImageNode;
+}
+
+/** Detaches every image in `nodes` and their descendants from its occlusion. */
+export function $detachImageOcclusions(nodes: LexicalNode[]): void {
+	for (const node of nodes) {
+		if ($isImageNode(node)) node.detachOcclusion();
+		else if ($isElementNode(node))
+			$detachImageOcclusions(node.getChildren());
+	}
 }
 
 // Exported HTML only reaches the clipboard, where other apps can't load `amber-asset:`, so inline the rendered pixels.

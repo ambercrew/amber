@@ -86,4 +86,9 @@ impl SyncStore for SqliteSyncStore {
         let mut guard = self.tx.lock().await;
         fk_repair::has_unresolved_foreign_keys(guard.as_mut()).await
     }
+
+    async fn is_row_deleted(&self, table: &str, primary_key: &str) -> Result<bool, SyncError> {
+        let mut guard = self.tx.lock().await;
+        apply::is_row_deleted(guard.as_mut(), table, primary_key).await
+    }
 }

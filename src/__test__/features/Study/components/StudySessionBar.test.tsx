@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ModalsProvider } from "@mantine/modals";
 import StudySessionBar from "../../../../features/Study/components/StudySessionBar";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import {
@@ -129,16 +130,21 @@ describe("StudySessionBar", () => {
 
 		// Act
 
-		renderWithProviders(<StudySessionBar />, {
-			preloadedState: {
-				study: {
-					...BASE_STUDY_STATE,
-					queue: [cardQueueItem],
-					cardPhase: "answer",
+		renderWithProviders(
+			<ModalsProvider>
+				<StudySessionBar />
+			</ModalsProvider>,
+			{
+				preloadedState: {
+					study: {
+						...BASE_STUDY_STATE,
+						queue: [cardQueueItem],
+						cardPhase: "answer",
+					},
+					elements: elementsStateFor(cardCurrentElement),
 				},
-				elements: elementsStateFor(cardCurrentElement),
 			},
-		});
+		);
 
 		// Assert
 
@@ -172,16 +178,21 @@ describe("StudySessionBar", () => {
 
 		// Act
 
-		renderWithProviders(<StudySessionBar />, {
-			preloadedState: {
-				study: {
-					...BASE_STUDY_STATE,
-					queue: [cardQueueItem],
-					cardPhase: "answer",
+		renderWithProviders(
+			<ModalsProvider>
+				<StudySessionBar />
+			</ModalsProvider>,
+			{
+				preloadedState: {
+					study: {
+						...BASE_STUDY_STATE,
+						queue: [cardQueueItem],
+						cardPhase: "answer",
+					},
+					elements: elementsStateFor(cardCurrentElement),
 				},
-				elements: elementsStateFor(cardCurrentElement),
 			},
-		});
+		);
 
 		// Assert
 
@@ -201,16 +212,21 @@ describe("StudySessionBar", () => {
 
 		// Act
 
-		renderWithProviders(<StudySessionBar />, {
-			preloadedState: {
-				study: {
-					...BASE_STUDY_STATE,
-					queue: [learningAssetQueueItem],
-					cardPhase: "question",
+		renderWithProviders(
+			<ModalsProvider>
+				<StudySessionBar />
+			</ModalsProvider>,
+			{
+				preloadedState: {
+					study: {
+						...BASE_STUDY_STATE,
+						queue: [learningAssetQueueItem],
+						cardPhase: "question",
+					},
+					elements: elementsStateFor(learningAssetCurrentElement),
 				},
-				elements: elementsStateFor(learningAssetCurrentElement),
 			},
-		});
+		);
 		await user.hover(screen.getByRole("button", { name: "Next" }));
 
 		// Assert
@@ -231,16 +247,21 @@ describe("StudySessionBar", () => {
 
 		// Act
 
-		renderWithProviders(<StudySessionBar />, {
-			preloadedState: {
-				study: {
-					...BASE_STUDY_STATE,
-					queue: [learningAssetQueueItem],
-					cardPhase: "question",
+		renderWithProviders(
+			<ModalsProvider>
+				<StudySessionBar />
+			</ModalsProvider>,
+			{
+				preloadedState: {
+					study: {
+						...BASE_STUDY_STATE,
+						queue: [learningAssetQueueItem],
+						cardPhase: "question",
+					},
+					elements: elementsStateFor(learningAssetCurrentElement),
 				},
-				elements: elementsStateFor(learningAssetCurrentElement),
 			},
-		});
+		);
 		await user.hover(screen.getByRole("button", { name: "Finish" }));
 
 		// Assert

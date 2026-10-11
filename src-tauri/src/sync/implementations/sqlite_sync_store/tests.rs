@@ -3558,3 +3558,54 @@ async fn has_pending_changes_materializing_a_row_does_not_stage_it_as_a_local_ch
         "freshly pulled data must never be echoed back to the server as a local change"
     );
 }
+
+#[tokio::test]
+async fn is_row_deleted_after_local_delete_returns_true() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let store = scope.resolve::<dyn SyncStore>().await;
+    store
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Title", "Body").await;
+    delete_note(&tx, "1").await;
+
+    // Act
+
+    let actual = store.is_row_deleted("notes", "1").await.unwrap();
+
+    // Assert
+
+    assert!(actual);
+}
+
+#[tokio::test]
+async fn is_row_deleted_live_or_unknown_row_returns_false() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let store = scope.resolve::<dyn SyncStore>().await;
+    store
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Title", "Body").await;
+
+    // Act
+
+    let live = store.is_row_deleted("notes", "1").await.unwrap();
+    let unknown = store.is_row_deleted("notes", "2").await.unwrap();
+
+    // Assert
+
+    assert!(!live);
+    assert!(!unknown);
+}

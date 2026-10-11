@@ -1,7 +1,10 @@
-import { localizeImage } from "../../../../features/Import/images/localize";
+import {
+	localizeImage,
+	localizeImages,
+} from "../../../../features/Import/images/localize";
 import { fetchImage } from "../../../../api/import/api/importApi";
 import { compressDataUri } from "../../../../features/Import/images/compressImage";
-import { createAsset } from "../../../../api/assets/api/assetsApi";
+import { createAssets } from "../../../../api/assets/api/assetsApi";
 
 vi.mock(import("../../../../api/import/api/importApi"));
 vi.mock(import("../../../../features/Import/images/compressImage"));
@@ -14,10 +17,11 @@ describe("localizeImage", () => {
 		vi.mocked(compressDataUri).mockImplementation(async dataUri =>
 			Promise.resolve({ ok: true, src: dataUri }),
 		);
-		vi.mocked(createAsset).mockResolvedValue({
-			id: "a".repeat(64),
-			src: ASSET_SRC,
-		});
+		vi.mocked(createAssets).mockImplementation(async ({ dataUris }) =>
+			Promise.resolve(
+				dataUris.map(() => ({ id: "a".repeat(64), src: ASSET_SRC })),
+			),
+		);
 	});
 
 	it("Should store the compressed image as an asset when it is already a non-svg data uri", async () => {
@@ -34,13 +38,59 @@ describe("localizeImage", () => {
 		expect(actual).toEqual({ ok: true, src: ASSET_SRC });
 		expect(fetchImage).not.toHaveBeenCalled();
 		expect(compressDataUri).toHaveBeenCalledWith(url, 2 * 1024 * 1024);
-		expect(createAsset).toHaveBeenCalledWith({ dataUri: url });
+		expect(createAssets).toHaveBeenCalledWith({ dataUris: [url] });
+	});
+
+	it("Should store every image in one call when localizing several", async () => {
+		// Arrange
+
+		const stored = "data:image/png;base64,AAAA";
+		const svg = "data:image/svg+xml;base64,AAAA";
+
+		// Act
+
+		const actual = await localizeImages([stored, svg], null);
+
+		// Assert
+
+		expect(createAssets).toHaveBeenCalledTimes(1);
+		expect(createAssets).toHaveBeenCalledWith({ dataUris: [stored] });
+		expect(actual).toEqual(
+			new Map([
+				[stored, { ok: true, src: ASSET_SRC }],
+				[svg, { ok: false, originalUrl: svg }],
+			]),
+		);
+	});
+
+	it("Should mark only the undecodable image broken when the backend can't read it", async () => {
+		// Arrange
+
+		vi.mocked(createAssets).mockResolvedValue([
+			null,
+			{ id: "a".repeat(64), src: ASSET_SRC },
+		]);
+		const unreadable = "data:image/png;base64,BBBB";
+		const readable = "data:image/png;base64,AAAA";
+
+		// Act
+
+		const actual = await localizeImages([unreadable, readable], null);
+
+		// Assert
+
+		expect(actual).toEqual(
+			new Map([
+				[unreadable, { ok: false, originalUrl: unreadable }],
+				[readable, { ok: true, src: ASSET_SRC }],
+			]),
+		);
 	});
 
 	it("Should mark the image broken when storing the asset fails", async () => {
 		// Arrange
 
-		vi.mocked(createAsset).mockRejectedValue(new Error("db error"));
+		vi.mocked(createAssets).mockRejectedValue(new Error("db error"));
 		const url = "data:image/png;base64,AAAA";
 
 		// Act
@@ -59,9 +109,7 @@ describe("localizeImage", () => {
 			ok: false,
 			reason: "decode-failed",
 		});
-		vi.mocked(createAsset).mockRejectedValue(
-			new Error("The image could not be read."),
-		);
+		vi.mocked(createAssets).mockResolvedValue([null]);
 		const url = "data:image/png,AAAA";
 
 		// Act
@@ -104,8 +152,8 @@ describe("localizeImage", () => {
 		// Assert
 
 		expect(fetchImage).toHaveBeenCalledWith(url, "https://example.com");
-		expect(createAsset).toHaveBeenCalledWith({
-			dataUri: "data:image/png;base64,AAAA",
+		expect(createAssets).toHaveBeenCalledWith({
+			dataUris: ["data:image/png;base64,AAAA"],
 		});
 		expect(actual).toEqual({ ok: true, src: ASSET_SRC });
 	});

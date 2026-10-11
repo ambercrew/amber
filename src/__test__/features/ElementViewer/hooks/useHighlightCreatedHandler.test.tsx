@@ -48,6 +48,16 @@ function highlight(
 ): SerializedLexicalNodeTree {
 	return { type: "highlight", version: 1, ids: [id], color, children };
 }
+function occludedImage(): SerializedLexicalNodeTree {
+	return {
+		type: "image",
+		version: 1,
+		src: "amber-asset:image",
+		altText: "Heart",
+		occlusionId: "occlusion-1",
+		occlusionTarget: { targetKey: "a", revealed: false },
+	};
+}
 function clozeHidden(hiddenText: string): SerializedLexicalNodeTree {
 	return { type: "cloze-hidden", version: 1, text: "[...]", hiddenText };
 }
@@ -395,5 +405,31 @@ describe("useHighlightCreatedHandler", () => {
 			origin: { type: "inherited" },
 		});
 		expect(collectText(parseRoot(dto.content))).toBe("First Middle Second");
+	});
+
+	it("Should detach images from their occlusion when creating an extract", () => {
+		// Arrange
+
+		const handleHighlightCreated = renderHandler();
+
+		// Act
+
+		handleHighlightCreated({
+			id: "new-id",
+			selectionNodes: [paragraph([text("Heart "), occludedImage()])],
+			fullNodes: [paragraph([text("irrelevant")])],
+			selectionText: "Heart ",
+			fullText: "irrelevant",
+			color: "yellow",
+			endBlockIndex: 0,
+		});
+
+		// Assert
+
+		const dto = vi.mocked(createExtractAction).mock.calls[0][0];
+		const [image] = collectByType(parseRoot(dto.content), "image");
+		expect(image).toMatchObject({ src: "amber-asset:image" });
+		expect(image.occlusionId).toBeUndefined();
+		expect(image.occlusionTarget).toBeUndefined();
 	});
 });

@@ -18,7 +18,7 @@ export interface SerializedLexicalNodeTree {
 	[key: string]: unknown;
 }
 
-function runHeadless(populate: (editor: LexicalEditor) => void): string {
+export function runHeadless(populate: (editor: LexicalEditor) => void): string {
 	const editor = buildEditorFromExtensions(
 		defineExtension({
 			name: "headless-lexical-json",

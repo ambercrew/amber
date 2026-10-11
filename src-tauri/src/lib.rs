@@ -7,6 +7,7 @@ mod bibliographical_sources;
 mod common;
 mod database;
 mod elements;
+mod image_occlusion;
 mod import;
 mod infrastructure;
 mod local_configurations;
@@ -34,6 +35,7 @@ use backend::api::user_api::*;
 use bibliographical_sources::bibliographical_sources_api::*;
 use common::common_api::*;
 use elements::elements_api::*;
+use image_occlusion::image_occlusion_api::*;
 use import::import_api::*;
 use saved_searches::saved_search_api::*;
 use search::search_api::*;
@@ -178,6 +180,7 @@ pub async fn run() {
             update_user_information,
             // Assets
             create_asset,
+            create_assets,
             // Elements
             get_element_tree,
             get_element_by_id,
@@ -255,6 +258,11 @@ pub async fn run() {
             delete_bibliographical_source,
             assign_bibliographical_source,
             assign_bibliographical_source_bulk,
+            // Image occlusion
+            get_image_occlusion,
+            find_image_occlusion_by_source,
+            create_image_occlusion,
+            update_image_occlusion,
             // Saved searches
             list_saved_searches,
             get_saved_search_filters,

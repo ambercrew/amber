@@ -61,4 +61,7 @@ pub trait SyncStore: Send + Sync {
     /// still resolve when a later page brings the parent row, so callers pair
     /// this with `has_pending_changes` before committing.
     async fn has_unresolved_foreign_keys(&self) -> Result<bool, SyncError>;
+
+    /// Whether the `table` row with this primary key was deleted, here or on another device.
+    async fn is_row_deleted(&self, table: &str, primary_key: &str) -> Result<bool, SyncError>;
 }

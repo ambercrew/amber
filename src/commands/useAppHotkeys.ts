@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent } from "react";
+import { createContext, useContext, useEffect, useEffectEvent } from "react";
 
 export type AppHotkeyItem = [string, (event: KeyboardEvent) => void];
 
@@ -105,6 +105,14 @@ export function matchesShortcut(shortcut: string, event: KeyboardEvent) {
 	return event.code ? normalizeCode(event.code) === expected : false;
 }
 
+/** Marks hotkeys bound inside a modal, so they keep firing while it's open. */
+export const ModalHotkeysContext = createContext(false);
+
+// Modals' focus traps don't stop document listeners, so hotkeys behind one must skip themselves.
+function isModalOpen() {
+	return document.querySelector('[aria-modal="true"]') !== null;
+}
+
 function shouldFireEvent(
 	event: KeyboardEvent,
 	tagsToIgnore: string[],
@@ -128,7 +136,10 @@ export function useAppHotkeys(
 	tagsToIgnore: string[] = DEFAULT_TAGS_TO_IGNORE,
 	triggerOnContentEditable = false,
 ) {
+	const insideModal = useContext(ModalHotkeysContext);
+
 	const handleKeydown = useEffectEvent((event: KeyboardEvent) => {
+		if (!insideModal && isModalOpen()) return;
 		hotkeys.forEach(([shortcut, handler]) => {
 			if (
 				matchesShortcut(shortcut, event) &&

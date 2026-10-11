@@ -5,10 +5,23 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { LexicalEditor } from "lexical";
+import {
+	$createParagraphNode,
+	$getRoot,
+	$isRangeSelection,
+	$getSelection,
+	LexicalEditor,
+} from "lexical";
+import {
+	$generateNodesFromSerializedNodes,
+	$insertGeneratedNodes,
+} from "@lexical/clipboard";
 import { readImage } from "@tauri-apps/plugin-clipboard-manager";
 import { ImagePlugin } from "../../../../components/Editor/plugins/ImagePlugin/ImagePlugin";
-import { ImageNode } from "../../../../components/Editor/plugins/ImagePlugin/ImageNode";
+import {
+	ImageNode,
+	SerializedImageNode,
+} from "../../../../components/Editor/plugins/ImagePlugin/ImageNode";
 import { INSERT_IMAGE_COMMAND } from "../../../../components/Editor/plugins/ImagePlugin/imageCommands";
 import { DRAG_DROP_PASTE } from "@lexical/rich-text";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
@@ -250,5 +263,48 @@ describe("ImagePlugin", () => {
 			await screen.findByText("The image could not be read."),
 		).toBeInTheDocument();
 		expect(editor.getRootElement()?.querySelector("img")).toBeNull();
+	});
+
+	it("Should drop the occlusion binding when an occluded image is pasted", () => {
+		// Arrange
+
+		const editor = renderEditor();
+		const copied: SerializedImageNode = {
+			type: "image",
+			version: 1,
+			src: ASSET_SRC,
+			altText: "Heart",
+			occlusionId: "occlusion-1",
+			occlusionTarget: { targetKey: "a", revealed: false },
+		};
+
+		// Act
+
+		act(() => {
+			editor.update(
+				() => {
+					$getRoot()
+						.clear()
+						.append($createParagraphNode())
+						.selectEnd();
+					const selection = $getSelection();
+					if (!$isRangeSelection(selection))
+						throw new Error("Expected a range selection");
+					$insertGeneratedNodes(
+						editor,
+						$generateNodesFromSerializedNodes([copied]),
+						selection,
+					);
+				},
+				{ discrete: true },
+			);
+		});
+
+		// Assert
+
+		const json = JSON.stringify(editor.getEditorState().toJSON());
+		expect(json).toContain(ASSET_SRC);
+		expect(json).not.toContain("occlusion-1");
+		expect(json).not.toContain("occlusionTarget");
 	});
 });

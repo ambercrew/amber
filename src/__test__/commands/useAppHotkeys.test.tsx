@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { matchesShortcut } from "../../commands/useAppHotkeys";
+import { ReactNode } from "react";
+import { renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	matchesShortcut,
+	ModalHotkeysContext,
+	useAppHotkeys,
+} from "../../commands/useAppHotkeys";
 
 function keyEvent(init: Partial<KeyboardEventInit> & { code?: string }) {
 	return new KeyboardEvent("keydown", init);
@@ -206,5 +212,74 @@ describe("matchesShortcut", () => {
 		// Assert
 
 		expect(actual).toBe(true);
+	});
+});
+
+describe("useAppHotkeys", () => {
+	afterEach(() => {
+		document.body.innerHTML = "";
+	});
+
+	function openModal() {
+		const dialog = document.createElement("div");
+		dialog.setAttribute("aria-modal", "true");
+		document.body.append(dialog);
+	}
+
+	function pressK() {
+		document.documentElement.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "k", code: "KeyK" }),
+		);
+	}
+
+	it("Should fire the handler when no modal is open", () => {
+		// Arrange
+
+		const handler = vi.fn();
+		renderHook(() => useAppHotkeys([["K", handler]]));
+
+		// Act
+
+		pressK();
+
+		// Assert
+
+		expect(handler).toHaveBeenCalledOnce();
+	});
+
+	it("Should not fire the handler when a modal is open over it", () => {
+		// Arrange
+
+		const handler = vi.fn();
+		renderHook(() => useAppHotkeys([["K", handler]]));
+		openModal();
+
+		// Act
+
+		pressK();
+
+		// Assert
+
+		expect(handler).not.toHaveBeenCalled();
+	});
+
+	it("Should fire the handler when it is bound inside the open modal", () => {
+		// Arrange
+
+		const handler = vi.fn();
+		renderHook(() => useAppHotkeys([["K", handler]]), {
+			wrapper: ({ children }: { children: ReactNode }) => (
+				<ModalHotkeysContext value>{children}</ModalHotkeysContext>
+			),
+		});
+		openModal();
+
+		// Act
+
+		pressK();
+
+		// Assert
+
+		expect(handler).toHaveBeenCalledOnce();
 	});
 });

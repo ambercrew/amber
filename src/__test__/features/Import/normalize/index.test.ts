@@ -1,16 +1,24 @@
 import { normalize } from "../../../../features/Import/normalize";
-import { localizeImage } from "../../../../features/Import/images/localize";
+import {
+	localizeImages,
+	LocalizedImage,
+} from "../../../../features/Import/images/localize";
 
 vi.mock(import("../../../../features/Import/images/localize"));
 
+function localizeEveryImageAs(localized: LocalizedImage) {
+	vi.mocked(localizeImages).mockImplementation(async urls =>
+		Promise.resolve(new Map(urls.map(url => [url, localized]))),
+	);
+}
+
 describe("normalize", () => {
+	beforeEach(() => {
+		localizeEveryImageAs({ ok: false, originalUrl: "unused" });
+	});
+
 	it("Should sanitize the html and return the body's innerHTML", async () => {
 		// Arrange
-
-		vi.mocked(localizeImage).mockResolvedValue({
-			ok: false,
-			originalUrl: "unused",
-		});
 
 		// Act
 
@@ -26,10 +34,6 @@ describe("normalize", () => {
 	it("Should keep math as an equation element through sanitizing when given MathML", async () => {
 		// Arrange
 
-		vi.mocked(localizeImage).mockResolvedValue({
-			ok: false,
-			originalUrl: "unused",
-		});
 		const html =
 			'<p>See <math display="block" data-latex="E = mc^2"><mi>E</mi></math></p>';
 
@@ -47,7 +51,7 @@ describe("normalize", () => {
 	it("Should replace an image src with the localized src when localization succeeds", async () => {
 		// Arrange
 
-		vi.mocked(localizeImage).mockResolvedValue({
+		localizeEveryImageAs({
 			ok: true,
 			src: "data:image/png;base64,AAAA",
 		});
@@ -65,7 +69,7 @@ describe("normalize", () => {
 	it("Should mark the image as broken and keep the original url when localization fails", async () => {
 		// Arrange
 
-		vi.mocked(localizeImage).mockResolvedValue({
+		localizeEveryImageAs({
 			ok: false,
 			originalUrl: "https://example.com/a.png",
 		});
@@ -85,7 +89,7 @@ describe("normalize", () => {
 	it("Should resolve a relative image url against the baseUrl before localizing", async () => {
 		// Arrange
 
-		vi.mocked(localizeImage).mockResolvedValue({
+		localizeEveryImageAs({
 			ok: true,
 			src: "data:image/png;base64,AAAA",
 		});
@@ -97,8 +101,8 @@ describe("normalize", () => {
 
 		// Assert
 
-		expect(localizeImage).toHaveBeenCalledWith(
-			"https://example.com/images/a.png",
+		expect(localizeImages).toHaveBeenCalledWith(
+			["https://example.com/images/a.png"],
 			"https://example.com/article",
 		);
 	});
@@ -115,13 +119,13 @@ describe("normalize", () => {
 		// Assert
 
 		expect(actual).toBe("<img>");
-		expect(localizeImage).not.toHaveBeenCalled();
+		expect(localizeImages).toHaveBeenCalledWith([], null);
 	});
 
 	it("Should only localize each unique image url once", async () => {
 		// Arrange
 
-		vi.mocked(localizeImage).mockResolvedValue({
+		localizeEveryImageAs({
 			ok: true,
 			src: "data:image/png;base64,AAAA",
 		});
@@ -134,13 +138,16 @@ describe("normalize", () => {
 
 		// Assert
 
-		expect(localizeImage).toHaveBeenCalledTimes(1);
+		expect(localizeImages).toHaveBeenCalledWith(
+			["https://example.com/a.png"],
+			null,
+		);
 	});
 
 	it("Should localize a data uri src using the uri itself as the absolute url", async () => {
 		// Arrange
 
-		vi.mocked(localizeImage).mockResolvedValue({
+		localizeEveryImageAs({
 			ok: true,
 			src: "data:image/png;base64,AAAA",
 		});
@@ -152,8 +159,8 @@ describe("normalize", () => {
 
 		// Assert
 
-		expect(localizeImage).toHaveBeenCalledWith(
-			"data:image/png;base64,AAAA",
+		expect(localizeImages).toHaveBeenCalledWith(
+			["data:image/png;base64,AAAA"],
 			null,
 		);
 		expect(actual).toBe('<img src="data:image/png;base64,AAAA">');
@@ -171,7 +178,7 @@ describe("normalize", () => {
 
 		// Assert
 
-		expect(localizeImage).not.toHaveBeenCalled();
+		expect(localizeImages).toHaveBeenCalledWith([], null);
 		expect(actual).toBe(`<img src="${src}">`);
 	});
 

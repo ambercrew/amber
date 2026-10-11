@@ -13,6 +13,8 @@ import ReadPointMarkerPlugin from "../../components/Editor/plugins/ReadPointMark
 import CursorTrackerPlugin from "../../components/Editor/plugins/CursorTrackerPlugin";
 import SearchHighlightPlugin from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightPlugin";
 import useApi from "../../hooks/useApi";
+import { useImageOcclusionMenuItems } from "../ImageOcclusion/hooks/useImageOcclusionMenuItems";
+import { renderOcclusionOverlay } from "../ImageOcclusion/review/renderOcclusionOverlay";
 import useAutoSave from "./hooks/useAutoSave";
 
 export interface ElementEditorSearchProps {
@@ -55,6 +57,7 @@ export default function ElementEditor({
 	search,
 }: ElementEditorProps) {
 	const { callApi, errorMessage, clearErrorMessage } = useApi();
+	const imageMenuItems = useImageOcclusionMenuItems();
 	const handleSave = useCallback(
 		async (content: string) => {
 			if (content === initialContent) return;
@@ -91,7 +94,9 @@ export default function ElementEditor({
 			<Editor
 				initialContent={initialContent}
 				onHighlightCreated={onHighlightCreated}
-				contextMenuItems={contextMenuItems}>
+				contextMenuItems={contextMenuItems}
+				imageMenuItems={imageMenuItems}
+				renderOcclusionOverlay={renderOcclusionOverlay}>
 				<FloatingMenuPlugin buttons={buttons} />
 				<OnChangePlugin
 					onChange={handleChange}

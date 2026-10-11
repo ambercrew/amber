@@ -183,6 +183,31 @@ fn table_configs() -> Vec<TableSyncConfig> {
             delete_guard: None,
         },
         TableSyncConfig {
+            name: "image_occlusions",
+            granularity: Granularity::Row,
+            fk_constraints: vec![FkConstraint::new(
+                "parent_id",
+                "meta",
+                "element_id",
+                FkPolicy::SetNull,
+            )],
+            delete_guard: None,
+        },
+        TableSyncConfig {
+            name: "image_occlusion_cards",
+            granularity: Granularity::Row,
+            fk_constraints: vec![
+                FkConstraint::new("card_id", "cards", "id", FkPolicy::DiscardRow),
+                FkConstraint::new(
+                    "occlusion_id",
+                    "image_occlusions",
+                    "id",
+                    FkPolicy::DiscardRow,
+                ),
+            ],
+            delete_guard: None,
+        },
+        TableSyncConfig {
             name: "learning_asset_reviews",
             granularity: Granularity::Row,
             fk_constraints: vec![FkConstraint::new(

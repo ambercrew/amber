@@ -1,5 +1,6 @@
 import {
 	BookOpenIcon,
+	BoundingBoxIcon,
 	CalendarIcon,
 	CardsIcon,
 	ClockCounterClockwiseIcon,
@@ -27,6 +28,7 @@ export const FolderOpenElementIcon = FolderOpenIcon;
 export const LearningAssetElementIcon = FileTextIcon;
 export const ExtractElementIcon = ScissorsIcon;
 export const CardElementIcon = CardsIcon;
+export const ImageOcclusionIcon = BoundingBoxIcon;
 
 // Element properties, e.g. the fields a search can be filtered by.
 export const NamePropertyIcon = TextAaIcon;

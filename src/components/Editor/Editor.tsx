@@ -16,6 +16,14 @@ import { EquationExtension } from "./plugins/EquationPlugin/EquationExtension";
 import { HighlightPlugin } from "./plugins/HighlightPlugin/HighlightPlugin";
 import { HighlightCreatedPayload } from "./plugins/HighlightPlugin/highlightCommands";
 import { ImagePlugin } from "./plugins/ImagePlugin/ImagePlugin";
+import {
+	ImageMenuItems,
+	ImageMenuItemsContext,
+} from "./plugins/ImagePlugin/imageMenuContext";
+import {
+	ImageOcclusionOverlayContext,
+	RenderOcclusionOverlay,
+} from "./plugins/ImagePlugin/imageOcclusionOverlayContext";
 import { LinkClickPlugin } from "./plugins/LinkPlugin/LinkClickPlugin";
 import { LinkOpenerProvider } from "./plugins/LinkPlugin/LinkOpenerProvider";
 import { useLinkOpener } from "./plugins/LinkPlugin/linkOpenerContext";
@@ -47,12 +55,26 @@ interface EditorProps {
 	children?: React.ReactNode;
 	onHighlightCreated?: (payload: HighlightCreatedPayload) => void;
 	contextMenuItems?: React.ReactNode;
+	/** Extra actions for an image's popover, e.g. image occlusion. */
+	imageMenuItems?: ImageMenuItems;
+	/** Draws an occlusion card's masks over its image. */
+	renderOcclusionOverlay?: RenderOcclusionOverlay;
 }
 
-export default function Editor(props: EditorProps) {
+export default function Editor({
+	imageMenuItems,
+	renderOcclusionOverlay,
+	...props
+}: EditorProps) {
+	// Context only because Lexical renders images via `decorate()`, which takes no props.
 	return (
 		<LinkOpenerProvider>
-			<EditorContent {...props} />
+			<ImageMenuItemsContext value={imageMenuItems ?? null}>
+				<ImageOcclusionOverlayContext
+					value={renderOcclusionOverlay ?? null}>
+					<EditorContent {...props} />
+				</ImageOcclusionOverlayContext>
+			</ImageMenuItemsContext>
 		</LinkOpenerProvider>
 	);
 }

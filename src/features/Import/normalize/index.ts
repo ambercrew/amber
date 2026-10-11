@@ -1,6 +1,6 @@
 import { sanitizeHtml } from "../../../utils/sanitizeHtml";
 import { assetIdFromSrc, toCanonicalImageSrc } from "../../../utils/assetUrl";
-import { localizeImage } from "../images/localize";
+import { localizeImages } from "../images/localize";
 import { convertMath } from "./convertMath";
 
 export interface NormalizeOptions {
@@ -44,14 +44,7 @@ export async function normalize(
 		uniqueUrls.add(absolute);
 	}
 
-	const localizedByUrl = new Map(
-		await Promise.all(
-			[...uniqueUrls].map(
-				async url =>
-					[url, await localizeImage(url, opts.baseUrl)] as const,
-			),
-		),
-	);
+	const localizedByUrl = await localizeImages([...uniqueUrls], opts.baseUrl);
 
 	for (const img of images) {
 		const src = img.getAttribute("src");

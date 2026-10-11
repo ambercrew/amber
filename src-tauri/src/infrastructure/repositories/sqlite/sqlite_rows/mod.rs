@@ -5,6 +5,8 @@ pub mod chat_row;
 pub mod context_snippet_row;
 pub mod extract_row;
 pub mod folder_row;
+pub mod image_occlusion_card_link_row;
+pub mod image_occlusion_row;
 pub mod learning_asset_row;
 pub mod local_configuration_row;
 pub mod message_row;

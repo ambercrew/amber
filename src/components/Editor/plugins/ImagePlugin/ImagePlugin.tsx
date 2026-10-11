@@ -19,8 +19,13 @@ import {
 	type LexicalEditor,
 	mergeRegister,
 	PASTE_COMMAND,
+	SELECTION_INSERT_CLIPBOARD_NODES_COMMAND,
 } from "lexical";
-import { $createImageNode, ImageNode } from "./ImageNode";
+import {
+	$createImageNode,
+	$detachImageOcclusions,
+	ImageNode,
+} from "./ImageNode";
 import { INSERT_IMAGE_COMMAND } from "./imageCommands";
 import { createAsset } from "../../../../api/assets/api/assetsApi";
 import useApi, { type CallApiFn } from "../../../../hooks/useApi";
@@ -80,6 +85,15 @@ export function ImagePlugin() {
 						return true;
 					}
 
+					return false;
+				},
+				COMMAND_PRIORITY_HIGH,
+			),
+			// A pasted copy would edit, or stay masked by, the original's occlusion.
+			editor.registerCommand(
+				SELECTION_INSERT_CLIPBOARD_NODES_COMMAND,
+				({ nodes }) => {
+					$detachImageOcclusions(nodes);
 					return false;
 				},
 				COMMAND_PRIORITY_HIGH,
