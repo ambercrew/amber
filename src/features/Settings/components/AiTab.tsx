@@ -29,26 +29,26 @@ interface ProviderInfo {
 const providers: Record<AiProvider, ProviderInfo> = {
 	ollama: {
 		label: "Ollama",
-		modelPlaceholder: "e.g. llama3.1",
+		modelPlaceholder: "e.g. gemma4",
 		embeddingsModelPlaceholder: "e.g. nomic-embed-text",
 		requiresApiKey: false,
 	},
 	openAI: {
 		label: "OpenAI",
-		modelPlaceholder: "e.g. gpt-4o-mini",
+		modelPlaceholder: "e.g. gpt-6-luna",
 		embeddingsModelPlaceholder: "e.g. text-embedding-3-small",
 		requiresApiKey: true,
 	},
 	openRouter: {
 		label: "OpenRouter",
-		modelPlaceholder: "e.g. openai/gpt-4o-mini",
+		modelPlaceholder: "e.g. openai/gpt-6-luna",
 		embeddingsModelPlaceholder: "e.g. openai/text-embedding-3-small",
 		requiresApiKey: true,
 	},
 	gemini: {
 		label: "Gemini",
-		modelPlaceholder: "e.g. gemini-2.5-flash",
-		embeddingsModelPlaceholder: "e.g. gemini-embedding-001",
+		modelPlaceholder: "e.g. gemini-3.8-flash",
+		embeddingsModelPlaceholder: "e.g. gemini-embedding-2",
 		requiresApiKey: true,
 	},
 };
