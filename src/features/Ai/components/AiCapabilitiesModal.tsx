@@ -8,7 +8,11 @@ interface AiCapabilitiesModalProps {
 
 function AiCapabilitiesModal({ opened, onClose }: AiCapabilitiesModalProps) {
 	return (
-		<AppModal opened={opened} onClose={onClose} title="What the AI can do">
+		<AppModal
+			opened={opened}
+			onClose={onClose}
+			title="What the AI can do"
+			size="lg">
 			<Text mb="xs">The assistant currently has access to:</Text>
 			<List spacing="xs">
 				<List.Item>
