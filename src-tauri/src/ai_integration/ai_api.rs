@@ -11,7 +11,7 @@ use crate::{
         repositories::ai_repository::AiRepository,
         services::{
             ai_streamer::{AiStreamer, StreamLlmResponseEvent},
-            document_uploader::DocumentUploader,
+            document_uploader::{DocumentUploader, UploadOutcome},
         },
     },
     common::api_error::ApiError,
@@ -137,13 +137,13 @@ pub async fn upload_document(
     injector: State<'_, Arc<Injector>>,
     path: String,
     chat_id: Uuid,
-) -> Result<(), ApiError> {
+) -> Result<UploadOutcome, ApiError> {
     let scope = injector.start_scope();
-    scope
+    let outcome = scope
         .resolve::<dyn DocumentUploader>()
         .await
         .upload_document(PathBuf::from(path), chat_id)
         .await?;
     scope.save_changes().await?;
-    Ok(())
+    Ok(outcome)
 }

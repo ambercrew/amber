@@ -3,9 +3,11 @@ import useAiChats from "../../../../features/Ai/hooks/useAiChats";
 import useAiDocumentUpload from "../../../../features/Ai/hooks/useAiDocumentUpload";
 import {
 	createAiChat,
+	deleteAiChat,
 	getChatMessagesOrdered,
 	uploadDocument,
 } from "../../../../api/aiIntegration/api/aiApi";
+import UploadOutcomeDto from "../../../../api/aiIntegration/dto/uploadOutcomeDto";
 import ChatDto from "../../../../api/aiIntegration/dto/chatDto";
 import MessageDto from "../../../../api/aiIntegration/dto/messageDto";
 
@@ -25,7 +27,10 @@ function useTestHarness() {
 }
 
 describe("useAiDocumentUpload", () => {
-	beforeEach(() => window.localStorage.clear());
+	beforeEach(() => {
+		window.localStorage.clear();
+		vi.mocked(uploadDocument).mockResolvedValue("uploaded");
+	});
 
 	it("Should create a new chat named after the file when no chat is selected", async () => {
 		// Arrange
@@ -101,7 +106,7 @@ describe("useAiDocumentUpload", () => {
 		// Arrange
 
 		vi.mocked(createAiChat).mockResolvedValue(chat1);
-		vi.mocked(uploadDocument).mockResolvedValue(undefined);
+		vi.mocked(uploadDocument).mockResolvedValue("uploaded");
 		vi.mocked(getChatMessagesOrdered).mockResolvedValue([]);
 
 		const { result } = renderHook(() => useTestHarness());
@@ -141,7 +146,7 @@ describe("useAiDocumentUpload", () => {
 		// Arrange
 
 		vi.mocked(createAiChat).mockResolvedValue(chat1);
-		vi.mocked(uploadDocument).mockResolvedValue(undefined);
+		vi.mocked(uploadDocument).mockResolvedValue("uploaded");
 		vi.mocked(getChatMessagesOrdered).mockResolvedValue([]);
 
 		const { result } = renderHook(() => useTestHarness());
@@ -206,7 +211,7 @@ describe("useAiDocumentUpload", () => {
 			},
 		];
 
-		let resolveUpload: () => void = noop;
+		let resolveUpload: (outcome: UploadOutcomeDto) => void = noop;
 		vi.mocked(uploadDocument).mockImplementation(
 			() =>
 				new Promise(resolve => {
@@ -238,7 +243,7 @@ describe("useAiDocumentUpload", () => {
 			await result.current.openChat("chat-2");
 		});
 		await act(async () => {
-			resolveUpload();
+			resolveUpload("uploaded");
 			await uploadPromise;
 		});
 
@@ -246,5 +251,101 @@ describe("useAiDocumentUpload", () => {
 
 		expect(result.current.selectedChatId).toBe("chat-2");
 		expect(result.current.messages).toEqual(chat2Messages);
+	});
+
+	it("Should delete the chat created for the file when the upload is stopped", async () => {
+		// Arrange
+
+		vi.mocked(createAiChat).mockResolvedValue(chat1);
+		vi.mocked(uploadDocument).mockResolvedValue("stopped");
+
+		const { result } = renderHook(() => useTestHarness());
+
+		// Act
+
+		await act(async () => {
+			await result.current.uploadDocumentToChat("/home/user/notes.pdf");
+		});
+
+		// Assert
+
+		expect(deleteAiChat).toHaveBeenCalledWith("chat-1");
+		expect(result.current.chats).toEqual([]);
+		expect(result.current.selectedChatId).toBeNull();
+	});
+
+	it("Should keep the selected chat when an upload to it is stopped", async () => {
+		// Arrange
+
+		vi.mocked(uploadDocument).mockResolvedValue("stopped");
+		vi.mocked(getChatMessagesOrdered).mockResolvedValue([]);
+
+		const { result } = renderHook(() => useTestHarness());
+		await act(async () => {
+			await result.current.openChat("chat-1");
+		});
+
+		// Act
+
+		await act(async () => {
+			await result.current.uploadDocumentToChat("/home/user/notes.pdf");
+		});
+
+		// Assert
+
+		expect(deleteAiChat).not.toHaveBeenCalled();
+		expect(result.current.selectedChatId).toBe("chat-1");
+	});
+
+	it("Should delete the chat created for the file and show the error when the upload fails", async () => {
+		// Arrange
+
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		vi.mocked(createAiChat).mockResolvedValue(chat1);
+		vi.mocked(uploadDocument).mockRejectedValue(
+			new Error("Unreadable PDF"),
+		);
+		vi.mocked(deleteAiChat).mockResolvedValue(undefined);
+
+		const { result } = renderHook(() => useTestHarness());
+
+		// Act
+
+		await act(async () => {
+			await result.current.uploadDocumentToChat("/home/user/notes.pdf");
+		});
+
+		// Assert
+
+		expect(deleteAiChat).toHaveBeenCalledWith("chat-1");
+		expect(result.current.chats).toEqual([]);
+		expect(result.current.selectedChatId).toBeNull();
+		expect(result.current.errorMessage).toBe("Unreadable PDF");
+	});
+
+	it("Should keep the selected chat when an upload to it fails", async () => {
+		// Arrange
+
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		vi.mocked(uploadDocument).mockRejectedValue(
+			new Error("Unreadable PDF"),
+		);
+		vi.mocked(getChatMessagesOrdered).mockResolvedValue([]);
+
+		const { result } = renderHook(() => useTestHarness());
+		await act(async () => {
+			await result.current.openChat("chat-1");
+		});
+
+		// Act
+
+		await act(async () => {
+			await result.current.uploadDocumentToChat("/home/user/notes.pdf");
+		});
+
+		// Assert
+
+		expect(deleteAiChat).not.toHaveBeenCalled();
+		expect(result.current.selectedChatId).toBe("chat-1");
 	});
 });

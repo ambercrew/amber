@@ -3,6 +3,7 @@ import ChatDto from "../dto/chatDto";
 import MessageDto from "../dto/messageDto";
 import StreamAiRequestDto from "../dto/streamAiRequestDto";
 import StreamLlmResponseEventDto from "../dto/streamLlmResponseEventDto";
+import UploadOutcomeDto from "../dto/uploadOutcomeDto";
 
 export function streamAiResponse(
 	onEvent: Channel<StreamLlmResponseEventDto>,
@@ -35,6 +36,9 @@ export function renameAiChat(id: string, newTitle: string): Promise<void> {
 	return invoke("rename_ai_chat", { id, newTitle });
 }
 
-export function uploadDocument(path: string, chatId: string): Promise<void> {
+export function uploadDocument(
+	path: string,
+	chatId: string,
+): Promise<UploadOutcomeDto> {
 	return invoke("upload_document", { path, chatId });
 }

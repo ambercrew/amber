@@ -7,6 +7,7 @@ use rig::{
     loaders::pdf::PdfLoaderError,
     vector_store::VectorStoreError,
 };
+use serde::Serialize;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -49,11 +50,19 @@ impl From<String> for DocumentUploaderError {
     }
 }
 
+/// Whether the document was stored, or the upload was stopped before anything was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UploadOutcome {
+    Uploaded,
+    Stopped,
+}
+
 #[async_trait]
 pub trait DocumentUploader: Send + Sync {
     async fn upload_document(
         &self,
         path: PathBuf,
         chat_id: Uuid,
-    ) -> Result<(), DocumentUploaderError>;
+    ) -> Result<UploadOutcome, DocumentUploaderError>;
 }

@@ -7,11 +7,13 @@ import {
 } from "react";
 import {
 	createAiChat,
+	deleteAiChat,
 	getChatMessagesOrdered,
 	uploadDocument,
 } from "../../../api/aiIntegration/api/aiApi";
 import MessageDto from "../../../api/aiIntegration/dto/messageDto";
 import ChatDto from "../../../api/aiIntegration/dto/chatDto";
+import UploadOutcomeDto from "../../../api/aiIntegration/dto/uploadOutcomeDto";
 import { CallApiFn } from "../../../hooks/useApi";
 
 interface UseAiDocumentUploadParams {
@@ -50,6 +52,7 @@ export default function useAiDocumentUpload({
 			await callApi(
 				async () => {
 					let chatId = selectedChatId;
+					const createdChat = !chatId;
 					if (!chatId) {
 						const chat = await createAiChat(fileName);
 						chatId = chat.id;
@@ -59,7 +62,29 @@ export default function useAiDocumentUpload({
 						setChats(prev => [chat, ...prev]);
 					}
 
-					await uploadDocument(path, chatId);
+					// A chat made just for this file is dropped rather than left empty.
+					const discardCreatedChat = async (id: string) => {
+						if (!createdChat) return;
+						await deleteAiChat(id);
+						setChats(prev => prev.filter(c => c.id !== id));
+						if (id === activeChatIdRef.current) {
+							activeChatIdRef.current = null;
+							setSelectedChatId(null);
+						}
+					};
+
+					let outcome: UploadOutcomeDto;
+					try {
+						outcome = await uploadDocument(path, chatId);
+					} catch (error) {
+						// Surface the upload's error, not a failed cleanup's.
+						await discardCreatedChat(chatId).catch(() => undefined);
+						throw error;
+					}
+					if (outcome === "stopped") {
+						await discardCreatedChat(chatId);
+						return;
+					}
 					const msgs = await getChatMessagesOrdered(chatId);
 					// Only apply the refreshed messages if the user hasn't
 					// since switched to a different chat, otherwise this

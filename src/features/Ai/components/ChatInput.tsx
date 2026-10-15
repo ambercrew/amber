@@ -34,7 +34,7 @@ function ChatInput({
 
 	function handleSend() {
 		const trimmed = value.trim();
-		if (!trimmed || isStreaming) return;
+		if (!trimmed || isStreaming || isUploading) return;
 		onSend(trimmed);
 		setValue("");
 	}
@@ -61,7 +61,7 @@ function ChatInput({
 				<ActionIcon
 					variant="default"
 					size="lg"
-					disabled={disabled || isUploading}
+					disabled={disabled || isUploading || isStreaming}
 					loading={isUploading}
 					onClick={() => void handleUploadClick()}
 					aria-label="Upload document">
@@ -82,13 +82,15 @@ function ChatInput({
 				onKeyDown={handleKeyDown}
 			/>
 
-			{isStreaming ? (
+			{isStreaming || isUploading ? (
 				<ActionIcon
 					variant="filled"
 					color="red"
 					size="lg"
 					onClick={onStop}
-					aria-label="Stop generation">
+					aria-label={
+						isUploading ? "Stop upload" : "Stop generation"
+					}>
 					<StopIcon size={18} />
 				</ActionIcon>
 			) : (
