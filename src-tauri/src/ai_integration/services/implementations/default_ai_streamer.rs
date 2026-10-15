@@ -117,6 +117,8 @@ impl AiStreamer for DefaultAiStreamer {
         self.transaction_manager.save_changes().await?;
 
         let mut complete_ai_response = String::new();
+        let mut failed = false;
+        let mut called_tools = false;
 
         if let Some(agent) = agent {
             let rig_messages: Vec<rig::message::Message> = merge_consecutive_assistant_messages(
@@ -153,6 +155,7 @@ impl AiStreamer for DefaultAiStreamer {
                         ) = content
                         {
                             log::info!("Tool call: {:#?}", tool_call);
+                            called_tools = true;
 
                             let mut tool_call_content: ToolCallContent = tool_call.into();
                             // Some providers (e.g. Ollama, whose chat API has
@@ -206,6 +209,7 @@ impl AiStreamer for DefaultAiStreamer {
                         let is_cancelled = matches!(&err, StreamingError::Prompt(p) if matches!(**p, PromptError::PromptCancelled { .. }));
 
                         if !is_cancelled {
+                            failed = true;
                             let error_message = match err {
                                 StreamingError::Completion(completion_err) => {
                                     AiStreamerError::try_from(completion_err)
@@ -240,6 +244,12 @@ impl AiStreamer for DefaultAiStreamer {
         // the database.
         if let Some(chat) = chat_to_upsert {
             self.ai_repository.upsert_chat(&chat).await?;
+        }
+
+        // A failed turn's messages are dropped so the user can resend the prompt, unless
+        // a tool already ran and its side effects (e.g. a created card) need recording.
+        if failed && !called_tools {
+            return Ok(());
         }
 
         for message in messages_to_upsert.lock().await.iter() {
@@ -876,7 +886,7 @@ pub mod tests {
     }
 
     #[tokio::test]
-    pub async fn stream_error_during_stream_called_correct_event_and_did_not_save_ai_message() {
+    pub async fn stream_error_during_stream_called_correct_event_and_saved_only_the_chat() {
         // Arrange
 
         let sent_stream_answer = AtomicBool::new(false);
@@ -966,7 +976,63 @@ pub mod tests {
             .get_chat_messages_ordered(chats[0].id())
             .await
             .unwrap();
-        assert_eq!(2, messages.len());
+        assert!(messages.is_empty());
+    }
+
+    #[tokio::test]
+    pub async fn stream_error_in_existing_chat_did_not_save_prompt_or_snippets() {
+        // Arrange
+
+        let mock_client = MockClient {
+            stream_fn: Arc::new(Some(Box::new(|_| {
+                Err(CompletionError::ResponseError("error from AI".to_string()))
+            }))),
+            ..Default::default()
+        };
+
+        let injector = initialize_test_injector(mock_client, Arc::new(AiState::default())).await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn AiStreamer>().await;
+        let repository = scope.resolve::<dyn AiRepository>().await;
+
+        let chat = Chat::new(None, "Chat title".to_string());
+        let chat_id = chat.id();
+        repository.upsert_chat(&chat).await.unwrap();
+        let earlier_message = Message::new(
+            None,
+            chat_id,
+            MessageContent::Human("Earlier prompt".to_string()),
+        );
+        repository.upsert_message(&earlier_message).await.unwrap();
+
+        let request = StreamAiRequestDto {
+            prompt: "Follow-up prompt".to_string(),
+            chat_id: Some(chat_id),
+            context_snippets: vec!["Selected passage".to_string()],
+            ..Default::default()
+        };
+
+        // Act
+
+        service
+            .stream(request, Arc::new(move |_| Ok(())))
+            .await
+            .unwrap();
+
+        // Assert
+
+        let messages = repository.get_chat_messages_ordered(chat_id).await.unwrap();
+        assert_eq!(
+            vec![earlier_message.id()],
+            messages.iter().map(|m| m.id()).collect::<Vec<_>>()
+        );
+        assert!(
+            repository
+                .get_context_snippets_for_chat(chat_id)
+                .await
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
