@@ -1,3 +1,4 @@
+import { FocusTrap } from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { OcclusionEditorTarget } from "./ImageOcclusionEditor";
 import ResponsiveOcclusionEditor from "./ResponsiveOcclusionEditor";
@@ -25,6 +26,8 @@ export function openImageOcclusionEditor(
 		padding: 0,
 		children: (
 			<ModalHotkeysContext value>
+				{/* Takes the initial focus so the name input doesn't pop up the on-screen keyboard. */}
+				<FocusTrap.InitialFocus />
 				<ResponsiveOcclusionEditor
 					modalId={modalId}
 					margin={SCREEN_MARGIN}
