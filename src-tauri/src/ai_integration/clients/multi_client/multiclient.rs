@@ -20,7 +20,7 @@ pub enum MultiClient {
     #[cfg(not(test))]
     Ollama(ollama::Client),
     #[cfg(not(test))]
-    OpenAI(openai::CompletionsClient),
+    OpenAI(openai::Client),
     #[cfg(not(test))]
     OpenRouter(openrouter::Client),
     #[cfg(not(test))]

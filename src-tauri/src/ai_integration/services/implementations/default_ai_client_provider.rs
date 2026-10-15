@@ -99,10 +99,10 @@ impl AiClientProvider for DefaultAiClientProvider {
                 AiProvider::Ollama => {
                     ollama::Client::from_val(Nothing.into()).map(MultiClient::Ollama)
                 }
-                AiProvider::OpenAI => openai::CompletionsClient::from_val(BearerAuth::from(
-                    self.get_api_key(provider).await?,
-                ))
-                .map(MultiClient::OpenAI),
+                AiProvider::OpenAI => {
+                    openai::Client::from_val(BearerAuth::from(self.get_api_key(provider).await?))
+                        .map(MultiClient::OpenAI)
+                }
                 AiProvider::OpenRouter => openrouter::Client::from_val(BearerAuth::from(
                     self.get_api_key(provider).await?,
                 ))

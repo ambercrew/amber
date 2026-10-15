@@ -13,7 +13,7 @@ pub enum MultiCompletionModel {
     #[cfg(not(test))]
     Ollama(ollama::CompletionModel),
     #[cfg(not(test))]
-    OpenAI(openai::CompletionModel),
+    OpenAI(openai::responses_api::ResponsesCompletionModel),
     #[cfg(not(test))]
     OpenRouter(openrouter::CompletionModel),
     #[cfg(not(test))]
@@ -31,7 +31,11 @@ impl CompletionModel for MultiCompletionModel {
             #[cfg(not(test))]
             Self::Ollama(completion_model) => completion_model.completion(request).await,
             #[cfg(not(test))]
-            Self::OpenAI(completion_model) => completion_model.completion(request).await,
+            Self::OpenAI(completion_model) => {
+                completion_model
+                    .completion(without_temperature(request))
+                    .await
+            }
             #[cfg(not(test))]
             Self::OpenRouter(completion_model) => completion_model.completion(request).await,
             #[cfg(not(test))]
@@ -49,7 +53,9 @@ impl CompletionModel for MultiCompletionModel {
             #[cfg(not(test))]
             Self::Ollama(completion_model) => completion_model.stream(request).await,
             #[cfg(not(test))]
-            Self::OpenAI(completion_model) => completion_model.stream(request).await,
+            Self::OpenAI(completion_model) => {
+                completion_model.stream(without_temperature(request)).await
+            }
             #[cfg(not(test))]
             Self::OpenRouter(completion_model) => completion_model.stream(request).await,
             #[cfg(not(test))]
@@ -72,5 +78,14 @@ impl CompletionModel for MultiCompletionModel {
             #[cfg(test)]
             Self::Mock(completion_model) => completion_model.capabilities(),
         }
+    }
+}
+
+/// OpenAI's reasoning models reject `temperature`, so it's left at the model's default.
+#[cfg(not(test))]
+fn without_temperature(request: CompletionRequest) -> CompletionRequest {
+    CompletionRequest {
+        temperature: None,
+        ..request
     }
 }

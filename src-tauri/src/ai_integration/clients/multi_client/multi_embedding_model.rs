@@ -5,7 +5,7 @@ use rig::providers::gemini;
 #[cfg(not(test))]
 use rig::providers::ollama;
 #[cfg(not(test))]
-use rig::providers::openai::{GenericEmbeddingModel, OpenAICompletionsExt};
+use rig::providers::openai;
 #[cfg(not(test))]
 use rig::providers::openrouter;
 
@@ -18,7 +18,7 @@ pub enum MultiEmbeddingModel {
     #[cfg(not(test))]
     Ollama(ollama::EmbeddingModel),
     #[cfg(not(test))]
-    OpenAI(GenericEmbeddingModel<OpenAICompletionsExt>),
+    OpenAI(openai::EmbeddingModel),
     #[cfg(not(test))]
     OpenRouter(openrouter::EmbeddingModel),
     #[cfg(not(test))]
@@ -39,13 +39,9 @@ impl EmbeddingModel for MultiEmbeddingModel {
                 MultiEmbeddingModel::Ollama(ollama::EmbeddingModel::make(client, model, dims))
             }
             #[cfg(not(test))]
-            MultiClient::OpenAI(client) => {
-                MultiEmbeddingModel::OpenAI(GenericEmbeddingModel::<OpenAICompletionsExt>::new(
-                    client.clone(),
-                    model,
-                    dims.unwrap_or(0),
-                ))
-            }
+            MultiClient::OpenAI(client) => MultiEmbeddingModel::OpenAI(
+                openai::EmbeddingModel::new(client.clone(), model, dims.unwrap_or(0)),
+            ),
             #[cfg(not(test))]
             MultiClient::OpenRouter(client) => MultiEmbeddingModel::OpenRouter(
                 openrouter::EmbeddingModel::make(client, model, dims),
