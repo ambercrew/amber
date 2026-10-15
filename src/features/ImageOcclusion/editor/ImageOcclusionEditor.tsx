@@ -7,9 +7,11 @@ import {
 	ColorPicker,
 	ColorSwatch,
 	Divider,
+	Flex,
 	Group,
 	Loader,
 	Popover,
+	SegmentedControl,
 	Stack,
 	Text,
 	TextInput,
@@ -47,6 +49,7 @@ import {
 } from "../../../config/shortcuts";
 import useApi from "../../../hooks/useApi";
 import useAppDispatch from "../../../hooks/useAppDispatch";
+import { useIsSmallScreen } from "../../../hooks/useIsSmallScreen";
 import { loadElementTree } from "../../../stores/elements/elementsActions";
 import { ElementId } from "../../../types/elements/elementId";
 import { invalidateImageOcclusion } from "../hooks/useImageOcclusion";
@@ -144,7 +147,10 @@ export default function ImageOcclusionEditor({
 	);
 	const [tool, setTool] = useState<OcclusionTool>("rect");
 	const [color, setColor] = useState(DEFAULT_MASK_COLOR);
-	const [savingMode, setSavingMode] = useState<OcclusionMode | null>(null);
+	const [mode, setMode] = useState<OcclusionMode>(
+		target.kind === "edit" ? target.occlusion.mode : MODES[0].value,
+	);
+	const isSmallScreen = useIsSmallScreen();
 	const [name, setName] = useState(
 		target.kind === "create" ? target.name : target.occlusion.name,
 	);
@@ -191,10 +197,8 @@ export default function ImageOcclusionEditor({
 	// Editing down to no masks removes the occlusion, so there's no mode to pick.
 	const removing = target.kind === "edit" && keys.length === 0;
 
-	// Like Anki, the mode is picked by which button saves.
-	const save = (mode: OcclusionMode) => {
-		setSavingMode(mode);
-		return callApi(async () => {
+	const save = () =>
+		callApi(async () => {
 			if (!image) return;
 			const occlusionId =
 				target.kind === "create"
@@ -227,7 +231,6 @@ export default function ImageOcclusionEditor({
 			await dispatch(loadElementTree());
 			onClose();
 		});
-	};
 
 	return (
 		<Stack h={height} gap={0}>
@@ -395,42 +398,34 @@ export default function ImageOcclusionEditor({
 			<Divider />
 			<Stack p="sm" gap="xs">
 				{errorMessage && <Alert color="red" title={errorMessage} />}
-				<Group gap="sm" justify="flex-end">
-					<Button variant="default" onClick={onClose}>
-						Cancel
-					</Button>
-					{removing ? (
-						<Button
-							color="red"
-							onClick={() => void save(target.occlusion.mode)}
-							loading={isSendingRequest}>
-							Remove occlusion
-						</Button>
-					) : (
-						MODES.map(({ label, value }) => (
-							<Button
-								key={value}
-								// When editing, the occlusion's current mode is the primary action.
-								variant={
-									target.kind === "edit" &&
-									target.occlusion.mode !== value
-										? "default"
-										: "filled"
-								}
-								onClick={() => void save(value)}
-								loading={
-									isSendingRequest && savingMode === value
-								}
-								disabled={
-									!image ||
-									keys.length === 0 ||
-									isSendingRequest
-								}>
-								{label}
-							</Button>
-						))
+				{/* Stacked on small screens, where the mode picker needs the full width. */}
+				<Flex
+					gap="sm"
+					direction={isSmallScreen ? "column" : "row"}
+					justify={removing ? "flex-end" : "space-between"}>
+					{!removing && (
+						<SegmentedControl
+							aria-label="Mode"
+							value={mode}
+							onChange={value => setMode(value as OcclusionMode)}
+							data={MODES}
+						/>
 					)}
-				</Group>
+					<Group gap="sm" grow={isSmallScreen} wrap="nowrap">
+						<Button variant="default" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button
+							color={removing ? "red" : undefined}
+							onClick={() => void save()}
+							loading={isSendingRequest}
+							disabled={
+								!image || (!removing && keys.length === 0)
+							}>
+							{removing ? "Remove occlusion" : "Save"}
+						</Button>
+					</Group>
+				</Flex>
 			</Stack>
 		</Stack>
 	);
