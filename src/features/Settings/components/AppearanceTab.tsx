@@ -9,9 +9,10 @@ import {
 	buildUpdateSettingsRequest,
 	default as UpdateSettingsRequestDto,
 } from "../../../api/settings/dto/updateSettingsRequestDto";
-import { Font, Theme } from "../../../api/settings/dto/settingsDto";
+import { Font, LineWidth, Theme } from "../../../api/settings/dto/settingsDto";
 import { listSystemFonts } from "../../../api/settings/api/settingsApi";
 import { isMobile } from "../../../utils/tauriUtils";
+import { useIsSmallScreen } from "../../../hooks/useIsSmallScreen";
 import { ZOOM_MAX, ZOOM_MIN } from "../../../utils/zoom";
 import {
 	SYSTEM_DEFAULT_FONT_VALUE,
@@ -76,6 +77,7 @@ function AppearanceTab() {
 		settings?.zoomPercentage ?? 100,
 	);
 	const [systemFonts, setSystemFonts] = useState<string[]>([]);
+	const isSmallScreen = useIsSmallScreen();
 
 	if (settings && settings.zoomPercentage !== syncedZoom) {
 		setSyncedZoom(settings.zoomPercentage);
@@ -97,6 +99,14 @@ function AppearanceTab() {
 	function handleThemeChange(value: string) {
 		void dispatch(
 			saveSettings(buildUpdateSettingsRequest({ theme: value as Theme })),
+		);
+	}
+
+	function handleLineWidthChange(value: string) {
+		void dispatch(
+			saveSettings(
+				buildUpdateSettingsRequest({ lineWidth: value as LineWidth }),
+			),
 		);
 	}
 
@@ -136,6 +146,25 @@ function AppearanceTab() {
 					]}
 				/>
 			</Stack>
+
+			{/* Every line width fills a small screen, so the options look identical there. */}
+			{!isSmallScreen && (
+				<Stack gap="xs">
+					<FieldLabel
+						label="Line width"
+						tooltip="The maximum width of the editor. Narrower lines are easier to read; wider ones fit more on screen."
+					/>
+					<SegmentedControl
+						value={settings.lineWidth}
+						onChange={handleLineWidthChange}
+						data={[
+							{ label: "Narrow", value: "Narrow" },
+							{ label: "Medium", value: "Medium" },
+							{ label: "Wide", value: "Wide" },
+						]}
+					/>
+				</Stack>
+			)}
 
 			{/* Font pickers rely on system font enumeration, which isn't
 			supported on mobile, so hide them there. */}

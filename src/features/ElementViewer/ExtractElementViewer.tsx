@@ -6,6 +6,7 @@ import { FloatingMenuItem } from "../../components/Editor/plugins/FloatingMenuPl
 import { HighlightCreatedPayload } from "../../components/Editor/plugins/HighlightPlugin/highlightCommands";
 import { ElementId } from "../../types/elements/elementId";
 import { useEditorFindInPage } from "./hooks/useEditorFindInPage";
+import { useLineWidthContainerProps } from "./hooks/useLineWidthContainerProps";
 
 const EXTRACT_EDITOR_KEYS = ["extract"];
 
@@ -26,9 +27,10 @@ export default function ExtractElementViewer({
 }: ExtractElementViewerProps) {
 	const { query, caseSensitive, onMatches, matchIndexFor } =
 		useEditorFindInPage(EXTRACT_EDITOR_KEYS);
+	const containerProps = useLineWidthContainerProps();
 
 	return (
-		<Container size="sm" py="lg">
+		<Container {...containerProps} py="lg">
 			<ElementEditor
 				key={`extract-${elementId.id}`}
 				initialContent={extract.content}

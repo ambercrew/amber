@@ -5,8 +5,8 @@ use serde_json::Value;
 
 use crate::settings::value_objects::{
     ai_provider::AiProvider, ai_provider_settings::AiProviderSettings,
-    database_location::DatabaseLocation, font::Font, settings_profile::SettingsProfile,
-    theme::Theme,
+    database_location::DatabaseLocation, font::Font, line_width::LineWidth,
+    settings_profile::SettingsProfile, theme::Theme,
 };
 use crate::trash::services::trash_service::DEFAULT_TRASH_RETENTION_DAYS;
 
@@ -29,6 +29,8 @@ pub struct Settings {
     #[serde(default)]
     pub font_monospace: Font,
     pub zoom_percentage: f64,
+    #[serde(default)]
+    pub line_width: LineWidth,
     pub auto_sync: bool,
 
     /// How many days elements stay in the trash before they are purged.
@@ -93,6 +95,7 @@ impl Default for Settings {
             font_headings: Font::default(),
             font_monospace: Font::default(),
             zoom_percentage: f64::default(),
+            line_width: LineWidth::default(),
             auto_sync: bool::default(),
             trash_retention_days: DEFAULT_TRASH_RETENTION_DAYS,
             enable_ai: true,
@@ -127,6 +130,7 @@ impl Settings {
             font_headings: Font::SystemDefault,
             font_monospace: Font::SystemDefault,
             zoom_percentage: 100f64,
+            line_width: LineWidth::default(),
             auto_sync: true,
             trash_retention_days: DEFAULT_TRASH_RETENTION_DAYS,
             enable_ai: true,
@@ -230,6 +234,27 @@ mod tests {
             None,
             actual.ai_provider_settings(AiProvider::Gemini).model_name
         );
+    }
+
+    #[test]
+    pub fn from_json_line_width_missing_defaulted_to_narrow() {
+        // Arrange
+
+        let json = r#"{
+            "baseDatabaseDirectory": "/data/amber",
+            "profile": "Default",
+            "theme": "FollowSystem",
+            "zoomPercentage": 100.0,
+            "autoSync": true
+        }"#;
+
+        // Act
+
+        let actual = Settings::from_json(json).unwrap();
+
+        // Assert
+
+        assert_eq!(LineWidth::Narrow, actual.line_width);
     }
 
     #[test]

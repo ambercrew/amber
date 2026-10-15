@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::settings::value_objects::{
     ai_provider::AiProvider, ai_provider_settings::AiProviderSettings, font::Font,
-    settings_profile::SettingsProfile, theme::Theme,
+    line_width::LineWidth, settings_profile::SettingsProfile, theme::Theme,
 };
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -18,6 +18,7 @@ pub struct UpdateSettingsRequestDto {
     pub font_headings: Option<Font>,
     pub font_monospace: Option<Font>,
     pub zoom_percentage: Option<f64>,
+    pub line_width: Option<LineWidth>,
     pub auto_sync: Option<bool>,
     pub trash_retention_days: Option<u32>,
 

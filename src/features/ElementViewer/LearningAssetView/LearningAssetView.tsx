@@ -18,6 +18,7 @@ import { ReadPoint } from "../../../types/elements/readPoint";
 import { READ_POINT_MANUAL_GOTO_REQUESTED } from "../../../types/events/readPointManualGotoRequestedEvent";
 import ContentOriginPanel from "../ContentOriginPanel";
 import { useSyncSearchMatches } from "../hooks/useSyncSearchMatches";
+import { useLineWidthContainerProps } from "../hooks/useLineWidthContainerProps";
 import SplitSlot from "./SplitSlot";
 import {
 	findNearestMatchAtOrBelowViewport,
@@ -32,6 +33,7 @@ import {
 import { useSearchNavigation } from "./useSearchNavigation";
 import { useSplitHeights } from "./heights/useSplitHeights";
 import { useSplitMountWindow } from "./useSplitMountWindow";
+import { useContentWidth } from "./useContentWidth";
 import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "./learningAssetViewConstants";
 
 interface LearningAssetViewProps {
@@ -56,15 +58,8 @@ export default function LearningAssetView({
 	buttons,
 	onHighlightCreated,
 }: LearningAssetViewProps) {
-	const [contentWidth, setContentWidth] = useState(0);
-	// A callback ref (rather than an effect keyed on mount) so the width is
-	// measured whenever this node actually attaches — including the first
-	// render once `splits` finishes loading and the container appears.
-	const containerRef = useCallback((node: HTMLDivElement | null) => {
-		if (!node) return;
-		// Round to reduce cache churn from sub-pixel / scrollbar variance.
-		setContentWidth(Math.round(node.clientWidth / 10) * 10);
-	}, []);
+	const [contentWidth, containerRef] = useContentWidth();
+	const containerProps = useLineWidthContainerProps();
 
 	const [splits, setSplits] = useState<LearningAssetSplitMetaDto[] | null>(
 		null,
@@ -261,7 +256,7 @@ export default function LearningAssetView({
 	}
 
 	return (
-		<Container ref={containerRef} size="sm" py="lg">
+		<Container ref={containerRef} {...containerProps} py="lg">
 			{contentWidth > 0 &&
 				// eslint-disable-next-line react-hooks/refs
 				splits.map((split, index) => (

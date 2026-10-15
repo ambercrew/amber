@@ -15,6 +15,7 @@ const baseSettings: SettingsDto = {
 	fontHeadings: { type: "systemDefault" },
 	fontMonospace: { type: "systemDefault" },
 	zoomPercentage: 100,
+	lineWidth: "Narrow",
 	autoSync: true,
 	trashRetentionDays: 30,
 	enableAi: false,

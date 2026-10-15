@@ -13,6 +13,7 @@ import {
 } from "../../stores/study/studySelectors";
 import { ElementId } from "../../types/elements/elementId";
 import { useEditorFindInPage } from "./hooks/useEditorFindInPage";
+import { useLineWidthContainerProps } from "./hooks/useLineWidthContainerProps";
 
 interface CardElementViewerProps {
 	elementId: ElementId;
@@ -41,9 +42,10 @@ export default function CardElementViewer({
 	);
 	const { query, caseSensitive, onMatches, matchIndexFor } =
 		useEditorFindInPage(editorKeys);
+	const containerProps = useLineWidthContainerProps();
 
 	return (
-		<Container size="sm" py="lg">
+		<Container {...containerProps} py="lg">
 			<Stack key={`card-${elementId.id}`} gap="xl">
 				<Stack gap="md">
 					<Group gap="xs">

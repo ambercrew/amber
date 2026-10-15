@@ -56,6 +56,9 @@ impl SettingsUpdater for DefaultSettingsUpdater {
         if let Some(zoom_percentage) = new_settings.zoom_percentage {
             settings.zoom_percentage = zoom_percentage;
         }
+        if let Some(line_width) = new_settings.line_width {
+            settings.line_width = line_width;
+        }
         if let Some(auto_sync) = new_settings.auto_sync {
             settings.auto_sync = auto_sync;
         }
@@ -130,7 +133,7 @@ mod tests {
             services::settings_updater::SettingsUpdater,
             value_objects::{
                 ai_provider::AiProvider, ai_provider_settings::AiProviderSettings,
-                database_location::DatabaseLocation,
+                database_location::DatabaseLocation, line_width::LineWidth,
             },
         },
         test_utils::create_test_injector,
@@ -249,6 +252,33 @@ mod tests {
         // Act & Assert
 
         service.update_settings(request).await.unwrap();
+    }
+
+    #[tokio::test]
+    pub async fn update_settings_line_width_provided_persisted_line_width() {
+        // Arrange
+
+        let request = UpdateSettingsRequestDto {
+            line_width: Some(LineWidth::Wide),
+            ..Default::default()
+        };
+
+        let injector = initialize_test_injector(MockDatabaseConnectionManager::new()).await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<DefaultSettingsUpdater>().await;
+
+        // Act
+
+        service.update_settings(request).await.unwrap();
+
+        // Assert
+
+        let saved = scope
+            .resolve::<dyn SettingsRepository>()
+            .await
+            .get_settings()
+            .await;
+        assert_eq!(LineWidth::Wide, saved.line_width);
     }
 
     #[tokio::test]

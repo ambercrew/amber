@@ -1,4 +1,5 @@
 export type Theme = "FollowSystem" | "Light" | "Dark";
+export type LineWidth = "Narrow" | "Medium" | "Wide";
 export type Font = { type: "systemDefault" } | { type: "named"; value: string };
 export type AiProvider = "ollama" | "openAI" | "openRouter" | "gemini";
 
@@ -22,6 +23,7 @@ export default interface SettingsDto {
 	fontHeadings: Font;
 	fontMonospace: Font;
 	zoomPercentage: number;
+	lineWidth: LineWidth;
 	autoSync: boolean;
 	trashRetentionDays: number;
 

@@ -52,6 +52,7 @@ impl SettingsDtoProvider for DefaultSettingsDtoProvider {
             font_headings: settings.font_headings,
             font_monospace: settings.font_monospace,
             zoom_percentage: settings.zoom_percentage,
+            line_width: settings.line_width,
             auto_sync: settings.auto_sync,
             trash_retention_days: settings.trash_retention_days,
             enable_ai: settings.enable_ai,
