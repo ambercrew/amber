@@ -138,7 +138,18 @@ impl AiStreamer for DefaultAiStreamer {
                 .add_hook(StateCancellationHook::new(self.state.clone()))
                 .await;
 
-            while let Some(content) = stream.next().await {
+            // A running tool may be mid-write, so cancelling only interrupts the wait for the model.
+            let mut running_tools = 0usize;
+            loop {
+                let next = if running_tools > 0 {
+                    stream.next().await
+                } else {
+                    tokio::select! {
+                        next = stream.next() => next,
+                        () = self.state.cancelled() => break,
+                    }
+                };
+                let Some(content) = next else { break };
                 match content {
                     Ok(content) => {
                         if let MultiTurnStreamItem::StreamAssistantItem(
@@ -156,6 +167,7 @@ impl AiStreamer for DefaultAiStreamer {
                         {
                             log::info!("Tool call: {:#?}", tool_call);
                             called_tools = true;
+                            running_tools += 1;
 
                             let mut tool_call_content: ToolCallContent = tool_call.into();
                             // Some providers (e.g. Ollama, whose chat API has
@@ -186,6 +198,7 @@ impl AiStreamer for DefaultAiStreamer {
                         ) = content
                         {
                             log::info!("Tool result: {:#?}", tool_result);
+                            running_tools = running_tools.saturating_sub(1);
 
                             let mut tool_result_content: ToolResultContent = tool_result.into();
                             if tool_result_content.id.is_empty() {

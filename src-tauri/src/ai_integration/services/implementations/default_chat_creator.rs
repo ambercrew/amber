@@ -23,17 +23,20 @@ pub struct DefaultChatCreator {
 #[async_trait]
 impl ChatCreator for DefaultChatCreator {
     async fn create_chat(&self, prompt: &str) -> Result<Chat, ChatCreatorError> {
-        let response = match self
+        let extractor = self
             .ai_client_provider
             .get_client()
             .await?
             .extractor::<GenerateTitle>(self.ai_client_provider.get_completion_model_name().await?)
             .preamble(PREAMBLE_GENERATE_TITLE)
             .add_hook(StateCancellationHook::new(self.state.clone()))
-            .build()
-            .extract(format!("User message: {}", prompt))
-            .await
-        {
+            .build();
+        let extraction = extractor.extract(format!("User message: {}", prompt));
+        let result = tokio::select! {
+            result = extraction => result,
+            () = self.state.cancelled() => return Err(ChatCreatorError::Cancelled),
+        };
+        let response = match result {
             Ok(response) => response,
             Err(ExtractionError::CompletionError(completion_err)) => {
                 return Err(ChatCreatorError::try_from(completion_err)
