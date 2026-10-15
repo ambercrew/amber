@@ -242,13 +242,6 @@ export default function ImageOcclusionEditor({
 						disabled={target.kind === "edit"}
 					/>
 				</AppTooltip>
-				{keys.length === 0 && (
-					<Text size="sm" c="dimmed" ml="auto" ta="right">
-						{removing
-							? "No masks left: removing trashes this occlusion's cards"
-							: "Draw a rectangle or ellipse over each part to hide"}
-					</Text>
-				)}
 			</Group>
 			<Divider />
 			<Group flex={1} gap={0} align="stretch" wrap="nowrap" mih={0}>
