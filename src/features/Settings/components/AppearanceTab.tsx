@@ -140,9 +140,9 @@ function AppearanceTab() {
 					value={settings.theme}
 					onChange={handleThemeChange}
 					data={[
+						{ label: "Follow system", value: "FollowSystem" },
 						{ label: "Light", value: "Light" },
 						{ label: "Dark", value: "Dark" },
-						{ label: "Follow system", value: "FollowSystem" },
 					]}
 				/>
 			</Stack>
