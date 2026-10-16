@@ -5,7 +5,8 @@ use crate::{
     ai_integration::{
         ai_state::AiState,
         dto::{
-            message_response_dto::MessageResponseDto, stream_ai_request_dto::StreamAiRequestDto,
+            chat_response_dto::ChatResponseDto, message_response_dto::MessageResponseDto,
+            stream_ai_request_dto::StreamAiRequestDto,
         },
         entities::{chat::Chat, context_snippet::group_snippets_by_message},
         repositories::ai_repository::AiRepository,
@@ -73,14 +74,17 @@ pub async fn stop_ai_generation(injector: State<'_, Arc<Injector>>) -> Result<()
 #[tauri::command]
 pub async fn get_all_ai_chats_sorted_by_date_desc(
     injector: State<'_, Arc<Injector>>,
-) -> Result<Vec<Chat>, ApiError> {
+) -> Result<Vec<ChatResponseDto>, ApiError> {
     let scope = injector.start_scope();
     let chats = scope
         .resolve::<dyn AiRepository>()
         .await
-        .get_all_chats_sorted_by_date_desc()
+        .get_all_chats_sorted_by_last_activity_desc()
         .await?;
-    Ok(chats)
+    Ok(chats
+        .into_iter()
+        .map(|(chat, last_activity_date)| ChatResponseDto::new(chat, last_activity_date))
+        .collect())
 }
 
 #[tauri::command]

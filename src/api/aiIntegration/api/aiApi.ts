@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import ChatDto from "../dto/chatDto";
+import ChatResponseDto from "../dto/chatResponseDto";
 import MessageDto from "../dto/messageDto";
 import StreamAiRequestDto from "../dto/streamAiRequestDto";
 import StreamLlmResponseEventDto from "../dto/streamLlmResponseEventDto";
@@ -20,7 +21,7 @@ export function stopAiGeneration(): Promise<void> {
 	return invoke("stop_ai_generation");
 }
 
-export function getAllAiChatsSortedByDateDesc(): Promise<ChatDto[]> {
+export function getAllAiChatsSortedByDateDesc(): Promise<ChatResponseDto[]> {
 	return invoke("get_all_ai_chats_sorted_by_date_desc");
 }
 

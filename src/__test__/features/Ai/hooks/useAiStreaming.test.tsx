@@ -12,6 +12,7 @@ import {
 	streamAiResponse,
 } from "../../../../api/aiIntegration/api/aiApi";
 import ChatDto from "../../../../api/aiIntegration/dto/chatDto";
+import { toChatResponseDto } from "../../../../api/aiIntegration/dto/chatResponseDto";
 import MessageDto from "../../../../api/aiIntegration/dto/messageDto";
 import StreamLlmResponseEventDto from "../../../../api/aiIntegration/dto/streamLlmResponseEventDto";
 import { setupStore } from "../../../../stores/store";
@@ -402,8 +403,8 @@ describe("useAiStreaming", () => {
 
 		vi.mocked(streamAiResponse).mockImplementation(() => new Promise(noop));
 		vi.mocked(getAllAiChatsSortedByDateDesc).mockResolvedValue([
-			chat1,
-			chat2,
+			toChatResponseDto(chat1),
+			toChatResponseDto(chat2),
 		]);
 		vi.mocked(getChatMessagesOrdered).mockResolvedValue([]);
 
@@ -440,7 +441,9 @@ describe("useAiStreaming", () => {
 	it("Should select the newly created chat and prepend it to the chat list on createdChat", async () => {
 		// Arrange
 
-		vi.mocked(getAllAiChatsSortedByDateDesc).mockResolvedValue([chat1]);
+		vi.mocked(getAllAiChatsSortedByDateDesc).mockResolvedValue([
+			toChatResponseDto(chat1),
+		]);
 		vi.mocked(streamAiResponse).mockImplementation(() => new Promise(noop));
 
 		const { result } = renderHook(() => useTestHarness(), {
@@ -464,7 +467,10 @@ describe("useAiStreaming", () => {
 		// Assert
 
 		expect(result.current.selectedChatId).toBe("chat-2");
-		expect(result.current.chats).toEqual([chat2, chat1]);
+		expect(result.current.chats).toEqual([
+			toChatResponseDto(chat2),
+			toChatResponseDto(chat1),
+		]);
 	});
 
 	it("Should set streamError when an error event is received", async () => {
@@ -537,7 +543,9 @@ describe("useAiStreaming", () => {
 				}),
 		);
 		vi.mocked(getChatMessagesOrdered).mockResolvedValue([message1]);
-		vi.mocked(getAllAiChatsSortedByDateDesc).mockResolvedValue([chat1]);
+		vi.mocked(getAllAiChatsSortedByDateDesc).mockResolvedValue([
+			toChatResponseDto(chat1),
+		]);
 
 		const { result } = renderHook(() => useTestHarness(), {
 			wrapper: makeWrapper(makeStore()),
@@ -613,7 +621,9 @@ describe("useAiStreaming", () => {
 					resolveStream = resolve;
 				}),
 		);
-		vi.mocked(getAllAiChatsSortedByDateDesc).mockResolvedValue([chat1]);
+		vi.mocked(getAllAiChatsSortedByDateDesc).mockResolvedValue([
+			toChatResponseDto(chat1),
+		]);
 
 		const { result } = renderHook(() => useTestHarness(), {
 			wrapper: makeWrapper(makeStore()),

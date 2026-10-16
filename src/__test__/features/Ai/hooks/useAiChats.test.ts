@@ -6,13 +6,23 @@ import {
 	getChatMessagesOrdered,
 	renameAiChat,
 } from "../../../../api/aiIntegration/api/aiApi";
-import ChatDto from "../../../../api/aiIntegration/dto/chatDto";
+import ChatResponseDto from "../../../../api/aiIntegration/dto/chatResponseDto";
 import MessageDto from "../../../../api/aiIntegration/dto/messageDto";
 
 vi.mock(import("../../../../api/aiIntegration/api/aiApi"));
 
-const chat1: ChatDto = { id: "chat-1", title: "Chat 1", createdDate: "date" };
-const chat2: ChatDto = { id: "chat-2", title: "Chat 2", createdDate: "date" };
+const chat1: ChatResponseDto = {
+	id: "chat-1",
+	title: "Chat 1",
+	createdDate: "date",
+	lastActivityDate: "date",
+};
+const chat2: ChatResponseDto = {
+	id: "chat-2",
+	title: "Chat 2",
+	createdDate: "date",
+	lastActivityDate: "date",
+};
 
 const message1: MessageDto = {
 	id: "message-1",

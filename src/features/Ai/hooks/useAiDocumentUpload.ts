@@ -12,14 +12,16 @@ import {
 	uploadDocument,
 } from "../../../api/aiIntegration/api/aiApi";
 import MessageDto from "../../../api/aiIntegration/dto/messageDto";
-import ChatDto from "../../../api/aiIntegration/dto/chatDto";
+import ChatResponseDto, {
+	toChatResponseDto,
+} from "../../../api/aiIntegration/dto/chatResponseDto";
 import UploadOutcomeDto from "../../../api/aiIntegration/dto/uploadOutcomeDto";
 import { CallApiFn } from "../../../hooks/useApi";
 
 interface UseAiDocumentUploadParams {
 	selectedChatId: string | null;
 	setSelectedChatId: Dispatch<SetStateAction<string | null>>;
-	setChats: Dispatch<SetStateAction<ChatDto[]>>;
+	setChats: Dispatch<SetStateAction<ChatResponseDto[]>>;
 	setMessages: Dispatch<SetStateAction<MessageDto[]>>;
 	activeChatIdRef: RefObject<string | null>;
 	callApi: CallApiFn;
@@ -59,7 +61,7 @@ export default function useAiDocumentUpload({
 						activeChatIdRef.current = chat.id;
 						setSelectedChatId(chat.id);
 						setUploadChatId(chat.id);
-						setChats(prev => [chat, ...prev]);
+						setChats(prev => [toChatResponseDto(chat), ...prev]);
 					}
 
 					// A chat made just for this file is dropped rather than left empty.

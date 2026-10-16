@@ -1,6 +1,7 @@
 import { Box, Group, Select, SelectProps, Text } from "@mantine/core";
 import { CheckIcon, PlusIcon } from "@phosphor-icons/react";
-import ChatDto from "../../../api/aiIntegration/dto/chatDto";
+import ChatResponseDto from "../../../api/aiIntegration/dto/chatResponseDto";
+import { groupChatsByDate } from "../utils/groupChatsByDate";
 
 const NEW_CHAT_VALUE = "__new_chat__";
 const ICON_SIZE = 14;
@@ -31,7 +32,7 @@ const renderOption: SelectProps["renderOption"] = ({ option, checked }) => {
 };
 
 interface ChatSelectMenuProps {
-	chats: ChatDto[];
+	chats: ChatResponseDto[];
 	selectedChatId: string | null;
 	onSelect: (chatId: string) => void;
 	onNewChat: () => void;
@@ -48,18 +49,13 @@ function ChatSelectMenu({
 		<Select
 			data={[
 				{ value: NEW_CHAT_VALUE, label: "New chat" },
-				// An unlabeled group, so its border is a plain line below "New chat".
-				...(chats.length > 0
-					? [
-							{
-								group: "",
-								items: chats.map(chat => ({
-									value: chat.id,
-									label: chat.title,
-								})),
-							},
-						]
-					: []),
+				...groupChatsByDate(chats).map(group => ({
+					group: group.label,
+					items: group.chats.map(chat => ({
+						value: chat.id,
+						label: chat.title,
+					})),
+				})),
 			]}
 			value={selectedChatId ?? NEW_CHAT_VALUE}
 			onChange={value => {
@@ -68,6 +64,8 @@ function ChatSelectMenu({
 				else onSelect(value);
 			}}
 			renderOption={renderOption}
+			// Grows to the space left below the input instead of a fixed max height.
+			floatingHeight="viewport"
 			// The scroll area otherwise widens to the longest title, past the dropdown.
 			scrollAreaProps={{ styles: { content: { minWidth: 0 } } }}
 			styles={{
@@ -77,11 +75,6 @@ function ChatSelectMenu({
 					color: isNewChat
 						? "var(--mantine-color-dimmed)"
 						: undefined,
-				},
-				group: {
-					borderTop: "1px solid var(--mantine-color-default-border)",
-					marginTop: 4,
-					paddingTop: 4,
 				},
 			}}
 			allowDeselect={false}

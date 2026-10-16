@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::{
@@ -8,7 +9,9 @@ use crate::{
 
 #[async_trait]
 pub trait AiRepository: Send + Sync {
-    async fn get_all_chats_sorted_by_date_desc(&self) -> Result<Vec<Chat>, RepositoryError>;
+    async fn get_all_chats_sorted_by_last_activity_desc(
+        &self,
+    ) -> Result<Vec<(Chat, DateTime<Utc>)>, RepositoryError>;
     async fn upsert_chat(&self, chat: &Chat) -> Result<(), RepositoryError>;
     async fn get_chat_by_id(&self, id: Uuid) -> Result<Chat, RepositoryError>;
     async fn upsert_message(&self, message: &Message) -> Result<(), RepositoryError>;

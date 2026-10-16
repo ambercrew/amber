@@ -578,14 +578,14 @@ pub mod tests {
         assert!(received_in_progress.load(Ordering::Relaxed));
 
         let chats = repository
-            .get_all_chats_sorted_by_date_desc()
+            .get_all_chats_sorted_by_last_activity_desc()
             .await
             .unwrap();
         assert_eq!(1, chats.len());
-        assert_eq!("Chat title", chats[0].title());
+        assert_eq!("Chat title", chats[0].0.title());
 
         let messages = repository
-            .get_chat_messages_ordered(chats[0].id())
+            .get_chat_messages_ordered(chats[0].0.id())
             .await
             .unwrap();
         assert_eq!(2, messages.len());
@@ -813,11 +813,11 @@ pub mod tests {
         // Assert
 
         let chats = repository
-            .get_all_chats_sorted_by_date_desc()
+            .get_all_chats_sorted_by_last_activity_desc()
             .await
             .unwrap();
         let messages = repository
-            .get_chat_messages_ordered(chats[0].id())
+            .get_chat_messages_ordered(chats[0].0.id())
             .await
             .unwrap();
         assert_eq!(
@@ -892,7 +892,7 @@ pub mod tests {
         assert!(!received_event.load(Ordering::Relaxed));
 
         let chats = repository
-            .get_all_chats_sorted_by_date_desc()
+            .get_all_chats_sorted_by_last_activity_desc()
             .await
             .unwrap();
         assert!(chats.is_empty());
@@ -980,13 +980,13 @@ pub mod tests {
         assert!(received_error.load(Ordering::Relaxed));
 
         let chats = repository
-            .get_all_chats_sorted_by_date_desc()
+            .get_all_chats_sorted_by_last_activity_desc()
             .await
             .unwrap();
         assert_eq!(1, chats.len());
 
         let messages = repository
-            .get_chat_messages_ordered(chats[0].id())
+            .get_chat_messages_ordered(chats[0].0.id())
             .await
             .unwrap();
         assert!(messages.is_empty());

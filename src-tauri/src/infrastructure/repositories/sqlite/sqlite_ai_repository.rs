@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use injector_derive::ScopeInjectable;
-use uuid::Uuid;
+use uuid::{Uuid, fmt::Hyphenated};
 
 use crate::{
     ai_integration::{
@@ -34,23 +35,37 @@ pub struct SqliteAiRepository {
 
 #[async_trait]
 impl AiRepository for SqliteAiRepository {
-    async fn get_all_chats_sorted_by_date_desc(&self) -> Result<Vec<Chat>, RepositoryError> {
+    async fn get_all_chats_sorted_by_last_activity_desc(
+        &self,
+    ) -> Result<Vec<(Chat, DateTime<Utc>)>, RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
-        let chat_rows = sqlx::query_as!(
-            ChatRow,
+        let rows = sqlx::query!(
             r#"SELECT
-                id as "id: _",
-                created_date as "created_date: _",
-                title
-            FROM ai_chats
-            ORDER BY created_date DESC"#
+                c.id as "id!: Hyphenated",
+                c.created_date as "created_date!: DateTime<Utc>",
+                c.title as "title!",
+                COALESCE(MAX(m.created_date), c.created_date) as "last_activity_date!: DateTime<Utc>"
+            FROM ai_chats c
+            LEFT JOIN ai_messages m ON m.ai_chat_id = c.id
+            GROUP BY c.id
+            ORDER BY 4 DESC"#
         )
         .fetch_all(&mut *tx)
-        .await;
+        .await?;
 
-        Ok(chat_rows?.into_iter().map(|chat| chat.into()).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let chat = ChatRow {
+                    id: row.id,
+                    title: row.title,
+                    created_date: row.created_date,
+                };
+                (chat.into(), row.last_activity_date)
+            })
+            .collect())
     }
 
     async fn upsert_chat(&self, chat: &Chat) -> Result<(), RepositoryError> {
@@ -278,6 +293,8 @@ pub mod tests {
         infrastructure::extensions::unit_of_work::UnitOfWorkExt, test_utils::create_test_injector,
     };
 
+    use chrono::TimeZone;
+
     use super::*;
 
     async fn initialize_test_injector() -> Injector {
@@ -287,32 +304,44 @@ pub mod tests {
     }
 
     #[tokio::test]
-    pub async fn get_all_chats_sorted_by_date_desc_multiple_chats_returned_all() {
+    pub async fn get_all_chats_sorted_by_last_activity_desc_older_chat_with_newer_message_returned_first()
+     {
         // Arrange
 
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
         let repository = scope.resolve::<SqliteAiRepository>().await;
 
-        let chat1 = Chat::new(None, "First".to_string());
-        repository.upsert_chat(&chat1).await.unwrap();
-        let chat2 = Chat::new(None, "Second".to_string());
-        repository.upsert_chat(&chat2).await.unwrap();
+        let older_created = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let newer_created = Utc.with_ymd_and_hms(2026, 1, 2, 0, 0, 0).unwrap();
+        let message_date = Utc.with_ymd_and_hms(2026, 1, 3, 0, 0, 0).unwrap();
+
+        let older = Chat::new_unchecked(Uuid::new_v4(), older_created, "Older".to_string());
+        repository.upsert_chat(&older).await.unwrap();
+        let newer = Chat::new_unchecked(Uuid::new_v4(), newer_created, "Newer".to_string());
+        repository.upsert_chat(&newer).await.unwrap();
+        repository
+            .upsert_message(&Message::new_unchecked(
+                Uuid::new_v4(),
+                message_date,
+                older.id(),
+                MessageContent::Human("Human".to_string()),
+            ))
+            .await
+            .unwrap();
 
         scope.save_changes().await.unwrap();
 
         // Act
 
         let actual = repository
-            .get_all_chats_sorted_by_date_desc()
+            .get_all_chats_sorted_by_last_activity_desc()
             .await
             .unwrap();
 
         // Assert
 
-        assert_eq!(actual.len(), 2);
-        assert_eq!(actual[0].title(), "First");
-        assert_eq!(actual[1].title(), "Second");
+        assert_eq!(actual, vec![(older, message_date), (newer, newer_created)]);
     }
 
     #[tokio::test]
@@ -470,10 +499,10 @@ pub mod tests {
         // Assert
 
         let actual = repository
-            .get_all_chats_sorted_by_date_desc()
+            .get_all_chats_sorted_by_last_activity_desc()
             .await
             .unwrap();
         assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].title(), "Second");
+        assert_eq!(actual[0].0.title(), "Second");
     }
 }

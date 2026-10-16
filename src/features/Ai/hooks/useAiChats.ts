@@ -7,7 +7,7 @@ import {
 	renameAiChat,
 } from "../../../api/aiIntegration/api/aiApi";
 import MessageDto from "../../../api/aiIntegration/dto/messageDto";
-import ChatDto from "../../../api/aiIntegration/dto/chatDto";
+import ChatResponseDto from "../../../api/aiIntegration/dto/chatResponseDto";
 import useApi from "../../../hooks/useApi";
 
 /**
@@ -19,7 +19,7 @@ export default function useAiChats() {
 	const { callApi, isSendingRequest, errorMessage, clearErrorMessage } =
 		useApi();
 
-	const [chats, setChats] = useState<ChatDto[]>([]);
+	const [chats, setChats] = useState<ChatResponseDto[]>([]);
 	const [selectedChatId, setSelectedChatId] = useLocalStorage<string | null>({
 		key: "ai-selected-chat-id",
 		defaultValue: null,

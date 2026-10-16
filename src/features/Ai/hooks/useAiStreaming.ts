@@ -13,7 +13,9 @@ import {
 } from "../../../api/aiIntegration/api/aiApi";
 import StreamLlmResponseEventDto from "../../../api/aiIntegration/dto/streamLlmResponseEventDto";
 import MessageDto from "../../../api/aiIntegration/dto/messageDto";
-import ChatDto from "../../../api/aiIntegration/dto/chatDto";
+import ChatResponseDto, {
+	toChatResponseDto,
+} from "../../../api/aiIntegration/dto/chatResponseDto";
 import { CallApiFn } from "../../../hooks/useApi";
 import { ElementId } from "../../../types/elements/elementId";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -28,7 +30,7 @@ import { StreamingToolMessage } from "../utils/buildDisplayMessages";
 interface UseAiStreamingParams {
 	selectedChatId: string | null;
 	setSelectedChatId: Dispatch<SetStateAction<string | null>>;
-	setChats: Dispatch<SetStateAction<ChatDto[]>>;
+	setChats: Dispatch<SetStateAction<ChatResponseDto[]>>;
 	setMessages: Dispatch<SetStateAction<MessageDto[]>>;
 	activeChatIdRef: RefObject<string | null>;
 	refreshChats: () => Promise<void>;
@@ -96,7 +98,7 @@ export default function useAiStreaming({
 					activeChatIdRef.current = event.data.id;
 					setSelectedChatId(event.data.id);
 					setStreamChatId(event.data.id);
-					setChats(prev => [event.data, ...prev]);
+					setChats(prev => [toChatResponseDto(event.data), ...prev]);
 				} else if (event.event === "inProgress") {
 					setStreamChatId(event.data.chatId);
 					setStreamingAssistantText(

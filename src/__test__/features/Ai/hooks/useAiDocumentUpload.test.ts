@@ -9,6 +9,7 @@ import {
 } from "../../../../api/aiIntegration/api/aiApi";
 import UploadOutcomeDto from "../../../../api/aiIntegration/dto/uploadOutcomeDto";
 import ChatDto from "../../../../api/aiIntegration/dto/chatDto";
+import { toChatResponseDto } from "../../../../api/aiIntegration/dto/chatResponseDto";
 import MessageDto from "../../../../api/aiIntegration/dto/messageDto";
 
 vi.mock(import("../../../../api/aiIntegration/api/aiApi"));
@@ -54,7 +55,7 @@ describe("useAiDocumentUpload", () => {
 			"chat-1",
 		);
 		expect(result.current.selectedChatId).toBe("chat-1");
-		expect(result.current.chats).toEqual([chat1]);
+		expect(result.current.chats).toEqual([toChatResponseDto(chat1)]);
 	});
 
 	it("Should upload to the currently selected chat without creating a new one", async () => {
