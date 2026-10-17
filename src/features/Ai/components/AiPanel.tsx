@@ -15,7 +15,12 @@ import {
 } from "../utils/buildDisplayMessages";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
-import { selectAiContextSnippets } from "../../../stores/aiContext/aiSelectors";
+import {
+	selectAiContextSnippets,
+	selectPendingAiPrompt,
+} from "../../../stores/aiContext/aiSelectors";
+import { clearPendingAiPrompt } from "../../../stores/aiContext/aiReducer";
+import useAppDispatch from "../../../hooks/useAppDispatch";
 import ChatMessages from "./ChatMessages";
 import ChatInput from "./ChatInput";
 import ChatSelectMenu from "./ChatSelectMenu";
@@ -30,6 +35,8 @@ function AiPanel() {
 	const contextSnippets = useAppSelector(selectAiContextSnippets).map(
 		snippet => snippet.text,
 	);
+	const pendingPrompt = useAppSelector(selectPendingAiPrompt);
+	const dispatch = useAppDispatch();
 
 	const {
 		chats,
@@ -97,6 +104,13 @@ function AiPanel() {
 	);
 
 	const selectedChat = chats.find(chat => chat.id === selectedChatId);
+
+	// Waits for any running reply, so a prompt asked mid-stream isn't dropped.
+	useEffect(() => {
+		if (!pendingPrompt || isStreaming) return;
+		dispatch(clearPendingAiPrompt());
+		void sendPrompt(pendingPrompt);
+	}, [pendingPrompt, isStreaming, sendPrompt, dispatch]);
 
 	useEffect(() => {
 		void refreshChats();

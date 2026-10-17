@@ -1,6 +1,7 @@
 import {
 	ArrowSquareOutIcon,
 	CardsIcon,
+	MagicWandIcon,
 	EraserIcon,
 	ScissorsIcon,
 	SparkleIcon,
@@ -49,6 +50,12 @@ export const ADD_AI_CONTEXT_BUTTON: ButtonMetadata = {
 	title: "Add to AI Context",
 	Icon: SparkleIcon,
 	shortcut: ADD_TO_AI_CONTEXT_SHORTCUT,
+};
+
+export const AI_CARDS_BUTTON: ButtonMetadata = {
+	name: "ai-cards",
+	title: "Make Cards with AI",
+	Icon: MagicWandIcon,
 };
 
 /** Acts on the highlight (if any) under the current selection. */

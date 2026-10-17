@@ -47,7 +47,7 @@ function getCapturedChannel() {
 }
 
 function makeStore(snippets: { id: string; text: string }[] = []) {
-	return setupStore({ ai: { snippets } });
+	return setupStore({ ai: { snippets, pendingPrompt: null } });
 }
 
 function makeWrapper(store: ReturnType<typeof makeStore>) {

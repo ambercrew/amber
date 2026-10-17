@@ -43,6 +43,11 @@ Built on [`rig`](https://docs.rs/rig-core) `=0.42.0`.
 4. History goes back to the model through `try_into_rig_message`. `with_current_approval_statuses`
    tells the model where each approval stands.
 
+**Starting a turn from elsewhere:** dispatch `addAiContextSnippet(text)` and
+`requestAiPrompt(prompt)` (`stores/aiContext`), then `requestFocus("aiChat")`. `AiPanel` sends the
+pending prompt once it's shown and no reply is streaming. The editor menu's "Make Cards with AI"
+(`useElementViewerButtons`) does this with `CONVERT_SNIPPET_TO_CARDS_PROMPT` (`features/Ai/aiPrompts.ts`).
+
 ## Tools
 
 **`AppTool`** (`tools/app_tool.rs`) is rig's `Tool` plus the following. `Output` must also be

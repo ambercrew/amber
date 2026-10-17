@@ -7,10 +7,13 @@ export interface AiContextSnippet {
 
 export interface AiContextState {
 	snippets: AiContextSnippet[];
+	/** Asked from outside the chat (e.g. the editor's menu); the AI panel sends it once shown. */
+	pendingPrompt: string | null;
 }
 
 const initialState: AiContextState = {
 	snippets: [],
+	pendingPrompt: null,
 };
 
 const aiSlice = createSlice({
@@ -27,6 +30,12 @@ const aiSlice = createSlice({
 			state.snippets = state.snippets.filter(
 				snippet => snippet.id !== action.payload,
 			);
+		},
+		requestAiPrompt: (state, action: PayloadAction<string>) => {
+			state.pendingPrompt = action.payload;
+		},
+		clearPendingAiPrompt: state => {
+			state.pendingPrompt = null;
 		},
 		clearAiContextSnippets: state => {
 			state.snippets = [];
@@ -45,6 +54,8 @@ export default aiSlice.reducer;
 export const {
 	addAiContextSnippet,
 	removeAiContextSnippet,
+	requestAiPrompt,
+	clearPendingAiPrompt,
 	clearAiContextSnippets,
 	restoreAiContextSnippets,
 } = aiSlice.actions;

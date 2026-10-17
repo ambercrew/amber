@@ -20,13 +20,19 @@ import { paths } from "../../../paths";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectSettings } from "../../../stores/settings/settingsSelector";
-import { addAiContextSnippet } from "../../../stores/aiContext/aiReducer";
+import {
+	addAiContextSnippet,
+	requestAiPrompt,
+} from "../../../stores/aiContext/aiReducer";
+import { requestFocus } from "../../../hooks/useFocusRequest";
+import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../Ai/aiPrompts";
 import { existsInTree } from "../../../stores/elements/elementsActions";
 import { RootState } from "../../../stores/store";
 import { trashElementAction } from "../../../stores/trash/trashActions";
 import { ElementId } from "../../../types/elements/elementId";
 import {
 	ADD_AI_CONTEXT_BUTTON,
+	AI_CARDS_BUTTON,
 	CLOZE_BUTTON,
 	EXTRACT_BUTTON,
 	OPEN_HIGHLIGHT_BUTTON,
@@ -59,6 +65,15 @@ function $getHighlightNodesFromSelection(selection: RangeSelection) {
 		}
 	}
 	return Array.from(highlightNodes.values());
+}
+
+function selectedText(editor: LexicalEditor): string | null {
+	return editor.getEditorState().read(() => {
+		const selection = $getSelection();
+		if (!$isRangeSelection(selection)) return null;
+		const text = selection.getTextContent();
+		return text.trim() ? text : null;
+	});
 }
 
 function highlightElementId(highlightNode: HighlightNode): ElementId {
@@ -164,14 +179,30 @@ export function useElementViewerButtons() {
 								_isActive: boolean,
 								closeMenu: () => void,
 							) => {
-								editor.getEditorState().read(() => {
-									const selection = $getSelection();
-									if (!$isRangeSelection(selection)) return;
-									const text = selection.getTextContent();
-									if (!text.trim()) return;
-									dispatch(addAiContextSnippet(text));
-									closeMenu();
-								});
+								const text = selectedText(editor);
+								if (!text) return;
+								dispatch(addAiContextSnippet(text));
+								closeMenu();
+							},
+						},
+						{
+							...AI_CARDS_BUTTON,
+							isActive: () => false,
+							onClick: (
+								editor: LexicalEditor,
+								_isActive: boolean,
+								closeMenu: () => void,
+							) => {
+								const text = selectedText(editor);
+								if (!text) return;
+								dispatch(addAiContextSnippet(text));
+								dispatch(
+									requestAiPrompt(
+										CONVERT_SNIPPET_TO_CARDS_PROMPT,
+									),
+								);
+								requestFocus("aiChat");
+								closeMenu();
 							},
 						},
 					]

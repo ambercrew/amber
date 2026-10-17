@@ -40,6 +40,8 @@ const { mockNavigate, mockTrashElementAction } = vi.hoisted(() => ({
 	),
 }));
 
+import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../../../features/Ai/aiPrompts";
+
 vi.mock(
 	import("../../../../stores/trash/trashActions"),
 	async importOriginal => {
@@ -691,6 +693,65 @@ describe("useElementViewerButtons", () => {
 			// Assert
 
 			expect(store.getState().ai.snippets).toEqual([]);
+			expect(closeMenu).not.toHaveBeenCalled();
+		});
+	});
+	describe("ai-cards button", () => {
+		it("Should not be present when AI is disabled", () => {
+			// Arrange
+
+			const buttons = renderButtons(makeStore(false));
+
+			// Assert
+
+			expect(
+				buttons.some(b => !("divider" in b) && b.name === "ai-cards"),
+			).toBe(false);
+		});
+
+		it("Should add the selection as a snippet and ask the AI for cards when clicked", () => {
+			// Arrange
+
+			const store = makeStore(true);
+			const button = getButton("ai-cards", store);
+			const editor = createTestEditor();
+			setContent(editor, [{ text: "Selected passage" }]);
+			selectSegments(editor, 0, 0);
+			const closeMenu = vi.fn();
+
+			// Act
+
+			button.onClick(editor, false, closeMenu);
+
+			// Assert
+
+			expect(store.getState().ai.snippets).toEqual([
+				expect.objectContaining({ text: "Selected passage" }),
+			]);
+			expect(store.getState().ai.pendingPrompt).toBe(
+				CONVERT_SNIPPET_TO_CARDS_PROMPT,
+			);
+			expect(closeMenu).toHaveBeenCalledOnce();
+		});
+
+		it("Should ask nothing when the selection is blank", () => {
+			// Arrange
+
+			const store = makeStore(true);
+			const button = getButton("ai-cards", store);
+			const editor = createTestEditor();
+			setContent(editor, [{ text: "   " }]);
+			selectSegments(editor, 0, 0);
+			const closeMenu = vi.fn();
+
+			// Act
+
+			button.onClick(editor, false, closeMenu);
+
+			// Assert
+
+			expect(store.getState().ai.snippets).toEqual([]);
+			expect(store.getState().ai.pendingPrompt).toBeNull();
 			expect(closeMenu).not.toHaveBeenCalled();
 		});
 	});
