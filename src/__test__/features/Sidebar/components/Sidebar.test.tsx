@@ -1,5 +1,5 @@
 import { AppShell } from "@mantine/core";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import Sidebar from "../../../../features/Sidebar/components/Sidebar";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
@@ -43,7 +43,7 @@ describe("Sidebar", () => {
 		expect(screen.queryByText("PriorityQueuePanel")).not.toBeVisible();
 	});
 
-	it("Should show PriorityQueuePanel when priority queue tab is active", () => {
+	it("Should show PriorityQueuePanel when priority queue tab is active", async () => {
 		// Arrange
 
 		render();
@@ -54,11 +54,14 @@ describe("Sidebar", () => {
 
 		// Assert
 
-		expect(screen.getByText("PriorityQueuePanel")).toBeVisible();
+		// The panel fades in on the next frame.
+		await waitFor(() =>
+			expect(screen.getByText("PriorityQueuePanel")).toBeVisible(),
+		);
 		expect(screen.queryByText("NavigatorPanel")).not.toBeVisible();
 	});
 
-	it("Should show TrashPanel when trash tab is active", () => {
+	it("Should show TrashPanel when trash tab is active", async () => {
 		// Arrange
 
 		render();
@@ -69,7 +72,10 @@ describe("Sidebar", () => {
 
 		// Assert
 
-		expect(screen.getByText("TrashPanel")).toBeVisible();
+		// The panel fades in on the next frame.
+		await waitFor(() =>
+			expect(screen.getByText("TrashPanel")).toBeVisible(),
+		);
 		expect(screen.queryByText("NavigatorPanel")).not.toBeVisible();
 	});
 

@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import {
 	AppShell,
 	Tabs,
@@ -6,11 +6,16 @@ import {
 	ActionIcon,
 	ScrollArea,
 	Box,
+	FloatingIndicator,
+	useMantineTheme,
 } from "@mantine/core";
+import { useReducedMotion } from "@mantine/hooks";
 import { XIcon } from "@phosphor-icons/react";
 import { SMALL_SCREEN_BREAKPOINT } from "../../hooks/useIsSmallScreen";
 import { useSidebarTab } from "./useSidebarTab";
 import AppTooltip from "../AppTooltip/AppTooltip";
+
+const PANEL_FADE_MS = 150;
 
 export interface SidebarTab {
 	value: string;
@@ -52,6 +57,25 @@ function CollapsibleSidebar({
 	const activeValue = tabs.some(tab => tab.value === value)
 		? value
 		: (tabs[0]?.value ?? "");
+	const [listRef, setListRef] = useState<HTMLDivElement | null>(null);
+	const [tabRefs, setTabRefs] = useState<
+		Record<string, HTMLButtonElement | null>
+	>({});
+	const setTabRef = (tabValue: string) => (node: HTMLButtonElement | null) =>
+		setTabRefs(refs =>
+			refs[tabValue] === node ? refs : { ...refs, [tabValue]: node },
+		);
+	const theme = useMantineTheme();
+	const reduceMotion = useReducedMotion() && theme.respectReducedMotion;
+	// Lags a frame behind the active tab, so a newly shown panel starts transparent and fades in.
+	// Driven from here, not the panel, because hidden panels sit in `<Activity>`, which drops their effects.
+	const [revealedValue, setRevealedValue] = useState(activeValue);
+	useEffect(() => {
+		const frame = requestAnimationFrame(() =>
+			setRevealedValue(activeValue),
+		);
+		return () => cancelAnimationFrame(frame);
+	}, [activeValue]);
 
 	return (
 		<AppShell.Section
@@ -71,15 +95,33 @@ function CollapsibleSidebar({
 					justify="center"
 					py="sm"
 					style={{ position: "relative" }}>
-					<Tabs.List>
+					<Tabs.List
+						ref={setListRef}
+						style={{ position: "relative" }}>
+						{/* Slides between tabs in place of the active pill's own background. */}
+						<FloatingIndicator
+							target={tabRefs[activeValue]}
+							parent={listRef}
+							style={{
+								backgroundColor: "var(--tabs-color)",
+								borderRadius: "var(--tabs-radius)",
+							}}
+						/>
 						{tabs.map(tab => (
 							<AppTooltip
 								key={tab.value}
 								label={tab.title}
 								position="bottom">
 								<Tabs.Tab
+									ref={setTabRef(tab.value)}
 									value={tab.value}
-									aria-label={tab.title}>
+									aria-label={tab.title}
+									style={{
+										zIndex: 1,
+										...(tab.value === activeValue && {
+											"--tab-bg": "transparent",
+										}),
+									}}>
 									{tab.icon}
 								</Tabs.Tab>
 							</AppTooltip>
@@ -118,19 +160,30 @@ function CollapsibleSidebar({
 								display: "flex",
 								flexDirection: "column",
 							}}>
-							{tab.scrollable === false ? (
-								content
-							) : (
-								<ScrollArea
-									style={{ flex: 1 }}
-									styles={{
-										viewport: {
-											overscrollBehavior: "contain",
-										},
-									}}>
-									{content}
-								</ScrollArea>
-							)}
+							<Box
+								style={{
+									flex: 1,
+									minHeight: 0,
+									display: "flex",
+									flexDirection: "column",
+									opacity:
+										revealedValue === tab.value ? 1 : 0,
+									transition: `opacity ${reduceMotion ? 0 : PANEL_FADE_MS}ms ease`,
+								}}>
+								{tab.scrollable === false ? (
+									content
+								) : (
+									<ScrollArea
+										style={{ flex: 1 }}
+										styles={{
+											viewport: {
+												overscrollBehavior: "contain",
+											},
+										}}>
+										{content}
+									</ScrollArea>
+								)}
+							</Box>
 						</Tabs.Panel>
 					);
 				})}
