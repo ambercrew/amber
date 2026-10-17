@@ -1,4 +1,10 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useMounted } from "@mantine/hooks";
+import {
+	MANTINE_TRANSITIONS,
+	MantineTransition,
+	Transition,
+} from "@mantine/core";
 import { useNavigate } from "react-router";
 import { useRegistry } from "@embedpdf/core/react";
 import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
@@ -47,18 +53,57 @@ import {
 	flattenHighlightRects,
 	getActivePdfHighlights,
 } from "./pdfHighlightAnnotations";
+import {
+	isBackwardPdfSelection,
+	PdfMenuAlign,
+	pdfMenuAnchor,
+} from "./pdfMenuAnchor";
+import { GlyphPointer } from "@embedpdf/plugin-selection";
+
+const ALIGN_SHIFT: Record<PdfMenuAlign, string> = {
+	start: "0%",
+	center: "-50%",
+	end: "-100%",
+};
+const ALIGN_ORIGIN: Record<PdfMenuAlign, string> = {
+	start: "left",
+	center: "center",
+	end: "right",
+};
+
+/** Mantine's `pop`, growing out of the anchor whether the menu sits above or below it. */
+function popTransition(above: boolean, align: PdfMenuAlign): MantineTransition {
+	const pop = above
+		? MANTINE_TRANSITIONS.pop
+		: MANTINE_TRANSITIONS["pop-top-left"];
+	return {
+		...pop,
+		common: {
+			transformOrigin: `${above ? "bottom" : "top"} ${ALIGN_ORIGIN[align]}`,
+		},
+	};
+}
+
+// The bar's height plus its gap, needed above the selection to open there.
+const MENU_ROOM_ABOVE_PX = 56;
 
 interface PdfFloatingMenuProps extends SelectionSelectionMenuProps {
 	learningAssetId: string;
+	/** Where the current selection's drag began, to tell which end the pointer let go at. */
+	selectionAnchor: GlyphPointer | null;
 	onHighlightCreated: (lastPageIndex: number) => void;
 }
 
 export default function PdfFloatingMenu({
 	menuWrapperProps,
 	placement,
+	context,
 	learningAssetId,
+	selectionAnchor,
 	onHighlightCreated,
 }: PdfFloatingMenuProps) {
+	// Mounts with the selection, so it opens a frame later for Mantine's enter animation to play.
+	const opened = useMounted();
 	const dispatch = useAppDispatch();
 	const navigate = useNavigate();
 	const aiEnabled = useAppSelector(selectSettings)?.enableAi ?? false;
@@ -104,6 +149,35 @@ export default function PdfFloatingMenu({
 		if (selectionRects.length === 0) return null;
 		return findFirstHighlightedElement(highlights, selectionRects);
 	}, [selection, activeDocumentId, highlights]);
+
+	// Embedpdf always prefers below; a backward drag ends at the top, so open above when it fits.
+	const { above, anchor } = useMemo(() => {
+		const scope =
+			selection && activeDocumentId
+				? selection.forDocument(activeDocumentId)
+				: null;
+		const range = scope?.getState().selection ?? null;
+		const backward = isBackwardPdfSelection(selectionAnchor, range);
+		const above =
+			placement.suggestTop ||
+			(backward === true &&
+				range?.start.page === context.pageIndex &&
+				(placement.spaceAbove ?? 0) > MENU_ROOM_ABOVE_PX);
+		return {
+			above,
+			// A fraction of the selection's width, so the page's zoom doesn't matter.
+			anchor: pdfMenuAnchor(
+				scope?.getHighlightRectsForPage(context.pageIndex) ?? [],
+				backward ?? above,
+			),
+		};
+	}, [
+		selection,
+		activeDocumentId,
+		selectionAnchor,
+		placement,
+		context.pageIndex,
+	]);
 
 	const handleOpenHighlight = useCallback(() => {
 		if (!highlightUnderSelection) return;
@@ -305,20 +379,30 @@ export default function PdfFloatingMenu({
 
 	return (
 		<div {...menuWrapperProps}>
-			<FloatingMenuBar
-				items={items}
+			<div
 				style={{
 					position: "absolute",
-					left: "50%",
-					transform: "translateX(-50%)",
+					left: `${anchor.offset * 100}%`,
+					transform: `translateX(${ALIGN_SHIFT[anchor.align]})`,
 					pointerEvents: "auto",
 					zIndex: 100,
 					width: "max-content",
-					...(placement.suggestTop
+					...(above
 						? { bottom: "100%", marginBottom: 8 }
 						: { top: "100%", marginTop: 8 }),
-				}}
-			/>
+				}}>
+				<Transition
+					mounted={opened}
+					transition={popTransition(above, anchor.align)}
+					duration={150}>
+					{transitionStyles => (
+						<FloatingMenuBar
+							items={items}
+							style={transitionStyles}
+						/>
+					)}
+				</Transition>
+			</div>
 		</div>
 	);
 }

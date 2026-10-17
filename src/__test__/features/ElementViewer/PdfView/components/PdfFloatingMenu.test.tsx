@@ -1,5 +1,6 @@
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { PdfAnnotationSubtype } from "@embedpdf/models";
+import { GlyphPointer, SelectionRangeX } from "@embedpdf/plugin-selection";
 import PdfFloatingMenu from "../../../../../features/ElementViewer/PdfView/components/PdfFloatingMenu";
 import {
 	createCardAction,
@@ -91,18 +92,29 @@ function renderMenu({
 	pageText,
 	slice,
 	highlights = [],
+	lineRects = [RECT],
+	suggestTop = false,
+	spaceAbove = 100,
+	range = null,
+	selectionAnchor = null,
 }: {
 	selectedText: string;
 	pageText: string;
 	slice: { start: number; count: number };
 	highlights?: TestHighlight[];
+	lineRects?: (typeof RECT)[];
+	suggestTop?: boolean;
+	spaceAbove?: number;
+	range?: SelectionRangeX | null;
+	selectionAnchor?: GlyphPointer | null;
 }) {
 	const selectionScope = {
 		getHighlightRects: vi.fn(() => ({ 0: [RECT] })),
+		getHighlightRectsForPage: vi.fn(() => lineRects),
 		getSelectedText: vi.fn(() => ({
 			toPromise: () => Promise.resolve([selectedText]),
 		})),
-		getState: vi.fn(() => ({ slices: { 0: slice } })),
+		getState: vi.fn(() => ({ slices: { 0: slice }, selection: range })),
 		clear: vi.fn(),
 	};
 	let state = {
@@ -160,7 +172,8 @@ function renderMenu({
 			rect={RECT}
 			menuWrapperProps={{ style: {}, ref: () => {} }}
 			selected
-			placement={PLACEMENT}
+			placement={{ ...PLACEMENT, suggestTop, spaceAbove }}
+			selectionAnchor={selectionAnchor}
 			context={{ type: "selection", pageIndex: 0 }}
 			learningAssetId={LEARNING_ASSET_ID}
 			onHighlightCreated={onHighlightCreated}
@@ -170,7 +183,100 @@ function renderMenu({
 	return { selectionScope, annotationScope, onHighlightCreated };
 }
 
+function lineRect(x: number, y: number, width: number) {
+	return { origin: { x, y }, size: { width, height: 10 } };
+}
+
+/** The element embedpdf's wrapper holds, which places the bar across the selection. */
+async function getMenuPosition() {
+	const paper = (
+		await screen.findByRole("button", { name: "Create Extract" })
+	).closest(".mantine-Paper-root");
+	if (!(paper?.parentElement instanceof HTMLElement))
+		throw new Error("Menu position not found");
+	return paper.parentElement;
+}
+
 describe("PdfFloatingMenu", () => {
+	it("Should end the menu at the last selected line's end when it opens below a selection", async () => {
+		// Arrange & Act
+
+		renderMenu({
+			selectedText: "a",
+			pageText: "a",
+			slice: { start: 0, count: 1 },
+			lineRects: [lineRect(0, 0, 200), lineRect(0, 20, 150)],
+		});
+
+		// Assert
+
+		expect(await getMenuPosition()).toHaveStyle({
+			left: "75%",
+			transform: "translateX(-100%)",
+		});
+	});
+
+	it("Should open above at the first line's start when the selection was dragged backwards", async () => {
+		// Arrange & Act
+
+		renderMenu({
+			selectedText: "a",
+			pageText: "a",
+			slice: { start: 0, count: 1 },
+			lineRects: [lineRect(50, 0, 150), lineRect(0, 20, 200)],
+			range: { start: { page: 0, index: 0 }, end: { page: 0, index: 9 } },
+			selectionAnchor: { page: 0, index: 9 },
+		});
+
+		// Assert
+
+		expect(await getMenuPosition()).toHaveStyle({
+			bottom: "100%",
+			left: "25%",
+			transform: "translateX(0%)",
+		});
+	});
+
+	it("Should stay below a backwards selection when there's no room above it", async () => {
+		// Arrange & Act
+
+		renderMenu({
+			selectedText: "a",
+			pageText: "a",
+			slice: { start: 0, count: 1 },
+			lineRects: [lineRect(50, 0, 150), lineRect(0, 20, 200)],
+			range: { start: { page: 0, index: 0 }, end: { page: 0, index: 9 } },
+			selectionAnchor: { page: 0, index: 9 },
+			spaceAbove: 10,
+		});
+
+		// Assert
+
+		expect(await getMenuPosition()).toHaveStyle({
+			top: "100%",
+			left: "25%",
+		});
+	});
+
+	it("Should start the menu at the first selected line's start when it opens above a selection", async () => {
+		// Arrange & Act
+
+		renderMenu({
+			selectedText: "a",
+			pageText: "a",
+			slice: { start: 0, count: 1 },
+			lineRects: [lineRect(50, 0, 150), lineRect(0, 20, 200)],
+			suggestTop: true,
+		});
+
+		// Assert
+
+		expect(await getMenuPosition()).toHaveStyle({
+			left: "25%",
+			transform: "translateX(0%)",
+		});
+	});
+
 	it("Should clear the selection after creating an extract", async () => {
 		// Arrange
 

@@ -20,6 +20,7 @@ import { usePdfAnnotationsPersistence } from "../hooks/usePdfAnnotationsPersiste
 import { usePdfFindInPage } from "../hooks/usePdfFindInPage";
 import { usePdfLinkNavigationRenderer } from "../hooks/usePdfLinkNavigation";
 import { usePdfReadPoint } from "../hooks/usePdfReadPoint";
+import { usePdfSelectionAnchor } from "../hooks/usePdfSelectionAnchor";
 import { usePdfToolbarHeadroom } from "../hooks/usePdfToolbarHeadroom";
 import { usePdfZoomPersistence } from "../hooks/usePdfZoomPersistence";
 import PdfFloatingMenu from "./PdfFloatingMenu";
@@ -128,6 +129,7 @@ function LoadedPdfDocument({
 		initial: readPoint,
 	});
 	usePdfFindInPage(activeDocumentId);
+	const selectionAnchor = usePdfSelectionAnchor(activeDocumentId);
 	const linkRenderers = usePdfLinkNavigationRenderer(activeDocumentId);
 
 	const [pinned, setPinned] = useState(true);
@@ -190,6 +192,7 @@ function LoadedPdfDocument({
 										<PdfFloatingMenu
 											{...props}
 											learningAssetId={learningAssetId}
+											selectionAnchor={selectionAnchor}
 											onHighlightCreated={
 												recordHighlightReadPoint
 											}
