@@ -10,12 +10,12 @@ import {
 	UnstyledButton,
 } from "@mantine/core";
 import { useLocalStorage } from "@mantine/hooks";
-import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { MetaResponseDto } from "../../api/elements/dto/anyElementDto";
 import useAppSelector from "../../hooks/useAppSelector";
 import { selectCurrentElementDetails } from "../../stores/elementDetails/elementDetailsSelectors";
 import { paths } from "../../paths";
 import ElementNodeIcon from "../../components/ElementNodeIcon/ElementNodeIcon";
+import DisclosureCaret from "../../components/DisclosureCaret/DisclosureCaret";
 
 interface ContentOriginPanelProps {
 	meta: MetaResponseDto;
@@ -51,11 +51,7 @@ export default function ContentOriginPanel({ meta }: ContentOriginPanelProps) {
 			<Stack gap="sm">
 				<UnstyledButton onClick={() => setOpened(o => !o)}>
 					<Group gap={6}>
-						{opened ? (
-							<CaretDownIcon size={12} />
-						) : (
-							<CaretRightIcon size={12} />
-						)}
+						<DisclosureCaret opened={opened} size={12} />
 						<Text size="xs" c="dimmed" tt="uppercase">
 							Origin
 						</Text>

@@ -8,12 +8,7 @@ import {
 	LexicalEditor,
 	RangeSelection,
 } from "lexical";
-import {
-	MANTINE_TRANSITIONS,
-	MantineColor,
-	useMantineTheme,
-} from "@mantine/core";
-import { useReducedMotion } from "@mantine/hooks";
+import { MantineColor } from "@mantine/core";
 import { computePosition, flip, offset, shift } from "@floating-ui/dom";
 import { isBackwardSelection, selectionEndRect } from "./selectionEndRect";
 import { useIsCoarsePointer } from "../../../hooks/useIsCoarsePointer";
@@ -21,6 +16,9 @@ import styles from "../Editor.module.css";
 import FloatingMenuBar, {
 	FloatingMenuBarItem,
 } from "../../FloatingMenuBar/FloatingMenuBar";
+import { floatingMenuPop } from "../../FloatingMenuBar/floatingMenuPop";
+import { MOTION_EASING } from "../../../config/motion";
+import { useMotionDuration } from "../../../hooks/useMotionDuration";
 import { matchesShortcut } from "../../../commands/useAppHotkeys";
 import { useIsEditorFocused } from "../hooks/useIsEditorFocused";
 
@@ -62,12 +60,8 @@ interface Props {
 	buttons: FloatingMenuItem[];
 }
 
-// Mantine's own `pop`, growing out of the selection whether the menu sits above or below it.
-const POP_FROM_BELOW = MANTINE_TRANSITIONS.pop;
-const POP_FROM_ABOVE = MANTINE_TRANSITIONS["pop-top-left"];
 // Matches the PDF viewer's floating menu.
 const MENU_GAP_PX = 8;
-const TRANSITION_DURATION_MS = 150;
 
 function usePointerInteractions() {
 	const [isPointerDown, setIsPointerDown] = useState(false);
@@ -127,8 +121,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 	const { isPointerDown, isPointerReleased, isMultiClickRef } =
 		usePointerInteractions();
 	const coarsePointer = useIsCoarsePointer();
-	const theme = useMantineTheme();
-	const reduceMotion = useReducedMotion() && theme.respectReducedMotion;
+	const motionDuration = useMotionDuration();
 
 	// Bumped on every reposition or hide, so a stale async position can't reopen the menu.
 	const positionRequestRef = useRef(0);
@@ -271,7 +264,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 
 	const shouldShow = (isEditorFocused || isMenuFocused) && isOpen;
 	const below = coords?.below ?? false;
-	const pop = below ? POP_FROM_ABOVE : POP_FROM_BELOW;
+	const pop = floatingMenuPop(!below);
 	const popState = shouldShow ? pop.in : pop.out;
 
 	const items: FloatingMenuBarItem[] = buttons.map(btn => {
@@ -306,8 +299,8 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 				// `visibility` flips at the end on hide and at once on show, letting the fade play out.
 				visibility: shouldShow ? "visible" : "hidden",
 				transitionProperty: "opacity, transform, visibility",
-				transitionDuration: `${reduceMotion ? 0 : TRANSITION_DURATION_MS}ms`,
-				transitionTimingFunction: "ease",
+				transitionDuration: `${motionDuration}ms`,
+				transitionTimingFunction: MOTION_EASING,
 				pointerEvents: shouldShow ? "auto" : "none",
 			}}
 			onFocus={() => setIsMenuFocused(true)}

@@ -1,6 +1,6 @@
 import { Collapse, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import { useLocalStorage } from "@mantine/hooks";
-import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
+import DisclosureCaret from "../../../components/DisclosureCaret/DisclosureCaret";
 
 interface InfoGroupProps {
 	title: string;
@@ -24,11 +24,7 @@ function InfoGroup({
 		<Stack gap="sm">
 			<UnstyledButton onClick={() => setOpened(o => !o)}>
 				<Group gap="xs">
-					{opened ? (
-						<CaretDownIcon size={14} />
-					) : (
-						<CaretRightIcon size={14} />
-					)}
+					<DisclosureCaret opened={opened} size={14} />
 					<Text size="sm" fw={600}>
 						{title}
 					</Text>

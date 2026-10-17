@@ -7,15 +7,13 @@ import {
 	ScrollArea,
 	Box,
 	FloatingIndicator,
-	useMantineTheme,
 } from "@mantine/core";
-import { useReducedMotion } from "@mantine/hooks";
 import { XIcon } from "@phosphor-icons/react";
 import { SMALL_SCREEN_BREAKPOINT } from "../../hooks/useIsSmallScreen";
 import { useSidebarTab } from "./useSidebarTab";
 import AppTooltip from "../AppTooltip/AppTooltip";
-
-const PANEL_FADE_MS = 150;
+import { MOTION_EASING } from "../../config/motion";
+import { useMotionDuration } from "../../hooks/useMotionDuration";
 
 export interface SidebarTab {
 	value: string;
@@ -65,8 +63,7 @@ function CollapsibleSidebar({
 		setTabRefs(refs =>
 			refs[tabValue] === node ? refs : { ...refs, [tabValue]: node },
 		);
-	const theme = useMantineTheme();
-	const reduceMotion = useReducedMotion() && theme.respectReducedMotion;
+	const motionDuration = useMotionDuration();
 	// Lags a frame behind the active tab, so a newly shown panel starts transparent and fades in.
 	// Driven from here, not the panel, because hidden panels sit in `<Activity>`, which drops their effects.
 	const [revealedValue, setRevealedValue] = useState(activeValue);
@@ -102,6 +99,7 @@ function CollapsibleSidebar({
 						<FloatingIndicator
 							target={tabRefs[activeValue]}
 							parent={listRef}
+							transitionDuration={motionDuration}
 							style={{
 								backgroundColor: "var(--tabs-color)",
 								borderRadius: "var(--tabs-radius)",
@@ -168,7 +166,7 @@ function CollapsibleSidebar({
 									flexDirection: "column",
 									opacity:
 										revealedValue === tab.value ? 1 : 0,
-									transition: `opacity ${reduceMotion ? 0 : PANEL_FADE_MS}ms ease`,
+									transition: `opacity ${motionDuration}ms ${MOTION_EASING}`,
 								}}>
 								{tab.scrollable === false ? (
 									content

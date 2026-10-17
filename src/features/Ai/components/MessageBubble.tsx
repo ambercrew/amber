@@ -12,8 +12,6 @@ import { useLocalStorage } from "@mantine/hooks";
 import { createElement } from "react";
 import {
 	CardsIcon,
-	CaretDownIcon,
-	CaretRightIcon,
 	CheckIcon,
 	CheckSquareIcon,
 	FileIcon,
@@ -25,6 +23,7 @@ import { MessageContentDto } from "../../../api/aiIntegration/dto/messageDto";
 import { DisplayMessage } from "../utils/buildDisplayMessages";
 import AiMarkdown from "./AiMarkdown";
 import ToolApprovalCard, { OnToolApprovalResolved } from "./ToolApprovalCard";
+import DisclosureCaret from "../../../components/DisclosureCaret/DisclosureCaret";
 
 interface MessageBubbleProps {
 	id: string;
@@ -73,11 +72,7 @@ function ContextSnippets({ id, snippets }: { id: string; snippets: string[] }) {
 			}}>
 			<UnstyledButton onClick={toggle}>
 				<Group gap="xs">
-					{opened ? (
-						<CaretDownIcon size={16} />
-					) : (
-						<CaretRightIcon size={16} />
-					)}
+					<DisclosureCaret opened={opened} size={16} />
 					<Text size="sm">
 						{snippets.length === 1
 							? "1 snippet"

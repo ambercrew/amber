@@ -5,11 +5,7 @@ import {
 	Menu,
 	RenderTreeNodePayload,
 } from "@mantine/core";
-import {
-	CaretDownIcon,
-	CaretRightIcon,
-	DotsThreeVerticalIcon,
-} from "@phosphor-icons/react";
+import { DotsThreeVerticalIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import ElementNodeIcon from "../../../../components/ElementNodeIcon/ElementNodeIcon";
 import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
@@ -19,6 +15,7 @@ import TrashElementModal from "../TrashElementModal";
 import ElementTreeMenuItems from "./ElementTreeMenuItems";
 import RenameElementForm from "./RenameElementForm";
 import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
+import DisclosureCaret from "../../../../components/DisclosureCaret/DisclosureCaret";
 
 const ICON_SIZE = 18;
 
@@ -95,11 +92,7 @@ function ElementTreeNode({
 					c="inherit"
 					aria-label={expanded ? "Collapse" : "Expand"}
 					onClick={handleCaretClick}>
-					{expanded ? (
-						<CaretDownIcon size={ICON_SIZE} />
-					) : (
-						<CaretRightIcon size={ICON_SIZE} />
-					)}
+					<DisclosureCaret opened={expanded} size={ICON_SIZE} />
 				</ActionIcon>
 				<ElementNodeIcon
 					type={type}

@@ -7,10 +7,10 @@ import {
 	ScrollArea,
 	Text,
 } from "@mantine/core";
-import { CaretRightIcon } from "@phosphor-icons/react";
 import { PdfActionType, PdfBookmarkObject } from "@embedpdf/models";
 import { useBookmarkCapability } from "@embedpdf/plugin-bookmark/react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
+import DisclosureCaret from "../../../../../components/DisclosureCaret/DisclosureCaret";
 
 interface PdfOutlineProps {
 	documentId: string;
@@ -53,14 +53,7 @@ function BookmarkRow({
 								event.stopPropagation();
 								setOpened(o => !o);
 							}}>
-							<CaretRightIcon
-								style={{
-									transform: opened
-										? "rotate(90deg)"
-										: undefined,
-									transition: "transform 100ms ease",
-								}}
-							/>
+							<DisclosureCaret opened={opened} />
 						</ActionIcon>
 					) : undefined
 				}

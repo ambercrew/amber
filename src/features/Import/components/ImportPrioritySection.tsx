@@ -7,12 +7,12 @@ import {
 	Text,
 	UnstyledButton,
 } from "@mantine/core";
-import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import ImportSectionBody from "./ImportSectionBody";
 import PrioritySlider from "../../../components/PrioritySlider/PrioritySlider";
 import { usePriorityControls } from "../../../components/PrioritySlider/usePriorityControls";
 import { positionToPercentile } from "../../../components/PrioritySlider/priorityMath";
 import { PlacedElement } from "../../../components/PrioritySlider/PriorityNeighborsPreview";
+import DisclosureCaret from "../../../components/DisclosureCaret/DisclosureCaret";
 
 // Imports always create a learning asset, which has no name until it's created.
 const IMPORTED_ELEMENT: PlacedElement = {
@@ -43,11 +43,7 @@ function ImportPrioritySection({
 		<Stack gap="xs">
 			<UnstyledButton onClick={() => setOpened(o => !o)}>
 				<Group gap="xs">
-					{opened ? (
-						<CaretDownIcon size={14} />
-					) : (
-						<CaretRightIcon size={14} />
-					)}
+					<DisclosureCaret opened={opened} size={14} />
 					<Text size="sm" fw={600}>
 						Priority
 					</Text>

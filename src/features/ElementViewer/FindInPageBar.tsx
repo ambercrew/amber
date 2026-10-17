@@ -36,6 +36,7 @@ import { HEADROOM_FIXED_AT } from "../App/components/App";
 import { useMainScrollElement } from "../App/context/mainScrollContext";
 import { useElementHeadroom } from "../../hooks/useElementHeadroom";
 import { SAFE_AREA_TOP } from "../../utils/safeArea";
+import { MOTION_DURATION_MS, MOTION_EASING } from "../../config/motion";
 
 const QUERY_DEBOUNCE_IN_MILLISECONDS = 400;
 
@@ -116,7 +117,11 @@ export default function FindInPageBar() {
 	};
 
 	return (
-		<Transition transition="fade-down" mounted={opened}>
+		<Transition
+			transition="fade-down"
+			mounted={opened}
+			duration={MOTION_DURATION_MS}
+			timingFunction={MOTION_EASING}>
 			{style => (
 				<Paper
 					style={{

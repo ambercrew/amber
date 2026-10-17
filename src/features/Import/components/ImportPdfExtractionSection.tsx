@@ -7,9 +7,9 @@ import {
 	Text,
 	UnstyledButton,
 } from "@mantine/core";
-import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
 import ImportSectionBody from "./ImportSectionBody";
 import FieldInfoIcon from "../../../components/FieldLabel/FieldInfoIcon";
+import DisclosureCaret from "../../../components/DisclosureCaret/DisclosureCaret";
 
 interface ImportPdfExtractionSectionProps {
 	isPdf: boolean;
@@ -30,11 +30,7 @@ function ImportPdfExtractionSection({
 		<Stack gap="xs">
 			<UnstyledButton onClick={() => setOpened(o => !o)}>
 				<Group gap="xs">
-					{opened ? (
-						<CaretDownIcon size={14} />
-					) : (
-						<CaretRightIcon size={14} />
-					)}
+					<DisclosureCaret opened={opened} size={14} />
 					<Text size="sm" fw={600}>
 						Import options
 					</Text>

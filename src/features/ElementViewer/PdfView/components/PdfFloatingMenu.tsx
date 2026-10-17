@@ -1,10 +1,6 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { useMounted } from "@mantine/hooks";
-import {
-	MANTINE_TRANSITIONS,
-	MantineTransition,
-	Transition,
-} from "@mantine/core";
+import { MantineTransition, Transition } from "@mantine/core";
 import { useNavigate } from "react-router";
 import { useRegistry } from "@embedpdf/core/react";
 import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
@@ -19,6 +15,8 @@ import {
 import FloatingMenuBar, {
 	FloatingMenuBarItem,
 } from "../../../../components/FloatingMenuBar/FloatingMenuBar";
+import { floatingMenuPop } from "../../../../components/FloatingMenuBar/floatingMenuPop";
+import { MOTION_DURATION_MS, MOTION_EASING } from "../../../../config/motion";
 import {
 	AppHotkeyItem,
 	useAppHotkeys,
@@ -79,11 +77,8 @@ const ALIGN_ORIGIN: Record<PdfMenuAlign, string> = {
 
 /** Mantine's `pop`, growing out of the anchor whether the menu sits above or below it. */
 function popTransition(above: boolean, align: PdfMenuAlign): MantineTransition {
-	const pop = above
-		? MANTINE_TRANSITIONS.pop
-		: MANTINE_TRANSITIONS["pop-top-left"];
 	return {
-		...pop,
+		...floatingMenuPop(above),
 		common: {
 			transformOrigin: `${above ? "bottom" : "top"} ${ALIGN_ORIGIN[align]}`,
 		},
@@ -418,7 +413,8 @@ export default function PdfFloatingMenu({
 				<Transition
 					mounted={opened}
 					transition={popTransition(above, anchor.align)}
-					duration={150}>
+					duration={MOTION_DURATION_MS}
+					timingFunction={MOTION_EASING}>
 					{transitionStyles => (
 						<FloatingMenuBar
 							items={items}

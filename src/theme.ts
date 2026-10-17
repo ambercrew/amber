@@ -1,6 +1,7 @@
 import {
 	alpha,
 	AppShell,
+	Collapse,
 	createTheme,
 	Fieldset,
 	lighten,
@@ -11,6 +12,7 @@ import {
 } from "@mantine/core";
 import { generateColors } from "@mantine/colors-generator";
 import { Dropzone } from "@mantine/dropzone";
+import { MOTION_DURATION_MS } from "./config/motion";
 
 // Ramps generated from one brand seed each; the seed lands at the shade matching
 // its own lightness, so these all sit near the dark end of their tuple.
@@ -150,6 +152,10 @@ export const theme = createTheme({
 					backgroundColor: "transparent",
 				},
 			},
+		}),
+		// Matches the app's other animations, and the carets turning beside it.
+		Collapse: Collapse.extend({
+			defaultProps: { transitionDuration: MOTION_DURATION_MS },
 		}),
 		Fieldset: Fieldset.extend({
 			styles: {

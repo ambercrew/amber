@@ -22,6 +22,7 @@ import {
 import FloatingMenuBar from "../../../FloatingMenuBar/FloatingMenuBar";
 import { assetIdFromSrc, resolveImageSrc } from "../../../../utils/assetUrl";
 import { useIsEditorFocused } from "../../hooks/useIsEditorFocused";
+import { MOTION_DURATION_MS } from "../../../../config/motion";
 
 interface Props {
 	src: string;
@@ -146,7 +147,10 @@ export default function ImageComponent({
 			offset={8}
 			trapFocus={false}
 			returnFocus={false}
-			transitionProps={{ transition: "pop", duration: 120 }}>
+			transitionProps={{
+				transition: "pop",
+				duration: MOTION_DURATION_MS,
+			}}>
 			<Popover.Target>
 				<Box
 					component="span"
