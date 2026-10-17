@@ -1,7 +1,8 @@
 import { useCallback } from "react";
 import { Alert } from "@mantine/core";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
-import { EditorState } from "lexical";
+import { EditorRefPlugin } from "@lexical/react/LexicalEditorRefPlugin";
+import { EditorState, LexicalEditor } from "lexical";
 import Editor from "../../components/Editor/Editor";
 import {
 	FloatingMenuItem,
@@ -43,6 +44,8 @@ interface ElementEditorProps {
 	contextMenuItems?: React.ReactNode;
 	/** Find-in-page search wiring for this editor instance, if search is active here. */
 	search?: ElementEditorSearchProps;
+	/** Receives the Lexical editor, for reading its live content. */
+	editorRef?: React.RefObject<LexicalEditor | null>;
 }
 
 export default function ElementEditor({
@@ -55,6 +58,7 @@ export default function ElementEditor({
 	onCursorMove,
 	contextMenuItems,
 	search,
+	editorRef,
 }: ElementEditorProps) {
 	const { callApi, errorMessage, clearErrorMessage } = useApi();
 	const imageMenuItems = useImageOcclusionMenuItems();
@@ -98,6 +102,7 @@ export default function ElementEditor({
 				imageMenuItems={imageMenuItems}
 				renderOcclusionOverlay={renderOcclusionOverlay}>
 				<FloatingMenuPlugin buttons={buttons} />
+				{editorRef && <EditorRefPlugin editorRef={editorRef} />}
 				<OnChangePlugin
 					onChange={handleChange}
 					ignoreSelectionChange
