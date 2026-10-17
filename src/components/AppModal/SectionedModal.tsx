@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { Box, Burger, Group, NavLink } from "@mantine/core";
+import { Box, Burger, Group, NavLink, ScrollArea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import AppModal, { AppModalProps } from "./AppModal";
 import AppDrawer from "../AppDrawer/AppDrawer";
@@ -98,15 +98,14 @@ function SectionedModal({
 					wrap="nowrap"
 					h={MODAL_CONTENT_HEIGHT}>
 					<Box w={180}>{renderNavLinks()}</Box>
-					<Box
-						style={{
-							flex: 1,
-							minWidth: 0,
-							overflowY: "auto",
-							overflowX: "hidden",
-						}}>
+					{/* Always offset, so the content keeps its gap and doesn't shift when the bar appears on hover. */}
+					<ScrollArea
+						type="hover"
+						scrollbars="y"
+						offsetScrollbars="y"
+						style={{ flex: 1, minWidth: 0 }}>
 						{activeSection.render()}
-					</Box>
+					</ScrollArea>
 				</Group>
 			)}
 		</AppModal>
