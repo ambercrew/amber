@@ -18,12 +18,21 @@ import {
 	FloatingMenuButton,
 	FloatingMenuPlugin,
 } from "../../../../components/Editor/plugins/FloatingMenuPlugin";
-import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+import { computePosition } from "@floating-ui/dom";
+import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
+
+vi.mock(import("@floating-ui/dom"), async importOriginal => {
+	const actual = await importOriginal();
+	return { ...actual, computePosition: vi.fn(actual.computePosition) };
+});
 
 vi.mock(import("../../../../hooks/useIsCoarsePointer"), () => ({
 	useIsCoarsePointer: vi.fn().mockReturnValue(false),
 }));
+
+// jsdom lays nothing out and has no `Range.getClientRects`, so the menu anchors to an empty rect.
+Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
 
 function TestIcon() {
 	return <span data-testid="test-icon" />;
@@ -82,7 +91,11 @@ function renderPlugin(buttons: FloatingMenuButton[]) {
 	return { ...utils, editor: capturedEditor as LexicalEditor };
 }
 
-function setTextAndSelectAll(editor: LexicalEditor, text: string) {
+async function setTextAndSelectAll(
+	editor: LexicalEditor,
+	text: string,
+	backward = false,
+) {
 	act(() => {
 		editor.update(
 			() => {
@@ -100,14 +113,17 @@ function setTextAndSelectAll(editor: LexicalEditor, text: string) {
 		editor.getRootElement()?.focus();
 	});
 
-	act(() => {
+	// Floating UI positions the menu asynchronously.
+	await act(async () => {
 		editor.update(
 			() => {
 				const paragraph = $getRoot().getFirstChild();
 				if (!$isElementNode(paragraph)) return;
 				const textNode = paragraph.getFirstChild();
 				if (!$isTextNode(textNode)) return;
-				textNode.select(0, textNode.getTextContent().length);
+				const length = textNode.getTextContent().length;
+				if (backward) textNode.select(length, 0);
+				else textNode.select(0, length);
 			},
 			{ discrete: true },
 		);
@@ -149,7 +165,7 @@ describe("FloatingMenuPlugin", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("Should render an icon-only button when showLabel is not set", () => {
+	it("Should render an icon-only button when showLabel is not set", async () => {
 		// Arrange
 
 		const button = makeButton();
@@ -157,7 +173,7 @@ describe("FloatingMenuPlugin", () => {
 
 		// Act
 
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 
 		// Assert
 
@@ -167,7 +183,7 @@ describe("FloatingMenuPlugin", () => {
 		expect(screen.queryByText("Bold")).toBeNull();
 	});
 
-	it("Should render a labelled button when showLabel is true", () => {
+	it("Should render a labelled button when showLabel is true", async () => {
 		// Arrange
 
 		const button = makeButton({ showLabel: true });
@@ -175,14 +191,14 @@ describe("FloatingMenuPlugin", () => {
 
 		// Act
 
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 
 		// Assert
 
 		expect(screen.getByText("Bold")).toBeInTheDocument();
 	});
 
-	it("Should not render a button when isVisible returns false for the current selection", () => {
+	it("Should not render a button when isVisible returns false for the current selection", async () => {
 		// Arrange
 
 		const button = makeButton({ isVisible: () => false });
@@ -190,14 +206,14 @@ describe("FloatingMenuPlugin", () => {
 
 		// Act
 
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 
 		// Assert
 
 		expect(screen.queryByRole("button", { name: "Bold" })).toBeNull();
 	});
 
-	it("Should render a button when isVisible returns true for the current selection", () => {
+	it("Should render a button when isVisible returns true for the current selection", async () => {
 		// Arrange
 
 		const button = makeButton({ isVisible: () => true });
@@ -205,7 +221,7 @@ describe("FloatingMenuPlugin", () => {
 
 		// Act
 
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 
 		// Assert
 
@@ -214,7 +230,7 @@ describe("FloatingMenuPlugin", () => {
 		).toBeInTheDocument();
 	});
 
-	it("Should mark the button as active when isActive returns true for the current selection", () => {
+	it("Should mark the button as active when isActive returns true for the current selection", async () => {
 		// Arrange
 
 		const button = makeButton({ isActive: () => true });
@@ -222,7 +238,7 @@ describe("FloatingMenuPlugin", () => {
 
 		// Act
 
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 
 		// Assert
 
@@ -232,7 +248,7 @@ describe("FloatingMenuPlugin", () => {
 		);
 	});
 
-	it("Should mark the button as inactive when isActive returns false for the current selection", () => {
+	it("Should mark the button as inactive when isActive returns false for the current selection", async () => {
 		// Arrange
 
 		const button = makeButton({ isActive: () => false });
@@ -240,7 +256,7 @@ describe("FloatingMenuPlugin", () => {
 
 		// Act
 
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 
 		// Assert
 
@@ -257,7 +273,7 @@ describe("FloatingMenuPlugin", () => {
 		const onClick = vi.fn();
 		const button = makeButton({ onClick, isActive: () => true });
 		const { editor } = renderPlugin([button]);
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 		const user = userEvent.setup();
 
 		// Act
@@ -281,7 +297,7 @@ describe("FloatingMenuPlugin", () => {
 			onClick: (_editor, _isActive, closeMenu) => closeMenu(),
 		});
 		const { editor } = renderPlugin([button]);
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 		const user = userEvent.setup();
 
 		// Act
@@ -293,7 +309,7 @@ describe("FloatingMenuPlugin", () => {
 		expect(getMenuPaper()).toHaveStyle({ visibility: "hidden" });
 	});
 
-	it("Should hide the menu when the selection is collapsed", () => {
+	it("Should hide the menu when the selection is collapsed", async () => {
 		// Arrange
 
 		const button = makeButton();
@@ -301,7 +317,7 @@ describe("FloatingMenuPlugin", () => {
 
 		// Act
 
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 		act(() => {
 			editor.update(
 				() => {
@@ -320,7 +336,7 @@ describe("FloatingMenuPlugin", () => {
 		expect(getMenuPaper()).toHaveStyle({ visibility: "hidden" });
 	});
 
-	it("Should show the menu once there is a non-collapsed selection and the editor is focused", () => {
+	it("Should show the menu once there is a non-collapsed selection and the editor is focused", async () => {
 		// Arrange
 
 		const button = makeButton();
@@ -328,7 +344,7 @@ describe("FloatingMenuPlugin", () => {
 
 		// Act
 
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 
 		// Assert
 
@@ -340,7 +356,7 @@ describe("FloatingMenuPlugin", () => {
 
 		const button = makeButton();
 		const { editor } = renderPlugin([button]);
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 		expect(getMenuPaper()).toHaveStyle({ visibility: "visible" });
 		const user = userEvent.setup();
 
@@ -353,23 +369,100 @@ describe("FloatingMenuPlugin", () => {
 		expect(getMenuPaper()).toHaveStyle({ visibility: "hidden" });
 	});
 
-	it("Should use an upward transform when the pointer is fine", () => {
+	function requestedPlacement() {
+		return vi.mocked(computePosition).mock.lastCall?.[2]?.placement;
+	}
+
+	it("Should open below where a forward selection ended and grow downwards", async () => {
 		// Arrange
 
 		vi.mocked(useIsCoarsePointer).mockReturnValue(false);
-		const button = makeButton();
-		const { editor } = renderPlugin([button]);
+		const { editor } = renderPlugin([makeButton()]);
 
 		// Act
 
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 
 		// Assert
 
-		expect(getMenuPaper()).toHaveStyle({ transform: "translateY(-100%)" });
+		expect(requestedPlacement()).toBe("bottom");
+		expect(getMenuPaper()).toHaveStyle({
+			transform: "scale(1)",
+			transformOrigin: "top center",
+		});
 	});
 
-	it("Should evaluate isActive with a RangeSelection reflecting the current selection", () => {
+	it("Should open above where a backward selection ended", async () => {
+		// Arrange
+
+		vi.mocked(useIsCoarsePointer).mockReturnValue(false);
+		const { editor } = renderPlugin([makeButton()]);
+
+		// Act
+
+		await setTextAndSelectAll(editor, "Hello world", true);
+
+		// Assert
+
+		expect(requestedPlacement()).toBe("top");
+	});
+
+	it("Should open above the selection on touch even when it was made forwards", async () => {
+		// Arrange
+
+		vi.mocked(useIsCoarsePointer).mockReturnValue(true);
+		const { editor } = renderPlugin([makeButton()]);
+
+		// Act
+
+		await setTextAndSelectAll(editor, "Hello world");
+
+		// Assert
+
+		expect(requestedPlacement()).toBe("top");
+	});
+
+	it("Should grow upwards from where Floating UI placed it when it flips above", async () => {
+		// Arrange
+
+		vi.mocked(useIsCoarsePointer).mockReturnValue(false);
+		vi.mocked(computePosition).mockResolvedValueOnce({
+			x: 12,
+			y: 40,
+			placement: "top",
+			strategy: "absolute",
+			middlewareData: {},
+		});
+		const { editor } = renderPlugin([makeButton()]);
+
+		// Act
+
+		await setTextAndSelectAll(editor, "Hello world");
+
+		// Assert
+
+		expect(getMenuPaper()).toHaveStyle({
+			top: "40px",
+			left: "12px",
+			transformOrigin: "bottom center",
+			visibility: "visible",
+		});
+	});
+
+	it("Should rest in Mantine's pop out state when there is no selection", () => {
+		// Arrange & Act
+
+		renderPlugin([makeButton()]);
+
+		// Assert
+
+		expect(getMenuPaper()).toHaveStyle({
+			opacity: "0",
+			transform: "scale(.9) translateY(10px)",
+		});
+	});
+
+	it("Should evaluate isActive with a RangeSelection reflecting the current selection", async () => {
 		// Arrange
 
 		let receivedTextContent: string | null = null;
@@ -383,7 +476,7 @@ describe("FloatingMenuPlugin", () => {
 
 		// Act
 
-		setTextAndSelectAll(editor, "Hello world");
+		await setTextAndSelectAll(editor, "Hello world");
 
 		// Assert
 

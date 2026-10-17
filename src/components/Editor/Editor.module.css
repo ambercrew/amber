@@ -58,7 +58,6 @@
 
 .floating-menu {
 	position: absolute;
-	transition: opacity 0.1s ease;
 	/* Equals the app shell header. */
 	z-index: 100;
 }

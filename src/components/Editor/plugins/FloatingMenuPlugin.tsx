@@ -8,7 +8,15 @@ import {
 	LexicalEditor,
 	RangeSelection,
 } from "lexical";
-import { MantineColor } from "@mantine/core";
+import {
+	MANTINE_TRANSITIONS,
+	MantineColor,
+	useMantineTheme,
+} from "@mantine/core";
+import { useReducedMotion } from "@mantine/hooks";
+import { computePosition, flip, offset, shift } from "@floating-ui/dom";
+import { isBackwardSelection, selectionEndRect } from "./selectionEndRect";
+import { useIsCoarsePointer } from "../../../hooks/useIsCoarsePointer";
 import styles from "../Editor.module.css";
 import FloatingMenuBar, {
 	FloatingMenuBarItem,
@@ -54,6 +62,13 @@ interface Props {
 	buttons: FloatingMenuItem[];
 }
 
+// Mantine's own `pop`, growing out of the selection whether the menu sits above or below it.
+const POP_FROM_BELOW = MANTINE_TRANSITIONS.pop;
+const POP_FROM_ABOVE = MANTINE_TRANSITIONS["pop-top-left"];
+// Matches the PDF viewer's floating menu.
+const MENU_GAP_PX = 8;
+const TRANSITION_DURATION_MS = 150;
+
 function usePointerInteractions() {
 	const [isPointerDown, setIsPointerDown] = useState(false);
 	const [isPointerReleased, setIsPointerReleased] = useState(true);
@@ -85,7 +100,11 @@ function usePointerInteractions() {
 
 export function FloatingMenuPlugin({ buttons }: Props) {
 	const [editor] = useLexicalComposerContext();
-	const [coords, setCoords] = useState<{ x: number; y: number } | null>(null);
+	const [coords, setCoords] = useState<{
+		x: number;
+		y: number;
+		below: boolean;
+	} | null>(null);
 	const [activeState, setActiveState] = useState<Record<string, boolean>>({});
 	const [visibleState, setVisibleState] = useState<Record<string, boolean>>(
 		{},
@@ -95,51 +114,51 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 	const menuRef = useRef<HTMLDivElement>(null);
 	const escapedRef = useRef(false);
 	const { isPointerDown, isPointerReleased } = usePointerInteractions();
+	const coarsePointer = useIsCoarsePointer();
+	const theme = useMantineTheme();
+	const reduceMotion = useReducedMotion() && theme.respectReducedMotion;
+
+	// Bumped on every reposition or hide, so a stale async position can't reopen the menu.
+	const positionRequestRef = useRef(0);
+
+	const hideMenu = useCallback(() => {
+		positionRequestRef.current++;
+		setCoords(null);
+	}, []);
 
 	const calculatePosition = useCallback(() => {
+		const menu = menuRef.current;
 		const domSelection = getSelection();
-		const originalRange =
-			domSelection?.rangeCount !== 0 ? domSelection?.getRangeAt(0) : null;
-		const domRange = originalRange?.cloneRange();
-		domRange?.collapse(domSelection?.direction === "backward");
-		let domRangeRect = domRange?.getBoundingClientRect();
-
-		if (domRangeRect?.width === 0 && domRangeRect?.height === 0) {
-			domRangeRect = originalRange?.getBoundingClientRect();
+		if (!menu || isPointerDown || !domSelection?.rangeCount) {
+			hideMenu();
+			return;
 		}
 
-		const editorRect = editor.getRootElement()?.getBoundingClientRect();
-		if (!domRangeRect || isPointerDown || !editorRect) {
-			return setCoords(null);
-		}
-
-		if (coords) return;
-
-		requestAnimationFrame(() => {
-			const menuRect = menuRef.current?.getBoundingClientRect();
-			if (!menuRect) return;
-
-			let x = Math.max(
-				0,
-				domRangeRect.left - editorRect.left - menuRect.width / 2,
-			);
-			if (x + menuRect.width > editorRect.width) {
-				x = editorRect.width - menuRect.width;
-			}
-
-			setCoords({
-				x,
-				y: domRangeRect.top - editorRect.top - 10,
-			});
+		const range = domSelection.getRangeAt(0);
+		const backward = isBackwardSelection(domSelection, range);
+		const reference = {
+			getBoundingClientRect: () => selectionEndRect(range, backward),
+		};
+		// Away from the rest of the selection so it isn't covered, except on touch, where the
+		// menu stays above to clear the selection handles.
+		const placement = backward || coarsePointer ? "top" : "bottom";
+		const request = ++positionRequestRef.current;
+		void computePosition(reference, menu, {
+			placement,
+			strategy: "absolute",
+			middleware: [offset(MENU_GAP_PX), flip(), shift({ padding: 8 })],
+		}).then(({ x, y, placement }) => {
+			if (request !== positionRequestRef.current) return;
+			setCoords({ x, y, below: placement.startsWith("bottom") });
 		});
-	}, [editor, isPointerDown, coords]);
+	}, [isPointerDown, coarsePointer, hideMenu]);
 
 	const $handleSelectionChange = useCallback(() => {
 		if (
 			editor.isComposing() ||
 			editor.getRootElement() !== document.activeElement
 		) {
-			setCoords(null);
+			hideMenu();
 			return;
 		}
 
@@ -151,9 +170,9 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 			if (!escapedRef.current) calculatePosition();
 		} else {
 			escapedRef.current = false;
-			setCoords(null);
+			hideMenu();
 		}
-	}, [editor, calculatePosition]);
+	}, [editor, calculatePosition, hideMenu]);
 
 	useEffect(() => {
 		return editor.registerUpdateListener(({ editorState }) => {
@@ -192,19 +211,19 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 				if (e.key === "Escape" && coords !== null) {
 					e.stopPropagation();
 					escapedRef.current = true;
-					setCoords(null);
+					hideMenu();
 					return true;
 				}
 				return false;
 			},
 			COMMAND_PRIORITY_LOW,
 		);
-	}, [editor, coords]);
+	}, [editor, coords, hideMenu]);
 
 	const closeMenu = useCallback(() => {
 		escapedRef.current = true;
-		setCoords(null);
-	}, []);
+		hideMenu();
+	}, [hideMenu]);
 
 	useEffect(() => {
 		return editor.registerCommand(
@@ -236,6 +255,9 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 	}, [editor, buttons, closeMenu]);
 
 	const shouldShow = (isEditorFocused || isMenuFocused) && coords !== null;
+	const below = coords?.below ?? false;
+	const pop = below ? POP_FROM_ABOVE : POP_FROM_BELOW;
+	const popState = shouldShow ? pop.in : pop.out;
 
 	const items: FloatingMenuBarItem[] = buttons.map(btn => {
 		if (isFloatingMenuDivider(btn)) return btn;
@@ -262,16 +284,22 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 			style={{
 				top: coords?.y ?? 0,
 				left: coords?.x ?? 0,
-				transform: "translateY(-100%)",
+				transform: popState.transform,
+				transformOrigin: below ? "top center" : "bottom center",
+				opacity: popState.opacity,
+				// Stays mounted (it's measured to be positioned), so it animates rather than `<Transition>`.
+				// `visibility` flips at the end on hide and at once on show, letting the fade play out.
 				visibility: shouldShow ? "visible" : "hidden",
-				opacity: shouldShow ? 1 : 0,
+				transitionProperty: "opacity, transform, visibility",
+				transitionDuration: `${reduceMotion ? 0 : TRANSITION_DURATION_MS}ms`,
+				transitionTimingFunction: "ease",
 				pointerEvents: shouldShow ? "auto" : "none",
 			}}
 			onFocus={() => setIsMenuFocused(true)}
 			onBlur={() => setIsMenuFocused(false)}
 			onKeyDown={(e: React.KeyboardEvent) => {
 				if (e.key === "Escape") {
-					setCoords(null);
+					hideMenu();
 					editor.focus();
 				}
 			}}
