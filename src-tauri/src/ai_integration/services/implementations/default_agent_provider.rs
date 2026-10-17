@@ -291,16 +291,21 @@ pub mod tests {
     }
 
     #[tokio::test]
-    pub async fn get_agent_no_document_messages_only_added_card_tool() {
+    pub async fn get_agent_no_document_messages_only_added_card_tools() {
         // Arrange
 
-        let only_card_tool_sent = Arc::new(AtomicBool::new(false));
-        let only_card_tool_sent_clone = only_card_tool_sent.clone();
+        let only_card_tools_sent = Arc::new(AtomicBool::new(false));
+        let only_card_tools_sent_clone = only_card_tools_sent.clone();
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(move |request| {
-                only_card_tool_sent_clone.store(
-                    request.tools.len() == 1 && request.tools[0].name == "create_card",
+                only_card_tools_sent_clone.store(
+                    request.tools.len() == 2
+                        && request.tools.iter().any(|tool| tool.name == "create_card")
+                        && request
+                            .tools
+                            .iter()
+                            .any(|tool| tool.name == "create_cloze_card"),
                     Ordering::Relaxed,
                 );
                 mock_response_with_text("Answer")
@@ -328,7 +333,7 @@ pub mod tests {
 
         // Assert
 
-        assert!(only_card_tool_sent.load(Ordering::Relaxed));
+        assert!(only_card_tools_sent.load(Ordering::Relaxed));
     }
 
     #[tokio::test]
@@ -387,7 +392,7 @@ pub mod tests {
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(move |request| {
                 search_tool_sent_clone.store(
-                    request.tools.len() == 2
+                    request.tools.len() == 3
                         && request
                             .tools
                             .iter()

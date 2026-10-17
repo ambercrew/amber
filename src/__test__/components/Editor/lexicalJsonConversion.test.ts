@@ -16,6 +16,17 @@ function equationsIn(json: string) {
 	return found;
 }
 
+function clozesIn(json: string) {
+	const found: { hiddenText: unknown; text: unknown }[] = [];
+	const visit = (node: SerializedLexicalNodeTree) => {
+		if (node.type === "cloze-hidden")
+			found.push({ hiddenText: node.hiddenText, text: node.text });
+		node.children?.forEach(visit);
+	};
+	visit((JSON.parse(json) as { root: SerializedLexicalNodeTree }).root);
+	return found;
+}
+
 describe("lexicalJsonConversion", () => {
 	it("Should create a display equation node when given a display equation element", () => {
 		// Arrange
@@ -119,5 +130,22 @@ describe("lexicalJsonConversion", () => {
 		// Assert
 
 		expect(equationsIn(actual)).toEqual([]);
+	});
+
+	it("Should create a cloze node when given markdown with a cloze mark", () => {
+		// Arrange
+
+		const markdown =
+			'<mark data-cloze-hidden="Paris &amp; &quot;Lutetia&quot;">[...]</mark> is the capital of **France**.';
+
+		// Act
+
+		const actual = markdownToLexicalJson(markdown);
+
+		// Assert
+
+		expect(clozesIn(actual)).toEqual([
+			{ hiddenText: 'Paris & "Lutetia"', text: "[...]" },
+		]);
 	});
 });

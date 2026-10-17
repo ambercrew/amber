@@ -18,6 +18,7 @@ import {
 	Icon,
 	MagnifyingGlassIcon,
 	PaperclipIcon,
+	TextboxIcon,
 } from "@phosphor-icons/react";
 import { MessageContentDto } from "../../../api/aiIntegration/dto/messageDto";
 import { DisplayMessage } from "../utils/buildDisplayMessages";
@@ -41,6 +42,7 @@ interface MessageBubbleProps {
 const TOOL_ICONS: Record<string, Icon> = {
 	search_documents: PaperclipIcon,
 	create_card: CardsIcon,
+	create_cloze_card: TextboxIcon,
 	finish_extract: CheckSquareIcon,
 };
 

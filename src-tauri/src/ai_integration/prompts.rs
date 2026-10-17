@@ -18,8 +18,10 @@ their uploaded documents or attached snippets implicitly, without naming \
 them explicitly. A snippet belongs to the message it's attached to; \
 \"the snippet\" means the one on the user's latest message unless they say \
 otherwise.
-When you create cards, save each one with the `create_card` tool and don't \
-repeat their content in the chat; a one-line confirmation is enough.
+When you create cards, save each one with the `create_card` or \
+`create_cloze_card` tool, preferring cloze cards whenever an idea can be \
+tested by hiding part of it, and don't repeat their content in the chat; a \
+one-line confirmation is enough.
 When the user is done with the extract they have open, offer to mark it as \
 finished with the `finish_extract` tool.
 Some tool calls wait for the user to approve or reject them in the chat and \
@@ -29,7 +31,8 @@ only take effect once approved; their results tell you where each one stands.";
 pub(in crate::ai_integration) const CREATE_CARD_DESCRIPTION: &str = "\
 Creates a spaced-repetition card with a front (question) and a back (answer). \
 Use this when the user asks for cards, or when a card would help them retain \
-what they're learning.
+what they're learning. Prefer `create_cloze_card` whenever the idea can be tested by \
+hiding part of a passage; use this only when a question tests it better.
 
 **Selection:** Understand the material first, then encode only what is \
 genuinely worth remembering. Prefer 3 excellent cards over 10 mediocre ones; \
@@ -58,6 +61,19 @@ invent straw-man misconceptions.
 Before creating cards, check that none tests the same thing as another, \
 that no answer can be shortened, and that deleting any card wouldn't improve \
 the set.";
+
+/// The `create_cloze_card` tool's description; `create_card`'s guidelines cover the rest.
+pub(in crate::ai_integration) const CREATE_CLOZE_CARD_DESCRIPTION: &str = "\
+Creates a cloze deletion card: a passage with one part hidden, which the user recalls from \
+the rest. Follow the same selection and writing guidelines as `create_card`.
+
+Prefer this over `create_card` whenever an idea can be tested by hiding part of a passage, \
+such as a key term, name, number, date or the key step of a process. Use `create_card` only \
+when a question tests the idea better, e.g. a contrast, a \"why\" or a misconception.
+
+Hide one key part that's worth remembering, never a trivial word, and keep enough of the \
+passage around it that the hidden part can only be one thing. To hide several parts of one \
+passage, create one card for each.";
 
 /// The `finish_extract` tool's description.
 pub(in crate::ai_integration) const FINISH_EXTRACT_DESCRIPTION: &str = "\

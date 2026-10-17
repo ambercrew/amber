@@ -63,5 +63,7 @@ isn't confused with an earlier one.
   for events a tool causes must live at the app level, not inside a tab.
 - **Commit before slow work in the stream loop.** The streamer saves before each LLM round-trip and
   after each tool call; new writes there must follow suit, or SQLite hits `SQLITE_BUSY_SNAPSHOT`.
+- **Card content goes through Markdown**, so a tool can emit an editor node (like a cloze's
+  `<mark data-cloze-hidden>`) as inline HTML, as long as the HTML sanitizer allows it.
 - Some providers return empty tool-call ids; the streamer falls back to rig's `internal_call_id`.
 - Tests use `MockClient`; script multi-turn tool use by switching on a call counter.

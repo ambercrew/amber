@@ -851,8 +851,8 @@ pub mod tests {
                 if let Some(RigMessage::User { content }) = request.chat_history.last()
                     && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User prompt"
-                    // search_documents plus the always-on create_card tool.
-                    && request.tools.len() == 2
+                    // search_documents plus the always-on card tools.
+                    && request.tools.len() == 3
                     && request.tools.iter().any(|tool| tool.name == "search_documents")
                     && request.tools.iter().any(|tool| tool.name == "create_card")
                 {

@@ -113,26 +113,29 @@ impl AppTool for CreateCard {
     const REQUIRES_APPROVAL: bool = true;
 
     fn approval_markdown(&self, args: &Self::Args) -> Option<String> {
-        let sides = format!(
-            "**Front**\n\n{}\n\n---\n\n**Back**\n\n{}",
-            args.front, args.back
-        );
-        Some(match self.parent {
-            Some(parent) => format!("In {}\n\n{sides}", element_reference(parent)),
-            None => sides,
-        })
+        Some(card_approval_markdown(self.parent, &args.front, &args.back))
     }
 
     fn approved_markdown(&self, _args: &Self::Args, output: &Self::Output) -> Option<String> {
-        Some(format!(
-            "Created {}",
-            element_reference(ElementId::Card(output.card_id))
-        ))
+        Some(card_approved_markdown(output.card_id))
     }
 }
 
+/// The approval card for a new card: where it goes, then its two sides.
+pub(super) fn card_approval_markdown(parent: Option<ElementId>, front: &str, back: &str) -> String {
+    let sides = format!("**Front**\n\n{front}\n\n---\n\n**Back**\n\n{back}");
+    match parent {
+        Some(parent) => format!("In {}\n\n{sides}", element_reference(parent)),
+        None => sides,
+    }
+}
+
+pub(super) fn card_approved_markdown(card_id: Uuid) -> String {
+    format!("Created {}", element_reference(ElementId::Card(card_id)))
+}
+
 /// Derives a short element name from the front text.
-fn card_name(front: &str) -> String {
+pub(super) fn card_name(front: &str) -> String {
     let trimmed = front.trim();
 
     if trimmed.chars().count() > MAX_NAME_LEN {
@@ -146,7 +149,7 @@ fn card_name(front: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use async_trait::async_trait;
     use injector::{injector::Injector, register_scope};
 
@@ -202,7 +205,7 @@ mod tests {
     /// Echoes the Markdown back unchanged, standing in for the real
     /// frontend conversion so tests can assert on the Markdown this tool
     /// produces.
-    struct EchoLexicalJsonConverter;
+    pub(in crate::ai_integration::tools) struct EchoLexicalJsonConverter;
 
     #[async_trait]
     impl LexicalJsonConverter for EchoLexicalJsonConverter {
@@ -214,7 +217,7 @@ mod tests {
         }
     }
 
-    async fn initialize_test_injector() -> Injector {
+    pub(in crate::ai_integration::tools) async fn initialize_test_injector() -> Injector {
         let mut injector = create_test_injector().await;
 
         register_scope!(injector, dyn FolderRepository, SqliteFolderRepository);

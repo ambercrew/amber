@@ -10,6 +10,7 @@ use crate::ai_integration::services::ai_client_provider::AiClientProvider;
 use crate::ai_integration::services::tools_provider::{ToolsProvider, ToolsProviderError};
 use crate::ai_integration::tools::app_tools::AppTools;
 use crate::ai_integration::tools::create_card::CreateCard;
+use crate::ai_integration::tools::create_cloze_card::CreateClozeCard;
 use crate::ai_integration::tools::finish_extract::FinishExtract;
 use crate::ai_integration::tools::search_documents::SearchDocuments;
 use crate::common::services::lexical_json_converter::LexicalJsonConverter;
@@ -52,6 +53,11 @@ impl ToolsProvider for DefaultToolsProvider {
 
         Ok(AppTools::default()
             .tool(CreateCard::new(
+                self.element_creation_service.clone(),
+                self.lexical_json_converter.clone(),
+                element,
+            ))
+            .tool(CreateClozeCard::new(
                 self.element_creation_service.clone(),
                 self.lexical_json_converter.clone(),
                 element,

@@ -21,7 +21,8 @@ function AiCapabilitiesModal({ opened, onClose }: AiCapabilitiesModalProps) {
 				<List.Item>Snippets you provide as context</List.Item>
 				<List.Item>Documents you upload to the chat</List.Item>
 				<List.Item>
-					Creating cards on your behalf, once you approve them
+					Creating cards, including cloze deletions, once you approve
+					them
 				</List.Item>
 				<List.Item>
 					Marking the extract you have open as finished, once you
