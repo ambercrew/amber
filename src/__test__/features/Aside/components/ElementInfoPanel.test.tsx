@@ -1,5 +1,4 @@
 import { screen, waitFor } from "@testing-library/react";
-import { listen } from "@tauri-apps/api/event";
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
 import ElementInfoPanel from "../../../../features/Aside/components/ElementInfoPanel";
@@ -18,7 +17,6 @@ import {
 	fromDateInputValue,
 	toDateInputValue,
 } from "../../../../utils/dateInputValue";
-import { ELEMENT_DUE_CHANGED_EVENT } from "../../../../api/study/events/elementDueChangedEvent";
 
 vi.mock(import("../../../../api/study/api/studyApi"));
 vi.mock(import("../../../../api/elements/api/elementsApi"));
@@ -108,15 +106,6 @@ function makeDetails(
 	};
 }
 
-/** Runs the handler the panel registered with `listen` for `event`. */
-function emitTauriEvent(event: string) {
-	const calls = vi
-		.mocked(listen)
-		.mock.calls.filter(([name]) => name === event);
-	const latest = calls[calls.length - 1];
-	if (latest) latest[1]({ event, id: 0, payload: null });
-}
-
 function elementsStateFor(currentElement: AnyElementDto): ElementsState {
 	return {
 		tree: [],
@@ -142,7 +131,6 @@ function renderPanel(currentElement: AnyElementDto, details = makeDetails()) {
 
 describe("ElementInfoPanel", () => {
 	beforeEach(() => {
-		vi.mocked(listen).mockClear();
 		vi.mocked(listBibliographicalSources).mockResolvedValue([]);
 		localStorage.setItem("element-info-panel.details.opened", "true");
 		localStorage.setItem("element-info-panel.study.opened", "true");
@@ -205,27 +193,6 @@ describe("ElementInfoPanel", () => {
 				fromDateInputValue(next),
 			);
 		});
-	});
-
-	it("Should reload the element details when the backend reports a due change", async () => {
-		// Arrange
-
-		vi.mocked(getElementDetails).mockResolvedValue(makeDetails());
-		const element = learningAsset();
-		renderPanel(element);
-		await act(async () => {});
-
-		// Act
-
-		await act(async () => {
-			emitTauriEvent(ELEMENT_DUE_CHANGED_EVENT);
-		});
-
-		// Assert
-
-		expect(getElementDetails).toHaveBeenCalledWith(
-			element.data.meta.elementId,
-		);
 	});
 
 	it("Should mark the learning asset finished when the finished switch is turned on", async () => {

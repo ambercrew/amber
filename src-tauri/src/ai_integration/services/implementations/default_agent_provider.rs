@@ -113,6 +113,10 @@ impl AgentProvider for DefaultAgentProvider {
 
 #[cfg(test)]
 pub mod tests {
+    use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_log_repository::SqliteLearningAssetReviewLogRepository;
+    use crate::study::repositories::learning_asset_review_log_repository::LearningAssetReviewLogRepository;
+    use crate::study::services::implementations::default_learning_asset_scheduling_service::DefaultLearningAssetSchedulingService;
+    use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use chrono::Utc;
@@ -268,6 +272,16 @@ pub mod tests {
             dyn ElementCreationService,
             DefaultElementCreationService
         );
+        register_scope!(
+            injector,
+            dyn LearningAssetReviewLogRepository,
+            SqliteLearningAssetReviewLogRepository
+        );
+        register_scope!(
+            injector,
+            dyn LearningAssetSchedulingService,
+            DefaultLearningAssetSchedulingService
+        );
         register_scope!(injector, dyn ToolsProvider, DefaultToolsProvider);
         register_scope!(injector, dyn AgentProvider, DefaultAgentProvider);
 
@@ -321,6 +335,52 @@ pub mod tests {
         // Assert
 
         assert!(only_card_tool_sent.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    pub async fn get_agent_open_extract_added_finish_extract_tool() {
+        // Arrange
+
+        let mark_tool_sent = Arc::new(AtomicBool::new(false));
+        let mark_tool_sent_clone = mark_tool_sent.clone();
+        let element_id = ElementId::Extract(Uuid::new_v4());
+
+        let mock_client = MockClient {
+            completion_fn: Arc::new(Some(Box::new(move |request| {
+                mark_tool_sent_clone.store(
+                    request
+                        .tools
+                        .iter()
+                        .any(|tool| tool.name == "finish_extract"),
+                    Ordering::Relaxed,
+                );
+                mock_response_with_text("Answer")
+            }))),
+            ..Default::default()
+        };
+
+        let injector = initialize_test_injector(mock_client).await;
+        let scope = injector.start_scope();
+        scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .create_meta(&make_meta(element_id, None))
+            .await
+            .unwrap();
+        let service = scope.resolve::<dyn AgentProvider>().await;
+
+        // Act
+
+        let agent = service
+            .get_agent(Uuid::new_v4(), &[], Some(element_id), &[])
+            .await
+            .unwrap();
+        agent.agent.prompt("Hello").await.unwrap();
+
+        // Assert
+
+        assert!(mark_tool_sent.load(Ordering::Relaxed));
+        assert!(agent.approval_hook.requires_approval("finish_extract"));
     }
 
     #[tokio::test]

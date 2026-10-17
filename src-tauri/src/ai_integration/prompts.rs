@@ -18,6 +18,8 @@ their uploaded documents or attached snippets implicitly, without naming \
 them explicitly.
 When you create cards, save each one with the `create_card` tool and don't \
 repeat their content in the chat; a one-line confirmation is enough.
+When the user is done with the extract they have open, offer to mark it as \
+finished with the `finish_extract` tool.
 Some tool calls wait for the user to approve or reject them in the chat and \
 only take effect once approved; their results tell you where each one stands.";
 
@@ -54,6 +56,11 @@ invent straw-man misconceptions.
 Before creating cards, check that none tests the same thing as another, \
 that no answer can be shortened, and that deleting any card wouldn't improve \
 the set.";
+
+/// The `finish_extract` tool's description.
+pub(in crate::ai_integration) const FINISH_EXTRACT_DESCRIPTION: &str = "\
+Marks the extract the user has open as finished, so it stops coming up for review. Use \
+this when the user says they've finished with it, or asks you to mark it as finished.";
 
 /// What the model is told about a call awaiting approval, kept current in the history it's sent.
 pub(in crate::ai_integration) fn approval_result_text(

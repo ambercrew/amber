@@ -23,6 +23,10 @@ function AiCapabilitiesModal({ opened, onClose }: AiCapabilitiesModalProps) {
 				<List.Item>
 					Creating cards on your behalf, once you approve them
 				</List.Item>
+				<List.Item>
+					Marking the extract you have open as finished, once you
+					approve it
+				</List.Item>
 			</List>
 		</AppModal>
 	);

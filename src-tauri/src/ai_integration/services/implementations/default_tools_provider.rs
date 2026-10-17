@@ -10,11 +10,13 @@ use crate::ai_integration::services::ai_client_provider::AiClientProvider;
 use crate::ai_integration::services::tools_provider::{ToolsProvider, ToolsProviderError};
 use crate::ai_integration::tools::app_tools::AppTools;
 use crate::ai_integration::tools::create_card::CreateCard;
+use crate::ai_integration::tools::finish_extract::FinishExtract;
 use crate::ai_integration::tools::search_documents::SearchDocuments;
 use crate::common::services::lexical_json_converter::LexicalJsonConverter;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::services::element_creation_service::ElementCreationService;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
 
 /// What the tools need from the conversation they were given in.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,6 +32,7 @@ pub struct DefaultToolsProvider {
     meta_repository: Arc<dyn MetaRepository>,
     element_creation_service: Arc<dyn ElementCreationService>,
     lexical_json_converter: Arc<dyn LexicalJsonConverter>,
+    learning_asset_scheduling_service: Arc<dyn LearningAssetSchedulingService>,
 }
 
 #[async_trait]
@@ -45,11 +48,17 @@ impl ToolsProvider for DefaultToolsProvider {
     async fn get_tools(&self, context: &Value) -> Result<AppTools, ToolsProviderError> {
         let context: ToolsContext = serde_json::from_value(context.clone())?;
 
+        let element = existing_element(self.meta_repository.as_ref(), context.element_id).await?;
+
         Ok(AppTools::default()
             .tool(CreateCard::new(
                 self.element_creation_service.clone(),
                 self.lexical_json_converter.clone(),
-                existing_element(self.meta_repository.as_ref(), context.element_id).await?,
+                element,
+            ))
+            .tool(FinishExtract::new(
+                self.learning_asset_scheduling_service.clone(),
+                element,
             ))
             .tool(SearchDocuments::new(
                 self.ai_client_provider.clone(),

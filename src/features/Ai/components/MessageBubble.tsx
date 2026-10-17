@@ -15,6 +15,7 @@ import {
 	CaretDownIcon,
 	CaretRightIcon,
 	CheckIcon,
+	CheckSquareIcon,
 	FileIcon,
 	Icon,
 	MagnifyingGlassIcon,
@@ -41,6 +42,7 @@ interface MessageBubbleProps {
 const TOOL_ICONS: Record<string, Icon> = {
 	search_documents: PaperclipIcon,
 	create_card: CardsIcon,
+	finish_extract: CheckSquareIcon,
 };
 
 function toolLabel(toolName: string | undefined, done: boolean): string {

@@ -87,16 +87,22 @@ in both approval cards and assistant replies.
 
 ## Adding a tool
 
-1. **Create `tools/<name>.rs`.** Copy `create_card.rs` (approval tool) or `search_documents.rs`
-   (conditional tool).
+1. **Create `tools/<name>.rs`.** Copy `create_card.rs` (approval tool that creates),
+   `finish_extract.rs` (approval tool on the open element, offered only for extracts) or
+   `search_documents.rs` (conditional tool).
     - The args struct derives `Deserialize, Serialize, JsonSchema`, with a
       `#[schemars(description)]` on each field.
     - Use a `thiserror` error enum.
     - Hold dependencies as `Arc<dyn Service>`.
     - `call()` goes through services, never repositories directly, so events and sync still fire.
+      The UI refreshes from those events (e.g. `finish` pushes `elementDueChanged`, which reloads
+      the element details), flushed when the approval's scope saves. Use the app's own wording
+      (e.g. "finished", not "done").
     - `NAME` is persisted, so never rename it.
     - For `approved_markdown`, return a typed `Output` struct carrying ids (camelCase) rather than
       parsing text.
+    - To act on the open element, take it from the provider rather than from args, so the model
+      can't pick another one. Element ids in args need `#[schemars(with = "String")]`.
 2. **Description:** add it as a const in `prompts.rs`, and update `PREAMBLE_BASE` if the
    assistant's behaviour should change.
 3. **Register it:** add the module to `tools/mod.rs`, and `.tool(...)` it unconditionally in
@@ -142,6 +148,9 @@ then try them in `npm run tauri dev`.
 - Persisted JSON is long-lived. New fields on `ToolCallContent`, `ToolApproval`, `ToolsContext`,
   or a tool's `Output` need `#[serde(default)]` or `Option`. Prefer computing display data on
   demand over storing it.
+- The AI panel and element info share the aside's tabs, which hide inactive panels in React
+  `<Activity>`, dropping their effects. Listeners for events a tool causes (e.g.
+  `useElementDueChangedRefresh`) must live in `App.tsx`, not in a tab.
 - Some providers return empty tool-call ids; the streamer falls back to rig's `internal_call_id`.
 - The streamer commits before the LLM round-trip and after each tool call. Keep that pattern for
   new writes in the stream loop, or SQLite will hit `SQLITE_BUSY_SNAPSHOT`.

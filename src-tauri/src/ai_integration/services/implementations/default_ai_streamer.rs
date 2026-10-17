@@ -380,6 +380,10 @@ fn merge_consecutive_assistant_messages(
 
 #[cfg(test)]
 pub mod tests {
+    use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_log_repository::SqliteLearningAssetReviewLogRepository;
+    use crate::study::repositories::learning_asset_review_log_repository::LearningAssetReviewLogRepository;
+    use crate::study::services::implementations::default_learning_asset_scheduling_service::DefaultLearningAssetSchedulingService;
+    use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
     use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
     use injector::{injector::Injector, register_scope};
@@ -558,6 +562,16 @@ pub mod tests {
         );
         register_scope!(injector, dyn AgentProvider, DefaultAgentProvider);
         register_scope!(injector, dyn TransactionManager, SqliteTransactionManager);
+        register_scope!(
+            injector,
+            dyn LearningAssetReviewLogRepository,
+            SqliteLearningAssetReviewLogRepository
+        );
+        register_scope!(
+            injector,
+            dyn LearningAssetSchedulingService,
+            DefaultLearningAssetSchedulingService
+        );
         register_scope!(injector, dyn ToolsProvider, DefaultToolsProvider);
         register_scope!(
             injector,

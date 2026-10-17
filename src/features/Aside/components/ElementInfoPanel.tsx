@@ -18,7 +18,6 @@ import {
 } from "../../../api/elements/api/elementsApi";
 import { renameElementAction } from "../../../stores/elements/elementsActions";
 import { selectCurrentElementDetails } from "../../../stores/elementDetails/elementDetailsSelectors";
-import { loadElementDetailsAction } from "../../../stores/elementDetails/elementDetailsActions";
 import { selectElementRefreshCount } from "../../../stores/sync/syncSelector";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import { formatPriorityPercentile } from "../../../utils/formatPriorityPercentile";
@@ -27,8 +26,6 @@ import { dueIsoFor, hasDue } from "../../../utils/elementDue";
 import { openPriorityModal } from "../../../stores/app/appReducer";
 import { commandIcon } from "../../../commands/commandIcon";
 import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
-import { useTauriEvent } from "../../../hooks/useTauriEvent";
-import { ELEMENT_DUE_CHANGED_EVENT } from "../../../api/study/events/elementDueChangedEvent";
 import ElementProfileRow from "../../Study/components/ElementProfileRow";
 import DueDateInput from "../../Study/components/DueDateInput";
 import FinishedSwitch from "../../Study/components/FinishedSwitch";
@@ -78,11 +75,6 @@ function ElementInfoPanel() {
 		if (document.activeElement === nameRef.current) return;
 		setName(storedName);
 	}, [storedName]);
-
-	useTauriEvent(ELEMENT_DUE_CHANGED_EVENT, () => {
-		if (!storedMeta) return;
-		void dispatch(loadElementDetailsAction(storedMeta.elementId));
-	});
 
 	if (!storedMeta) {
 		return (
