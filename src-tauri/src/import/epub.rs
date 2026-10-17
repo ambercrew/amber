@@ -231,10 +231,28 @@ fn extract_body(xhtml: &str) -> String {
     match re.captures(xhtml) {
         Some(caps) => caps
             .get(1)
-            .map(|m| m.as_str().to_string())
+            .map(|m| expand_self_closing_tags(m.as_str()))
             .unwrap_or_default(),
-        None => xhtml.to_string(),
+        None => expand_self_closing_tags(xhtml),
     }
+}
+
+/// XHTML's `<a id="x"/>` is an unclosed `<a>` to the HTML parser, swallowing every following block.
+fn expand_self_closing_tags(xhtml: &str) -> String {
+    const VOID_ELEMENTS: &[&str] = &[
+        "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",
+        "source", "track", "wbr",
+    ];
+    let re = Regex::new(r"<([A-Za-z][\w:.-]*)((?:\s[^<>]*?)?)\s*/>").expect("valid tag regex");
+    re.replace_all(xhtml, |caps: &regex::Captures| {
+        let name = &caps[1];
+        if VOID_ELEMENTS.contains(&name.to_ascii_lowercase().as_str()) {
+            caps[0].to_string()
+        } else {
+            format!("<{name}{}></{name}>", &caps[2])
+        }
+    })
+    .into_owned()
 }
 
 fn localize_images(
@@ -499,6 +517,40 @@ mod tests {
         assert_eq!(extraction.title, Some("My Book".to_string()));
         assert_eq!(extraction.authors, Some("Jane Doe".to_string()));
         assert_eq!(extraction.publication_date, Some("2020-01-01".to_string()));
+    }
+
+    #[test]
+    fn extract_epub_html_self_closing_non_void_tags_expands_them() {
+        // Arrange
+
+        let manifest =
+            r#"<item id="chap1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>"#;
+        let spine = r#"<itemref idref="chap1"/>"#;
+        let opf_xml = opf(spine, manifest, "");
+        let chapter =
+            br#"<html><body><ol><li>One<a id="n1"/></li></ol><br/><img src="x.png" /></body></html>"#;
+
+        let bytes = build_epub(&[
+            ("META-INF/container.xml", CONTAINER_XML.as_bytes()),
+            ("OEBPS/content.opf", opf_xml.as_bytes()),
+            ("OEBPS/chapter1.xhtml", chapter),
+        ]);
+
+        // Act
+
+        let result = extract_epub_html(bytes);
+
+        // Assert
+
+        let html = result
+            .ok()
+            .expect("expected extraction to succeed")
+            .dto
+            .html;
+        assert!(html.contains(r#"<a id="n1"></a></li>"#));
+        assert!(html.contains("<br/>"));
+        assert!(!html.contains("</br>"));
+        assert!(!html.contains("</img>"));
     }
 
     #[test]
