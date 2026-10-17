@@ -3,13 +3,19 @@ import { Center, ScrollArea, Stack, Text } from "@mantine/core";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { DisplayMessage } from "../utils/buildDisplayMessages";
 import MessageBubble from "./MessageBubble";
+import { OnToolApprovalResolved } from "./ToolApprovalCard";
 
 interface ChatMessagesProps {
 	chatId: string | null;
 	messages: DisplayMessage[];
+	onToolApprovalResolved?: OnToolApprovalResolved;
 }
 
-function ChatMessages({ chatId, messages }: ChatMessagesProps) {
+function ChatMessages({
+	chatId,
+	messages,
+	onToolApprovalResolved,
+}: ChatMessagesProps) {
 	const { scrollRef, contentRef, scrollToBottom } = useStickToBottom({
 		initial: "instant",
 		resize: "instant",
@@ -45,6 +51,8 @@ function ChatMessages({ chatId, messages }: ChatMessagesProps) {
 						toolName={message.toolName}
 						isStreaming={message.isStreaming}
 						contextSnippets={message.contextSnippets}
+						approval={message.approval}
+						onToolApprovalResolved={onToolApprovalResolved}
 					/>
 				))}
 			</Stack>

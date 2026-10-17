@@ -4,3 +4,5 @@ pub mod ai_streamer;
 pub mod chat_creator;
 pub mod document_uploader;
 pub mod implementations;
+pub mod tool_approval_resolver;
+pub mod tools_provider;

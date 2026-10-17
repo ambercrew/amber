@@ -180,6 +180,28 @@ impl AiRepository for SqliteAiRepository {
         Ok(())
     }
 
+    async fn get_message_by_id(&self, id: Uuid) -> Result<Message, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let message_row = sqlx::query_as!(
+            MessageRow,
+            r#"SELECT
+                id as "id: _",
+                created_date as "created_date: _",
+                ai_chat_id as "chat_id: _",
+                content_type,
+                content
+            FROM ai_messages
+            WHERE id = $1"#,
+            id.hyphenated()
+        )
+        .fetch_one(&mut *tx)
+        .await;
+
+        Ok(message_row?.into())
+    }
+
     async fn get_chat_messages_ordered(&self, id: Uuid) -> Result<Vec<Message>, RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();

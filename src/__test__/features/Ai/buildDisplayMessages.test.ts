@@ -223,4 +223,92 @@ describe("buildDisplayMessages", () => {
 			"search_documents",
 		]);
 	});
+
+	it("Should attach the approval and hide its tool result when a call awaiting approval is persisted", () => {
+		// Arrange
+
+		const persisted: MessageDto[] = [
+			{
+				id: "m-1",
+				createdDate: "date",
+				chatId: "chat-1",
+				content: {
+					type: "toolCall",
+					value: {
+						id: "tc-1",
+						name: "create_card",
+						arguments: { front: "Q", back: "A" },
+						approval: { context: null, status: "pending" },
+					},
+				},
+				contextSnippets: [],
+				approvalMarkdown: "**Front**",
+			},
+			{
+				id: "m-2",
+				createdDate: "date",
+				chatId: "chat-1",
+				content: {
+					type: "toolResult",
+					value: { id: "tc-1", text: "Awaiting approval." },
+				},
+				contextSnippets: [],
+			},
+		];
+
+		// Act
+
+		const actual = buildDisplayMessages(persisted, null, null);
+
+		// Assert
+
+		expect(actual.map(m => [m.id, m.approval])).toEqual([
+			[
+				"m-1",
+				{ messageId: "m-1", status: "pending", markdown: "**Front**" },
+			],
+		]);
+	});
+
+	it("Should prefer the resolved status and result over the loaded ones when an approval was resolved since", () => {
+		// Arrange
+
+		const persisted: MessageDto[] = [];
+
+		// Act
+
+		const actual = buildDisplayMessages(
+			persisted,
+			null,
+			null,
+			null,
+			null,
+			[
+				{
+					id: "streaming-tool-call-tc-1",
+					messageId: "m-1",
+					approvalMarkdown: "**Front**",
+					content: {
+						type: "toolCall",
+						value: {
+							id: "tc-1",
+							name: "create_card",
+							arguments: {},
+							approval: { context: null, status: "pending" },
+						},
+					},
+				},
+			],
+			{ "m-1": { status: "approved", resultMarkdown: "Created it" } },
+		);
+
+		// Assert
+
+		expect(actual[0].approval).toEqual({
+			messageId: "m-1",
+			status: "approved",
+			markdown: "**Front**",
+			resultMarkdown: "Created it",
+		});
+	});
 });

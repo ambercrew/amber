@@ -287,6 +287,7 @@ pub async fn run() {
             create_ai_chat,
             stream_ai_response,
             stop_ai_generation,
+            resolve_tool_approval,
             get_all_ai_chats_sorted_by_date_desc,
             delete_ai_chat,
             get_chat_messages_ordered,

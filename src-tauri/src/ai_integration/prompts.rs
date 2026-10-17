@@ -1,3 +1,6 @@
+use crate::ai_integration::entities::message::ApprovalStatus;
+use crate::ai_integration::tools::element_reference::ELEMENT_REFERENCE_TAG;
+
 pub(in crate::ai_integration) const PREAMBLE_GENERATE_TITLE: &str = "\
 You are a chat naming assistant for the **Amber** app. Your task is to \
 generate a concise, creative, and descriptive title for a conversation \
@@ -14,7 +17,9 @@ spaced-repetition cards, when that would help them. Users may reference \
 their uploaded documents or attached snippets implicitly, without naming \
 them explicitly.
 When you create cards, save each one with the `create_card` tool and don't \
-repeat their content in the chat; a one-line confirmation is enough.";
+repeat their content in the chat; a one-line confirmation is enough.
+Some tool calls wait for the user to approve or reject them in the chat and \
+only take effect once approved; their results tell you where each one stands.";
 
 /// The `create_card` tool's description, including card-writing guidelines.
 pub(in crate::ai_integration) const CREATE_CARD_DESCRIPTION: &str = "\
@@ -50,10 +55,42 @@ Before creating cards, check that none tests the same thing as another, \
 that no answer can be shortened, and that deleting any card wouldn't improve \
 the set.";
 
+/// What the model is told about a call awaiting approval, kept current in the history it's sent.
+pub(in crate::ai_integration) fn approval_result_text(
+    status: ApprovalStatus,
+    output: Option<&str>,
+) -> String {
+    match (status, output) {
+        (ApprovalStatus::Pending, _) => "This call is awaiting the user's approval in the chat; \
+it won't run unless they approve it."
+            .to_string(),
+        (ApprovalStatus::Approved, Some(output)) => {
+            format!("The user approved this call, and it ran: {output}")
+        }
+        (ApprovalStatus::Approved, None) => "The user approved this call, and it ran.".to_string(),
+        (ApprovalStatus::Rejected, _) => {
+            "The user rejected this call, so it didn't run.".to_string()
+        }
+    }
+}
+
+/// How the model links one of the user's elements, which the chat shows as a link to it.
+fn element_reference_instructions() -> String {
+    format!(
+        "**Linking elements:** To point the user to one of their elements, write \
+`<{ELEMENT_REFERENCE_TAG} data-type=\"TYPE\" data-id=\"ID\"></{ELEMENT_REFERENCE_TAG}>` inline \
+in your reply. It shows as a link labelled with the element's current name, so don't repeat \
+the name next to it. TYPE is one of `folder`, `learningAsset`, `extract` or `card`. Only use \
+ids you were given, in the context or in tool results (e.g. the `cardId` of a created card, \
+whose TYPE is `card`); never invent one."
+    )
+}
+
 pub(in crate::ai_integration) fn preamble(context: Option<&str>) -> String {
+    let base = format!("{PREAMBLE_BASE}\n\n{}", element_reference_instructions());
     match context {
-        Some(context) => format!("{PREAMBLE_BASE}\n\n**Context:**\n{context}"),
-        None => PREAMBLE_BASE.to_string(),
+        Some(context) => format!("{base}\n\n**Context:**\n{context}"),
+        None => base,
     }
 }
 

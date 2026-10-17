@@ -8,11 +8,14 @@ use crate::{
             chat_response_dto::ChatResponseDto, message_response_dto::MessageResponseDto,
             stream_ai_request_dto::StreamAiRequestDto,
         },
-        entities::{chat::Chat, context_snippet::group_snippets_by_message},
+        entities::{
+            chat::Chat, context_snippet::group_snippets_by_message, message::MessageContent,
+        },
         repositories::ai_repository::AiRepository,
         services::{
             ai_streamer::{AiStreamer, StreamLlmResponseEvent},
             document_uploader::{DocumentUploader, UploadOutcome},
+            tool_approval_resolver::ToolApprovalResolver,
         },
     },
     common::api_error::ApiError,
@@ -72,6 +75,27 @@ pub async fn stop_ai_generation(injector: State<'_, Arc<Injector>>) -> Result<()
 }
 
 #[tauri::command]
+pub async fn resolve_tool_approval(
+    injector: State<'_, Arc<Injector>>,
+    message_id: Uuid,
+    approved: bool,
+) -> Result<MessageResponseDto, ApiError> {
+    let scope = injector.start_scope();
+    let resolver = scope.resolve::<dyn ToolApprovalResolver>().await;
+    let message = resolver.resolve(message_id, approved).await?;
+    scope.save_changes().await?;
+    let approval_markdown = match message.content() {
+        MessageContent::ToolCall(tool_call) => resolver.approval_markdown(tool_call).await?,
+        _ => None,
+    };
+    Ok(MessageResponseDto::new(
+        message,
+        Vec::new(),
+        approval_markdown,
+    ))
+}
+
+#[tauri::command]
 pub async fn get_all_ai_chats_sorted_by_date_desc(
     injector: State<'_, Arc<Injector>>,
 ) -> Result<Vec<ChatResponseDto>, ApiError> {
@@ -106,19 +130,27 @@ pub async fn get_chat_messages_ordered(
 ) -> Result<Vec<MessageResponseDto>, ApiError> {
     let scope = injector.start_scope();
     let ai_repository = scope.resolve::<dyn AiRepository>().await;
+    let resolver = scope.resolve::<dyn ToolApprovalResolver>().await;
     let messages = ai_repository.get_chat_messages_ordered(id).await?;
     let mut context_snippets_by_message =
         group_snippets_by_message(ai_repository.get_context_snippets_for_chat(id).await?);
 
-    Ok(messages
-        .into_iter()
-        .map(|message| {
-            let context_snippets = context_snippets_by_message
-                .remove(&message.id())
-                .unwrap_or_default();
-            MessageResponseDto::new(message, context_snippets)
-        })
-        .collect())
+    let mut responses = Vec::with_capacity(messages.len());
+    for message in messages {
+        let context_snippets = context_snippets_by_message
+            .remove(&message.id())
+            .unwrap_or_default();
+        let approval_markdown = match message.content() {
+            MessageContent::ToolCall(tool_call) => resolver.approval_markdown(tool_call).await?,
+            _ => None,
+        };
+        responses.push(MessageResponseDto::new(
+            message,
+            context_snippets,
+            approval_markdown,
+        ));
+    }
+    Ok(responses)
 }
 
 #[tauri::command]

@@ -6,7 +6,6 @@ import {
 	Paper,
 	Stack,
 	Text,
-	Typography,
 	UnstyledButton,
 } from "@mantine/core";
 import { useLocalStorage } from "@mantine/hooks";
@@ -21,13 +20,10 @@ import {
 	MagnifyingGlassIcon,
 	PaperclipIcon,
 } from "@phosphor-icons/react";
-import { marked } from "marked";
-import markedKatex from "marked-katex-extension";
-import "katex/dist/katex.min.css";
 import { MessageContentDto } from "../../../api/aiIntegration/dto/messageDto";
-import { sanitizeHtml } from "../../../utils/sanitizeHtml";
-
-marked.use(markedKatex({ throwOnError: false, output: "html" }));
+import { DisplayMessage } from "../utils/buildDisplayMessages";
+import AiMarkdown from "./AiMarkdown";
+import ToolApprovalCard, { OnToolApprovalResolved } from "./ToolApprovalCard";
 
 interface MessageBubbleProps {
 	id: string;
@@ -38,6 +34,8 @@ interface MessageBubbleProps {
 	isStreaming?: boolean;
 	/** Text snippets the user selected as additional context, for `human` messages. */
 	contextSnippets?: string[];
+	approval?: DisplayMessage["approval"];
+	onToolApprovalResolved?: OnToolApprovalResolved;
 }
 
 const TOOL_ICONS: Record<string, Icon> = {
@@ -55,10 +53,6 @@ function toolIcon(toolName: string | undefined, done: boolean) {
 		? CheckIcon
 		: ((toolName ? TOOL_ICONS[toolName] : null) ?? MagnifyingGlassIcon);
 	return createElement(Component, { size: 12 });
-}
-
-function renderMarkdown(value: string) {
-	return sanitizeHtml(marked.parse(value, { async: false }) as string);
 }
 
 function ContextSnippets({ id, snippets }: { id: string; snippets: string[] }) {
@@ -111,6 +105,8 @@ function MessageBubble({
 	toolName,
 	isStreaming,
 	contextSnippets,
+	approval,
+	onToolApprovalResolved,
 }: MessageBubbleProps) {
 	if (content.type === "human") {
 		return (
@@ -157,14 +153,7 @@ function MessageBubble({
 					p="sm"
 					maw="90%"
 					style={{ minWidth: 0 }}>
-					<Typography>
-						<div
-							style={{ overflowX: "auto" }}
-							dangerouslySetInnerHTML={{
-								__html: renderMarkdown(content.value),
-							}}
-						/>
-					</Typography>
+					<AiMarkdown markdown={content.value} />
 					{isStreaming && (
 						<Group justify="flex-end" mt={4}>
 							<Loader type="dots" size="xs" />
@@ -191,6 +180,19 @@ function MessageBubble({
 					</Group>
 				</Paper>
 			</Group>
+		);
+	}
+
+	if (content.type === "toolCall" && approval) {
+		return (
+			<ToolApprovalCard
+				messageId={approval.messageId}
+				toolCall={content.value}
+				status={approval.status}
+				markdown={approval.markdown}
+				resultMarkdown={approval.resultMarkdown}
+				onResolved={onToolApprovalResolved}
+			/>
 		);
 	}
 

@@ -15,6 +15,7 @@ pub trait AiRepository: Send + Sync {
     async fn upsert_chat(&self, chat: &Chat) -> Result<(), RepositoryError>;
     async fn get_chat_by_id(&self, id: Uuid) -> Result<Chat, RepositoryError>;
     async fn upsert_message(&self, message: &Message) -> Result<(), RepositoryError>;
+    async fn get_message_by_id(&self, id: Uuid) -> Result<Message, RepositoryError>;
     async fn get_chat_messages_ordered(&self, id: Uuid) -> Result<Vec<Message>, RepositoryError>;
     async fn delete_chat(&self, id: Uuid) -> Result<(), RepositoryError>;
     async fn upsert_context_snippet(&self, snippet: &ContextSnippet)

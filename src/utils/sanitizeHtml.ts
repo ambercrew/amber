@@ -65,9 +65,10 @@ const ALLOWED_ATTR = [
 const ALLOWED_URI_REGEXP =
 	/^(?:https?:|data:image\/|amber-asset:(?:\/\/localhost\/)?[0-9a-f]{64}$|[^a-z]|[a-z\d+.-]+(?:[^a-z\d+.\-:]|$))/i;
 
-export function sanitizeHtml(html: string): string {
+/** `extraTags` keeps further tags, e.g. ones a caller later replaces with components. */
+export function sanitizeHtml(html: string, extraTags: string[] = []): string {
 	return DOMPurify.sanitize(html, {
-		ALLOWED_TAGS,
+		ALLOWED_TAGS: [...ALLOWED_TAGS, ...extraTags],
 		ALLOWED_ATTR,
 		ALLOWED_URI_REGEXP,
 		KEEP_CONTENT: true,

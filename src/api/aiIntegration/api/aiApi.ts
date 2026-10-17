@@ -21,6 +21,13 @@ export function stopAiGeneration(): Promise<void> {
 	return invoke("stop_ai_generation");
 }
 
+export function resolveToolApproval(
+	messageId: string,
+	approved: boolean,
+): Promise<MessageDto> {
+	return invoke("resolve_tool_approval", { messageId, approved });
+}
+
 export function getAllAiChatsSortedByDateDesc(): Promise<ChatResponseDto[]> {
 	return invoke("get_all_ai_chats_sorted_by_date_desc");
 }

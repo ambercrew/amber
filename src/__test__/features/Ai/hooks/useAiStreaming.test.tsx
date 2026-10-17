@@ -361,6 +361,7 @@ describe("useAiStreaming", () => {
 						name: "search_documents",
 						arguments: { query: "test" },
 					},
+					messageId: "message-tc-1",
 				},
 			});
 		});
@@ -379,6 +380,7 @@ describe("useAiStreaming", () => {
 		expect(result.current.streamingToolMessages).toEqual([
 			{
 				id: "streaming-tool-call-tc-1",
+				messageId: "message-tc-1",
 				content: {
 					type: "toolCall",
 					value: {

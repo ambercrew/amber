@@ -274,8 +274,7 @@ pub mod tests {
         }
 
         let ai_client_provider = scope.resolve::<dyn AiClientProvider>().await;
-        let client = ai_client_provider.get_client().await.unwrap();
-        let search_tool = SearchDocuments::new(ai_client_provider, client, chat_id);
+        let search_tool = SearchDocuments::new(ai_client_provider, chat_id);
         let search_result = Tool::call(
             &search_tool,
             &mut rig::tool::ToolContext::default(),

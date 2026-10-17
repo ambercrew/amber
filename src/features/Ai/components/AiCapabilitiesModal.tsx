@@ -20,7 +20,9 @@ function AiCapabilitiesModal({ opened, onClose }: AiCapabilitiesModalProps) {
 				</List.Item>
 				<List.Item>Snippets you provide as context</List.Item>
 				<List.Item>Documents you upload to the chat</List.Item>
-				<List.Item>Creating cards on your behalf</List.Item>
+				<List.Item>
+					Creating cards on your behalf, once you approve them
+				</List.Item>
 			</List>
 		</AppModal>
 	);

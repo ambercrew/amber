@@ -9,11 +9,15 @@ use crate::ai_integration::repositories::ai_repository::AiRepository;
 use crate::ai_integration::services::agent_provider::AgentProvider;
 use crate::ai_integration::services::ai_client_provider::AiClientProvider;
 use crate::ai_integration::services::ai_streamer::AiStreamer;
+use crate::ai_integration::services::tools_provider::ToolsProvider;
+use crate::ai_integration::services::tool_approval_resolver::ToolApprovalResolver;
 use crate::ai_integration::services::chat_creator::ChatCreator;
 use crate::ai_integration::services::document_uploader::DocumentUploader;
 use crate::ai_integration::services::implementations::default_agent_provider::DefaultAgentProvider;
 use crate::ai_integration::services::implementations::default_ai_client_provider::DefaultAiClientProvider;
 use crate::ai_integration::services::implementations::default_ai_streamer::DefaultAiStreamer;
+use crate::ai_integration::services::implementations::default_tools_provider::DefaultToolsProvider;
+use crate::ai_integration::services::implementations::default_tool_approval_resolver::DefaultToolApprovalResolver;
 use crate::ai_integration::services::implementations::default_chat_creator::DefaultChatCreator;
 use crate::ai_integration::services::implementations::default_document_uploader::DefaultDocumentUploader;
 use crate::assets::repositories::asset_repository::AssetRepository;
@@ -426,6 +430,12 @@ pub async fn create_injector<R: tauri::Runtime>(
     register_scope!(injector, dyn ChatCreator, DefaultChatCreator);
     register_scope!(injector, dyn AgentProvider, DefaultAgentProvider);
     register_scope!(injector, dyn AiStreamer, DefaultAiStreamer);
+    register_scope!(injector, dyn ToolsProvider, DefaultToolsProvider);
+    register_scope!(
+        injector,
+        dyn ToolApprovalResolver,
+        DefaultToolApprovalResolver
+    );
     register_scope!(injector, dyn DocumentUploader, DefaultDocumentUploader);
 
     // Auth

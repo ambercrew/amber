@@ -8,6 +8,8 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::ai_integration::prompts::CREATE_CARD_DESCRIPTION;
+use crate::ai_integration::tools::app_tool::AppTool;
+use crate::ai_integration::tools::element_reference::element_reference;
 use crate::common::services::lexical_json_converter::{
     LexicalJsonConverter, LexicalJsonConverterError,
 };
@@ -27,6 +29,13 @@ pub struct CreateCardArgs {
     pub front: String,
     #[schemars(description = "The text shown on the back of the card (the answer)")]
     pub back: String,
+}
+
+/// What the model and the approval card learn about the card that was created.
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateCardOutput {
+    pub card_id: Uuid,
 }
 
 #[derive(Error, Debug)]
@@ -62,7 +71,7 @@ impl Tool for CreateCard {
 
     type Error = CreateCardError;
     type Args = CreateCardArgs;
-    type Output = String;
+    type Output = CreateCardOutput;
 
     fn description(&self) -> String {
         CREATE_CARD_DESCRIPTION.to_string()
@@ -82,8 +91,9 @@ impl Tool for CreateCard {
             self.lexical_json_converter.convert_markdown(&args.back),
         )?;
 
+        let card_id = Uuid::new_v4();
         let dto = CreateCardDto {
-            id: Uuid::new_v4(),
+            id: card_id,
             meta: CreateMetaDto {
                 name: card_name(&args.front),
                 parent: self.parent,
@@ -95,7 +105,29 @@ impl Tool for CreateCard {
 
         self.element_creation_service.create_card(dto).await?;
 
-        Ok("Card created.".to_string())
+        Ok(CreateCardOutput { card_id })
+    }
+}
+
+impl AppTool for CreateCard {
+    const REQUIRES_APPROVAL: bool = true;
+
+    fn approval_markdown(&self, args: &Self::Args) -> Option<String> {
+        let sides = format!(
+            "**Front**\n\n{}\n\n---\n\n**Back**\n\n{}",
+            args.front, args.back
+        );
+        Some(match self.parent {
+            Some(parent) => format!("In {}\n\n{sides}", element_reference(parent)),
+            None => sides,
+        })
+    }
+
+    fn approved_markdown(&self, _args: &Self::Args, output: &Self::Output) -> Option<String> {
+        Some(format!(
+            "Created {}",
+            element_reference(ElementId::Card(output.card_id))
+        ))
     }
 }
 
@@ -235,6 +267,101 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn approval_markdown_no_parent_showed_front_and_back() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let element_creation_service = scope.resolve::<dyn ElementCreationService>().await;
+        let tool = CreateCard::new(
+            element_creation_service,
+            Arc::new(EchoLexicalJsonConverter),
+            None,
+        );
+
+        // Act
+
+        let actual = tool.approval_markdown(&CreateCardArgs {
+            front: "Q".to_string(),
+            back: "A".to_string(),
+        });
+
+        // Assert
+
+        assert_eq!(
+            Some("**Front**\n\nQ\n\n---\n\n**Back**\n\nA".to_string()),
+            actual
+        );
+    }
+
+    #[tokio::test]
+    async fn approval_markdown_with_parent_referenced_parent_before_sides() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let element_creation_service = scope.resolve::<dyn ElementCreationService>().await;
+        let parent = ElementId::Folder(Uuid::new_v4());
+        let tool = CreateCard::new(
+            element_creation_service,
+            Arc::new(EchoLexicalJsonConverter),
+            Some(parent),
+        );
+
+        // Act
+
+        let actual = tool.approval_markdown(&CreateCardArgs {
+            front: "Q".to_string(),
+            back: "A".to_string(),
+        });
+
+        // Assert
+
+        assert_eq!(
+            Some(format!(
+                "In {}\n\n**Front**\n\nQ\n\n---\n\n**Back**\n\nA",
+                element_reference(parent)
+            )),
+            actual
+        );
+    }
+
+    #[tokio::test]
+    async fn approved_markdown_created_card_referenced_it() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let element_creation_service = scope.resolve::<dyn ElementCreationService>().await;
+        let tool = CreateCard::new(
+            element_creation_service,
+            Arc::new(EchoLexicalJsonConverter),
+            None,
+        );
+        let card_id = Uuid::new_v4();
+
+        // Act
+
+        let actual = tool.approved_markdown(
+            &CreateCardArgs {
+                front: "Q".to_string(),
+                back: "A".to_string(),
+            },
+            &CreateCardOutput { card_id },
+        );
+
+        // Assert
+
+        assert_eq!(
+            Some(format!(
+                "Created {}",
+                element_reference(ElementId::Card(card_id))
+            )),
+            actual
+        );
+    }
+
+    #[tokio::test]
     async fn call_plain_front_and_back_created_card_with_markdown_content() {
         // Arrange
 
@@ -264,9 +391,9 @@ mod tests {
 
         // Assert
 
-        assert_eq!("Card created.", actual);
         let cards = card_repository.get_all().await.unwrap();
         assert_eq!(1, cards.len());
+        assert_eq!(cards[0].meta.element_id.id(), actual.card_id);
         assert_eq!("What is the capital of France?", cards[0].meta.name);
         assert_eq!("What is the capital of France?", cards[0].front);
         assert_eq!("Paris", cards[0].back);

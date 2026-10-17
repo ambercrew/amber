@@ -3,3 +3,5 @@ pub mod default_ai_client_provider;
 pub mod default_ai_streamer;
 pub mod default_chat_creator;
 pub mod default_document_uploader;
+pub mod default_tool_approval_resolver;
+pub mod default_tools_provider;

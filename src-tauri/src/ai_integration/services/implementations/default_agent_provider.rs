@@ -2,20 +2,19 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
-use rig::agent::Agent;
 use rig::client::AgentClientExt;
 use uuid::Uuid;
 
-use crate::ai_integration::entities::message::{Message, MessageContent};
+use crate::ai_integration::entities::message::Message;
 use crate::ai_integration::prompts::{format_context_snippets, preamble};
-use crate::ai_integration::services::agent_provider::{AgentProvider, AgentProviderError};
+use crate::ai_integration::services::agent_provider::{
+    AgentProvider, AgentProviderError, AppAgent,
+};
 use crate::ai_integration::services::ai_client_provider::AiClientProvider;
-use crate::ai_integration::tools::create_card::CreateCard;
-use crate::ai_integration::tools::search_documents::SearchDocuments;
+use crate::ai_integration::services::tools_provider::ToolsProvider;
+use crate::ai_integration::tools::element_reference::element_reference;
 use crate::bibliographical_sources::services::bibliographical_source_service::BibliographicalSourceService;
-use crate::common::services::lexical_json_converter::LexicalJsonConverter;
 use crate::elements::repositories::meta_repository::MetaRepository;
-use crate::elements::services::element_creation_service::ElementCreationService;
 use crate::elements::value_objects::element_id::ElementId;
 
 const DEFAULT_TEMPERATURE: f64 = 0.5;
@@ -26,8 +25,7 @@ pub struct DefaultAgentProvider {
     ai_client_provider: Arc<dyn AiClientProvider>,
     meta_repository: Arc<dyn MetaRepository>,
     bibliographical_source_service: Arc<dyn BibliographicalSourceService>,
-    element_creation_service: Arc<dyn ElementCreationService>,
-    lexical_json_converter: Arc<dyn LexicalJsonConverter>,
+    tools_provider: Arc<dyn ToolsProvider>,
 }
 
 impl DefaultAgentProvider {
@@ -45,9 +43,10 @@ impl DefaultAgentProvider {
         if let Some(element_id) = element_id {
             let meta = self.meta_repository.get_by_id(element_id.id()).await?;
             lines.push(format!(
-                "- The user is currently viewing a {} named \"{}\".",
+                "- The user is currently viewing a {} named \"{}\" ({}).",
                 element_id.element_name(),
-                meta.name
+                meta.name,
+                element_reference(element_id)
             ));
 
             if let Some(bibliographical_source_id) = meta.bibliographical_source_id {
@@ -85,7 +84,7 @@ impl AgentProvider for DefaultAgentProvider {
         messages: &[Message],
         element_id: Option<ElementId>,
         context_snippets: &[String],
-    ) -> Result<Agent, AgentProviderError> {
+    ) -> Result<AppAgent, AgentProviderError> {
         let client = self.ai_client_provider.get_client().await?;
         let completion_model_name = self.ai_client_provider.get_completion_model_name().await?;
         let context = self.build_context(element_id, context_snippets).await?;
@@ -95,27 +94,20 @@ impl AgentProvider for DefaultAgentProvider {
             .temperature(DEFAULT_TEMPERATURE)
             .name("Amber Tutor")
             .default_max_turns(DEFAULT_MAX_TURN)
-            .preamble(preamble(context.as_deref()).as_str())
-            .tool(CreateCard::new(
-                self.element_creation_service.clone(),
-                self.lexical_json_converter.clone(),
-                element_id,
-            ));
+            .preamble(preamble(context.as_deref()).as_str());
 
-        let has_documents = messages
-            .iter()
-            .any(|m| matches!(m.content(), MessageContent::Document(_)));
-        if !has_documents {
-            return Ok(builder.build());
-        }
+        let tools_context = self.tools_provider.capture_context(chat_id, element_id);
+        let (tool_server, approval_hook) = self
+            .tools_provider
+            .get_tools(&tools_context)
+            .await?
+            .into_agent_tools(messages);
 
-        Ok(builder
-            .tool(SearchDocuments::new(
-                self.ai_client_provider.clone(),
-                client,
-                chat_id,
-            ))
-            .build())
+        Ok(AppAgent {
+            agent: builder.tool_server_handle(tool_server).build(),
+            approval_hook,
+            tools_context,
+        })
     }
 }
 
@@ -193,7 +185,11 @@ pub mod tests {
         test_utils::{create_temp_directory, create_test_injector},
     };
 
-    use crate::common::services::lexical_json_converter::LexicalJsonConverterError;
+    use crate::ai_integration::services::implementations::default_tools_provider::DefaultToolsProvider;
+    use crate::common::services::lexical_json_converter::{
+        LexicalJsonConverter, LexicalJsonConverterError,
+    };
+    use crate::elements::services::element_creation_service::ElementCreationService;
 
     use super::*;
 
@@ -272,6 +268,7 @@ pub mod tests {
             dyn ElementCreationService,
             DefaultElementCreationService
         );
+        register_scope!(injector, dyn ToolsProvider, DefaultToolsProvider);
         register_scope!(injector, dyn AgentProvider, DefaultAgentProvider);
 
         injector
@@ -319,7 +316,7 @@ pub mod tests {
             .get_agent(Uuid::new_v4(), &messages, None, &[])
             .await
             .unwrap();
-        agent.prompt("Hello").await.unwrap();
+        agent.agent.prompt("Hello").await.unwrap();
 
         // Assert
 
@@ -370,11 +367,47 @@ pub mod tests {
             .get_agent(Uuid::new_v4(), &messages, None, &[])
             .await
             .unwrap();
-        agent.prompt("Hello").await.unwrap();
+        agent.agent.prompt("Hello").await.unwrap();
 
         // Assert
 
         assert!(search_tool_sent.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    pub async fn get_agent_has_document_message_required_approval_only_for_tools_declaring_it() {
+        // Arrange
+
+        let mock_client = MockClient {
+            embeddings_model_dims: Some(
+                crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS,
+            ),
+            ..Default::default()
+        };
+
+        let injector = initialize_test_injector(mock_client).await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn AgentProvider>().await;
+
+        let messages = vec![Message::new(
+            None,
+            Uuid::new_v4(),
+            MessageContent::Document(DocumentContent {
+                file_name: "file.pdf".to_string(),
+            }),
+        )];
+
+        // Act
+
+        let agent = service
+            .get_agent(Uuid::new_v4(), &messages, None, &[])
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(agent.approval_hook.requires_approval("create_card"));
+        assert!(!agent.approval_hook.requires_approval("search_documents"));
     }
 
     fn make_meta(id: ElementId, bibliographical_source_id: Option<Uuid>) -> Meta {
@@ -423,7 +456,7 @@ pub mod tests {
             .get_agent(Uuid::new_v4(), &[], None, &[])
             .await
             .unwrap();
-        agent.prompt("Hello").await.unwrap();
+        agent.agent.prompt("Hello").await.unwrap();
 
         // Assert
 
@@ -431,11 +464,13 @@ pub mod tests {
     }
 
     #[tokio::test]
-    pub async fn get_agent_with_element_id_added_element_and_origin_to_preamble() {
+    pub async fn get_agent_with_element_id_added_element_reference_and_origin_to_preamble() {
         // Arrange
 
         let found_context = Arc::new(AtomicBool::new(false));
         let found_context_clone = found_context.clone();
+        let element_id = ElementId::LearningAsset(Uuid::new_v4());
+        let reference = element_reference(element_id);
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(move |request| {
@@ -444,6 +479,7 @@ pub mod tests {
                         message,
                         RigMessage::System { content }
                             if content.contains("My Learning Asset")
+                                && content.contains(&reference)
                                 && content.contains("My Book")
                                 && content.contains("Jane Doe")
                     )
@@ -474,7 +510,6 @@ pub mod tests {
             .await
             .unwrap();
 
-        let element_id = ElementId::LearningAsset(Uuid::new_v4());
         meta_repository
             .create_meta(&make_meta(element_id, Some(bibliographical_source.id)))
             .await
@@ -488,7 +523,7 @@ pub mod tests {
             .get_agent(Uuid::new_v4(), &[], Some(element_id), &[])
             .await
             .unwrap();
-        agent.prompt("Hello").await.unwrap();
+        agent.agent.prompt("Hello").await.unwrap();
 
         // Assert
 
@@ -526,7 +561,7 @@ pub mod tests {
             .get_agent(Uuid::new_v4(), &[], None, &["Selected passage".to_string()])
             .await
             .unwrap();
-        agent.prompt("Hello").await.unwrap();
+        agent.agent.prompt("Hello").await.unwrap();
 
         // Assert
 
@@ -564,7 +599,7 @@ pub mod tests {
             .get_agent(Uuid::new_v4(), &[], None, &["   ".to_string()])
             .await
             .unwrap();
-        agent.prompt("Hello").await.unwrap();
+        agent.agent.prompt("Hello").await.unwrap();
 
         // Assert
 

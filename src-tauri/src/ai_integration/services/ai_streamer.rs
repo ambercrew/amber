@@ -14,6 +14,7 @@ use crate::{
         services::agent_provider::AgentProviderError,
         services::ai_client_provider::AiClientProviderError,
         services::chat_creator::ChatCreatorError,
+        services::tool_approval_resolver::ToolApprovalResolverError,
     },
     common::repository_error::RepositoryError,
     database::transaction_manager::TransactionManagerError,
@@ -35,6 +36,11 @@ pub enum StreamLlmResponseEvent {
     ToolCall {
         chat_id: Uuid,
         tool_call: ToolCallContent,
+        /// Already persisted, so a call awaiting approval can be resolved mid-stream.
+        message_id: Uuid,
+        /// Written by the tool for a call awaiting approval; never stored.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        approval_markdown: Option<String>,
     },
     ToolResult {
         chat_id: Uuid,
@@ -70,6 +76,8 @@ pub enum AiStreamerError {
     AgentProvider(#[from] AgentProviderError),
     #[error(transparent)]
     TransactionManager(#[from] TransactionManagerError),
+    #[error(transparent)]
+    ToolApprovalResolver(#[from] ToolApprovalResolverError),
 }
 
 impl TryFrom<CompletionError> for AiStreamerError {

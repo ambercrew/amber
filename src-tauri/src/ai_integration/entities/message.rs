@@ -58,6 +58,10 @@ impl Message {
         &self.content
     }
 
+    pub(in crate::ai_integration) fn content_mut(&mut self) -> &mut MessageContent {
+        &mut self.content
+    }
+
     pub fn try_into_rig_message(
         self,
         context_snippets: &[String],
@@ -90,6 +94,7 @@ impl Message {
                 id,
                 name,
                 arguments,
+                ..
             }) => {
                 let provider = ProviderCallId::new(id);
                 Ok(rig::message::Message::Assistant {
@@ -140,6 +145,40 @@ pub struct ToolCallContent {
     pub(in crate::ai_integration) id: String,
     pub(in crate::ai_integration) name: String,
     pub(in crate::ai_integration) arguments: Value,
+    /// Set on calls to tools that only run once the user approves them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(in crate::ai_integration) approval: Option<ToolApproval>,
+}
+
+/// The user's decision on a tool call awaiting their approval.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolApproval {
+    /// What the tool needs besides its arguments to run later, captured when the call was made.
+    #[serde(default)]
+    pub(in crate::ai_integration) context: Value,
+    pub(in crate::ai_integration) status: ApprovalStatus,
+    /// What the tool returned when it ran after being approved.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(in crate::ai_integration) output: Option<String>,
+}
+
+impl ToolApproval {
+    pub(in crate::ai_integration) fn pending(context: Value) -> Self {
+        Self {
+            context,
+            status: ApprovalStatus::Pending,
+            output: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ApprovalStatus {
+    Pending,
+    Approved,
+    Rejected,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -157,6 +196,7 @@ impl From<rig::message::ToolCall> for ToolCallContent {
             id: provider_or_handle(tool_call.provider, tool_call.id),
             name: tool_call.function.name,
             arguments: tool_call.function.arguments,
+            approval: None,
         }
     }
 }

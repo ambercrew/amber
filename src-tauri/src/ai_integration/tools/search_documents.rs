@@ -13,9 +13,12 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::ai_integration::{
-    clients::multi_client::MultiClient,
-    entities::document::{CHAT_ID_COLUMN_NAME, Document},
+    entities::{
+        document::{CHAT_ID_COLUMN_NAME, Document},
+        message::{Message, MessageContent},
+    },
     services::ai_client_provider::{AiClientProvider, AiClientProviderError},
+    tools::app_tool::AppTool,
 };
 
 #[derive(Deserialize, Debug, Clone, Serialize, schemars::JsonSchema)]
@@ -38,19 +41,13 @@ pub enum SearchDocumentsError {
 
 pub struct SearchDocuments {
     chat_id: Uuid,
-    client: MultiClient,
     ai_client_provider: Arc<dyn AiClientProvider>,
 }
 
 impl SearchDocuments {
-    pub fn new(
-        ai_client_provider: Arc<dyn AiClientProvider>,
-        client: MultiClient,
-        chat_id: Uuid,
-    ) -> Self {
+    pub fn new(ai_client_provider: Arc<dyn AiClientProvider>, chat_id: Uuid) -> Self {
         Self {
             ai_client_provider,
-            client,
             chat_id,
         }
     }
@@ -79,9 +76,10 @@ impl Tool for SearchDocuments {
         _context: &mut ToolContext,
         args: Self::Args,
     ) -> Result<Self::Output, Self::Error> {
+        let client = self.ai_client_provider.get_client().await?;
         let embed_model = self
             .ai_client_provider
-            .get_embeddings_model(&self.client)
+            .get_embeddings_model(&client)
             .await?;
         let vector_store = self
             .ai_client_provider
@@ -108,6 +106,17 @@ impl Tool for SearchDocuments {
             .collect::<Vec<_>>();
 
         Ok(results)
+    }
+}
+
+impl AppTool for SearchDocuments {
+    const REQUIRES_APPROVAL: bool = false;
+
+    /// Only chats with an uploaded document have anything to search.
+    fn is_applicable(&self, messages: &[Message]) -> bool {
+        messages
+            .iter()
+            .any(|m| matches!(m.content(), MessageContent::Document(_)))
     }
 }
 
@@ -213,7 +222,7 @@ pub mod tests {
         ];
         vector_store.add_rows(embeddings).await.unwrap();
 
-        let tool = SearchDocuments::new(ai_client_provider, client, chat_id);
+        let tool = SearchDocuments::new(ai_client_provider, chat_id);
 
         // Act
 

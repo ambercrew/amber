@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActionIcon, Alert, Anchor, Group, Menu, Stack } from "@mantine/core";
 import {
 	DotsThreeVerticalIcon,
@@ -9,7 +9,10 @@ import {
 import useAiChats from "../hooks/useAiChats";
 import useAiStreaming from "../hooks/useAiStreaming";
 import useAiDocumentUpload from "../hooks/useAiDocumentUpload";
-import { buildDisplayMessages } from "../utils/buildDisplayMessages";
+import {
+	buildDisplayMessages,
+	ResolvedApproval,
+} from "../utils/buildDisplayMessages";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
 import { selectAiContextSnippets } from "../../../stores/aiContext/aiSelectors";
@@ -83,6 +86,15 @@ function AiPanel() {
 	const [isRenaming, setIsRenaming] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [isCapabilitiesOpen, setIsCapabilitiesOpen] = useState(false);
+	// Resolved since the messages were loaded, keyed by message id.
+	const [resolvedApprovals, setResolvedApprovals] = useState<
+		Record<string, ResolvedApproval>
+	>({});
+	const onToolApprovalResolved = useCallback(
+		(messageId: string, resolved: ResolvedApproval) =>
+			setResolvedApprovals(prev => ({ ...prev, [messageId]: resolved })),
+		[],
+	);
 
 	const selectedChat = chats.find(chat => chat.id === selectedChatId);
 
@@ -99,6 +111,7 @@ function AiPanel() {
 		pendingDocumentFileName,
 		pendingContextSnippets,
 		streamingToolMessages,
+		resolvedApprovals,
 	);
 
 	return (
@@ -158,7 +171,11 @@ function AiPanel() {
 				</Alert>
 			)}
 
-			<ChatMessages chatId={selectedChatId} messages={displayMessages} />
+			<ChatMessages
+				chatId={selectedChatId}
+				messages={displayMessages}
+				onToolApprovalResolved={onToolApprovalResolved}
+			/>
 			<AiContextSnippets />
 			<ChatInput
 				key={restoreKey}

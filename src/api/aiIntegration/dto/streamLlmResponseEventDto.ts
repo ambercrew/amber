@@ -6,7 +6,12 @@ type StreamLlmResponseEventDto =
 	| { event: "inProgress"; data: { chatId: string; text: string } }
 	| {
 			event: "toolCall";
-			data: { chatId: string; toolCall: ToolCallContentDto };
+			data: {
+				chatId: string;
+				toolCall: ToolCallContentDto;
+				messageId: string;
+				approvalMarkdown?: string;
+			};
 	  }
 	| {
 			event: "toolResult";

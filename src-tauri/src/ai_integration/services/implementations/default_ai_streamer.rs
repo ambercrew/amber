@@ -15,17 +15,22 @@ use uuid::Uuid;
 
 use crate::ai_integration::ai_state::AiState;
 use crate::ai_integration::dto::stream_ai_request_dto::StreamAiRequestDto;
+use crate::ai_integration::entities::chat::Chat;
 use crate::ai_integration::entities::context_snippet::{ContextSnippet, group_snippets_by_message};
 use crate::ai_integration::entities::message::{
-    Message, MessageContent, ToolCallContent, ToolResultContent,
+    Message, MessageContent, ToolApproval, ToolCallContent, ToolResultContent,
 };
+use crate::ai_integration::prompts::approval_result_text;
 use crate::ai_integration::repositories::ai_repository::AiRepository;
-use crate::ai_integration::services::agent_provider::{AgentProvider, AgentProviderError};
+use crate::ai_integration::services::agent_provider::{
+    AgentProvider, AgentProviderError, AppAgent,
+};
 use crate::ai_integration::services::ai_client_provider::AiClientProviderError;
 use crate::ai_integration::services::ai_streamer::{
     AiStreamer, AiStreamerError, OnEventCallback, StreamLlmResponseEvent,
 };
 use crate::ai_integration::services::chat_creator::{ChatCreator, ChatCreatorError};
+use crate::ai_integration::services::tool_approval_resolver::ToolApprovalResolver;
 use crate::ai_integration::state_cancellation_hook::StateCancellationHook;
 use crate::database::transaction_manager::TransactionManager;
 
@@ -35,6 +40,7 @@ pub struct DefaultAiStreamer {
     ai_repository: Arc<dyn AiRepository>,
     chat_creator: Arc<dyn ChatCreator>,
     agent_provider: Arc<dyn AgentProvider>,
+    tool_approval_resolver: Arc<dyn ToolApprovalResolver>,
     transaction_manager: Arc<dyn TransactionManager>,
 }
 
@@ -120,9 +126,14 @@ impl AiStreamer for DefaultAiStreamer {
         let mut failed = false;
         let mut called_tools = false;
 
-        if let Some(agent) = agent {
+        if let Some(AppAgent {
+            agent,
+            approval_hook,
+            tools_context,
+        }) = agent
+        {
             let rig_messages: Vec<rig::message::Message> = merge_consecutive_assistant_messages(
-                messages
+                with_current_approval_statuses(messages)
                     .into_iter()
                     .filter_map(|m| {
                         let snippets = context_snippets_by_message
@@ -136,6 +147,7 @@ impl AiStreamer for DefaultAiStreamer {
             let mut stream = agent
                 .stream_chat(request.prompt, rig_messages)
                 .add_hook(StateCancellationHook::new(self.state.clone()))
+                .add_hook(approval_hook.clone())
                 .await;
 
             // A running tool may be mid-write, so cancelling only interrupts the wait for the model.
@@ -180,16 +192,35 @@ impl AiStreamer for DefaultAiStreamer {
                             if tool_call_content.id.is_empty() {
                                 tool_call_content.id = internal_call_id;
                             }
-                            on_event(StreamLlmResponseEvent::ToolCall {
-                                chat_id,
-                                tool_call: tool_call_content.clone(),
-                            })?;
-                            messages_to_upsert.lock().await.push(Message::new(
+                            if approval_hook.requires_approval(&tool_call_content.name) {
+                                tool_call_content.approval =
+                                    Some(ToolApproval::pending(tools_context.clone()));
+                            }
+
+                            let message = Message::new(
                                 None,
                                 chat_id,
-                                MessageContent::ToolCall(tool_call_content),
-                            ));
+                                MessageContent::ToolCall(tool_call_content.clone()),
+                            );
+                            let message_id = message.id();
+                            {
+                                let mut pending = messages_to_upsert.lock().await;
+                                pending.push(message);
+                                self.persist(&mut chat_to_upsert, &mut pending).await?;
+                            }
                             self.transaction_manager.save_changes().await?;
+
+                            let approval_markdown = self
+                                .tool_approval_resolver
+                                .approval_markdown(&tool_call_content)
+                                .await?
+                                .map(|markdown| markdown.request);
+                            on_event(StreamLlmResponseEvent::ToolCall {
+                                chat_id,
+                                tool_call: tool_call_content,
+                                message_id,
+                                approval_markdown,
+                            })?;
                         } else if let MultiTurnStreamItem::StreamUserItem(
                             StreamedUserContent::ToolResult {
                                 tool_result,
@@ -255,19 +286,14 @@ impl AiStreamer for DefaultAiStreamer {
 
         // Delaying database operations to the end to avoid the writes from locking
         // the database.
-        if let Some(chat) = chat_to_upsert {
-            self.ai_repository.upsert_chat(&chat).await?;
-        }
-
         // A failed turn's messages are dropped so the user can resend the prompt, unless
         // a tool already ran and its side effects (e.g. a created card) need recording.
         if failed && !called_tools {
-            return Ok(());
+            return self.persist(&mut chat_to_upsert, &mut Vec::new()).await;
         }
 
-        for message in messages_to_upsert.lock().await.iter() {
-            self.ai_repository.upsert_message(message).await?;
-        }
+        self.persist(&mut chat_to_upsert, &mut *messages_to_upsert.lock().await)
+            .await?;
 
         for snippet in &context_snippets_to_upsert {
             self.ai_repository.upsert_context_snippet(snippet).await?;
@@ -275,6 +301,49 @@ impl AiStreamer for DefaultAiStreamer {
 
         Ok(())
     }
+}
+
+impl DefaultAiStreamer {
+    /// Writes the chat (if new) and the queued messages, draining the queue.
+    async fn persist(
+        &self,
+        chat_to_upsert: &mut Option<Chat>,
+        messages: &mut Vec<Message>,
+    ) -> Result<(), AiStreamerError> {
+        if let Some(chat) = chat_to_upsert.take() {
+            self.ai_repository.upsert_chat(&chat).await?;
+        }
+        for message in messages.drain(..) {
+            self.ai_repository.upsert_message(&message).await?;
+        }
+        Ok(())
+    }
+}
+
+/// Rewrites the result of each call awaiting approval to where it now stands, so the
+/// model knows which calls the user approved or rejected since.
+fn with_current_approval_statuses(mut messages: Vec<Message>) -> Vec<Message> {
+    let approvals: HashMap<String, ToolApproval> = messages
+        .iter()
+        .filter_map(|message| match message.content() {
+            MessageContent::ToolCall(ToolCallContent {
+                id,
+                approval: Some(approval),
+                ..
+            }) => Some((id.clone(), approval.clone())),
+            _ => None,
+        })
+        .collect();
+
+    for message in &mut messages {
+        if let MessageContent::ToolResult(result) = message.content_mut()
+            && let Some(approval) = approvals.get(&result.id)
+        {
+            result.text = approval_result_text(approval.status, approval.output.as_deref());
+        }
+    }
+
+    messages
 }
 
 /// A single model turn's tool calls stream in as separate `ToolCall` items
@@ -324,7 +393,10 @@ pub mod tests {
         ai_integration::{
             ai_state::AiState,
             clients::mock_client::{MOCK_PROVIDER, MockClient},
-            entities::{chat::Chat, message::MessageContent},
+            entities::{
+                chat::Chat,
+                message::{ApprovalStatus, MessageContent},
+            },
             json_schemas::generate_title::GenerateTitle,
             repositories::ai_repository::AiRepository,
             services::{
@@ -336,7 +408,10 @@ pub mod tests {
                     default_agent_provider::DefaultAgentProvider,
                     default_ai_client_provider::DefaultAiClientProvider,
                     default_chat_creator::DefaultChatCreator,
+                    default_tool_approval_resolver::DefaultToolApprovalResolver,
+                    default_tools_provider::DefaultToolsProvider,
                 },
+                tools_provider::ToolsProvider,
             },
         },
         bibliographical_sources::{
@@ -483,6 +558,12 @@ pub mod tests {
         );
         register_scope!(injector, dyn AgentProvider, DefaultAgentProvider);
         register_scope!(injector, dyn TransactionManager, SqliteTransactionManager);
+        register_scope!(injector, dyn ToolsProvider, DefaultToolsProvider);
+        register_scope!(
+            injector,
+            dyn ToolApprovalResolver,
+            DefaultToolApprovalResolver
+        );
         register_scope!(injector, dyn AiStreamer, DefaultAiStreamer);
 
         injector
@@ -1159,6 +1240,138 @@ pub mod tests {
         } else {
             panic!("Expected ToolCall and ToolResult messages");
         }
+    }
+
+    #[tokio::test]
+    pub async fn stream_approval_required_tool_call_persisted_pending_approval_under_emitted_message_id()
+     {
+        // Arrange
+
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = call_count.clone();
+
+        let mock_client = MockClient {
+            stream_fn: Arc::new(Some(Box::new(move |_| {
+                match call_count_clone.fetch_add(1, Ordering::Relaxed) {
+                    0 => Ok(Some(RawStreamingChoice::ToolCall(
+                        rig::streaming::RawStreamingToolCall::new(
+                            "tc-1".to_string(),
+                            "create_card".to_string(),
+                            serde_json::json!({ "front": "Q", "back": "A" }),
+                        ),
+                    ))),
+                    2 => Ok(Some(RawStreamingChoice::Message("Done".to_string()))),
+                    _ => Ok(None),
+                }
+            }))),
+            ..Default::default()
+        };
+
+        let injector = initialize_test_injector(mock_client, Arc::new(AiState::default())).await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn AiStreamer>().await;
+        let repository = scope.resolve::<dyn AiRepository>().await;
+        let card_repository = scope.resolve::<dyn CardRepository>().await;
+
+        let chat = Chat::new(None, "Chat title".to_string());
+        let chat_id = chat.id();
+        repository.upsert_chat(&chat).await.unwrap();
+
+        let request = StreamAiRequestDto {
+            prompt: "Make a card".to_string(),
+            chat_id: Some(chat_id),
+            ..Default::default()
+        };
+
+        let emitted_message_id = Arc::new(std::sync::Mutex::new(None));
+        let emitted_message_id_clone = emitted_message_id.clone();
+
+        // Act
+
+        service
+            .stream(
+                request,
+                Arc::new(move |event| {
+                    if let StreamLlmResponseEvent::ToolCall {
+                        message_id,
+                        approval_markdown,
+                        ..
+                    } = event
+                    {
+                        *emitted_message_id_clone.lock().unwrap() =
+                            Some((message_id, approval_markdown));
+                    }
+                    Ok(())
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        let (message_id, approval_markdown) = emitted_message_id.lock().unwrap().take().unwrap();
+        assert_eq!(
+            Some("**Front**\n\nQ\n\n---\n\n**Back**\n\nA".to_string()),
+            approval_markdown
+        );
+        let message = repository.get_message_by_id(message_id).await.unwrap();
+        let MessageContent::ToolCall(tool_call) = message.content() else {
+            panic!("Expected a tool call message");
+        };
+        assert_eq!(
+            Some(ToolApproval::pending(serde_json::json!({
+                "chatId": chat_id,
+                "elementId": null,
+            }))),
+            tool_call.approval
+        );
+        assert!(card_repository.get_all().await.unwrap().is_empty());
+    }
+
+    #[test]
+    fn with_current_approval_statuses_approved_call_rewrote_its_tool_result_to_its_output() {
+        // Arrange
+
+        let chat_id = Uuid::new_v4();
+        let messages = vec![
+            Message::new(
+                None,
+                chat_id,
+                MessageContent::ToolCall(ToolCallContent {
+                    id: "tc-1".to_string(),
+                    name: "create_card".to_string(),
+                    arguments: serde_json::json!({}),
+                    approval: Some(ToolApproval {
+                        context: serde_json::Value::Null,
+                        status: ApprovalStatus::Approved,
+                        output: Some("Card created.".to_string()),
+                    }),
+                }),
+            ),
+            Message::new(
+                None,
+                chat_id,
+                MessageContent::ToolResult(ToolResultContent {
+                    id: "tc-1".to_string(),
+                    name: "create_card".to_string(),
+                    text: approval_result_text(ApprovalStatus::Pending, None),
+                }),
+            ),
+        ];
+
+        // Act
+
+        let actual = with_current_approval_statuses(messages);
+
+        // Assert
+
+        let MessageContent::ToolResult(result) = actual[1].content() else {
+            panic!("Expected a tool result message");
+        };
+        assert_eq!(
+            approval_result_text(ApprovalStatus::Approved, Some("Card created.")),
+            result.text
+        );
     }
 
     #[tokio::test]
