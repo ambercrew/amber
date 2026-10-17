@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { act, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
@@ -447,6 +447,82 @@ describe("FloatingMenuPlugin", () => {
 			transformOrigin: "bottom center",
 			visibility: "visible",
 		});
+	});
+
+	function selectRange(editor: LexicalEditor, start: number, end: number) {
+		act(() => {
+			editor.update(
+				() => {
+					const paragraph = $getRoot().getFirstChild();
+					if (!$isElementNode(paragraph)) return;
+					const textNode = paragraph.getFirstChild();
+					if (!$isTextNode(textNode)) return;
+					textNode.select(start, end);
+				},
+				{ discrete: true },
+			);
+		});
+	}
+
+	it("Should fade out where it was instead of jumping when the selection is collapsed", async () => {
+		// Arrange
+
+		vi.mocked(computePosition).mockResolvedValueOnce({
+			x: 12,
+			y: 40,
+			placement: "bottom",
+			strategy: "absolute",
+			middlewareData: {},
+		});
+		const { editor } = renderPlugin([makeButton()]);
+		await setTextAndSelectAll(editor, "Hello world");
+
+		// Act
+
+		selectRange(editor, 0, 0);
+
+		// Assert
+
+		expect(getMenuPaper()).toHaveStyle({
+			top: "40px",
+			left: "12px",
+			visibility: "hidden",
+		});
+	});
+
+	it("Should stay open while a triple click re-selects the paragraph", async () => {
+		// Arrange
+
+		const { editor } = renderPlugin([makeButton()]);
+		await setTextAndSelectAll(editor, "Hello world");
+		selectRange(editor, 0, 5);
+
+		// Act
+
+		fireEvent.pointerDown(document);
+		fireEvent.mouseDown(document, { detail: 3 });
+		selectRange(editor, 0, 11);
+
+		// Assert
+
+		expect(getMenuPaper()).toHaveStyle({ visibility: "visible" });
+	});
+
+	it("Should hide while a single click starts a new selection", async () => {
+		// Arrange
+
+		const { editor } = renderPlugin([makeButton()]);
+		await setTextAndSelectAll(editor, "Hello world");
+
+		// Act
+
+		fireEvent.pointerDown(document);
+		fireEvent.mouseDown(document, { detail: 1 });
+		selectRange(editor, 0, 5);
+
+		// Assert
+
+		expect(getMenuPaper()).toHaveStyle({ visibility: "hidden" });
 	});
 
 	it("Should rest in Mantine's pop out state when there is no selection", () => {

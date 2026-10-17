@@ -72,6 +72,8 @@ const TRANSITION_DURATION_MS = 150;
 function usePointerInteractions() {
 	const [isPointerDown, setIsPointerDown] = useState(false);
 	const [isPointerReleased, setIsPointerReleased] = useState(true);
+	// Whether the press is a double/triple click, which re-selects a word or paragraph.
+	const isMultiClickRef = useRef(false);
 
 	useEffect(() => {
 		const handlePointerUp = () => {
@@ -90,21 +92,30 @@ function usePointerInteractions() {
 			// the floating menu would never be able to show.
 			document.addEventListener("pointercancel", handlePointerUp);
 		};
+		// `mousedown` carries the click count; `pointerdown`'s `detail` doesn't.
+		const handleMouseDown = (event: MouseEvent) => {
+			isMultiClickRef.current = event.detail > 1;
+		};
 		document.addEventListener("pointerdown", handlePointerDown);
-		return () =>
+		document.addEventListener("mousedown", handleMouseDown);
+		return () => {
 			document.removeEventListener("pointerdown", handlePointerDown);
+			document.removeEventListener("mousedown", handleMouseDown);
+		};
 	}, []);
 
-	return { isPointerDown, isPointerReleased };
+	return { isPointerDown, isPointerReleased, isMultiClickRef };
 }
 
 export function FloatingMenuPlugin({ buttons }: Props) {
 	const [editor] = useLexicalComposerContext();
+	// Kept after hiding, so the menu fades out where it was instead of jumping.
 	const [coords, setCoords] = useState<{
 		x: number;
 		y: number;
 		below: boolean;
 	} | null>(null);
+	const [isOpen, setIsOpen] = useState(false);
 	const [activeState, setActiveState] = useState<Record<string, boolean>>({});
 	const [visibleState, setVisibleState] = useState<Record<string, boolean>>(
 		{},
@@ -113,7 +124,8 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 	const [isMenuFocused, setIsMenuFocused] = useState(false);
 	const menuRef = useRef<HTMLDivElement>(null);
 	const escapedRef = useRef(false);
-	const { isPointerDown, isPointerReleased } = usePointerInteractions();
+	const { isPointerDown, isPointerReleased, isMultiClickRef } =
+		usePointerInteractions();
 	const coarsePointer = useIsCoarsePointer();
 	const theme = useMantineTheme();
 	const reduceMotion = useReducedMotion() && theme.respectReducedMotion;
@@ -123,12 +135,14 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 
 	const hideMenu = useCallback(() => {
 		positionRequestRef.current++;
-		setCoords(null);
+		setIsOpen(false);
 	}, []);
 
 	const calculatePosition = useCallback(() => {
 		const menu = menuRef.current;
 		const domSelection = getSelection();
+		// A double/triple click keeps the open menu in place, then moves it on release.
+		if (isPointerDown && isMultiClickRef.current && isOpen) return;
 		if (!menu || isPointerDown || !domSelection?.rangeCount) {
 			hideMenu();
 			return;
@@ -150,8 +164,9 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 		}).then(({ x, y, placement }) => {
 			if (request !== positionRequestRef.current) return;
 			setCoords({ x, y, below: placement.startsWith("bottom") });
+			setIsOpen(true);
 		});
-	}, [isPointerDown, coarsePointer, hideMenu]);
+	}, [isPointerDown, isMultiClickRef, isOpen, coarsePointer, hideMenu]);
 
 	const $handleSelectionChange = useCallback(() => {
 		if (
@@ -198,7 +213,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 	}, [editor, $handleSelectionChange, buttons]);
 
 	useEffect(() => {
-		if (coords === null && isPointerReleased) {
+		if ((!isOpen || isMultiClickRef.current) && isPointerReleased) {
 			editor.getEditorState().read(() => $handleSelectionChange());
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -208,7 +223,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 		return editor.registerCommand(
 			KEY_DOWN_COMMAND,
 			e => {
-				if (e.key === "Escape" && coords !== null) {
+				if (e.key === "Escape" && isOpen) {
 					e.stopPropagation();
 					escapedRef.current = true;
 					hideMenu();
@@ -218,7 +233,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 			},
 			COMMAND_PRIORITY_LOW,
 		);
-	}, [editor, coords, hideMenu]);
+	}, [editor, isOpen, hideMenu]);
 
 	const closeMenu = useCallback(() => {
 		escapedRef.current = true;
@@ -254,7 +269,7 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 		);
 	}, [editor, buttons, closeMenu]);
 
-	const shouldShow = (isEditorFocused || isMenuFocused) && coords !== null;
+	const shouldShow = (isEditorFocused || isMenuFocused) && isOpen;
 	const below = coords?.below ?? false;
 	const pop = below ? POP_FROM_ABOVE : POP_FROM_BELOW;
 	const popState = shouldShow ? pop.in : pop.out;
