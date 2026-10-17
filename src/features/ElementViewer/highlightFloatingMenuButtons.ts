@@ -11,6 +11,7 @@ import {
 	ADD_TO_AI_CONTEXT_SHORTCUT,
 	CREATE_CLOZE_SHORTCUT,
 	CREATE_EXTRACT_SHORTCUT,
+	MAKE_AI_CARDS_SHORTCUT,
 	OPEN_HIGHLIGHT_SHORTCUT,
 	REMOVE_HIGHLIGHT_SHORTCUT,
 } from "../../config/shortcuts";
@@ -56,6 +57,7 @@ export const AI_CARDS_BUTTON: ButtonMetadata = {
 	name: "ai-cards",
 	title: "Make Cards with AI",
 	Icon: MagicWandIcon,
+	shortcut: MAKE_AI_CARDS_SHORTCUT,
 };
 
 /** Acts on the highlight (if any) under the current selection. */

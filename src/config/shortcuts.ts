@@ -50,6 +50,7 @@ export const FINISH_LEARNING_ASSET_SHORTCUT = "F";
 // AI
 export const FOCUS_AI_CHAT_SHORTCUT = "mod+J";
 export const ADD_TO_AI_CONTEXT_SHORTCUT = "mod+shift+A";
+export const MAKE_AI_CARDS_SHORTCUT = "mod+shift+M";
 export const NEW_LINE_SHORTCUT = "shift+Enter";
 
 // Editor

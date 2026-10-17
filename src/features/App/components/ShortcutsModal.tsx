@@ -181,6 +181,10 @@ const CONTEXT_SECTIONS: ContextSection[] = [
 				description: "Add the selection to AI context",
 			},
 			{
+				shortcuts: [keys.MAKE_AI_CARDS_SHORTCUT],
+				description: "Ask the AI to turn the selection into cards",
+			},
+			{
 				shortcuts: [keys.NEW_LINE_SHORTCUT],
 				description: "New line in the chat message",
 			},
