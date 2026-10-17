@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::ai_integration::prompts::format_context_snippets;
+use crate::ai_integration::prompts::with_context_snippets;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,15 +67,12 @@ impl Message {
         context_snippets: &[String],
     ) -> Result<rig::message::Message, UnsupportedMessageContent> {
         match self.content {
-            MessageContent::Human(content) => {
-                let text = match format_context_snippets(context_snippets) {
-                    Some(context) => format!("{content}\n\n**Context:**\n{context}"),
-                    None => content,
-                };
-                Ok(rig::message::Message::User {
-                    content: vec![UserContent::text(text)],
-                })
-            }
+            MessageContent::Human(content) => Ok(rig::message::Message::User {
+                content: vec![UserContent::text(with_context_snippets(
+                    &content,
+                    context_snippets,
+                ))],
+            }),
             MessageContent::Document(DocumentContent { file_name }) => {
                 Ok(rig::message::Message::User {
                     content: vec![UserContent::text(format!(

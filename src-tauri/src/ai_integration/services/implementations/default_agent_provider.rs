@@ -6,7 +6,7 @@ use rig::client::AgentClientExt;
 use uuid::Uuid;
 
 use crate::ai_integration::entities::message::Message;
-use crate::ai_integration::prompts::{format_context_snippets, preamble};
+use crate::ai_integration::prompts::preamble;
 use crate::ai_integration::services::agent_provider::{
     AgentProvider, AgentProviderError, AppAgent,
 };
@@ -31,12 +31,11 @@ pub struct DefaultAgentProvider {
 impl DefaultAgentProvider {
     /// Builds the "**Context:**" section of the preamble: the name of the
     /// element the user is currently viewing, if relevant the bibliographical
-    /// source (title + authors) it was derived from, and any text snippets
-    /// the user selected and added as extra context.
+    /// source (title + authors) it was derived from. Snippets travel with the
+    /// message they were attached to instead.
     async fn build_context(
         &self,
         element_id: Option<ElementId>,
-        context_snippets: &[String],
     ) -> Result<Option<String>, AgentProviderError> {
         let mut lines = Vec::new();
 
@@ -64,10 +63,6 @@ impl DefaultAgentProvider {
             }
         }
 
-        if let Some(snippet_lines) = format_context_snippets(context_snippets) {
-            lines.push(snippet_lines);
-        }
-
         if lines.is_empty() {
             return Ok(None);
         }
@@ -83,11 +78,10 @@ impl AgentProvider for DefaultAgentProvider {
         chat_id: Uuid,
         messages: &[Message],
         element_id: Option<ElementId>,
-        context_snippets: &[String],
     ) -> Result<AppAgent, AgentProviderError> {
         let client = self.ai_client_provider.get_client().await?;
         let completion_model_name = self.ai_client_provider.get_completion_model_name().await?;
-        let context = self.build_context(element_id, context_snippets).await?;
+        let context = self.build_context(element_id).await?;
 
         let builder = client
             .agent(&completion_model_name)
@@ -327,7 +321,7 @@ pub mod tests {
         // Act
 
         let agent = service
-            .get_agent(Uuid::new_v4(), &messages, None, &[])
+            .get_agent(Uuid::new_v4(), &messages, None)
             .await
             .unwrap();
         agent.agent.prompt("Hello").await.unwrap();
@@ -372,7 +366,7 @@ pub mod tests {
         // Act
 
         let agent = service
-            .get_agent(Uuid::new_v4(), &[], Some(element_id), &[])
+            .get_agent(Uuid::new_v4(), &[], Some(element_id))
             .await
             .unwrap();
         agent.agent.prompt("Hello").await.unwrap();
@@ -424,7 +418,7 @@ pub mod tests {
         // Act
 
         let agent = service
-            .get_agent(Uuid::new_v4(), &messages, None, &[])
+            .get_agent(Uuid::new_v4(), &messages, None)
             .await
             .unwrap();
         agent.agent.prompt("Hello").await.unwrap();
@@ -460,7 +454,7 @@ pub mod tests {
         // Act
 
         let agent = service
-            .get_agent(Uuid::new_v4(), &messages, None, &[])
+            .get_agent(Uuid::new_v4(), &messages, None)
             .await
             .unwrap();
 
@@ -512,10 +506,7 @@ pub mod tests {
 
         // Act
 
-        let agent = service
-            .get_agent(Uuid::new_v4(), &[], None, &[])
-            .await
-            .unwrap();
+        let agent = service.get_agent(Uuid::new_v4(), &[], None).await.unwrap();
         agent.agent.prompt("Hello").await.unwrap();
 
         // Assert
@@ -580,7 +571,7 @@ pub mod tests {
         // Act
 
         let agent = service
-            .get_agent(Uuid::new_v4(), &[], Some(element_id), &[])
+            .get_agent(Uuid::new_v4(), &[], Some(element_id))
             .await
             .unwrap();
         agent.agent.prompt("Hello").await.unwrap();
@@ -588,81 +579,5 @@ pub mod tests {
         // Assert
 
         assert!(found_context.load(Ordering::Relaxed));
-    }
-
-    #[tokio::test]
-    pub async fn get_agent_with_context_snippets_added_them_to_preamble_without_element() {
-        // Arrange
-
-        let found_context = Arc::new(AtomicBool::new(false));
-        let found_context_clone = found_context.clone();
-
-        let mock_client = MockClient {
-            completion_fn: Arc::new(Some(Box::new(move |request| {
-                let has_context = request.chat_history.iter().any(|message| {
-                    matches!(
-                        message,
-                        RigMessage::System { content } if content.contains("Selected passage")
-                    )
-                });
-                found_context_clone.store(has_context, Ordering::Relaxed);
-                mock_response_with_text("Answer")
-            }))),
-            ..Default::default()
-        };
-
-        let injector = initialize_test_injector(mock_client).await;
-        let scope = injector.start_scope();
-        let service = scope.resolve::<dyn AgentProvider>().await;
-
-        // Act
-
-        let agent = service
-            .get_agent(Uuid::new_v4(), &[], None, &["Selected passage".to_string()])
-            .await
-            .unwrap();
-        agent.agent.prompt("Hello").await.unwrap();
-
-        // Assert
-
-        assert!(found_context.load(Ordering::Relaxed));
-    }
-
-    #[tokio::test]
-    pub async fn get_agent_with_blank_context_snippet_did_not_add_context_to_preamble() {
-        // Arrange
-
-        let preamble_has_context = Arc::new(AtomicBool::new(true));
-        let preamble_has_context_clone = preamble_has_context.clone();
-
-        let mock_client = MockClient {
-            completion_fn: Arc::new(Some(Box::new(move |request| {
-                let has_context = request.chat_history.iter().any(|message| {
-                    matches!(
-                        message,
-                        RigMessage::System { content } if content.contains("**Context:**")
-                    )
-                });
-                preamble_has_context_clone.store(has_context, Ordering::Relaxed);
-                mock_response_with_text("Answer")
-            }))),
-            ..Default::default()
-        };
-
-        let injector = initialize_test_injector(mock_client).await;
-        let scope = injector.start_scope();
-        let service = scope.resolve::<dyn AgentProvider>().await;
-
-        // Act
-
-        let agent = service
-            .get_agent(Uuid::new_v4(), &[], None, &["   ".to_string()])
-            .await
-            .unwrap();
-        agent.agent.prompt("Hello").await.unwrap();
-
-        // Assert
-
-        assert!(!preamble_has_context.load(Ordering::Relaxed));
     }
 }

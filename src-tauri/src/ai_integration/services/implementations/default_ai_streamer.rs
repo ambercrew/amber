@@ -20,7 +20,7 @@ use crate::ai_integration::entities::context_snippet::{ContextSnippet, group_sni
 use crate::ai_integration::entities::message::{
     Message, MessageContent, ToolApproval, ToolCallContent, ToolResultContent,
 };
-use crate::ai_integration::prompts::approval_result_text;
+use crate::ai_integration::prompts::{approval_result_text, with_context_snippets};
 use crate::ai_integration::repositories::ai_repository::AiRepository;
 use crate::ai_integration::services::agent_provider::{
     AgentProvider, AgentProviderError, AppAgent,
@@ -102,12 +102,7 @@ impl AiStreamer for DefaultAiStreamer {
         // exists, same as a mid-stream cancellation falls through below.
         let agent = match self
             .agent_provider
-            .get_agent(
-                chat_id,
-                &messages,
-                request.element_id,
-                &request.context_snippets,
-            )
+            .get_agent(chat_id, &messages, request.element_id)
             .await
         {
             Ok(agent) => Some(agent),
@@ -145,7 +140,10 @@ impl AiStreamer for DefaultAiStreamer {
                     .collect(),
             );
             let mut stream = agent
-                .stream_chat(request.prompt, rig_messages)
+                .stream_chat(
+                    with_context_snippets(&request.prompt, &request.context_snippets),
+                    rig_messages,
+                )
                 .add_hook(StateCancellationHook::new(self.state.clone()))
                 .add_hook(approval_hook.clone())
                 .await;
@@ -762,6 +760,72 @@ pub mod tests {
         // Assert
 
         assert!(resent_context.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    pub async fn stream_new_prompt_with_context_snippets_attached_them_to_the_prompt_not_the_preamble()
+     {
+        // Arrange
+
+        let attached_to_prompt = Arc::new(AtomicBool::new(false));
+        let attached_to_prompt_clone = attached_to_prompt.clone();
+        let in_preamble = Arc::new(AtomicBool::new(true));
+        let in_preamble_clone = in_preamble.clone();
+
+        let mock_client = MockClient {
+            stream_fn: Arc::new(Some(Box::new(move |request| {
+                let prompt_has_snippet = matches!(
+                    request.chat_history.last(),
+                    Some(RigMessage::User { content })
+                        if content.iter().any(|c| matches!(
+                            c,
+                            UserContent::Text(text)
+                                if text.text.contains("Follow-up prompt")
+                                    && text.text.contains("New selected passage")
+                        ))
+                );
+                attached_to_prompt_clone.store(prompt_has_snippet, Ordering::Relaxed);
+                let preamble_has_snippet = request.preamble.as_deref().is_some_and(|p| p.contains("New selected passage"))
+                    || request.chat_history.iter().any(|message| {
+                        matches!(
+                            message,
+                            RigMessage::System { content } if content.contains("New selected passage")
+                        )
+                    });
+                in_preamble_clone.store(preamble_has_snippet, Ordering::Relaxed);
+
+                Ok(None)
+            }))),
+            ..Default::default()
+        };
+
+        let injector = initialize_test_injector(mock_client, Arc::new(AiState::default())).await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn AiStreamer>().await;
+        let repository = scope.resolve::<dyn AiRepository>().await;
+
+        let chat = Chat::new(None, "Chat title".to_string());
+        let chat_id = chat.id();
+        repository.upsert_chat(&chat).await.unwrap();
+
+        let request = StreamAiRequestDto {
+            prompt: "Follow-up prompt".to_string(),
+            chat_id: Some(chat_id),
+            context_snippets: vec!["New selected passage".to_string()],
+            ..Default::default()
+        };
+
+        // Act
+
+        service
+            .stream(request, Arc::new(move |_| Ok(())))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(attached_to_prompt.load(Ordering::Relaxed));
+        assert!(!in_preamble.load(Ordering::Relaxed));
     }
 
     #[tokio::test]

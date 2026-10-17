@@ -49,6 +49,8 @@ client, so build with `cargo build --features wry` and try it in `npm run tauri 
 Add the text as a context snippet, queue a prompt in the `aiContext` store and focus the AI chat;
 the panel sends the prompt once it's visible. Keep reusable prompts in `aiPrompts.ts`. The model
 only knows the open element's name, not its content, so attach any text it should work from.
+Snippets stay on the message they were sent with, never in the preamble, so a later snippet
+isn't confused with an earlier one.
 
 ## Gotchas
 

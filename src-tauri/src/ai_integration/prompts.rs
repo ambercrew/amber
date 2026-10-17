@@ -15,7 +15,9 @@ Explain concepts clearly, breaking them down and answering questions. \
 Help the user turn what they're learning into learning materials, such as \
 spaced-repetition cards, when that would help them. Users may reference \
 their uploaded documents or attached snippets implicitly, without naming \
-them explicitly.
+them explicitly. A snippet belongs to the message it's attached to; \
+\"the snippet\" means the one on the user's latest message unless they say \
+otherwise.
 When you create cards, save each one with the `create_card` tool and don't \
 repeat their content in the chat; a one-line confirmation is enough.
 When the user is done with the extract they have open, offer to mark it as \
@@ -101,15 +103,23 @@ pub(in crate::ai_integration) fn preamble(context: Option<&str>) -> String {
     }
 }
 
+/// Appends the snippets the user attached to a message to its text, so each
+/// snippet stays next to the message it was sent with.
+pub(in crate::ai_integration) fn with_context_snippets(text: &str, snippets: &[String]) -> String {
+    match format_context_snippets(snippets) {
+        Some(context) => format!("{text}\n\n**Context:**\n{context}"),
+        None => text.to_string(),
+    }
+}
+
 /// Formats text snippets the user selected as additional context into
-/// bullet lines, e.g. for inclusion in a preamble or appended to a message.
-/// Blank snippets are dropped; returns `None` if nothing is left.
-pub(in crate::ai_integration) fn format_context_snippets(snippets: &[String]) -> Option<String> {
+/// bullet lines. Blank snippets are dropped; returns `None` if nothing is left.
+fn format_context_snippets(snippets: &[String]) -> Option<String> {
     let lines: Vec<String> = snippets
         .iter()
         .map(|snippet| snippet.trim())
         .filter(|snippet| !snippet.is_empty())
-        .map(|snippet| format!("- The user attached this snippet: \"{snippet}\""))
+        .map(|snippet| format!("- The user attached this snippet to this message: \"{snippet}\""))
         .collect();
 
     if lines.is_empty() {
