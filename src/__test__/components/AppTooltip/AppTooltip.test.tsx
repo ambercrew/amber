@@ -1,10 +1,22 @@
+import { createElement } from "react";
 import { screen } from "@testing-library/react";
-import { Button } from "@mantine/core";
+import { Button, TooltipProps } from "@mantine/core";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import { useIsCoarsePointer } from "../../../hooks/useIsCoarsePointer";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 vi.mock(import("../../../hooks/useIsCoarsePointer"));
+
+// Records the props AppTooltip gives Mantine's Tooltip, while still rendering it.
+const tooltip = vi.hoisted(() => ({ lastProps: null as TooltipProps | null }));
+vi.mock(import("@mantine/core"), async importOriginal => {
+	const actual = await importOriginal();
+	const Tooltip = Object.assign((props: TooltipProps) => {
+		tooltip.lastProps = props;
+		return createElement(actual.Tooltip, props);
+	}, actual.Tooltip);
+	return { ...actual, Tooltip } as typeof actual;
+});
 
 // The tooltip is rendered `opened` because floating-ui's hover handling needs
 // a layout engine jsdom doesn't have, so hovering never opens it here.
@@ -81,5 +93,33 @@ describe("AppTooltip", () => {
 
 		expect(getTooltip()).toHaveTextContent("Open command palette");
 		expect(getTooltip()).not.toHaveTextContent("Ctrl");
+	});
+
+	it("Should wait before opening on hover when the pointer is fine", () => {
+		// Arrange
+
+		vi.mocked(useIsCoarsePointer).mockReturnValue(false);
+
+		// Act
+
+		renderTooltip({ label: "Open command palette" });
+
+		// Assert
+
+		expect(tooltip.lastProps?.openDelay).toBe(500);
+	});
+
+	it("Should open at once when the pointer is coarse", () => {
+		// Arrange
+
+		vi.mocked(useIsCoarsePointer).mockReturnValue(true);
+
+		// Act
+
+		renderTooltip({ label: "Open command palette" });
+
+		// Assert
+
+		expect(tooltip.lastProps?.openDelay).toBe(0);
 	});
 });

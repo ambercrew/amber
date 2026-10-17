@@ -37,7 +37,7 @@ function NavigatorPanel({ treeState }: NavigatorPanelProps) {
 				/>
 			)}
 			<Stack gap={0}>
-				<AppTooltip label="Open your root folder" openDelay={300}>
+				<AppTooltip label="Open your root folder">
 					<NavLink
 						label="Home"
 						leftSection={<HomeIcon size={NAV_ICON_SIZE} />}
@@ -45,9 +45,7 @@ function NavigatorPanel({ treeState }: NavigatorPanelProps) {
 						onClick={() => void navigate(paths.root())}
 					/>
 				</AppTooltip>
-				<AppTooltip
-					label="Search and filter every element in your collection. Save the queries you use often, and act on the results in bulk."
-					openDelay={300}>
+				<AppTooltip label="Search and filter every element in your collection. Save the queries you use often, and act on the results in bulk.">
 					<NavLink
 						label="Browser"
 						leftSection={<BrowserIcon size={NAV_ICON_SIZE} />}

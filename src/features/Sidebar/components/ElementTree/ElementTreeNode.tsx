@@ -106,7 +106,7 @@ function ElementTreeNode({
 						onClose={onRenameClose}
 					/>
 				) : (
-					<AppTooltip label={labelWithCount} openDelay={500}>
+					<AppTooltip label={labelWithCount}>
 						<Highlight
 							highlight={search}
 							flex={1}

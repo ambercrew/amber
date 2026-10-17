@@ -1,6 +1,10 @@
 import { ReactNode } from "react";
 import { Tooltip, TooltipProps } from "@mantine/core";
 import { useShortcutDisplay } from "../../commands/useShortcutDisplay";
+import { useIsCoarsePointer } from "../../hooks/useIsCoarsePointer";
+
+// About what browsers and desktop apps wait before a hover tooltip, so passing over a control doesn't flash one.
+const HOVER_OPEN_DELAY_MS = 500;
 
 export interface AppTooltipProps extends Omit<
 	TooltipProps,
@@ -41,6 +45,7 @@ function labelWithShortcut(label: ReactNode, shortcut: string): ReactNode {
 /**
  * The app's Tooltip: Mantine's `Tooltip` plus a `shortcut` rendered next to
  * the label on pointer devices only. Pass `touch` to also open on tap.
+ * Opens after a short hover delay, but at once on touch, where it's tapped deliberately.
  */
 function AppTooltip({
 	label,
@@ -51,6 +56,7 @@ function AppTooltip({
 	...rest
 }: AppTooltipProps) {
 	const displayedShortcut = useShortcutDisplay()(shortcut);
+	const coarsePointer = useIsCoarsePointer();
 	const fullLabel = displayedShortcut
 		? labelWithShortcut(label, displayedShortcut)
 		: label;
@@ -63,6 +69,7 @@ function AppTooltip({
 		<Tooltip
 			label={fullLabel}
 			events={{ hover: true, focus: false, touch, ...events }}
+			openDelay={coarsePointer ? 0 : HOVER_OPEN_DELAY_MS}
 			{...rest}>
 			{children}
 		</Tooltip>
