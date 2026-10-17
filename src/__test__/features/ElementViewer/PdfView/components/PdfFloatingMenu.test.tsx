@@ -7,6 +7,8 @@ import {
 	createExtractAction,
 } from "../../../../../stores/elements/elementsActions";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
+import SettingsDto from "../../../../../api/settings/dto/settingsDto";
+import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../../../../features/Ai/aiPrompts";
 
 vi.mock(import("../../../../../stores/elements/elementsActions"));
 
@@ -97,6 +99,7 @@ function renderMenu({
 	spaceAbove = 100,
 	range = null,
 	selectionAnchor = null,
+	aiEnabled = false,
 }: {
 	selectedText: string;
 	pageText: string;
@@ -107,6 +110,7 @@ function renderMenu({
 	spaceAbove?: number;
 	range?: SelectionRangeX | null;
 	selectionAnchor?: GlyphPointer | null;
+	aiEnabled?: boolean;
 }) {
 	const selectionScope = {
 		getHighlightRects: vi.fn(() => ({ 0: [RECT] })),
@@ -167,7 +171,7 @@ function renderMenu({
 	vi.mocked(createCardAction).mockReturnValue(() => Promise.resolve(true));
 
 	const onHighlightCreated = vi.fn();
-	renderWithProviders(
+	const { store } = renderWithProviders(
 		<PdfFloatingMenu
 			rect={RECT}
 			menuWrapperProps={{ style: {}, ref: () => {} }}
@@ -178,9 +182,16 @@ function renderMenu({
 			learningAssetId={LEARNING_ASSET_ID}
 			onHighlightCreated={onHighlightCreated}
 		/>,
+		{
+			preloadedState: {
+				settings: {
+					settings: { enableAi: aiEnabled } as SettingsDto,
+				},
+			},
+		},
 	);
 
-	return { selectionScope, annotationScope, onHighlightCreated };
+	return { selectionScope, annotationScope, onHighlightCreated, store };
 }
 
 function lineRect(x: number, y: number, width: number) {
@@ -198,6 +209,52 @@ async function getMenuPosition() {
 }
 
 describe("PdfFloatingMenu", () => {
+	it("Should attach the selection and ask the AI for cards when Make Cards with AI is clicked", async () => {
+		// Arrange
+
+		const { selectionScope, store } = renderMenu({
+			selectedText: "Selected passage",
+			pageText: "Selected passage",
+			slice: { start: 0, count: 16 },
+			aiEnabled: true,
+		});
+
+		// Act
+
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Make Cards with AI" }),
+		);
+
+		// Assert
+
+		await waitFor(() => {
+			expect(store.getState().ai.snippets).toEqual([
+				expect.objectContaining({ text: "Selected passage" }),
+			]);
+		});
+		expect(store.getState().ai.pendingPrompt).toBe(
+			CONVERT_SNIPPET_TO_CARDS_PROMPT,
+		);
+		expect(selectionScope.clear).toHaveBeenCalledOnce();
+	});
+
+	it("Should not offer Make Cards with AI when AI is disabled", async () => {
+		// Arrange & Act
+
+		renderMenu({
+			selectedText: "a",
+			pageText: "a",
+			slice: { start: 0, count: 1 },
+		});
+
+		// Assert
+
+		await screen.findByRole("button", { name: "Create Extract" });
+		expect(
+			screen.queryByRole("button", { name: "Make Cards with AI" }),
+		).toBeNull();
+	});
+
 	it("Should end the menu at the last selected line's end when it opens below a selection", async () => {
 		// Arrange & Act
 

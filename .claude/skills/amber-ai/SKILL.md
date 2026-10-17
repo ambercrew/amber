@@ -45,8 +45,9 @@ Built on [`rig`](https://docs.rs/rig-core) `=0.42.0`.
 
 **Starting a turn from elsewhere:** dispatch `addAiContextSnippet(text)` and
 `requestAiPrompt(prompt)` (`stores/aiContext`), then `requestFocus("aiChat")`. `AiPanel` sends the
-pending prompt once it's shown and no reply is streaming. The editor menu's "Make Cards with AI"
-(`useElementViewerButtons`) does this with `CONVERT_SNIPPET_TO_CARDS_PROMPT` (`features/Ai/aiPrompts.ts`).
+pending prompt once it's shown and no reply is streaming. "Make Cards with AI" in the editor
+(`useElementViewerButtons`) and PDF (`PdfFloatingMenu`) floating menus does this with
+`CONVERT_SNIPPET_TO_CARDS_PROMPT` (`features/Ai/aiPrompts.ts`).
 
 ## Tools
 

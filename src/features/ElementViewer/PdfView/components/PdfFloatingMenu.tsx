@@ -31,9 +31,15 @@ import {
 	createExtractAction,
 } from "../../../../stores/elements/elementsActions";
 import { selectSettings } from "../../../../stores/settings/settingsSelector";
-import { addAiContextSnippet } from "../../../../stores/aiContext/aiReducer";
+import {
+	addAiContextSnippet,
+	requestAiPrompt,
+} from "../../../../stores/aiContext/aiReducer";
+import { requestFocus } from "../../../../hooks/useFocusRequest";
+import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../../Ai/aiPrompts";
 import {
 	ADD_AI_CONTEXT_BUTTON,
+	AI_CARDS_BUTTON,
 	CLOZE_BUTTON,
 	EXTRACT_BUTTON,
 	OPEN_HIGHLIGHT_BUTTON,
@@ -203,19 +209,35 @@ export default function PdfFloatingMenu({
 		annotation.forDocument(activeDocumentId).deleteAnnotations(toDelete);
 	}, [selection, annotation, activeDocumentId, highlights]);
 
-	const handleAddAiContext = useCallback(() => {
-		if (!selection || !activeDocumentId) return;
-		const scope = selection.forDocument(activeDocumentId);
-		void scope
-			.getSelectedText()
-			.toPromise()
-			.then(pages => {
-				const text = pages.join(" ").trim();
-				if (!text) return;
-				dispatch(addAiContextSnippet(text));
-				scope.clear();
-			});
-	}, [selection, activeDocumentId, dispatch]);
+	/** Attaches the selection to the AI chat, then sends `prompt` about it when given. */
+	const sendSelectionToAi = useCallback(
+		(prompt?: string) => {
+			if (!selection || !activeDocumentId) return;
+			const scope = selection.forDocument(activeDocumentId);
+			void scope
+				.getSelectedText()
+				.toPromise()
+				.then(pages => {
+					const text = pages.join(" ").trim();
+					if (!text) return;
+					dispatch(addAiContextSnippet(text));
+					if (prompt) {
+						dispatch(requestAiPrompt(prompt));
+						requestFocus("aiChat");
+					}
+					scope.clear();
+				});
+		},
+		[selection, activeDocumentId, dispatch],
+	);
+	const handleAddAiContext = useCallback(
+		() => sendSelectionToAi(),
+		[sendSelectionToAi],
+	);
+	const handleAiCards = useCallback(
+		() => sendSelectionToAi(CONVERT_SNIPPET_TO_CARDS_PROMPT),
+		[sendSelectionToAi],
+	);
 
 	const handleCreateExtract = useCallback(() => {
 		if (!selection || !activeDocumentId || !annotation) return;
@@ -340,6 +362,7 @@ export default function PdfFloatingMenu({
 							...ADD_AI_CONTEXT_BUTTON,
 							onClick: handleAddAiContext,
 						},
+						{ ...AI_CARDS_BUTTON, onClick: handleAiCards },
 					]
 				: []),
 			{ name: "create-highlight-divider", divider: true },
@@ -357,6 +380,7 @@ export default function PdfFloatingMenu({
 		[
 			aiEnabled,
 			handleAddAiContext,
+			handleAiCards,
 			handleCreateExtract,
 			handleCreateCloze,
 			highlightUnderSelection,
