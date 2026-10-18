@@ -1,9 +1,12 @@
+import { useEffect, useState } from "react";
 import {
 	Alert,
 	Anchor,
+	Box,
 	Button,
 	Checkbox,
 	Divider,
+	FloatingIndicator,
 	Stack,
 	Tabs,
 	TextInput,
@@ -15,11 +18,13 @@ import AppModal from "../../../components/AppModal/AppModal";
 import useApi from "../../../hooks/useApi";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
-import { closeAuthModal } from "../../../stores/app/appReducer";
+import { AuthModalTab, closeAuthModal } from "../../../stores/app/appReducer";
 import {
 	selectAuthModalInitialTab,
 	selectIsAuthModalOpened,
 } from "../../../stores/app/appSelectors";
+import { MOTION_EASING } from "../../../config/motion";
+import { useMotionDuration } from "../../../hooks/useMotionDuration";
 import {
 	signIn,
 	signInWithGoogle,
@@ -278,6 +283,81 @@ function SignUpTab({ onSuccess }: { onSuccess: () => void }) {
 	);
 }
 
+const AUTH_TABS: {
+	value: AuthModalTab;
+	label: string;
+	Panel: typeof SignInTab;
+}[] = [
+	{ value: "sign-in", label: "Sign in", Panel: SignInTab },
+	{ value: "sign-up", label: "Sign up", Panel: SignUpTab },
+];
+
+function AuthTabs({
+	initialTab,
+	onSuccess,
+}: {
+	initialTab: AuthModalTab;
+	onSuccess: () => void;
+}) {
+	const [value, setValue] = useState(initialTab);
+	const [listRef, setListRef] = useState<HTMLDivElement | null>(null);
+	const [activeTab, setActiveTab] = useState<HTMLButtonElement | null>(null);
+	const motionDuration = useMotionDuration();
+	// Lags a frame behind the active tab, so a newly shown panel starts transparent and fades in.
+	const [revealedValue, setRevealedValue] = useState(value);
+	useEffect(() => {
+		const frame = requestAnimationFrame(() => setRevealedValue(value));
+		return () => cancelAnimationFrame(frame);
+	}, [value]);
+
+	return (
+		<Tabs value={value} onChange={v => v && setValue(v as AuthModalTab)}>
+			<Tabs.List ref={setListRef} grow style={{ position: "relative" }}>
+				{/* Slides between tabs in place of the active tab's own underline. */}
+				<FloatingIndicator
+					target={activeTab}
+					parent={listRef}
+					transitionDuration={motionDuration}
+					style={{
+						borderBottom:
+							"var(--tabs-list-border-width) solid var(--tabs-color)",
+					}}
+				/>
+				{AUTH_TABS.map(tab => (
+					<Tabs.Tab
+						key={tab.value}
+						ref={tab.value === value ? setActiveTab : undefined}
+						value={tab.value}
+						style={
+							tab.value === value
+								? { borderColor: "transparent" }
+								: undefined
+						}>
+						{tab.label}
+					</Tabs.Tab>
+				))}
+			</Tabs.List>
+			{AUTH_TABS.map(({ value: tabValue, Panel }) => {
+				const revealed = revealedValue === tabValue;
+				return (
+					<Tabs.Panel key={tabValue} value={tabValue}>
+						{/* Snaps to transparent on switch, then only the fade-in is animated. */}
+						<Box
+							style={{
+								opacity: revealed ? 1 : 0,
+								transition: revealed
+									? `opacity ${motionDuration}ms ${MOTION_EASING}`
+									: "none",
+							}}>
+							<Panel onSuccess={onSuccess} />
+						</Box>
+					</Tabs.Panel>
+				);
+			})}
+		</Tabs>
+	);
+}
+
 function AuthModal() {
 	const opened = useAppSelector(selectIsAuthModalOpened);
 	const initialTab = useAppSelector(selectAuthModalInitialTab);
@@ -296,18 +376,12 @@ function AuthModal() {
 			size="sm">
 			{/* Remounted (and thus reset to `initialTab`) each time the modal
 			 * opens, since `opened` flips false in between opens. */}
-			<Tabs key={`${opened}-${initialTab}`} defaultValue={initialTab}>
-				<Tabs.List grow>
-					<Tabs.Tab value="sign-in">Sign in</Tabs.Tab>
-					<Tabs.Tab value="sign-up">Sign up</Tabs.Tab>
-				</Tabs.List>
-				<Tabs.Panel value="sign-in">
-					<SignInTab onSuccess={handleClose} />
-				</Tabs.Panel>
-				<Tabs.Panel value="sign-up">
-					<SignUpTab onSuccess={handleClose} />
-				</Tabs.Panel>
-			</Tabs>
+			{/* Remounted (and thus reset to `initialTab`) each time the modal opens. */}
+			<AuthTabs
+				key={`${opened}-${initialTab}`}
+				initialTab={initialTab}
+				onSuccess={handleClose}
+			/>
 		</AppModal>
 	);
 }

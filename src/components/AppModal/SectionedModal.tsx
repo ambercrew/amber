@@ -1,9 +1,18 @@
-import { ReactNode, useState } from "react";
-import { Box, Burger, Group, NavLink, ScrollArea } from "@mantine/core";
+import { ReactNode, useEffect, useState } from "react";
+import {
+	Box,
+	Burger,
+	FloatingIndicator,
+	Group,
+	NavLink,
+	ScrollArea,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import AppModal, { AppModalProps } from "./AppModal";
 import AppDrawer from "../AppDrawer/AppDrawer";
 import { useIsSmallScreen } from "../../hooks/useIsSmallScreen";
+import { MOTION_EASING } from "../../config/motion";
+import { useMotionDuration } from "../../hooks/useMotionDuration";
 
 export interface ModalSection {
 	value: string;
@@ -42,23 +51,71 @@ function SectionedModal({
 	const [active, setActive] = useState(sections[0].value);
 	const [navOpened, { open: openNav, close: closeNav }] =
 		useDisclosure(false);
+	const [navRef, setNavRef] = useState<HTMLDivElement | null>(null);
+	const [activeLink, setActiveLink] = useState<HTMLAnchorElement | null>(
+		null,
+	);
+	const motionDuration = useMotionDuration();
 
 	const activeSection =
 		sections.find(section => section.value === active) ?? sections[0];
 
+	// Lags a frame behind the active section, so newly shown content starts transparent and fades in.
+	const [revealedValue, setRevealedValue] = useState(activeSection.value);
+	useEffect(() => {
+		const frame = requestAnimationFrame(() =>
+			setRevealedValue(activeSection.value),
+		);
+		return () => cancelAnimationFrame(frame);
+	}, [activeSection.value]);
+	const revealed = revealedValue === activeSection.value;
+	// Snaps to transparent on switch, then only the fade-in is animated.
+	const contentStyle = {
+		opacity: revealed ? 1 : 0,
+		transition: revealed
+			? `opacity ${motionDuration}ms ${MOTION_EASING}`
+			: "none",
+	};
+
 	function renderNavLinks(onSelect?: () => void) {
-		return sections.map(section => (
-			<NavLink
-				key={section.value}
-				active={section.value === active}
-				label={section.label}
-				leftSection={section.icon}
-				onClick={() => {
-					setActive(section.value);
-					onSelect?.();
-				}}
-			/>
-		));
+		return (
+			<Box ref={setNavRef} style={{ position: "relative" }}>
+				{/* Slides between links in place of the active link's own background. */}
+				<FloatingIndicator
+					target={activeLink}
+					parent={navRef}
+					transitionDuration={motionDuration}
+					style={{
+						backgroundColor: "var(--mantine-primary-color-light)",
+					}}
+				/>
+				{sections.map(section => (
+					<NavLink
+						key={section.value}
+						ref={
+							section.value === activeSection.value
+								? setActiveLink
+								: undefined
+						}
+						active={section.value === activeSection.value}
+						label={section.label}
+						leftSection={section.icon}
+						onClick={() => {
+							setActive(section.value);
+							onSelect?.();
+						}}
+						style={{
+							position: "relative",
+							zIndex: 1,
+							...(section.value === activeSection.value && {
+								"--nl-bg": "transparent",
+								"--nl-hover": "transparent",
+							}),
+						}}
+					/>
+				))}
+			</Box>
+		);
 	}
 
 	return (
@@ -89,7 +146,7 @@ function SectionedModal({
 						size="70%">
 						{renderNavLinks(closeNav)}
 					</AppDrawer>
-					<Box>{activeSection.render()}</Box>
+					<Box style={contentStyle}>{activeSection.render()}</Box>
 				</>
 			) : (
 				<Group
@@ -104,7 +161,7 @@ function SectionedModal({
 						scrollbars="y"
 						offsetScrollbars="y"
 						style={{ flex: 1, minWidth: 0 }}>
-						{activeSection.render()}
+						<Box style={contentStyle}>{activeSection.render()}</Box>
 					</ScrollArea>
 				</Group>
 			)}
