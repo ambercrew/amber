@@ -293,6 +293,10 @@ pub async fn run() {
             get_chat_messages_ordered,
             rename_ai_chat,
             upload_document,
+            list_ai_prompts,
+            create_ai_prompt,
+            update_ai_prompt,
+            delete_ai_prompt,
             // Sync
             sync,
             // Common

@@ -188,6 +188,18 @@ const CONTEXT_SECTIONS: ContextSection[] = [
 				shortcuts: [keys.NEW_LINE_SHORTCUT],
 				description: "New line in the chat message",
 			},
+			{
+				shortcuts: [keys.INSERT_AI_PROMPT_SHORTCUT],
+				description: "Insert a saved prompt in the chat message",
+			},
+			{
+				shortcuts: [
+					keys.NEXT_PROMPT_PLACEHOLDER_SHORTCUT,
+					keys.PREVIOUS_PROMPT_PLACEHOLDER_SHORTCUT,
+				],
+				description:
+					"Select the next or previous {placeholder} in the chat message",
+			},
 		],
 	},
 ];

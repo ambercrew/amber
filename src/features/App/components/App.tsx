@@ -42,6 +42,7 @@ import SettingsModal from "../../Settings/components/SettingsModal.tsx";
 import PriorityModal from "../../Aside/components/PriorityModal.tsx";
 import DueDateModal from "../../Aside/components/DueDateModal.tsx";
 import ShortcutsModal from "./ShortcutsModal.tsx";
+import AiPromptLibraryModal from "../../Ai/components/AiPromptLibraryModal.tsx";
 import StudySessionSettingsModal from "../../Study/components/StudySessionSettingsModal.tsx";
 import AuthModal from "../../Auth/components/AuthModal.tsx";
 import VerifyEmailModal from "../../Auth/components/VerifyEmailModal.tsx";
@@ -247,6 +248,7 @@ function App() {
 					<PriorityModal />
 					<DueDateModal />
 					<ShortcutsModal />
+					<AiPromptLibraryModal />
 					<StudySessionSettingsModal />
 					<AuthModal />
 					<VerifyEmailModal />

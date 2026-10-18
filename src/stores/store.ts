@@ -10,6 +10,7 @@ import elementDetailsReducer from "./elementDetails/elementDetailsReducer";
 import searchReducer from "./search/searchReducer";
 import trashReducer from "./trash/trashReducer";
 import aiReducer from "./aiContext/aiReducer";
+import aiPromptsReducer from "./aiPrompts/aiPromptsReducer";
 
 const reducers = combineReducers({
 	user: userReducer,
@@ -23,6 +24,7 @@ const reducers = combineReducers({
 	search: searchReducer,
 	trash: trashReducer,
 	ai: aiReducer,
+	aiPrompts: aiPromptsReducer,
 });
 
 export const setupStore = (preloadedState?: Partial<RootState>) => {

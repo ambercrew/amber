@@ -52,6 +52,9 @@ export const FOCUS_AI_CHAT_SHORTCUT = "mod+J";
 export const ADD_TO_AI_CONTEXT_SHORTCUT = "mod+shift+A";
 export const MAKE_AI_CARDS_SHORTCUT = "mod+shift+M";
 export const NEW_LINE_SHORTCUT = "shift+Enter";
+export const INSERT_AI_PROMPT_SHORTCUT = "/";
+export const NEXT_PROMPT_PLACEHOLDER_SHORTCUT = "Tab";
+export const PREVIOUS_PROMPT_PLACEHOLDER_SHORTCUT = "shift+Tab";
 
 // Editor
 export const CREATE_EXTRACT_SHORTCUT = "mod+shift+X";

@@ -1,5 +1,6 @@
 pub mod agent_provider;
 pub mod ai_client_provider;
+pub mod ai_prompt_service;
 pub mod ai_streamer;
 pub mod chat_creator;
 pub mod document_uploader;

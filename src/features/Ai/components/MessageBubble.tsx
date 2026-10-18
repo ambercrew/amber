@@ -11,15 +11,11 @@ import {
 import { useLocalStorage } from "@mantine/hooks";
 import { createElement } from "react";
 import {
-	CardsIcon,
 	CheckIcon,
-	CheckSquareIcon,
 	FileIcon,
-	Icon,
 	MagnifyingGlassIcon,
-	PaperclipIcon,
-	TextboxIcon,
 } from "@phosphor-icons/react";
+import { AI_TOOL_ICONS } from "../../../config/icons";
 import { MessageContentDto } from "../../../api/aiIntegration/dto/messageDto";
 import { DisplayMessage } from "../utils/buildDisplayMessages";
 import AiMarkdown from "./AiMarkdown";
@@ -39,13 +35,6 @@ interface MessageBubbleProps {
 	onToolApprovalResolved?: OnToolApprovalResolved;
 }
 
-const TOOL_ICONS: Record<string, Icon> = {
-	search_documents: PaperclipIcon,
-	create_card: CardsIcon,
-	create_cloze_card: TextboxIcon,
-	finish_extract: CheckSquareIcon,
-};
-
 function toolLabel(toolName: string | undefined, done: boolean): string {
 	const readable = toolName?.replace(/_/g, " ") ?? "tool";
 	return done ? `Ran ${readable}` : `Running ${readable}…`;
@@ -54,7 +43,7 @@ function toolLabel(toolName: string | undefined, done: boolean): string {
 function toolIcon(toolName: string | undefined, done: boolean) {
 	const Component = done
 		? CheckIcon
-		: ((toolName ? TOOL_ICONS[toolName] : null) ?? MagnifyingGlassIcon);
+		: ((toolName ? AI_TOOL_ICONS[toolName] : null) ?? MagnifyingGlassIcon);
 	return createElement(Component, { size: 12 });
 }
 

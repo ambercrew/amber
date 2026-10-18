@@ -1,11 +1,10 @@
 import {
 	ArrowSquareOutIcon,
 	CardsIcon,
-	MagicWandIcon,
 	EraserIcon,
 	ScissorsIcon,
-	SparkleIcon,
 } from "@phosphor-icons/react";
+import { AiCardsIcon, AiIcon } from "../../config/icons";
 import { FloatingMenuBarButton } from "../../components/FloatingMenuBar/FloatingMenuBar";
 import {
 	ADD_TO_AI_CONTEXT_SHORTCUT,
@@ -49,14 +48,14 @@ export const CLOZE_BUTTON: ButtonMetadata = {
 export const ADD_AI_CONTEXT_BUTTON: ButtonMetadata = {
 	name: "add-ai-context",
 	title: "Add to AI Context",
-	Icon: SparkleIcon,
+	Icon: AiIcon,
 	shortcut: ADD_TO_AI_CONTEXT_SHORTCUT,
 };
 
 export const AI_CARDS_BUTTON: ButtonMetadata = {
 	name: "ai-cards",
 	title: "Make Cards with AI",
-	Icon: MagicWandIcon,
+	Icon: AiCardsIcon,
 	shortcut: MAKE_AI_CARDS_SHORTCUT,
 };
 

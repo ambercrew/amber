@@ -5,6 +5,7 @@ use crate::{
     ai_integration::{
         ai_state::AiState,
         dto::{
+            ai_prompt_request_dto::AiPromptRequestDto, ai_prompt_response_dto::AiPromptResponseDto,
             chat_response_dto::ChatResponseDto, message_response_dto::MessageResponseDto,
             stream_ai_request_dto::StreamAiRequestDto,
         },
@@ -13,6 +14,7 @@ use crate::{
         },
         repositories::ai_repository::AiRepository,
         services::{
+            ai_prompt_service::AiPromptService,
             ai_streamer::{AiStreamer, StreamLlmResponseEvent},
             document_uploader::{DocumentUploader, UploadOutcome},
             tool_approval_resolver::ToolApprovalResolver,
@@ -182,4 +184,63 @@ pub async fn upload_document(
         .await?;
     scope.save_changes().await?;
     Ok(outcome)
+}
+
+#[tauri::command]
+pub async fn list_ai_prompts(
+    injector: State<'_, Arc<Injector>>,
+) -> Result<Vec<AiPromptResponseDto>, ApiError> {
+    let scope = injector.start_scope();
+    let prompts = scope
+        .resolve::<dyn AiPromptService>()
+        .await
+        .list_prompts()
+        .await?;
+    Ok(prompts.into_iter().map(AiPromptResponseDto::from).collect())
+}
+
+#[tauri::command]
+pub async fn create_ai_prompt(
+    injector: State<'_, Arc<Injector>>,
+    dto: AiPromptRequestDto,
+) -> Result<AiPromptResponseDto, ApiError> {
+    let scope = injector.start_scope();
+    let prompt = scope
+        .resolve::<dyn AiPromptService>()
+        .await
+        .create_prompt(dto.name, dto.content)
+        .await?;
+    scope.save_changes().await?;
+    Ok(prompt.into())
+}
+
+#[tauri::command]
+pub async fn update_ai_prompt(
+    injector: State<'_, Arc<Injector>>,
+    id: Uuid,
+    dto: AiPromptRequestDto,
+) -> Result<AiPromptResponseDto, ApiError> {
+    let scope = injector.start_scope();
+    let prompt = scope
+        .resolve::<dyn AiPromptService>()
+        .await
+        .update_prompt(id, dto.name, dto.content)
+        .await?;
+    scope.save_changes().await?;
+    Ok(prompt.into())
+}
+
+#[tauri::command]
+pub async fn delete_ai_prompt(
+    injector: State<'_, Arc<Injector>>,
+    id: Uuid,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    scope
+        .resolve::<dyn AiPromptService>()
+        .await
+        .delete_prompt(id)
+        .await?;
+    scope.save_changes().await?;
+    Ok(())
 }

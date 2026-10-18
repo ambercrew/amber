@@ -12,6 +12,7 @@ const SPECIAL: Record<string, string> = {
 	enter: "↵",
 	backspace: "⌫",
 	escape: "Esc",
+	tab: "Tab",
 	space: "Space",
 	"[plus]": "+",
 };

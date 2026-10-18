@@ -21,6 +21,12 @@ export const selectIsDueDateModalOpened = (state: RootState) =>
 export const selectIsShortcutsModalOpened = (state: RootState) =>
 	state.app.shortcutsModalOpened;
 
+export const selectIsAiPromptLibraryModalOpened = (state: RootState) =>
+	state.app.aiPromptLibraryModalOpened;
+
+export const selectAiPromptLibraryNewPromptRequest = (state: RootState) =>
+	state.app.aiPromptLibraryNewPromptRequest;
+
 export const selectIsStudySessionSettingsModalOpened = (state: RootState) =>
 	state.app.studySessionSettingsModalOpened;
 

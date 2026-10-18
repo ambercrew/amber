@@ -6,6 +6,7 @@ import {
 	TrashIcon,
 	WarningIcon,
 } from "@phosphor-icons/react";
+import { AiPromptLibraryIcon } from "../../../config/icons";
 import useAiChats from "../hooks/useAiChats";
 import useAiStreaming from "../hooks/useAiStreaming";
 import useAiDocumentUpload from "../hooks/useAiDocumentUpload";
@@ -20,6 +21,7 @@ import {
 	selectPendingAiPrompt,
 } from "../../../stores/aiContext/aiSelectors";
 import { clearPendingAiPrompt } from "../../../stores/aiContext/aiReducer";
+import { openAiPromptLibraryModal } from "../../../stores/app/appReducer";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import ChatMessages from "./ChatMessages";
 import ChatInput from "./ChatInput";
@@ -161,6 +163,14 @@ function AiPanel() {
 							onClick={() => setIsDeleting(true)}>
 							Delete chat
 						</Menu.Item>
+						<Menu.Divider />
+						<Menu.Item
+							leftSection={<AiPromptLibraryIcon size={14} />}
+							onClick={() =>
+								dispatch(openAiPromptLibraryModal())
+							}>
+							Prompt library
+						</Menu.Item>
 					</Menu.Dropdown>
 				</Menu>
 			</Group>
@@ -198,6 +208,7 @@ function AiPanel() {
 				onSend={prompt => void sendPrompt(prompt)}
 				onStop={() => void stopGeneration()}
 				onUpload={path => void uploadDocumentToChat(path)}
+				onManagePrompts={() => dispatch(openAiPromptLibraryModal())}
 				initialValue={failedPrompt ?? undefined}
 			/>
 			<Anchor

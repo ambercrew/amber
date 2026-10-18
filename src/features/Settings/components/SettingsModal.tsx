@@ -1,9 +1,5 @@
-import {
-	DatabaseIcon,
-	InfoIcon,
-	PaletteIcon,
-	SparkleIcon,
-} from "@phosphor-icons/react";
+import { DatabaseIcon, InfoIcon, PaletteIcon } from "@phosphor-icons/react";
+import { AiIcon } from "../../../config/icons";
 import SectionedModal, {
 	ModalSection,
 } from "../../../components/AppModal/SectionedModal";
@@ -32,7 +28,7 @@ const SECTIONS: ModalSection[] = [
 	{
 		value: "ai",
 		label: "AI",
-		icon: <SparkleIcon />,
+		icon: <AiIcon />,
 		render: () => <AiTab />,
 	},
 	{

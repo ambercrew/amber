@@ -59,6 +59,9 @@ isn't confused with an earlier one.
 - **Persisted data is long-lived.** Tool names and provider names are stored, so never rename them.
   New fields on anything stored with a chat need `#[serde(default)]` or `Option`. Prefer computing
   display data (like approval text) on demand over storing it.
+- **User-made AI data syncs.** Anything the user builds up for the AI (like saved prompts) belongs
+  in a table registered for sync. Keep it in one Redux slice (like `aiPrompts`) that saves update
+  from the returned DTO and `usePostSyncRefresh` reloads, not in per-component copies.
 - **Hidden aside tabs drop their effects.** The AI panel shares tabs with other panels, so listeners
   for events a tool causes must live at the app level, not inside a tab.
 - **Commit before slow work in the stream loop.** The streamer saves before each LLM round-trip and

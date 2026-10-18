@@ -96,6 +96,8 @@ function appStateFor(priorityModalOpened: boolean): AppState {
 		priorityModalOpened,
 		dueDateModalOpened: false,
 		shortcutsModalOpened: false,
+		aiPromptLibraryModalOpened: false,
+		aiPromptLibraryNewPromptRequest: 0,
 		studySessionSettingsModalOpened: false,
 		authModalOpened: false,
 		authModalInitialTab: "sign-in",

@@ -1,4 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import AiPromptDto from "../dto/aiPromptDto";
+import AiPromptRequestDto from "../dto/aiPromptRequestDto";
 import ChatDto from "../dto/chatDto";
 import ChatResponseDto from "../dto/chatResponseDto";
 import MessageDto from "../dto/messageDto";
@@ -49,4 +51,23 @@ export function uploadDocument(
 	chatId: string,
 ): Promise<UploadOutcomeDto> {
 	return invoke("upload_document", { path, chatId });
+}
+
+export function listAiPrompts(): Promise<AiPromptDto[]> {
+	return invoke("list_ai_prompts");
+}
+
+export function createAiPrompt(dto: AiPromptRequestDto): Promise<AiPromptDto> {
+	return invoke("create_ai_prompt", { dto });
+}
+
+export function updateAiPrompt(
+	id: string,
+	dto: AiPromptRequestDto,
+): Promise<AiPromptDto> {
+	return invoke("update_ai_prompt", { id, dto });
+}
+
+export function deleteAiPrompt(id: string): Promise<void> {
+	return invoke("delete_ai_prompt", { id });
 }

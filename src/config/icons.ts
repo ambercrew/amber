@@ -1,19 +1,28 @@
 import {
 	BookOpenIcon,
+	BooksIcon,
 	BoundingBoxIcon,
 	CalendarIcon,
 	CardsIcon,
+	ChatCircleTextIcon,
+	CheckSquareIcon,
 	ClockCounterClockwiseIcon,
 	FileTextIcon,
 	FolderIcon,
 	FolderOpenIcon,
 	GraduationCapIcon,
 	HouseIcon,
+	Icon,
 	ListMagnifyingGlassIcon,
+	MagicWandIcon,
+	NotePencilIcon,
+	PaperclipIcon,
 	ScissorsIcon,
+	SparkleIcon,
 	StackIcon,
 	TagIcon,
 	TextAaIcon,
+	TextboxIcon,
 	TreeViewIcon,
 	TrendUpIcon,
 } from "@phosphor-icons/react";
@@ -40,3 +49,20 @@ export const StudyProfilePropertyIcon = GraduationCapIcon;
 export const DuePropertyIcon = CalendarIcon;
 export const PriorityPropertyIcon = TrendUpIcon;
 export const BibliographicalSourcePropertyIcon = BookOpenIcon;
+
+// AI
+/** The AI itself: its panel, its settings and what's handed to it. */
+export const AiIcon = SparkleIcon;
+export const AskAiIcon = ChatCircleTextIcon;
+export const AiCardsIcon = MagicWandIcon;
+export const AiDocumentIcon = PaperclipIcon;
+export const AiPromptLibraryIcon = BooksIcon;
+export const NewAiPromptIcon = NotePencilIcon;
+
+/** What each AI tool call shows in the chat, keyed by the tool's name. */
+export const AI_TOOL_ICONS: Record<string, Icon> = {
+	search_documents: AiDocumentIcon,
+	create_card: CardElementIcon,
+	create_cloze_card: TextboxIcon,
+	finish_extract: CheckSquareIcon,
+};

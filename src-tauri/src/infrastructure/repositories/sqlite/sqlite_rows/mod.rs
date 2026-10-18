@@ -1,3 +1,4 @@
+pub mod ai_prompt_row;
 pub mod bibliographical_source_row;
 pub mod card_review_row;
 pub mod card_row;

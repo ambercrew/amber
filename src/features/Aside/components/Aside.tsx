@@ -1,4 +1,5 @@
-import { InfoIcon, SparkleIcon } from "@phosphor-icons/react";
+import { InfoIcon } from "@phosphor-icons/react";
+import { AiIcon } from "../../../config/icons";
 import { useWindowEvent } from "@mantine/hooks";
 import { useSidebarTab } from "../../../components/CollapsibleSidebar/useSidebarTab";
 import { useFocusRequested } from "../../../hooks/useFocusRequest";
@@ -37,7 +38,7 @@ function Aside({ onCollapse, onExpand, onToggle }: AsideProps) {
 					{
 						value: "ai",
 						title: "AI",
-						icon: <SparkleIcon size={16} />,
+						icon: <AiIcon size={16} />,
 						panel: <AiPanel />,
 						scrollable: false,
 					},

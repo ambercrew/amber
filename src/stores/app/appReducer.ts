@@ -11,6 +11,9 @@ export interface AppState {
 	priorityModalOpened: boolean;
 	dueDateModalOpened: boolean;
 	shortcutsModalOpened: boolean;
+	aiPromptLibraryModalOpened: boolean;
+	/** Bumped on each request to start a blank new prompt in the library, even while it's open. */
+	aiPromptLibraryNewPromptRequest: number;
 	studySessionSettingsModalOpened: boolean;
 	authModalOpened: boolean;
 	authModalInitialTab: AuthModalTab;
@@ -29,6 +32,8 @@ const initialState: AppState = {
 	priorityModalOpened: false,
 	dueDateModalOpened: false,
 	shortcutsModalOpened: false,
+	aiPromptLibraryModalOpened: false,
+	aiPromptLibraryNewPromptRequest: 0,
 	studySessionSettingsModalOpened: false,
 	authModalOpened: false,
 	authModalInitialTab: "sign-in",
@@ -79,6 +84,17 @@ const appSlice = createSlice({
 		},
 		closeShortcutsModal: state => {
 			state.shortcutsModalOpened = false;
+		},
+		openAiPromptLibraryModal: (
+			state,
+			action: PayloadAction<{ newPrompt?: boolean } | undefined>,
+		) => {
+			state.aiPromptLibraryModalOpened = true;
+			if (action.payload?.newPrompt)
+				state.aiPromptLibraryNewPromptRequest += 1;
+		},
+		closeAiPromptLibraryModal: state => {
+			state.aiPromptLibraryModalOpened = false;
 		},
 		openStudySessionSettingsModal: state => {
 			state.studySessionSettingsModalOpened = true;
@@ -133,6 +149,8 @@ export const {
 	closeDueDateModal,
 	openShortcutsModal,
 	closeShortcutsModal,
+	openAiPromptLibraryModal,
+	closeAiPromptLibraryModal,
 	openStudySessionSettingsModal,
 	closeStudySessionSettingsModal,
 	openAuthModal,

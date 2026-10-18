@@ -269,6 +269,12 @@ fn table_configs() -> Vec<TableSyncConfig> {
             delete_guard: None,
         },
         TableSyncConfig {
+            name: "ai_prompts",
+            granularity: Granularity::Row,
+            fk_constraints: vec![],
+            delete_guard: None,
+        },
+        TableSyncConfig {
             name: "saved_searches",
             granularity: Granularity::Row,
             fk_constraints: vec![],

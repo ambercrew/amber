@@ -11,7 +11,6 @@ import {
 	BookmarkSimpleIcon,
 	CalendarBlankIcon,
 	CardsIcon,
-	ChatCircleTextIcon,
 	EraserIcon,
 	FadersHorizontalIcon,
 	GearIcon,
@@ -32,6 +31,7 @@ import {
 import { AppDispatch, RootState } from "../stores/store";
 import { setVirtualKeyboardSuppressedAction } from "../stores/app/appActions";
 import {
+	openAiPromptLibraryModal,
 	openDueDateModal,
 	openImportModal,
 	openPriorityModal,
@@ -97,7 +97,13 @@ import { createCardAction } from "../stores/elements/elementsActions";
 import { hasDue } from "../utils/elementDue";
 import { newCardDto } from "../features/Sidebar/components/ElementTree/elementTreeUtils";
 import { paths } from "../paths";
-import { BrowserIcon, HomeIcon } from "../config/icons";
+import {
+	AiPromptLibraryIcon,
+	AskAiIcon,
+	BrowserIcon,
+	HomeIcon,
+	NewAiPromptIcon,
+} from "../config/icons";
 import {
 	LeftSidebarTab,
 	SHOW_LEFT_SIDEBAR_TAB_REQUESTED,
@@ -123,6 +129,8 @@ export const commandIds = [
 	"show-priority-queue",
 	"show-trash",
 	"focus-ai-chat",
+	"open-ai-prompt-library",
+	"new-ai-prompt",
 	"find-in-page",
 	"zoom-in",
 	"zoom-out",
@@ -372,9 +380,26 @@ export const commandsById: Record<CommandId, Command> = {
 		group: "AI",
 		label: "Ask AI",
 		shortcut: FOCUS_AI_CHAT_SHORTCUT,
-		icon: createElement(ChatCircleTextIcon),
+		icon: createElement(AskAiIcon),
 		enabled: state => selectSettings(state)?.enableAi ?? false,
 		execute: () => requestFocus("aiChat"),
+	},
+	"open-ai-prompt-library": {
+		id: "open-ai-prompt-library",
+		group: "AI",
+		label: "Open prompt library",
+		icon: createElement(AiPromptLibraryIcon),
+		enabled: state => selectSettings(state)?.enableAi ?? false,
+		execute: dispatch => dispatch(openAiPromptLibraryModal()),
+	},
+	"new-ai-prompt": {
+		id: "new-ai-prompt",
+		group: "AI",
+		label: "New AI prompt",
+		icon: createElement(NewAiPromptIcon),
+		enabled: state => selectSettings(state)?.enableAi ?? false,
+		execute: dispatch =>
+			dispatch(openAiPromptLibraryModal({ newPrompt: true })),
 	},
 	"find-in-page": {
 		id: "find-in-page",

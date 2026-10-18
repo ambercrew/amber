@@ -3,6 +3,7 @@ import useAppDispatch from "./useAppDispatch";
 import { loadElementTree } from "../stores/elements/elementsActions";
 import { refreshBibliographicalSourcesAction } from "../stores/bibliographicalSources/bibliographicalSourcesActions";
 import { loadTrash } from "../stores/trash/trashActions";
+import { refreshAiPromptsAction } from "../stores/aiPrompts/aiPromptsActions";
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
@@ -10,7 +11,7 @@ import {
 
 /**
  * Refreshes global app state that a sync can change from another device —
- * the element tree, bibliographical sources, and trash — once a sync
+ * the element tree, bibliographical sources, trash, and AI prompts — once a sync
  * completes.
  */
 export function usePostSyncRefresh() {
@@ -21,6 +22,7 @@ export function usePostSyncRefresh() {
 			dispatch(loadElementTree()),
 			dispatch(refreshBibliographicalSourcesAction()),
 			dispatch(loadTrash()),
+			dispatch(refreshAiPromptsAction()),
 		]);
 	}, [dispatch]);
 
