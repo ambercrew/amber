@@ -2,6 +2,7 @@ import { useLocalStorage } from "@mantine/hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	deleteAiChat,
+	branchAiChat,
 	getAllAiChatsSortedByDateDesc,
 	getChatMessagesOrdered,
 	renameAiChat,
@@ -79,6 +80,20 @@ export default function useAiChats() {
 		[callApi, selectedChatId, startNewChat],
 	);
 
+	// Opens the branch, which now leads the chat list as its most recent chat.
+	const branchChat = useCallback(
+		async (chatId: string, messageId: string) => {
+			await callApi(async () => {
+				const branch = await branchAiChat(chatId, messageId);
+				setChats(await getAllAiChatsSortedByDateDesc());
+				setSelectedChatId(branch.id);
+				activeChatIdRef.current = branch.id;
+				setMessages(await getChatMessagesOrdered(branch.id));
+			});
+		},
+		[callApi, setSelectedChatId],
+	);
+
 	const renameChat = useCallback(
 		async (chatId: string, newTitle: string) => {
 			await callApi(async () => {
@@ -110,5 +125,6 @@ export default function useAiChats() {
 		startNewChat,
 		removeChat,
 		renameChat,
+		branchChat,
 	};
 }

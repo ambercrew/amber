@@ -10,6 +10,7 @@ import {
 	FileTextIcon,
 	FolderIcon,
 	FolderOpenIcon,
+	GitForkIcon,
 	GraduationCapIcon,
 	HouseIcon,
 	Icon,
@@ -58,6 +59,7 @@ export const AiCardsIcon = MagicWandIcon;
 export const AiDocumentIcon = PaperclipIcon;
 export const AiPromptLibraryIcon = BooksIcon;
 export const NewAiPromptIcon = NotePencilIcon;
+export const BranchAiChatIcon = GitForkIcon;
 
 /** What each AI tool call shows in the chat, keyed by the tool's name. */
 export const AI_TOOL_ICONS: Record<string, Icon> = {

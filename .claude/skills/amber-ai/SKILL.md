@@ -68,5 +68,7 @@ isn't confused with an earlier one.
   after each tool call; new writes there must follow suit, or SQLite hits `SQLITE_BUSY_SNAPSHOT`.
 - **Card content goes through Markdown**, so a tool can emit an editor node (like a cloze's
   `<mark data-cloze-hidden>`) as inline HTML, as long as the HTML sanitizer allows it.
+- **Message dates are stored to the second**, so messages in the same second keep their order only
+  by insertion. Anything that copies messages (like branching a chat) must insert them in order.
 - Some providers return empty tool-call ids; the streamer falls back to rig's `internal_call_id`.
 - Tests use `MockClient`; script multi-turn tool use by switching on a call counter.

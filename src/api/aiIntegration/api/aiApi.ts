@@ -19,6 +19,13 @@ export function createAiChat(title: string): Promise<ChatDto> {
 	return invoke("create_ai_chat", { title });
 }
 
+export function branchAiChat(
+	chatId: string,
+	messageId: string,
+): Promise<ChatDto> {
+	return invoke("branch_ai_chat", { chatId, messageId });
+}
+
 export function stopAiGeneration(): Promise<void> {
 	return invoke("stop_ai_generation");
 }

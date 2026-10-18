@@ -16,6 +16,7 @@ use crate::{
         services::{
             ai_prompt_service::AiPromptService,
             ai_streamer::{AiStreamer, StreamLlmResponseEvent},
+            chat_brancher::ChatBrancher,
             document_uploader::{DocumentUploader, UploadOutcome},
             tool_approval_resolver::ToolApprovalResolver,
         },
@@ -66,6 +67,22 @@ pub async fn create_ai_chat(
         .await?;
     scope.save_changes().await?;
     Ok(chat)
+}
+
+#[tauri::command]
+pub async fn branch_ai_chat(
+    injector: State<'_, Arc<Injector>>,
+    chat_id: Uuid,
+    message_id: Uuid,
+) -> Result<Chat, ApiError> {
+    let scope = injector.start_scope();
+    let branch = scope
+        .resolve::<dyn ChatBrancher>()
+        .await
+        .branch_chat(chat_id, message_id)
+        .await?;
+    scope.save_changes().await?;
+    Ok(branch)
 }
 
 #[tauri::command]

@@ -56,6 +56,7 @@ function AiPanel() {
 		startNewChat,
 		removeChat,
 		renameChat,
+		branchChat,
 	} = useAiChats();
 
 	const {
@@ -199,6 +200,13 @@ function AiPanel() {
 				chatId={selectedChatId}
 				messages={displayMessages}
 				onToolApprovalResolved={onToolApprovalResolved}
+				// Messages being streamed or uploaded aren't saved yet, so there's nothing to branch from.
+				onBranchMessage={
+					selectedChatId && !isStreaming && !isUploading
+						? messageId =>
+								void branchChat(selectedChatId, messageId)
+						: undefined
+				}
 			/>
 			<AiContextSnippets />
 			<ChatInput

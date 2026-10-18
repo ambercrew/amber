@@ -285,6 +285,7 @@ pub async fn run() {
             set_system_chrome_theme,
             // AI
             create_ai_chat,
+            branch_ai_chat,
             stream_ai_response,
             stop_ai_generation,
             resolve_tool_approval,

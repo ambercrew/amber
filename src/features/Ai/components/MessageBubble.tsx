@@ -1,6 +1,8 @@
 import {
+	ActionIcon,
 	Box,
 	Collapse,
+	CopyButton,
 	Group,
 	Loader,
 	Paper,
@@ -8,19 +10,29 @@ import {
 	Text,
 	UnstyledButton,
 } from "@mantine/core";
-import { useLocalStorage } from "@mantine/hooks";
-import { createElement } from "react";
+import {
+	useFocusWithin,
+	useHover,
+	useLocalStorage,
+	useMergedRef,
+} from "@mantine/hooks";
+import { createElement, CSSProperties, ReactNode } from "react";
 import {
 	CheckIcon,
+	CopyIcon,
 	FileIcon,
 	MagnifyingGlassIcon,
 } from "@phosphor-icons/react";
-import { AI_TOOL_ICONS } from "../../../config/icons";
+import { AI_TOOL_ICONS, BranchAiChatIcon } from "../../../config/icons";
 import { MessageContentDto } from "../../../api/aiIntegration/dto/messageDto";
 import { DisplayMessage } from "../utils/buildDisplayMessages";
 import AiMarkdown from "./AiMarkdown";
 import ToolApprovalCard, { OnToolApprovalResolved } from "./ToolApprovalCard";
 import DisclosureCaret from "../../../components/DisclosureCaret/DisclosureCaret";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import { useIsCoarsePointer } from "../../../hooks/useIsCoarsePointer";
+import { useMotionDuration } from "../../../hooks/useMotionDuration";
+import { MOTION_EASING } from "../../../config/motion";
 
 interface MessageBubbleProps {
 	id: string;
@@ -33,6 +45,8 @@ interface MessageBubbleProps {
 	contextSnippets?: string[];
 	approval?: DisplayMessage["approval"];
 	onToolApprovalResolved?: OnToolApprovalResolved;
+	/** Copies the chat up to and including this message into a new chat; omitted while it can't be branched. */
+	onBranch?: () => void;
 }
 
 function toolLabel(toolName: string | undefined, done: boolean): string {
@@ -87,6 +101,84 @@ function ContextSnippets({ id, snippets }: { id: string; snippets: string[] }) {
 	);
 }
 
+function CopyMessageButton({ text }: { text: string }) {
+	return (
+		<CopyButton value={text}>
+			{({ copied, copy }) => (
+				<AppTooltip label={copied ? "Copied" : "Copy message"}>
+					<ActionIcon
+						variant="transparent"
+						color="gray"
+						size="sm"
+						onClick={copy}
+						aria-label="Copy message">
+						{copied ? (
+							<CheckIcon size={16} />
+						) : (
+							<CopyIcon size={16} />
+						)}
+					</ActionIcon>
+				</AppTooltip>
+			)}
+		</CopyButton>
+	);
+}
+
+interface MessageWithActionsProps {
+	align: "flex-start" | "flex-end";
+	text: string;
+	showActions?: boolean;
+	onBranch?: () => void;
+	style?: CSSProperties;
+	children: ReactNode;
+}
+
+// The actions show on hover or keyboard focus, and always on touch, which can't hover.
+function MessageWithActions({
+	align,
+	text,
+	showActions = true,
+	onBranch,
+	style,
+	children,
+}: MessageWithActionsProps) {
+	const { hovered, ref: hoverRef } = useHover<HTMLDivElement>();
+	const { focused, ref: focusRef } = useFocusWithin<HTMLDivElement>();
+	const ref = useMergedRef(hoverRef, focusRef);
+	const isCoarsePointer = useIsCoarsePointer();
+	const duration = useMotionDuration();
+	const visible = hovered || focused || isCoarsePointer;
+
+	return (
+		<Stack ref={ref} align={align} gap={2} style={style}>
+			{children}
+			{showActions && (
+				<Group
+					gap={2}
+					wrap="nowrap"
+					style={{
+						opacity: visible ? 1 : 0,
+						transition: `opacity ${duration}ms ${MOTION_EASING}`,
+					}}>
+					<CopyMessageButton text={text} />
+					{onBranch && (
+						<AppTooltip label="Branch in new chat">
+							<ActionIcon
+								variant="transparent"
+								color="gray"
+								size="sm"
+								onClick={onBranch}
+								aria-label="Branch in new chat">
+								<BranchAiChatIcon size={16} />
+							</ActionIcon>
+						</AppTooltip>
+					)}
+				</Group>
+			)}
+		</Stack>
+	);
+}
+
 function MessageBubble({
 	id,
 	content,
@@ -95,10 +187,14 @@ function MessageBubble({
 	contextSnippets,
 	approval,
 	onToolApprovalResolved,
+	onBranch,
 }: MessageBubbleProps) {
 	if (content.type === "human") {
 		return (
-			<Group justify="flex-end">
+			<MessageWithActions
+				align="flex-end"
+				text={content.value}
+				onBranch={onBranch}>
 				<Paper
 					withBorder
 					radius="md"
@@ -118,7 +214,7 @@ function MessageBubble({
 						</Text>
 					</Stack>
 				</Paper>
-			</Group>
+			</MessageWithActions>
 		);
 	}
 
@@ -134,7 +230,12 @@ function MessageBubble({
 		}
 
 		return (
-			<Group justify="flex-start" wrap="nowrap" style={{ minWidth: 0 }}>
+			<MessageWithActions
+				align="flex-start"
+				text={content.value}
+				showActions={!isStreaming}
+				onBranch={onBranch}
+				style={{ minWidth: 0 }}>
 				<Paper
 					withBorder
 					radius="md"
@@ -148,7 +249,7 @@ function MessageBubble({
 						</Group>
 					)}
 				</Paper>
-			</Group>
+			</MessageWithActions>
 		);
 	}
 

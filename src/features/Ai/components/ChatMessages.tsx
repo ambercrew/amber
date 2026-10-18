@@ -9,12 +9,15 @@ interface ChatMessagesProps {
 	chatId: string | null;
 	messages: DisplayMessage[];
 	onToolApprovalResolved?: OnToolApprovalResolved;
+	/** Branches the chat at a message into a new chat; omitted while messages aren't all saved yet. */
+	onBranchMessage?: (messageId: string) => void;
 }
 
 function ChatMessages({
 	chatId,
 	messages,
 	onToolApprovalResolved,
+	onBranchMessage,
 }: ChatMessagesProps) {
 	const { scrollRef, contentRef, scrollToBottom } = useStickToBottom({
 		initial: "instant",
@@ -53,6 +56,10 @@ function ChatMessages({
 						contextSnippets={message.contextSnippets}
 						approval={message.approval}
 						onToolApprovalResolved={onToolApprovalResolved}
+						onBranch={
+							onBranchMessage &&
+							(() => onBranchMessage(message.id))
+						}
 					/>
 				))}
 			</Stack>

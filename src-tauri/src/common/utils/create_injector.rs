@@ -8,6 +8,8 @@ use crate::ai_integration::ai_state::AiState;
 use crate::ai_integration::repositories::ai_prompt_repository::AiPromptRepository;
 use crate::ai_integration::repositories::ai_repository::AiRepository;
 use crate::ai_integration::services::ai_prompt_service::AiPromptService;
+use crate::ai_integration::services::chat_brancher::ChatBrancher;
+use crate::ai_integration::services::implementations::default_chat_brancher::DefaultChatBrancher;
 use crate::ai_integration::services::implementations::default_ai_prompt_service::DefaultAiPromptService;
 use crate::ai_integration::services::agent_provider::AgentProvider;
 use crate::ai_integration::services::ai_client_provider::AiClientProvider;
@@ -434,6 +436,7 @@ pub async fn create_injector<R: tauri::Runtime>(
     register_scope!(injector, dyn AiPromptService, DefaultAiPromptService);
     register_scope!(injector, dyn AiClientProvider, DefaultAiClientProvider);
     register_scope!(injector, dyn ChatCreator, DefaultChatCreator);
+    register_scope!(injector, dyn ChatBrancher, DefaultChatBrancher);
     register_scope!(injector, dyn AgentProvider, DefaultAgentProvider);
     register_scope!(injector, dyn AiStreamer, DefaultAiStreamer);
     register_scope!(injector, dyn ToolsProvider, DefaultToolsProvider);
