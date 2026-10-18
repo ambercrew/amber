@@ -6,6 +6,11 @@ import ImageOcclusionEditor, {
 	OcclusionEditorTarget,
 } from "./ImageOcclusionEditor";
 import { smallScreenQuery } from "../../../hooks/useIsSmallScreen";
+import {
+	SAFE_AREA_BOTTOM,
+	SAFE_AREA_TOP,
+	safeAreaVerticalStyle,
+} from "../../../utils/safeArea";
 
 interface ResponsiveOcclusionEditorProps {
 	modalId: string;
@@ -31,14 +36,26 @@ export default function ResponsiveOcclusionEditor({
 	);
 
 	// Before paint, so a small screen never sees the inset modal flash first.
+	// Full screen, it clears the status and gesture bars on mobile, as `AppModal` does.
 	useLayoutEffect(() => {
-		modals.updateModal({ modalId, fullScreen });
+		modals.updateModal({
+			modalId,
+			fullScreen,
+			styles: {
+				content: fullScreen ? safeAreaVerticalStyle() : undefined,
+			},
+		});
 	}, [modalId, fullScreen]);
 
 	return (
 		<ImageOcclusionEditor
 			target={target}
-			height={fullScreen ? "100dvh" : `calc(100dvh - 2 * ${margin})`}
+			// The insets are 0 on desktop, where no padding is added.
+			height={
+				fullScreen
+					? `calc(100dvh - ${SAFE_AREA_TOP} - ${SAFE_AREA_BOTTOM})`
+					: `calc(100dvh - 2 * ${margin})`
+			}
 			onSaved={onSaved}
 			onClose={() => modals.close(modalId)}
 		/>
