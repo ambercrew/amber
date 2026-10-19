@@ -2,6 +2,7 @@ import { sanitizeHtml } from "../../../utils/sanitizeHtml";
 import { assetIdFromSrc, toCanonicalImageSrc } from "../../../utils/assetUrl";
 import { localizeImages } from "../images/localize";
 import { convertMath } from "./convertMath";
+import { convertInlineSvgs } from "../images/svg";
 
 export interface NormalizeOptions {
 	/** Used to resolve relative image URLs and as the Referer header when
@@ -9,7 +10,7 @@ export interface NormalizeOptions {
 	baseUrl: string | null;
 }
 
-/** Converts math to equations, sanitizes HTML, and localizes its images. The result is stored directly as
+/** Converts math to equations and inline SVGs to images, sanitizes HTML, and localizes its images. The result is stored directly as
  * a LearningAsset's content — the editor already knows how to load HTML. */
 export async function normalize(
 	html: string,
@@ -17,7 +18,9 @@ export async function normalize(
 ): Promise<string> {
 	const parser = new DOMParser();
 	const raw = parser.parseFromString(html, "text/html");
+	// After math, so rendered math's SVGs become equations rather than images.
 	convertMath(raw);
+	convertInlineSvgs(raw);
 	const sanitized = sanitizeHtml(raw.body.innerHTML);
 	const doc = parser.parseFromString(sanitized, "text/html");
 	const images = Array.from(doc.querySelectorAll("img[src]"));
