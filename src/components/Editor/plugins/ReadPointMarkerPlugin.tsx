@@ -14,8 +14,9 @@ interface ReadPointMarkerPluginProps {
  * Marks the reader's saved position beside a block in this split. Positioned
  * against the editor's own `position: relative` anchor (`root.parentElement`,
  * see `Editor.module.css`'s `.anchor`), so it needs no coordinates from
- * outside this editor instance — it re-measures on every editor update
- * (edits, reflow within this split) and on window resize.
+ * outside this editor instance — it re-measures on every editor update and
+ * whenever the content resizes (window resize, images or equations above it
+ * finishing rendering after mount).
  *
  * `blockIndex` only locates the block the first time it's seen; after that
  * the block's own Lexical node key is used, so the marker stays on that
@@ -74,11 +75,16 @@ export default function ReadPointMarkerPlugin({
 		// synchronously here would place the marker at a stale position.
 		const raf = requestAnimationFrame(measure);
 		const unregisterUpdate = editor.registerUpdateListener(measure);
-		window.addEventListener("resize", measure);
+		const root = editor.getRootElement();
+		const resizeObserver =
+			typeof ResizeObserver === "undefined"
+				? null
+				: new ResizeObserver(measure);
+		if (root) resizeObserver?.observe(root);
 		return () => {
 			cancelAnimationFrame(raf);
 			unregisterUpdate();
-			window.removeEventListener("resize", measure);
+			resizeObserver?.disconnect();
 		};
 	}, [editor, blockIndex]);
 
