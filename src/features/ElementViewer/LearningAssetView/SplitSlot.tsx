@@ -64,9 +64,8 @@ export default function SplitSlot({
 	const [content, setContent] = useState<string | null>(null);
 	const contentElementRef = useRef<HTMLDivElement | null>(null);
 
-	// Fetches once, the first time this slot enters the mount window. Kept on
-	// later re-mounts instead of re-fetching, since local edits are already
-	// persisted.
+	// Fetches once, the first time this slot enters the mount window. Later
+	// re-mounts reuse it, so `handleChange` keeps it current with local edits.
 	useEffect(() => {
 		if (!mounted || content !== null) return;
 		let cancelled = false;
@@ -99,6 +98,8 @@ export default function SplitSlot({
 
 	const handleChange = useCallback(
 		async (updated: string) => {
+			// Without this, scrolling back re-mounts the editor with pre-edit content.
+			setContent(updated);
 			await updateLearningAsset({
 				splitId: { learningAssetId, seq },
 				content: updated,
