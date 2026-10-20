@@ -3,8 +3,8 @@ import {
 	Button,
 	Divider,
 	Group,
-	SegmentedControl,
 	Stack,
+	Tabs,
 	Text,
 	TextInput,
 } from "@mantine/core";
@@ -96,8 +96,6 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 
 	const optimization = useFsrsOptimization(form, profile?.id ?? null);
 
-	const description = TABS.find(entry => entry.value === tab)?.description;
-
 	async function handleSubmit(values: ProfileFormValues) {
 		const payload = toRequestDto(values);
 		if (profile) {
@@ -169,28 +167,39 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 					{...form.getInputProps("name")}
 				/>
 
-				<SegmentedControl
-					fullWidth
+				<Tabs
 					value={tab}
-					onChange={value => setTab(value as TabValue)}
-					data={TABS.map(({ value, label }) => ({ value, label }))}
-				/>
+					onChange={value => value && setTab(value as TabValue)}>
+					<Tabs.List grow>
+						{TABS.map(({ value, label }) => (
+							<Tabs.Tab key={value} value={value}>
+								{label}
+							</Tabs.Tab>
+						))}
+					</Tabs.List>
 
-				<Stack gap="sm">
-					<Text size="sm" c="dimmed">
-						{description}
-					</Text>
-					{tab === "cards" && (
-						<CardsTab
-							form={form}
-							optimization={profile ? optimization : null}
-						/>
-					)}
-					{tab === "learningAssets" && (
-						<LearningAssetsAndExtractsTab form={form} />
-					)}
-					{tab === "queue" && <QueueTab form={form} />}
-				</Stack>
+					{TABS.map(({ value, description }) => (
+						<Tabs.Panel key={value} value={value} pt="sm">
+							<Stack gap="sm">
+								<Text size="sm" c="dimmed">
+									{description}
+								</Text>
+								{value === "cards" && (
+									<CardsTab
+										form={form}
+										optimization={
+											profile ? optimization : null
+										}
+									/>
+								)}
+								{value === "learningAssets" && (
+									<LearningAssetsAndExtractsTab form={form} />
+								)}
+								{value === "queue" && <QueueTab form={form} />}
+							</Stack>
+						</Tabs.Panel>
+					))}
+				</Tabs>
 
 				<Divider mt="auto" />
 
