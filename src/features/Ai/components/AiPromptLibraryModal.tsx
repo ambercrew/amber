@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
 	ActionIcon,
 	Alert,
+	Box,
 	Button,
 	Group,
 	Paper,
@@ -33,6 +34,11 @@ import {
 	NEXT_PROMPT_PLACEHOLDER_SHORTCUT,
 	PREVIOUS_PROMPT_PLACEHOLDER_SHORTCUT,
 } from "../../../config/shortcuts";
+import { VIEW_TRANSITION_DURATION_MS } from "../../../config/motion";
+import { useViewReveal } from "../../../hooks/useViewReveal";
+
+// How far the list and the form slide as they swap.
+const VIEW_OFFSET_IN_PX = 16;
 
 // The descriptions are full sentences, too long for Mantine's small, tight default.
 const FIELD_STYLES = {
@@ -94,6 +100,12 @@ function AiPromptLibraryModal() {
 		if (opened) void load();
 	}, [opened, load]);
 
+	// The form comes in from the right, and going back brings the list in from the left.
+	const viewStyle = useViewReveal(draft ? "form" : "list", {
+		offsetX: draft ? VIEW_OFFSET_IN_PX : -VIEW_OFFSET_IN_PX,
+		durationMs: VIEW_TRANSITION_DURATION_MS,
+	});
+
 	function startEditing(prompt: AiPromptDto | null) {
 		clearErrorMessage();
 		setDraft({
@@ -141,125 +153,136 @@ function AiPromptLibraryModal() {
 					</Alert>
 				)}
 
-				{draft ? (
-					<Stack gap="sm">
-						<TextInput
-							label="Name"
-							styles={FIELD_STYLES}
-							description="Type / and part of the name in the chat to insert the prompt."
-							placeholder="e.g. Quiz me"
-							autoFocus
-							value={draft.name}
-							onChange={e =>
-								setDraft({
-									...draft,
-									name: e.currentTarget.value,
-								})
-							}
-						/>
-						<Textarea
-							label="Prompt"
-							styles={FIELD_STYLES}
-							description={`Put parts to fill in each time in braces, like {topic}. Inserting the prompt selects the first one${
-								nextPlaceholderKey && previousPlaceholderKey
-									? `, and ${nextPlaceholderKey} and ${previousPlaceholderKey} move between them`
-									: ""
-							}.`}
-							placeholder="e.g. Ask me questions about {topic} one at a time, and tell me what I got wrong."
-							autosize
-							minRows={4}
-							maxRows={12}
-							value={draft.content}
-							onChange={e =>
-								setDraft({
-									...draft,
-									content: e.currentTarget.value,
-								})
-							}
-						/>
-						<Group justify="flex-end" gap="xs">
-							<Button
-								variant="default"
-								onClick={() => setDraft(null)}>
-								Cancel
-							</Button>
-							<Button
-								disabled={!canSave}
-								loading={isSendingRequest}
-								onClick={() => void handleSave()}>
-								Save
-							</Button>
-						</Group>
-					</Stack>
-				) : (
-					<Stack gap="sm">
-						<Group justify="space-between" wrap="nowrap">
-							<Text size="sm" c="dimmed">
-								Type / in the chat to insert one of these
-								prompts.
-							</Text>
-							<Button
-								size="xs"
-								leftSection={<PlusIcon size={14} />}
-								data-autofocus
-								onClick={() => startEditing(null)}>
-								New prompt
-							</Button>
-						</Group>
+				{/* Clips the slide sideways so it doesn't flash a scrollbar; the gutter keeps focus rings visible. */}
+				<Box mx={-4} px={4} style={{ overflowX: "clip" }}>
+					{draft ? (
+						<Stack gap="sm" style={viewStyle}>
+							<TextInput
+								label="Name"
+								styles={FIELD_STYLES}
+								description="Type / and part of the name in the chat to insert the prompt."
+								placeholder="e.g. Quiz me"
+								autoFocus
+								value={draft.name}
+								onChange={e =>
+									setDraft({
+										...draft,
+										name: e.currentTarget.value,
+									})
+								}
+							/>
+							<Textarea
+								label="Prompt"
+								styles={FIELD_STYLES}
+								description={`Put parts to fill in each time in braces, like {topic}. Inserting the prompt selects the first one${
+									nextPlaceholderKey && previousPlaceholderKey
+										? `, and ${nextPlaceholderKey} and ${previousPlaceholderKey} move between them`
+										: ""
+								}.`}
+								placeholder="e.g. Ask me questions about {topic} one at a time, and tell me what I got wrong."
+								autosize
+								minRows={4}
+								maxRows={12}
+								value={draft.content}
+								onChange={e =>
+									setDraft({
+										...draft,
+										content: e.currentTarget.value,
+									})
+								}
+							/>
+							<Group justify="flex-end" gap="xs">
+								<Button
+									variant="default"
+									onClick={() => setDraft(null)}>
+									Cancel
+								</Button>
+								<Button
+									disabled={!canSave}
+									loading={isSendingRequest}
+									onClick={() => void handleSave()}>
+									Save
+								</Button>
+							</Group>
+						</Stack>
+					) : (
+						<Stack gap="sm" style={viewStyle}>
+							<Group justify="space-between" wrap="nowrap">
+								<Text size="sm" c="dimmed">
+									Type / in the chat to insert one of these
+									prompts.
+								</Text>
+								<Button
+									size="xs"
+									leftSection={<PlusIcon size={14} />}
+									data-autofocus
+									onClick={() => startEditing(null)}>
+									New prompt
+								</Button>
+							</Group>
 
-						{prompts.length === 0 && (
-							<Text size="sm" c="dimmed" ta="center" py="lg">
-								No saved prompts yet.
-							</Text>
-						)}
+							{prompts.length === 0 && (
+								<Text size="sm" c="dimmed" ta="center" py="lg">
+									No saved prompts yet.
+								</Text>
+							)}
 
-						{prompts.map(prompt => (
-							<Paper key={prompt.id} withBorder p="sm">
-								<Group
-									justify="space-between"
-									align="flex-start"
-									wrap="nowrap">
-									<Stack gap={2} style={{ minWidth: 0 }}>
-										<Text fw={500} truncate>
-											{prompt.name}
-										</Text>
-										<Text
-											size="sm"
-											c="dimmed"
-											lineClamp={2}
-											style={{ whiteSpace: "pre-wrap" }}>
-											{prompt.content}
-										</Text>
-									</Stack>
-									<Group gap={4} wrap="nowrap">
-										<AppTooltip label="Edit prompt">
-											<ActionIcon
-												variant="subtle"
-												aria-label={`Edit ${prompt.name}`}
-												onClick={() =>
-													startEditing(prompt)
-												}>
-												<PencilSimpleIcon size={16} />
-											</ActionIcon>
-										</AppTooltip>
-										<AppTooltip label="Delete prompt">
-											<ActionIcon
-												variant="subtle"
-												color="red"
-												aria-label={`Delete ${prompt.name}`}
-												onClick={() => {
-													setDeletingPrompt(prompt);
-													setIsConfirmingDelete(true);
+							{prompts.map(prompt => (
+								<Paper key={prompt.id} withBorder p="sm">
+									<Group
+										justify="space-between"
+										align="flex-start"
+										wrap="nowrap">
+										<Stack gap={2} style={{ minWidth: 0 }}>
+											<Text fw={500} truncate>
+												{prompt.name}
+											</Text>
+											<Text
+												size="sm"
+												c="dimmed"
+												lineClamp={2}
+												style={{
+													whiteSpace: "pre-wrap",
 												}}>
-												<TrashIcon size={16} />
-											</ActionIcon>
-										</AppTooltip>
+												{prompt.content}
+											</Text>
+										</Stack>
+										<Group gap={4} wrap="nowrap">
+											<AppTooltip label="Edit prompt">
+												<ActionIcon
+													variant="subtle"
+													aria-label={`Edit ${prompt.name}`}
+													onClick={() =>
+														startEditing(prompt)
+													}>
+													<PencilSimpleIcon
+														size={16}
+													/>
+												</ActionIcon>
+											</AppTooltip>
+											<AppTooltip label="Delete prompt">
+												<ActionIcon
+													variant="subtle"
+													color="red"
+													aria-label={`Delete ${prompt.name}`}
+													onClick={() => {
+														setDeletingPrompt(
+															prompt,
+														);
+														setIsConfirmingDelete(
+															true,
+														);
+													}}>
+													<TrashIcon size={16} />
+												</ActionIcon>
+											</AppTooltip>
+										</Group>
 									</Group>
-								</Group>
-							</Paper>
-						))}
-					</Stack>
-				)}
+								</Paper>
+							))}
+						</Stack>
+					)}
+				</Box>
 			</AppModal>
 
 			<ConfirmModal
