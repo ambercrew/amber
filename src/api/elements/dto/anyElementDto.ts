@@ -1,5 +1,5 @@
 import { ElementId } from "../../../types/elements/elementId";
-import { ReadPoint } from "../../../types/elements/readPoint";
+import { ReadingPosition } from "../../../types/elements/readingPosition";
 import { Tag } from "../../../types/elements/tag";
 
 export interface MetaResponseDto {
@@ -23,7 +23,7 @@ export type LearningAssetType = "pdf" | "extracted";
 export interface LearningAssetResponseDto {
 	meta: MetaResponseDto;
 	type: LearningAssetType;
-	readPoint: ReadPoint;
+	readPoint: ReadingPosition;
 	intervalMultiplier: number;
 }
 

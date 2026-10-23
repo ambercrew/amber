@@ -92,6 +92,8 @@ function modifiersMatch(shortcut: ParsedShortcut, event: KeyboardEvent) {
 export function matchesShortcut(shortcut: string, event: KeyboardEvent) {
 	const parsed = parseShortcut(shortcut);
 	if (!parsed.key || !modifiersMatch(parsed, event)) return false;
+	// Alt with a numpad key types an Alt code on Windows, so it's never a shortcut.
+	if (event.altKey && event.code?.startsWith("Numpad")) return false;
 
 	const expected = normalizeKey(parsed.key);
 	if (event.key && normalizeKey(event.key) === expected) return true;

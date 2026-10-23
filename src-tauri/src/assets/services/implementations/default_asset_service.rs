@@ -14,6 +14,7 @@ use crate::assets::utils::asset_src::{
 use crate::assets::value_objects::asset_document::AssetDocument;
 use crate::assets::value_objects::asset_id::AssetId;
 use crate::common::repository_error::RepositoryError;
+use crate::elements::entities::learning_asset_split::LearningAssetSplit;
 use crate::elements::repositories::card_repository::CardRepository;
 use crate::elements::repositories::extract_repository::ExtractRepository;
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
@@ -115,7 +116,10 @@ impl AssetService for DefaultAssetService {
                 let migrated = self.ingest_content(content.clone()).await?;
                 if migrated != content {
                     self.learning_asset_repository
-                        .update_content(split_id, migrated)
+                        .update_content(
+                            split_id.learning_asset_id,
+                            LearningAssetSplit::new(split_id.seq, migrated),
+                        )
                         .await?;
                 }
             }

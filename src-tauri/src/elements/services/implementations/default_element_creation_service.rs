@@ -1,4 +1,4 @@
-use crate::elements::value_objects::read_point::ReadPoint;
+use crate::elements::value_objects::reading_position::ReadingPosition;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -17,9 +17,8 @@ use crate::elements::dto::create_learning_asset_dto::CreateLearningAssetDto;
 use crate::elements::entities::card::Card;
 use crate::elements::entities::extract::Extract;
 use crate::elements::entities::folder::Folder;
-use crate::elements::entities::learning_asset::{
-    LearningAsset, LearningAssetContent, LearningAssetSplit, LearningAssetType,
-};
+use crate::elements::entities::learning_asset::LearningAsset;
+use crate::elements::entities::learning_asset_split::LearningAssetSplit;
 use crate::elements::events::element_created_event::{
     ELEMENT_CREATED_EVENT, ElementCreatedEventDto,
 };
@@ -34,6 +33,8 @@ use crate::elements::services::element_creation_service::{
 use crate::elements::services::element_index_service::ElementIndexService;
 use crate::elements::services::priority_service::PriorityService;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::elements::value_objects::learning_asset_content::LearningAssetContent;
+use crate::elements::value_objects::learning_asset_type::LearningAssetType;
 use crate::elements::value_objects::meta::Meta;
 use crate::elements::value_objects::origin::Origin;
 use crate::study::entities::card_review::CardReview;
@@ -138,7 +139,7 @@ impl ElementCreationService for DefaultElementCreationService {
                 created_at: now,
                 modified_at: now,
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
             interval_multiplier: profile.initial_interval_multiplier,
         };
         let content = match dto.r#type {
@@ -157,10 +158,10 @@ impl ElementCreationService for DefaultElementCreationService {
             LearningAssetType::Extracted => {
                 let mut splits = Vec::with_capacity(dto.splits.len());
                 for (seq, content) in dto.splits.into_iter().enumerate() {
-                    splits.push(LearningAssetSplit {
-                        seq: seq as u32,
-                        content: self.asset_service.ingest_content(content).await?,
-                    });
+                    splits.push(LearningAssetSplit::new(
+                        seq as u32,
+                        self.asset_service.ingest_content(content).await?,
+                    ));
                 }
                 LearningAssetContent::Extracted(splits)
             }

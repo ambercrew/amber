@@ -3,7 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReadPoint } from "../../../../features/ElementViewer/LearningAssetView/useReadPoint";
 import { AUTO_SAVE_DELAY_IN_MILLISECONDS } from "../../../../config/constants";
-import { ReadPoint } from "../../../../types/elements/readPoint";
+import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { READ_POINT_MANUAL_SET_REQUESTED } from "../../../../types/events/readPointManualSetRequestedEvent";
 import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../../../../types/events/readPointManualClearRequestedEvent";
 import { MainScrollContext } from "../../../../features/App/context/mainScrollContext";
@@ -83,11 +83,11 @@ function makeScrollElement(): HTMLElement {
 function renderReadPoint(overrides: {
 	root: HTMLElement | undefined;
 	primarySeq: number;
-	initial: ReadPoint;
+	initial: ReadingPosition;
 	restoredRef: { current: boolean };
 	learningAssetId?: string;
 	lastSplitSeq?: number;
-	onReadPointChange?: (readPoint: ReadPoint) => void;
+	onReadPointChange?: (readPoint: ReadingPosition) => void;
 }) {
 	const {
 		root,
@@ -487,6 +487,69 @@ describe("useReadPoint", () => {
 		});
 	});
 
+	it("Should persist the right-clicked block over the cursor when a manual set is requested from the open menu", async () => {
+		// Arrange
+
+		const root = makeRoot(5);
+		const restoredRef = { current: true };
+		const { result } = renderReadPoint({
+			root,
+			primarySeq: 4,
+			initial: { split: 4, block: 0 },
+			restoredRef,
+		});
+		act(() => {
+			result.current.trackCursor(4, 3);
+			result.current.setMenuAnchor({ split: 4, block: 1 });
+		});
+
+		// Act
+
+		await act(async () => {
+			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
+			await vi.runAllTimersAsync();
+		});
+
+		// Assert
+
+		expect(updateReadPointMock).toHaveBeenCalledWith({
+			learningAssetId: "r1",
+			readPoint: { split: 4, block: 1 },
+		});
+	});
+
+	it("Should persist the cursor position when a manual set is requested after the menu closed", async () => {
+		// Arrange
+
+		const root = makeRoot(5);
+		const restoredRef = { current: true };
+		const { result } = renderReadPoint({
+			root,
+			primarySeq: 4,
+			initial: { split: 4, block: 0 },
+			restoredRef,
+		});
+		act(() => {
+			result.current.trackCursor(4, 3);
+			result.current.setMenuAnchor({ split: 4, block: 1 });
+			result.current.setMenuAnchor(null);
+		});
+
+		// Act
+
+		await act(async () => {
+			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
+			await vi.runAllTimersAsync();
+		});
+
+		// Assert
+
+		expect(updateReadPointMock).toHaveBeenCalledWith({
+			learningAssetId: "r1",
+			readPoint: { split: 4, block: 3 },
+		});
+	});
+
 	it("Should fall back to the top visible block when a manual set is requested and no cursor has been tracked yet", async () => {
 		// Arrange
 
@@ -609,52 +672,6 @@ describe("useReadPoint", () => {
 			learningAssetId: "r1",
 			readPoint: { split: 0, block: 0 },
 		});
-	});
-
-	it("Should return the initial read point from getCurrentReadPoint before anything is recorded", () => {
-		// Arrange
-
-		const root = makeRoot(5);
-		const restoredRef = { current: true };
-		const { result } = renderReadPoint({
-			root,
-			primarySeq: 4,
-			initial: { split: 4, block: 3 },
-			restoredRef,
-		});
-
-		// Act
-
-		const actual = result.current.getCurrentReadPoint();
-
-		// Assert
-
-		expect(actual).toEqual({ split: 4, block: 3 });
-	});
-
-	it("Should reflect the latest recorded read point from getCurrentReadPoint", async () => {
-		// Arrange
-
-		const root = makeRoot(5);
-		const restoredRef = { current: true };
-		const { result } = renderReadPoint({
-			root,
-			primarySeq: 4,
-			initial: { split: 4, block: 0 },
-			restoredRef,
-		});
-
-		// Act
-
-		await act(async () => {
-			result.current.recordExtractReadPoint(4, 3);
-			await vi.runAllTimersAsync();
-		});
-		const actual = result.current.getCurrentReadPoint();
-
-		// Assert
-
-		expect(actual).toEqual({ split: 4, block: 3 });
 	});
 
 	it("Should call onReadPointChange with the new read point when a manual set is requested", async () => {

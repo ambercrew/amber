@@ -9,6 +9,11 @@ import { UpdateExtractDto } from "../../../types/elements/updateExtractDto";
 import { UpdateLearningAssetDto } from "../../../types/elements/updateLearningAssetDto";
 import { UpdatePdfHighlightsDto } from "../../../types/elements/updatePdfHighlightsDto";
 import { UpdateReadPointDto } from "../../../types/elements/updateReadPointDto";
+import {
+	ClearLearningAssetMarkDto,
+	LearningAssetMark,
+	SetLearningAssetMarkDto,
+} from "../../../types/elements/learningAssetMark";
 import { PdfHighlightsDto } from "../../../types/elements/pdfHighlightsDto";
 import { LearningAssetSplitIdDto } from "../../../types/elements/learningAssetSplitIdDto";
 import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAssetSplitMetaDto";
@@ -74,6 +79,24 @@ export function getLearningAssetSplitTexts(
 
 export function updateReadPoint(dto: UpdateReadPointDto): Promise<void> {
 	return invoke("update_read_point", { dto });
+}
+
+export function getLearningAssetMarks(
+	learningAssetId: string,
+): Promise<LearningAssetMark[]> {
+	return invoke("get_learning_asset_marks", { learningAssetId });
+}
+
+export function setLearningAssetMark(
+	dto: SetLearningAssetMarkDto,
+): Promise<void> {
+	return invoke("set_learning_asset_mark", { dto });
+}
+
+export function clearLearningAssetMark(
+	dto: ClearLearningAssetMarkDto,
+): Promise<void> {
+	return invoke("clear_learning_asset_mark", { dto });
 }
 
 export function getPdfBytes(

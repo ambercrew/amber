@@ -1,4 +1,6 @@
 import {
+	ArrowRightIcon,
+	BookmarkSimpleIcon,
 	BookOpenIcon,
 	BooksIcon,
 	BoundingBoxIcon,
@@ -50,6 +52,11 @@ export const StudyProfilePropertyIcon = GraduationCapIcon;
 export const DuePropertyIcon = CalendarIcon;
 export const PriorityPropertyIcon = TrendUpIcon;
 export const BibliographicalSourcePropertyIcon = BookOpenIcon;
+
+// Read point and marks in a learning asset's reading view.
+export const ReadPointIcon = BookmarkSimpleIcon;
+export const SetMarkIcon = BookmarkSimpleIcon;
+export const GoToMarkIcon = ArrowRightIcon;
 
 // AI
 /** The AI itself: its panel, its settings and what's handed to it. */

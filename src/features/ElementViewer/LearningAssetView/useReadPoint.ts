@@ -4,7 +4,7 @@ import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "./learningAssetViewCon
 import useAutoSave from "../hooks/useAutoSave";
 import useApi from "../../../hooks/useApi";
 import { updateReadPoint } from "../../../api/elements/api/elementsApi";
-import { ReadPoint } from "../../../types/elements/readPoint";
+import { ReadingPosition } from "../../../types/elements/readingPosition";
 import { READ_POINT_MANUAL_SET_REQUESTED } from "../../../types/events/readPointManualSetRequestedEvent";
 import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../../../types/events/readPointManualClearRequestedEvent";
 import { useMainScrollElement } from "../../App/context/mainScrollContext";
@@ -14,7 +14,7 @@ interface Props {
 	/** seq of the split currently at the top of the viewport. */
 	primarySeq: number;
 	/** Read point to restore to on open. */
-	initial: ReadPoint;
+	initial: ReadingPosition;
 	/** The editable root of the mounted split `seq`, whose children are its blocks. */
 	getContentRoot: (seq: number) => HTMLElement | undefined;
 	/**
@@ -36,7 +36,7 @@ interface Props {
 	 * extract/cloze creation — only a manual placement should move the
 	 * on-screen marker.
 	 */
-	onReadPointChange?: (readPoint: ReadPoint) => void;
+	onReadPointChange?: (readPoint: ReadingPosition) => void;
 }
 
 interface ReturnValue {
@@ -51,12 +51,18 @@ interface ReturnValue {
 	 * (e.g. to the command palette's search field).
 	 */
 	trackCursor: (seq: number, block: number) => void;
-	/** The read point as last recorded, regardless of which mechanism set it. */
-	getCurrentReadPoint: () => ReadPoint;
+	/** The last known caret position, or `null` before the caret has been in any split. */
+	getLastCursor: () => ReadingPosition | null;
+	/** Records the block right-clicked to open the context menu, or `null` once it closes. */
+	setMenuAnchor: (anchor: ReadingPosition | null) => void;
+	/** The block the open context menu was opened on, which its "set here" actions target. */
+	getMenuAnchor: () => ReadingPosition | null;
+	/** The block at the top of the viewport, or `null` while the primary split isn't mounted. */
+	getTopVisibleAnchor: () => ReadingPosition | null;
 }
 
 /** The sentinel value meaning "no read point" — also a learning asset's state before it has ever had one saved. */
-export const NO_READ_POINT: ReadPoint = { split: 0, block: 0 };
+export const NO_READ_POINT: ReadingPosition = { split: 0, block: 0 };
 
 /** Index of the first block whose bottom edge is still below the viewport top. */
 function topVisibleBlockIndex(root: HTMLElement, topOffset: number): number {
@@ -99,7 +105,7 @@ export function useReadPoint({
 	restoredRef,
 	onReadPointChange,
 }: Props): ReturnValue {
-	const lastSavedRef = useRef<ReadPoint>({
+	const lastSavedRef = useRef<ReadingPosition>({
 		split: initial.split,
 		block: initial.block,
 	});
@@ -111,10 +117,16 @@ export function useReadPoint({
 
 	// Last known caret position, kept valid even after focus moves elsewhere
 	// (e.g. the command palette), unlike learning asset live DOM selection.
-	const lastCursorRef = useRef<ReadPoint | null>(null);
+	const lastCursorRef = useRef<ReadingPosition | null>(null);
 	const trackCursor = useCallback((seq: number, block: number) => {
 		lastCursorRef.current = { split: seq, block };
 	}, []);
+
+	const menuAnchorRef = useRef<ReadingPosition | null>(null);
+	const setMenuAnchor = useCallback((anchor: ReadingPosition | null) => {
+		menuAnchorRef.current = anchor;
+	}, []);
+	const getMenuAnchor = useCallback(() => menuAnchorRef.current, []);
 
 	// Tracks which mechanism currently owns the read point for this opening.
 	// Higher-priority placements block lower-priority ones from overwriting
@@ -126,7 +138,7 @@ export function useReadPoint({
 	const { callApi } = useApi();
 	const handleSave = useCallback(
 		async (content: string) => {
-			const readPoint = JSON.parse(content) as ReadPoint;
+			const readPoint = JSON.parse(content) as ReadingPosition;
 			const last = lastSavedRef.current;
 			if (
 				last.split === readPoint.split &&
@@ -144,7 +156,7 @@ export function useReadPoint({
 	// Captured eagerly rather than read at flush time: split editors tear
 	// down before flush runs, so a deferred DOM read would find no root.
 	const persistReadPoint = useCallback(
-		(readPoint: ReadPoint) => {
+		(readPoint: ReadingPosition) => {
 			onContentUpdate(() => JSON.stringify(readPoint));
 		},
 		[onContentUpdate],
@@ -155,7 +167,7 @@ export function useReadPoint({
 	// extract/cloze creation persist the read point but leave the marker
 	// where the reader last placed it manually.
 	const placeReadPoint = useCallback(
-		(readPoint: ReadPoint) => {
+		(readPoint: ReadingPosition) => {
 			persistReadPoint(readPoint);
 			onReadPointChange?.(readPoint);
 		},
@@ -223,23 +235,28 @@ export function useReadPoint({
 		[persistReadPoint],
 	);
 
-	const recordManualReadPoint = useCallback(() => {
-		precedenceRef.current = "manual";
-		if (lastCursorRef.current) {
-			placeReadPoint(lastCursorRef.current);
-			return;
-		}
-		// No caret has been seen in any split yet — fall back to the block at
-		// the top of the viewport.
+	const getTopVisibleAnchor = useCallback((): ReadingPosition | null => {
 		const seq = primarySeqRef.current;
 		const root = getContentRoot(seq);
-		if (!root) return;
+		if (!root) return null;
 		const block = topVisibleBlockIndex(
 			root,
 			LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX,
 		);
-		placeReadPoint({ split: seq, block });
-	}, [getContentRoot, placeReadPoint]);
+		return { split: seq, block };
+	}, [getContentRoot]);
+
+	const getLastCursor = useCallback(() => lastCursorRef.current, []);
+
+	const recordManualReadPoint = useCallback(() => {
+		precedenceRef.current = "manual";
+		// Before any caret has been seen in a split, fall back to the top of the viewport.
+		const readPoint =
+			menuAnchorRef.current ??
+			lastCursorRef.current ??
+			getTopVisibleAnchor();
+		if (readPoint) placeReadPoint(readPoint);
+	}, [getTopVisibleAnchor, placeReadPoint]);
 
 	const recordManualClearReadPoint = useCallback(() => {
 		precedenceRef.current = "manual";
@@ -252,11 +269,12 @@ export function useReadPoint({
 		recordManualClearReadPoint,
 	);
 
-	const getCurrentReadPoint = useCallback(() => lastSavedRef.current, []);
-
 	return {
 		recordExtractReadPoint,
 		trackCursor,
-		getCurrentReadPoint,
+		getLastCursor,
+		setMenuAnchor,
+		getMenuAnchor,
+		getTopVisibleAnchor,
 	};
 }

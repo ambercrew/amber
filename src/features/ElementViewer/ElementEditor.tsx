@@ -10,13 +10,13 @@ import {
 } from "../../components/Editor/plugins/FloatingMenuPlugin";
 import { HighlightCreatedPayload } from "../../components/Editor/plugins/HighlightPlugin/highlightCommands";
 import RootElementPlugin from "../../components/Editor/plugins/RootElementPlugin";
-import ReadPointMarkerPlugin from "../../components/Editor/plugins/ReadPointMarkerPlugin";
 import CursorTrackerPlugin from "../../components/Editor/plugins/CursorTrackerPlugin";
 import SearchHighlightPlugin from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightPlugin";
 import useApi from "../../hooks/useApi";
 import { useImageOcclusionMenuItems } from "../ImageOcclusion/hooks/useImageOcclusionMenuItems";
 import { renderOcclusionOverlay } from "../ImageOcclusion/review/renderOcclusionOverlay";
 import useAutoSave from "./hooks/useAutoSave";
+import ReadingGutterPlugin, { MarkBlock } from "./marks/ReadingGutterPlugin";
 
 export interface ElementEditorSearchProps {
 	/** Unique key identifying this editor instance among any others on screen. */
@@ -38,10 +38,14 @@ interface ElementEditorProps {
 	onRootElement?: (element: HTMLElement | null) => void;
 	/** Block index to mark as the reader's saved read point, if any. */
 	markerBlockIndex?: number;
+	/** Marks anchored in this editor, flagged in its gutter. */
+	markBlocks?: MarkBlock[];
 	/** Receives the block index containing the caret (see `CursorTrackerPlugin`). */
 	onCursorMove?: (blockIndex: number) => void;
 	/** Extra items for the editor's right-click menu, if any. */
 	contextMenuItems?: React.ReactNode;
+	/** Called when the right-click menu closes. */
+	onContextMenuClose?: () => void;
 	/** Find-in-page search wiring for this editor instance, if search is active here. */
 	search?: ElementEditorSearchProps;
 	/** Receives the Lexical editor, for reading its live content. */
@@ -55,8 +59,10 @@ export default function ElementEditor({
 	onChange,
 	onRootElement,
 	markerBlockIndex,
+	markBlocks,
 	onCursorMove,
 	contextMenuItems,
+	onContextMenuClose,
 	search,
 	editorRef,
 }: ElementEditorProps) {
@@ -99,6 +105,7 @@ export default function ElementEditor({
 				initialContent={initialContent}
 				onHighlightCreated={onHighlightCreated}
 				contextMenuItems={contextMenuItems}
+				onContextMenuClose={onContextMenuClose}
 				imageMenuItems={imageMenuItems}
 				renderOcclusionOverlay={renderOcclusionOverlay}>
 				<FloatingMenuPlugin buttons={buttons} />
@@ -111,8 +118,11 @@ export default function ElementEditor({
 				{onRootElement && (
 					<RootElementPlugin onRootElement={onRootElement} />
 				)}
-				{markerBlockIndex !== undefined && (
-					<ReadPointMarkerPlugin blockIndex={markerBlockIndex} />
+				{(markerBlockIndex !== undefined || !!markBlocks?.length) && (
+					<ReadingGutterPlugin
+						readPointBlock={markerBlockIndex}
+						marks={markBlocks ?? []}
+					/>
 				)}
 				{onCursorMove && (
 					<CursorTrackerPlugin onCursorMove={onCursorMove} />

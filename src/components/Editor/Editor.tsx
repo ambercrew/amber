@@ -55,6 +55,8 @@ interface EditorProps {
 	children?: React.ReactNode;
 	onHighlightCreated?: (payload: HighlightCreatedPayload) => void;
 	contextMenuItems?: React.ReactNode;
+	/** Called when the right-click menu closes. */
+	onContextMenuClose?: () => void;
 	/** Extra actions for an image's popover, e.g. image occlusion. */
 	imageMenuItems?: ImageMenuItems;
 	/** Draws an occlusion card's masks over its image. */
@@ -84,6 +86,7 @@ function EditorContent({
 	children,
 	onHighlightCreated,
 	contextMenuItems,
+	onContextMenuClose,
 }: EditorProps) {
 	const colorScheme = useComputedColorScheme("light");
 	const { openLink } = useLinkOpener();
@@ -139,7 +142,7 @@ function EditorContent({
 	);
 
 	return (
-		<Menu withinPortal shadow="lg">
+		<Menu withinPortal shadow="lg" onClose={onContextMenuClose}>
 			<Menu.ContextMenu disabled={contextMenuDisabled}>
 				<Typography
 					className={styles.typography}

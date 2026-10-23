@@ -5,6 +5,7 @@ pub mod create_folder_dto;
 pub mod create_learning_asset_dto;
 pub mod create_meta_dto;
 pub mod element_details_dto;
+pub mod learning_asset_mark_dto;
 pub mod learning_asset_split_id_dto;
 pub mod learning_asset_split_meta_dto;
 pub mod learning_asset_split_text_dto;

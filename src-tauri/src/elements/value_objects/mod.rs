@@ -1,5 +1,11 @@
 pub mod element_id;
 pub mod element_id_with_priority;
+pub mod learning_asset_content;
+pub mod learning_asset_split_id;
+pub mod learning_asset_split_meta;
+pub mod learning_asset_split_text;
+pub mod learning_asset_type;
+pub mod mark_slot;
 pub mod meta;
 pub mod origin;
-pub mod read_point;
+pub mod reading_position;

@@ -8,6 +8,7 @@ pub mod sqlite_card_review_repository;
 pub mod sqlite_extract_repository;
 pub mod sqlite_folder_repository;
 pub mod sqlite_image_occlusion_repository;
+pub mod sqlite_learning_asset_mark_repository;
 pub mod sqlite_learning_asset_repository;
 pub mod sqlite_learning_asset_review_log_repository;
 pub mod sqlite_learning_asset_review_repository;

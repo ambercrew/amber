@@ -8,7 +8,6 @@ import {
 	ArrowsClockwiseIcon,
 	ArrowsDownUpIcon,
 	BookOpenIcon,
-	BookmarkSimpleIcon,
 	CalendarBlankIcon,
 	CardsIcon,
 	EraserIcon,
@@ -64,6 +63,9 @@ import {
 import { READ_POINT_MANUAL_SET_REQUESTED } from "../types/events/readPointManualSetRequestedEvent";
 import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../types/events/readPointManualClearRequestedEvent";
 import { READ_POINT_MANUAL_GOTO_REQUESTED } from "../types/events/readPointManualGotoRequestedEvent";
+import { MARK_SET_REQUESTED } from "../types/events/markSetRequestedEvent";
+import { MARK_GOTO_REQUESTED } from "../types/events/markGotoRequestedEvent";
+import { MarkSlot } from "../types/elements/learningAssetMark";
 import { isMobile } from "../utils/tauriUtils";
 import { isCoarsePointer } from "../utils/pointer";
 import { selectIsVirtualKeyboardSuppressed } from "../stores/app/appSelectors";
@@ -79,7 +81,14 @@ import {
 	OPEN_DUE_DATE_SHORTCUT,
 	OPEN_PRIORITY_SHORTCUT,
 	OPEN_SETTINGS_SHORTCUT,
+	GO_TO_MARK_1_SHORTCUT,
+	GO_TO_MARK_2_SHORTCUT,
+	GO_TO_MARK_3_SHORTCUT,
+	GO_TO_READ_POINT_SHORTCUT,
 	RESET_ZOOM_SHORTCUT,
+	SET_MARK_1_SHORTCUT,
+	SET_MARK_2_SHORTCUT,
+	SET_MARK_3_SHORTCUT,
 	SET_READ_POINT_SHORTCUT,
 	SHOW_SHORTCUTS_SHORTCUT,
 	SYNC_SHORTCUT,
@@ -103,6 +112,9 @@ import {
 	BrowserIcon,
 	HomeIcon,
 	NewAiPromptIcon,
+	GoToMarkIcon,
+	ReadPointIcon,
+	SetMarkIcon,
 } from "../config/icons";
 import {
 	LeftSidebarTab,
@@ -121,6 +133,12 @@ export const commandIds = [
 	"set-read-point",
 	"go-to-read-point",
 	"clear-read-point",
+	"set-mark-1",
+	"set-mark-2",
+	"set-mark-3",
+	"go-to-mark-1",
+	"go-to-mark-2",
+	"go-to-mark-3",
 	"go-home",
 	"open-browser",
 	"go-back",
@@ -283,7 +301,7 @@ export const commandsById: Record<CommandId, Command> = {
 		label: "Set read point",
 		searchOnly: true,
 		shortcut: SET_READ_POINT_SHORTCUT,
-		icon: createElement(BookmarkSimpleIcon),
+		icon: createElement(ReadPointIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
 		execute: () => {
 			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
@@ -295,6 +313,7 @@ export const commandsById: Record<CommandId, Command> = {
 		group: "Elements",
 		label: "Go to read point",
 		searchOnly: true,
+		shortcut: GO_TO_READ_POINT_SHORTCUT,
 		icon: createElement(MapPinIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
 		execute: () => {
@@ -313,6 +332,12 @@ export const commandsById: Record<CommandId, Command> = {
 			notifications.show({ message: "Read point cleared" });
 		},
 	},
+	"set-mark-1": setMarkCommand(1, SET_MARK_1_SHORTCUT),
+	"set-mark-2": setMarkCommand(2, SET_MARK_2_SHORTCUT),
+	"set-mark-3": setMarkCommand(3, SET_MARK_3_SHORTCUT),
+	"go-to-mark-1": goToMarkCommand(1, GO_TO_MARK_1_SHORTCUT),
+	"go-to-mark-2": goToMarkCommand(2, GO_TO_MARK_2_SHORTCUT),
+	"go-to-mark-3": goToMarkCommand(3, GO_TO_MARK_3_SHORTCUT),
 	"go-home": {
 		id: "go-home",
 		group: "Navigation",
@@ -552,6 +577,40 @@ export const commandsById: Record<CommandId, Command> = {
 			dispatch(setVirtualKeyboardSuppressedAction(false)),
 	},
 };
+
+function setMarkCommand(slot: MarkSlot, shortcut: string): Command {
+	return {
+		id: `set-mark-${slot}`,
+		group: "Elements",
+		label: `Set mark ${slot}`,
+		searchOnly: true,
+		shortcut,
+		icon: createElement(SetMarkIcon),
+		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
+		execute: () => {
+			window.dispatchEvent(
+				new CustomEvent(MARK_SET_REQUESTED, { detail: slot }),
+			);
+		},
+	};
+}
+
+function goToMarkCommand(slot: MarkSlot, shortcut: string): Command {
+	return {
+		id: `go-to-mark-${slot}`,
+		group: "Elements",
+		label: `Go to mark ${slot}`,
+		searchOnly: true,
+		shortcut,
+		icon: createElement(GoToMarkIcon),
+		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
+		execute: () => {
+			window.dispatchEvent(
+				new CustomEvent(MARK_GOTO_REQUESTED, { detail: slot }),
+			);
+		},
+	};
+}
 
 function showLeftSidebarTab(tab: LeftSidebarTab) {
 	window.dispatchEvent(

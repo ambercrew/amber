@@ -32,6 +32,13 @@ export const RESET_ZOOM_SHORTCUT = "mod+0";
 // Elements
 export const CREATE_CARD_SHORTCUT = "mod+N";
 export const SET_READ_POINT_SHORTCUT = "mod+shift+R";
+export const GO_TO_READ_POINT_SHORTCUT = "alt+0";
+export const SET_MARK_1_SHORTCUT = "mod+1";
+export const SET_MARK_2_SHORTCUT = "mod+2";
+export const SET_MARK_3_SHORTCUT = "mod+3";
+export const GO_TO_MARK_1_SHORTCUT = "alt+1";
+export const GO_TO_MARK_2_SHORTCUT = "alt+2";
+export const GO_TO_MARK_3_SHORTCUT = "alt+3";
 export const OPEN_PRIORITY_SHORTCUT = "mod+shift+P";
 export const OPEN_DUE_DATE_SHORTCUT = "mod+shift+D";
 

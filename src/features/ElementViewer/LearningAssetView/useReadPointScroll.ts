@@ -1,11 +1,11 @@
 import { RefObject, useCallback, useRef } from "react";
-import { ReadPoint } from "../../../types/elements/readPoint";
+import { ReadingPosition } from "../../../types/elements/readingPosition";
 import { NO_READ_POINT } from "./useReadPoint";
 import { scrollBlockIntoView } from "./scrollBlockIntoView";
 
 interface Props {
 	/** Read point to restore to on open. */
-	initial: ReadPoint;
+	initial: ReadingPosition;
 	/** The editable root of the mounted split `seq`, whose children are its blocks. */
 	getContentRoot: (seq: number) => HTMLElement | undefined;
 	/** Forces a split into the mount window so `notifySplitReady` will eventually fire for it. */
@@ -27,13 +27,12 @@ interface ReturnValue {
 	 * split, if any.
 	 */
 	notifySplitReady: (seq: number) => void;
-	/**
-	 * Scrolls to a read point, mounting its split first if it isn't already a
-	 * live editor. `target` must be a real read point — callers are
-	 * responsible for handling `NO_READ_POINT` themselves (e.g. showing a
-	 * "nothing to go to" message) before calling this.
-	 */
-	goToReadPoint: (target: ReadPoint) => void;
+	/** Scrolls to `target` (never `NO_READ_POINT`; callers handle that), mounting its split first if needed.
+	 * `onScrolled` gets the block it landed on. */
+	goToReadPoint: (
+		target: ReadingPosition,
+		onScrolled?: (block: Element) => void,
+	) => void;
 }
 
 interface PendingScroll {
@@ -41,6 +40,7 @@ interface PendingScroll {
 	/** `null` means "just wait for readiness" — nothing to scroll to (the learning asset opened at its very start). */
 	block: number | null;
 	onDone: () => void;
+	onScrolled?: (block: Element) => void;
 }
 
 /**
@@ -79,14 +79,15 @@ export function useReadPointScroll({
 			const pending = pendingRef.current;
 			if (pending?.split !== seq) return;
 			pendingRef.current = null;
-			const { block, onDone } = pending;
+			const { block, onDone, onScrolled } = pending;
 			if (block === null) {
 				onDone();
 				return;
 			}
 			requestAnimationFrame(() => {
 				const root = getContentRoot(seq);
-				if (root) scrollBlockIntoView(root, block);
+				const landed = root && scrollBlockIntoView(root, block);
+				if (landed) onScrolled?.(landed);
 				onDone();
 			});
 		},
@@ -94,10 +95,11 @@ export function useReadPointScroll({
 	);
 
 	const goToReadPoint = useCallback(
-		(target: ReadPoint) => {
+		(target: ReadingPosition, onScrolled?: (block: Element) => void) => {
 			const root = getContentRoot(target.split);
 			if (root) {
-				scrollBlockIntoView(root, target.block);
+				const landed = scrollBlockIntoView(root, target.block);
+				if (landed) onScrolled?.(landed);
 				return;
 			}
 			// Not mounted — force it into the mount window so it renders a live
@@ -107,6 +109,7 @@ export function useReadPointScroll({
 				split: target.split,
 				block: target.block,
 				onDone: releaseJump,
+				onScrolled,
 			};
 			jumpTo(target.split);
 		},

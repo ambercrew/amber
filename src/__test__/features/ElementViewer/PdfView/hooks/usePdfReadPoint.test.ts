@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePdfReadPoint } from "../../../../../features/ElementViewer/PdfView/hooks/usePdfReadPoint";
-import { ReadPoint } from "../../../../../types/elements/readPoint";
+import { ReadingPosition } from "../../../../../types/elements/readingPosition";
 import { READ_POINT_MANUAL_SET_REQUESTED } from "../../../../../types/events/readPointManualSetRequestedEvent";
 import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../../../../../types/events/readPointManualClearRequestedEvent";
 import { READ_POINT_MANUAL_GOTO_REQUESTED } from "../../../../../types/events/readPointManualGotoRequestedEvent";
@@ -89,17 +89,19 @@ const DOCUMENT_ID = "doc-1";
 const LEARNING_ASSET_ID = "r1";
 
 function renderPdfReadPoint(overrides: {
-	initial: ReadPoint;
+	initial: ReadingPosition;
 	documentId?: string | null;
 	learningAssetId?: string;
+	menuPageRef?: { current: number | null };
 }) {
 	const {
 		initial,
 		documentId = DOCUMENT_ID,
 		learningAssetId = LEARNING_ASSET_ID,
+		menuPageRef,
 	} = overrides;
 	return renderHook(() =>
-		usePdfReadPoint({ learningAssetId, documentId, initial }),
+		usePdfReadPoint({ learningAssetId, documentId, initial, menuPageRef }),
 	);
 }
 
@@ -295,6 +297,37 @@ describe("usePdfReadPoint", () => {
 		expect(updateReadPointMock).not.toHaveBeenCalled();
 	});
 
+	it("Should persist the right-clicked page when a manual set is requested from the context menu", async () => {
+		// Arrange
+
+		renderPdfReadPoint({
+			initial: { split: 4, block: 0 },
+			menuPageRef: { current: 9 },
+		});
+		act(() => {
+			capability.emitLayoutReady({
+				documentId: DOCUMENT_ID,
+				isInitial: true,
+				pageNumber: 4,
+				totalPages: 10,
+			});
+		});
+
+		// Act
+
+		await act(async () => {
+			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
+			await vi.runAllTimersAsync();
+		});
+
+		// Assert
+
+		expect(updateReadPointMock).toHaveBeenCalledWith({
+			learningAssetId: LEARNING_ASSET_ID,
+			readPoint: { split: 9, block: 0 },
+		});
+	});
+
 	it("Should persist the current page when a manual set is requested", async () => {
 		// Arrange
 
@@ -463,6 +496,31 @@ describe("usePdfReadPoint", () => {
 
 		expect(scrollToPage).toHaveBeenCalledWith({
 			pageNumber: 4,
+			behavior: "smooth",
+		});
+	});
+
+	it("Should scroll to the highlight's page when a goto is requested after a highlight is created", async () => {
+		// Arrange
+
+		const { result } = renderPdfReadPoint({
+			initial: { split: 4, block: 0 },
+		});
+		await act(async () => {
+			result.current.recordHighlightReadPoint(8);
+			await vi.runAllTimersAsync();
+		});
+
+		// Act
+
+		await act(async () => {
+			window.dispatchEvent(new Event(READ_POINT_MANUAL_GOTO_REQUESTED));
+		});
+
+		// Assert
+
+		expect(scrollToPage).toHaveBeenLastCalledWith({
+			pageNumber: 9,
 			behavior: "smooth",
 		});
 	});

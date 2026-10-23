@@ -141,6 +141,17 @@ fn table_configs() -> Vec<TableSyncConfig> {
             delete_guard: None,
         },
         TableSyncConfig {
+            name: "learning_asset_marks",
+            granularity: Granularity::Row,
+            fk_constraints: vec![FkConstraint::new(
+                "learning_asset_id",
+                "learning_assets",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+            delete_guard: None,
+        },
+        TableSyncConfig {
             name: "extracts",
             granularity: Granularity::Row,
             fk_constraints: vec![FkConstraint::new(
@@ -715,5 +726,74 @@ mod tests {
         // Assert
 
         assert!(asset_exists(&tx, "swept").await);
+    }
+
+    async fn register_marks_tables(store: &dyn SyncStore) {
+        for config in table_configs()
+            .into_iter()
+            .filter(|config| config.name == "learning_asset_marks")
+        {
+            store
+                .register_table(config.name, config.granularity, &config.fk_constraints)
+                .await
+                .unwrap();
+        }
+    }
+
+    async fn execute(tx: &DbTransaction, sql: &'static str) {
+        let mut tx = tx.lock().await;
+        sqlx::query(sql).execute(tx.as_mut()).await.unwrap();
+    }
+
+    async fn mark_anchors(tx: &DbTransaction) -> Vec<(i64, i64, i64)> {
+        let mut tx = tx.lock().await;
+        sqlx::query_as("SELECT slot, split, block FROM learning_asset_marks ORDER BY slot")
+            .fetch_all(tx.as_mut())
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn table_configs_learning_asset_marks_moved_then_cleared_replays_on_other_device() {
+        // Arrange
+
+        let device_a = create_test_injector().await;
+        let device_b = create_test_injector().await;
+        let scope_a = device_a.start_scope();
+        let scope_b = device_b.start_scope();
+        let store_a = scope_a.resolve::<dyn SyncStore>().await;
+        let store_b = scope_b.resolve::<dyn SyncStore>().await;
+        register_marks_tables(store_a.as_ref()).await;
+        register_marks_tables(store_b.as_ref()).await;
+        let tx_a = scope_a.resolve::<DbTransaction>().await;
+        let tx_b = scope_b.resolve::<DbTransaction>().await;
+        let insert_asset = "INSERT INTO learning_assets (id) VALUES ('la')";
+        execute(&tx_a, insert_asset).await;
+        execute(&tx_b, insert_asset).await;
+        execute(
+            &tx_a,
+            "INSERT INTO learning_asset_marks VALUES ('la', 1, 0, 2), ('la', 2, 3, 4)",
+        )
+        .await;
+        execute(
+            &tx_a,
+            "UPDATE learning_asset_marks SET split = 5, block = 6 WHERE slot = 1",
+        )
+        .await;
+
+        // Act
+
+        let first_push = store_a.changes_since_last_push().await.unwrap();
+        store_b.apply_remote(first_push, true).await.unwrap();
+        let after_move = mark_anchors(&tx_b).await;
+        execute(&tx_a, "DELETE FROM learning_asset_marks WHERE slot = 2").await;
+        let second_push = store_a.changes_since_last_push().await.unwrap();
+        store_b.apply_remote(second_push, true).await.unwrap();
+        let after_clear = mark_anchors(&tx_b).await;
+
+        // Assert
+
+        assert_eq!(vec![(1, 5, 6), (2, 3, 4)], after_move);
+        assert_eq!(vec![(1, 5, 6)], after_clear);
     }
 }

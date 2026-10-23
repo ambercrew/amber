@@ -6,8 +6,11 @@ import {
 } from "../../../api/elements/api/elementsApi";
 import { FloatingMenuItem } from "../../../components/Editor/plugins/FloatingMenuPlugin";
 import { HighlightCreatedPayload } from "../../../components/Editor/plugins/HighlightPlugin/highlightCommands";
-import ReadPointMenu from "../../../components/Editor/plugins/ReadPointMenu";
 import ElementEditor, { ElementEditorSearchProps } from "../ElementEditor";
+import { MarkBlock } from "../marks/ReadingGutterPlugin";
+import ReadingMenuItems from "../marks/ReadingMenuItems";
+import { ReadingPosition } from "../../../types/elements/readingPosition";
+import { blockIndexOf } from "./blockIndexOf";
 import SplitPlaceholder from "./SplitPlaceholder";
 
 interface SplitSlotProps {
@@ -33,8 +36,12 @@ interface SplitSlotProps {
 	onContentReady: (seq: number) => void;
 	/** Block index to mark as the reader's saved read point, if it's in this split. */
 	markerBlockIndex?: number;
+	/** Marks anchored in this split, flagged in its gutter. */
+	markBlocks?: MarkBlock[];
 	/** Called with the block index containing the caret, whenever it moves in this split. */
 	onCursorMove?: (seq: number, blockIndex: number) => void;
+	/** Called with the block right-clicked to open the menu, and `null` once it closes. */
+	onMenuAnchorChange?: (anchor: ReadingPosition | null) => void;
 	/** Find-in-page search wiring for this split's editor instance. */
 	search?: ElementEditorSearchProps;
 }
@@ -58,11 +65,22 @@ export default function SplitSlot({
 	onHighlightCreated,
 	onContentReady,
 	markerBlockIndex,
+	markBlocks,
 	onCursorMove,
+	onMenuAnchorChange,
 	search,
 }: SplitSlotProps) {
 	const [content, setContent] = useState<string | null>(null);
 	const contentElementRef = useRef<HTMLDivElement | null>(null);
+	const contentRootRef = useRef<HTMLElement | null>(null);
+
+	const handleRootElement = useCallback(
+		(element: HTMLElement | null) => {
+			contentRootRef.current = element;
+			registerContentRoot(element);
+		},
+		[registerContentRoot],
+	);
 
 	// Fetches once, the first time this slot enters the mount window. Later
 	// re-mounts reuse it, so `handleChange` keeps it current with local edits.
@@ -96,6 +114,24 @@ export default function SplitSlot({
 		[onCursorMove, seq],
 	);
 
+	// A right-click doesn't always move the caret, but the menu's "set here" actions mean the clicked block.
+	const handleContextMenuCapture = useCallback(
+		(event: React.MouseEvent) => {
+			const root = contentRootRef.current;
+			const block = root && blockIndexOf(root, event.target as Node);
+			onMenuAnchorChange?.(
+				block === null || block === undefined
+					? null
+					: { split: seq, block },
+			);
+		},
+		[onMenuAnchorChange, seq],
+	);
+	const handleContextMenuClose = useCallback(
+		() => onMenuAnchorChange?.(null),
+		[onMenuAnchorChange],
+	);
+
 	const handleChange = useCallback(
 		async (updated: string) => {
 			// Without this, scrolling back re-mounts the editor with pre-edit content.
@@ -123,7 +159,9 @@ export default function SplitSlot({
 	return (
 		<div ref={slotRef} data-seq={seq}>
 			{!isFirst && <Divider label={`Split ${splitNumber}`} my="lg" />}
-			<div ref={setContentElement}>
+			<div
+				ref={setContentElement}
+				onContextMenuCapture={handleContextMenuCapture}>
 				{showPlaceholder ? (
 					<SplitPlaceholder height={height} />
 				) : (
@@ -132,10 +170,12 @@ export default function SplitSlot({
 						buttons={buttons}
 						onChange={handleChange}
 						onHighlightCreated={handleHighlightCreated}
-						onRootElement={registerContentRoot}
+						onRootElement={handleRootElement}
 						markerBlockIndex={markerBlockIndex}
+						markBlocks={markBlocks}
 						onCursorMove={handleCursorMove}
-						contextMenuItems={<ReadPointMenu />}
+						contextMenuItems={<ReadingMenuItems />}
+						onContextMenuClose={handleContextMenuClose}
 						search={search}
 					/>
 				)}

@@ -10,6 +10,7 @@ function makeSplits(count: number): LearningAssetSplitMetaDto[] {
 	return Array.from({ length: count }, (_, index) => ({
 		seq: index,
 		charCount: 10,
+		blockCount: 1,
 	}));
 }
 

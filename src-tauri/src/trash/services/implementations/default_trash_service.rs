@@ -126,10 +126,7 @@ mod tests {
 
     use crate::{
         elements::{
-            entities::{
-                folder::Folder,
-                learning_asset::{LearningAsset, LearningAssetContent},
-            },
+            entities::{folder::Folder, learning_asset::LearningAsset},
             repositories::{
                 folder_repository::FolderRepository,
                 learning_asset_repository::LearningAssetRepository,
@@ -139,7 +136,10 @@ mod tests {
                 default_priority_service::DefaultPriorityService,
             },
             services::priority_service::PriorityService,
-            value_objects::{meta::Meta, read_point::ReadPoint},
+            value_objects::{
+                learning_asset_content::LearningAssetContent, meta::Meta,
+                reading_position::ReadingPosition,
+            },
         },
         infrastructure::{
             repositories::sqlite::{
@@ -206,7 +206,7 @@ mod tests {
         LearningAsset {
             r#type: Default::default(),
             interval_multiplier: 1.2,
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
             meta: Meta {
                 name: name.into(),
                 parent,

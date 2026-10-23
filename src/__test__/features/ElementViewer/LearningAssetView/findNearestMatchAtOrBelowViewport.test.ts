@@ -3,9 +3,9 @@ import { findNearestMatchAtOrBelowViewport } from "../../../../features/ElementV
 import { LearningAssetSplitMetaDto } from "../../../../types/elements/learningAssetSplitMetaDto";
 
 const splits: LearningAssetSplitMetaDto[] = [
-	{ seq: 0, charCount: 100 },
-	{ seq: 1, charCount: 100 },
-	{ seq: 2, charCount: 100 },
+	{ seq: 0, charCount: 100, blockCount: 1 },
+	{ seq: 1, charCount: 100, blockCount: 1 },
+	{ seq: 2, charCount: 100, blockCount: 1 },
 ];
 
 describe("findNearestMatchAtOrBelowViewport", () => {

@@ -11,6 +11,9 @@ use crate::elements::dto::create_extract_dto::CreateExtractDto;
 use crate::elements::dto::create_folder_dto::CreateFolderDto;
 use crate::elements::dto::create_learning_asset_dto::CreateLearningAssetDto;
 use crate::elements::dto::element_details_dto::ElementDetailsResponseDto;
+use crate::elements::dto::learning_asset_mark_dto::{
+    ClearLearningAssetMarkRequestDto, LearningAssetMarkResponseDto, SetLearningAssetMarkRequestDto,
+};
 use crate::elements::dto::learning_asset_split_id_dto::LearningAssetSplitIdDto;
 use crate::elements::dto::learning_asset_split_meta_dto::LearningAssetSplitMetaDto;
 use crate::elements::dto::learning_asset_split_text_dto::LearningAssetSplitTextDto;
@@ -25,9 +28,11 @@ use crate::elements::dto::update_card_dto::UpdateCardDto;
 use crate::elements::dto::update_extract_dto::UpdateExtractDto;
 use crate::elements::dto::update_learning_asset_dto::UpdateLearningAssetDto;
 use crate::elements::dto::update_read_point_dto::UpdateReadPointDto;
+use crate::elements::entities::learning_asset_mark::LearningAssetMark;
 use crate::elements::repositories::card_repository::CardRepository;
 use crate::elements::repositories::extract_repository::ExtractRepository;
 use crate::elements::repositories::folder_repository::FolderRepository;
+use crate::elements::repositories::learning_asset_mark_repository::LearningAssetMarkRepository;
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::services::element_content_service::ElementContentService;
@@ -276,6 +281,57 @@ pub async fn update_read_point(
         .resolve::<dyn LearningAssetRepository>()
         .await
         .update_read_point(dto.learning_asset_id, dto.read_point)
+        .await?;
+    scope.save_changes().await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_learning_asset_marks(
+    injector: State<'_, Arc<Injector>>,
+    learning_asset_id: Uuid,
+) -> Result<Vec<LearningAssetMarkResponseDto>, ApiError> {
+    let scope = injector.start_scope();
+    let marks = scope
+        .resolve::<dyn LearningAssetMarkRepository>()
+        .await
+        .get_all(learning_asset_id)
+        .await?;
+    Ok(marks
+        .into_iter()
+        .map(LearningAssetMarkResponseDto::from)
+        .collect())
+}
+
+#[tauri::command]
+pub async fn set_learning_asset_mark(
+    injector: State<'_, Arc<Injector>>,
+    dto: SetLearningAssetMarkRequestDto,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    scope
+        .resolve::<dyn LearningAssetMarkRepository>()
+        .await
+        .set(LearningAssetMark {
+            learning_asset_id: dto.learning_asset_id,
+            slot: dto.slot,
+            anchor: dto.anchor,
+        })
+        .await?;
+    scope.save_changes().await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn clear_learning_asset_mark(
+    injector: State<'_, Arc<Injector>>,
+    dto: ClearLearningAssetMarkRequestDto,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    scope
+        .resolve::<dyn LearningAssetMarkRepository>()
+        .await
+        .clear(dto.learning_asset_id, dto.slot)
         .await?;
     scope.save_changes().await?;
     Ok(())

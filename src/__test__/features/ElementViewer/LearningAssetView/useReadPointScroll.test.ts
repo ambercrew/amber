@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReadPointScroll } from "../../../../features/ElementViewer/LearningAssetView/useReadPointScroll";
-import { ReadPoint } from "../../../../types/elements/readPoint";
+import { ReadingPosition } from "../../../../types/elements/readingPosition";
 
 /** A stand-in editable root with `blockCount` top-level block children. */
 function makeRoot(blockCount: number): HTMLElement {
@@ -13,7 +13,7 @@ function makeRoot(blockCount: number): HTMLElement {
 }
 
 function renderReadPointScroll(overrides: {
-	initial: ReadPoint;
+	initial: ReadingPosition;
 	getContentRoot: (seq: number) => HTMLElement | undefined;
 	jumpTo?: () => void;
 	releaseJump?: () => void;

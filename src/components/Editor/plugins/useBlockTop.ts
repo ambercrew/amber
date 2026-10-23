@@ -1,32 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getNearestNodeFromDOMNode, NodeKey } from "lexical";
-import { Box } from "@mantine/core";
-import { commandIcon } from "../../../commands/commandIcon";
-import AppTooltip from "../../AppTooltip/AppTooltip";
 
-interface ReadPointMarkerPluginProps {
-	/** Index of the block (among the editor root's children) to mark. */
-	blockIndex: number;
-}
-
-/**
- * Marks the reader's saved position beside a block in this split. Positioned
- * against the editor's own `position: relative` anchor (`root.parentElement`,
- * see `Editor.module.css`'s `.anchor`), so it needs no coordinates from
- * outside this editor instance — it re-measures on every editor update and
- * whenever the content resizes (window resize, images or equations above it
- * finishing rendering after mount).
- *
- * `blockIndex` only locates the block the first time it's seen; after that
- * the block's own Lexical node key is used, so the marker stays on that
- * exact block even if edits above it shift its index. When `blockIndex`
- * itself changes (the caller moved the marker to a different block), the
- * cached key is dropped so the new index is looked up fresh.
- */
-export default function ReadPointMarkerPlugin({
-	blockIndex,
-}: ReadPointMarkerPluginProps) {
+/** Top (px) of the root's `blockIndex`th block relative to the editor's anchor (`root.parentElement`), or `null` until measured.
+ * Follows that block by node key after the first lookup, so edits above it don't move the result; re-measures on updates and resizes. */
+export function useBlockTop(blockIndex: number): number | null {
 	const [editor] = useLexicalComposerContext();
 	const [top, setTop] = useState<number | null>(null);
 	const blockKeyRef = useRef<NodeKey | null>(null);
@@ -70,9 +48,7 @@ export default function ReadPointMarkerPlugin({
 			);
 		};
 
-		// Deferred a frame: right on mount, the block just swapped in from a
-		// placeholder and hasn't painted real geometry yet, so measuring
-		// synchronously here would place the marker at a stale position.
+		// Deferred a frame: a block just swapped in from a placeholder hasn't painted its real geometry yet.
 		const raf = requestAnimationFrame(measure);
 		const unregisterUpdate = editor.registerUpdateListener(measure);
 		const root = editor.getRootElement();
@@ -88,16 +64,5 @@ export default function ReadPointMarkerPlugin({
 		};
 	}, [editor, blockIndex]);
 
-	if (top === null) return null;
-
-	return (
-		<AppTooltip
-			label="You'll resume here next time"
-			position="left"
-			withArrow>
-			<Box pos="absolute" top={top} right="100%" mr={5} fz={22}>
-				{commandIcon("set-read-point")}
-			</Box>
-		</AppTooltip>
-	);
+	return top;
 }

@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::elements::value_objects::read_point::ReadPoint;
+use crate::elements::value_objects::reading_position::ReadingPosition;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -219,10 +219,7 @@ mod tests {
     use crate::{
         elements::{
             entities::{
-                card::Card,
-                extract::Extract,
-                folder::Folder,
-                learning_asset::{LearningAsset, LearningAssetContent},
+                card::Card, extract::Extract, folder::Folder, learning_asset::LearningAsset,
             },
             repositories::{
                 card_repository::CardRepository, extract_repository::ExtractRepository,
@@ -231,7 +228,9 @@ mod tests {
                 meta_repository::MetaRepository,
             },
             services::element_tree_service::ElementTreeService,
-            value_objects::{element_id::ElementId, meta::Meta},
+            value_objects::{
+                element_id::ElementId, learning_asset_content::LearningAssetContent, meta::Meta,
+            },
         },
         infrastructure::{
             repositories::sqlite::{
@@ -406,7 +405,7 @@ mod tests {
                 parent: Some(folder_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         let learning_asset_id = learning_asset.meta.element_id;
         let extract = Extract {
@@ -504,7 +503,7 @@ mod tests {
                 position: FractionalIndex::new_after(&FractionalIndex::default()),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         let learning_asset_second = LearningAsset {
             r#type: Default::default(),
@@ -517,7 +516,7 @@ mod tests {
                 )),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         let learning_asset_first_id = learning_asset_first.meta.element_id;
         let learning_asset_second_id = learning_asset_second.meta.element_id;
@@ -613,7 +612,7 @@ mod tests {
                 name: "Orphan LearningAsset".to_string(),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         let learning_asset_id = learning_asset.meta.element_id;
         scope
@@ -654,7 +653,7 @@ mod tests {
                 position: pos_first,
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         let folder = Folder {
             meta: Meta {

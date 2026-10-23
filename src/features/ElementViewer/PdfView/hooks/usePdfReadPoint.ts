@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { useWindowEvent } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useScrollCapability } from "@embedpdf/plugin-scroll/react";
 import useAutoSave from "../../hooks/useAutoSave";
 import useApi from "../../../../hooks/useApi";
 import { updateReadPoint } from "../../../../api/elements/api/elementsApi";
-import { ReadPoint } from "../../../../types/elements/readPoint";
+import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { READ_POINT_MANUAL_SET_REQUESTED } from "../../../../types/events/readPointManualSetRequestedEvent";
 import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../../../../types/events/readPointManualClearRequestedEvent";
 import { READ_POINT_MANUAL_GOTO_REQUESTED } from "../../../../types/events/readPointManualGotoRequestedEvent";
 
 /** The sentinel value meaning "no read point" — mirrors `useReadPoint`'s `NO_READ_POINT` for text learning assets. */
-export const NO_PDF_READ_POINT: ReadPoint = { split: 0, block: 0 };
+export const NO_PDF_READ_POINT: ReadingPosition = { split: 0, block: 0 };
 
 interface Props {
 	learningAssetId: string;
@@ -19,7 +19,11 @@ interface Props {
 	 * plugin has no page state to read or restore into before then. */
 	documentId: string | null;
 	/** Read point to restore to on open. `split` is the 1-based page number; `block` is unused for PDFs. */
-	initial: ReadPoint;
+	initial: ReadingPosition;
+	/** Called with the 1-based page a "go to read point" jump lands on. */
+	onGoTo?: (pageNumber: number) => void;
+	/** The page right-clicked to open the context menu, which a manual set targets over the page in view. */
+	menuPageRef?: RefObject<number | null>;
 }
 
 interface ReturnValue {
@@ -28,6 +32,10 @@ interface ReturnValue {
 	 * index of the highlight's last page.
 	 */
 	recordHighlightReadPoint: (lastPageIndex: number) => void;
+	/** The 1-based page currently in view. */
+	getCurrentPage: () => number;
+	/** The read point as of opening, moved by a manual set/clear or a highlight but not by scroll-tracking. */
+	displayedReadPoint: ReadingPosition;
 }
 
 /** Persists the read point (current page) as the user scrolls a PDF, restores
@@ -37,6 +45,8 @@ export function usePdfReadPoint({
 	learningAssetId,
 	documentId,
 	initial,
+	onGoTo,
+	menuPageRef,
 }: Props): ReturnValue {
 	const { provides: scrollCapability } = useScrollCapability();
 
@@ -46,7 +56,7 @@ export function usePdfReadPoint({
 		currentPageRef.current = currentPage;
 	}, [currentPage]);
 
-	const lastSavedRef = useRef<ReadPoint>(initial);
+	const lastSavedRef = useRef<ReadingPosition>(initial);
 	// Flipped to `true` once the initial restore has run (or had nothing to
 	// do), gating automatic saves off it so the restore scroll itself isn't
 	// recorded as the reader jumping back to page 1.
@@ -61,7 +71,7 @@ export function usePdfReadPoint({
 	const { callApi } = useApi();
 	const handleSave = useCallback(
 		async (content: string) => {
-			const readPoint = JSON.parse(content) as ReadPoint;
+			const readPoint = JSON.parse(content) as ReadingPosition;
 			const last = lastSavedRef.current;
 			if (
 				last.split === readPoint.split &&
@@ -76,7 +86,7 @@ export function usePdfReadPoint({
 	);
 	const { onContentUpdate } = useAutoSave({ onSave: handleSave, callApi });
 	const persistReadPoint = useCallback(
-		(readPoint: ReadPoint) => {
+		(readPoint: ReadingPosition) => {
 			onContentUpdate(() => JSON.stringify(readPoint));
 		},
 		[onContentUpdate],
@@ -117,29 +127,40 @@ export function usePdfReadPoint({
 		persistReadPoint({ split: currentPage, block: 0 });
 	}, [currentPage, persistReadPoint]);
 
+	const [displayedReadPoint, setDisplayedReadPoint] = useState(initial);
+
 	const recordHighlightReadPoint = useCallback(
 		(lastPageIndex: number) => {
 			// A manual placement is a deliberate bookmark; a highlight created
 			// afterward shouldn't relocate it.
 			if (precedenceRef.current === "manual") return;
 			precedenceRef.current = "highlight";
-			persistReadPoint({ split: lastPageIndex + 1, block: 0 });
+			const readPoint = { split: lastPageIndex + 1, block: 0 };
+			persistReadPoint(readPoint);
+			setDisplayedReadPoint(readPoint);
 		},
 		[persistReadPoint],
 	);
 
 	const handleManualSet = useCallback(() => {
 		precedenceRef.current = "manual";
-		persistReadPoint({ split: currentPageRef.current, block: 0 });
-	}, [persistReadPoint]);
+		const readPoint = {
+			split: menuPageRef?.current ?? currentPageRef.current,
+			block: 0,
+		};
+		persistReadPoint(readPoint);
+		setDisplayedReadPoint(readPoint);
+	}, [persistReadPoint, menuPageRef]);
 
 	const handleManualClear = useCallback(() => {
 		precedenceRef.current = "manual";
 		persistReadPoint(NO_PDF_READ_POINT);
+		setDisplayedReadPoint(NO_PDF_READ_POINT);
 	}, [persistReadPoint]);
 
+	// Goes where the marker is, so the shortcut, marker and scrollbar tick agree.
 	const handleManualGoto = useCallback(() => {
-		const target = lastSavedRef.current;
+		const target = displayedReadPoint;
 		if (target.split === NO_PDF_READ_POINT.split) {
 			notifications.show({ message: "No read point set" });
 			return;
@@ -148,11 +169,14 @@ export function usePdfReadPoint({
 		scrollCapability
 			?.forDocument(documentId)
 			.scrollToPage({ pageNumber: target.split, behavior: "smooth" });
-	}, [scrollCapability, documentId]);
+		onGoTo?.(target.split);
+	}, [displayedReadPoint, scrollCapability, documentId, onGoTo]);
 
 	useWindowEvent(READ_POINT_MANUAL_SET_REQUESTED, handleManualSet);
 	useWindowEvent(READ_POINT_MANUAL_CLEAR_REQUESTED, handleManualClear);
 	useWindowEvent(READ_POINT_MANUAL_GOTO_REQUESTED, handleManualGoto);
 
-	return { recordHighlightReadPoint };
+	const getCurrentPage = useCallback(() => currentPageRef.current, []);
+
+	return { recordHighlightReadPoint, getCurrentPage, displayedReadPoint };
 }

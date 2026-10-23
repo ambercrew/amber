@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::elements::value_objects::read_point::ReadPoint;
+use crate::elements::value_objects::reading_position::ReadingPosition;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -92,16 +92,16 @@ mod tests {
 
     use crate::{
         elements::{
-            entities::{
-                card::Card,
-                learning_asset::{LearningAsset, LearningAssetContent},
-            },
+            entities::{card::Card, learning_asset::LearningAsset},
             repositories::{
                 card_repository::CardRepository,
                 learning_asset_repository::LearningAssetRepository,
                 meta_repository::MetaRepository,
             },
-            value_objects::{element_id_with_priority::ElementIdWithPriority, meta::Meta},
+            value_objects::{
+                element_id_with_priority::ElementIdWithPriority,
+                learning_asset_content::LearningAssetContent, meta::Meta,
+            },
         },
         infrastructure::repositories::sqlite::{
             sqlite_card_repository::SqliteCardRepository,
@@ -188,7 +188,7 @@ mod tests {
                     r#type: Default::default(),
                     interval_multiplier: 1.2,
                     meta: make_meta(learning_asset_id),
-                    read_point: ReadPoint::default(),
+                    read_point: ReadingPosition::default(),
                 },
                 LearningAssetContent::Extracted(Vec::new()),
             )

@@ -6,10 +6,11 @@ use crate::elements::dto::tag_dto::TagResponseDto;
 use crate::elements::entities::card::Card;
 use crate::elements::entities::extract::Extract;
 use crate::elements::entities::folder::Folder;
-use crate::elements::entities::learning_asset::{LearningAsset, LearningAssetType};
+use crate::elements::entities::learning_asset::LearningAsset;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::elements::value_objects::learning_asset_type::LearningAssetType;
 use crate::elements::value_objects::meta::Meta;
-use crate::elements::value_objects::read_point::ReadPoint;
+use crate::elements::value_objects::reading_position::ReadingPosition;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,7 +55,7 @@ pub struct LearningAssetResponseDto {
     pub r#type: LearningAssetType,
     /// Where the user last read up to. The split index and per-split content are
     /// fetched separately (lazily) rather than inlined here.
-    pub read_point: ReadPoint,
+    pub read_point: ReadingPosition,
     pub interval_multiplier: f32,
 }
 

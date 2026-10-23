@@ -17,7 +17,7 @@ import { SearchPluginPackage } from "@embedpdf/plugin-search/react";
 import { usePdfiumEngine } from "@embedpdf/engines/react";
 import { getPdfBytes } from "../../../../api/elements/api/elementsApi";
 import useApi from "../../../../hooks/useApi";
-import { ReadPoint } from "../../../../types/elements/readPoint";
+import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { base64ToArrayBuffer } from "../../../../utils/base64ToArrayBuffer";
 import PdfDocumentContent from "./PdfDocumentContent";
 
@@ -25,7 +25,7 @@ const WASM_URL = "/pdfium/pdfium.wasm";
 
 interface PdfLearningAssetViewProps {
 	learningAssetId: string;
-	readPoint: ReadPoint;
+	readPoint: ReadingPosition;
 }
 
 export default function PdfLearningAssetView({
