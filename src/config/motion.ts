@@ -4,6 +4,8 @@ export const MOTION_EASING = "ease";
 
 /** Slower, for a whole view sliding in place of another so the eye can follow where it came from. */
 export const VIEW_TRANSITION_DURATION_MS = 250;
+/** How far (px) a view slides in from the side it's coming from. */
+export const VIEW_SLIDE_OFFSET_PX = 16;
 
 /** How long a jump target (read point, mark) stays tinted before fading out. */
 export const FLASH_DURATION_MS = 1500;

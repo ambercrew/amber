@@ -34,11 +34,11 @@ import {
 	NEXT_PROMPT_PLACEHOLDER_SHORTCUT,
 	PREVIOUS_PROMPT_PLACEHOLDER_SHORTCUT,
 } from "../../../config/shortcuts";
-import { VIEW_TRANSITION_DURATION_MS } from "../../../config/motion";
+import {
+	VIEW_SLIDE_OFFSET_PX,
+	VIEW_TRANSITION_DURATION_MS,
+} from "../../../config/motion";
 import { useViewReveal } from "../../../hooks/useViewReveal";
-
-// How far the list and the form slide as they swap.
-const VIEW_OFFSET_IN_PX = 16;
 
 // The descriptions are full sentences, too long for Mantine's small, tight default.
 const FIELD_STYLES = {
@@ -102,7 +102,7 @@ function AiPromptLibraryModal() {
 
 	// The form comes in from the right, and going back brings the list in from the left.
 	const viewStyle = useViewReveal(draft ? "form" : "list", {
-		offsetX: draft ? VIEW_OFFSET_IN_PX : -VIEW_OFFSET_IN_PX,
+		offsetX: draft ? VIEW_SLIDE_OFFSET_PX : -VIEW_SLIDE_OFFSET_PX,
 		durationMs: VIEW_TRANSITION_DURATION_MS,
 	});
 
