@@ -1,6 +1,6 @@
+import MarksMenuRow from "../../../marks/MarksMenuRow";
 import { LearningAssetPlugin } from "../types";
 import MarksGutter from "./MarksGutter";
-import MarksMenuItems from "./MarksMenuItems";
 import MarksProvider from "./MarksProvider";
 import MarksScrollbarOverlay from "./MarksScrollbarOverlay";
 
@@ -9,6 +9,8 @@ export const marksPlugin: LearningAssetPlugin = {
 	id: "marks",
 	Provider: MarksProvider,
 	SplitPlugin: MarksGutter,
-	ContextMenuItems: MarksMenuItems,
+	ContextMenuItems: MarksMenuRow,
+	// Above the read point items, as in the PDF view.
+	contextMenuOrder: -1,
 	Overlay: MarksScrollbarOverlay,
 };

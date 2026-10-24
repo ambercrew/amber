@@ -23,7 +23,8 @@ document each) as a virtualized stack: live editors near the viewport, placehold
 
 Add `plugins/<name>/` and list it in `learningAssetPlugins`, using only the parts you need:
 `Provider` (view-wide hooks + its own context), `SplitPlugin` (Lexical plugin in each mounted
-split; seq from `useSplit()`), `ContextMenuItems`, `Overlay`.
+split; seq from `useSplit()`), `ContextMenuItems` (a menu section; the host adds dividers and
+`contextMenuOrder` sets its place), `Overlay`.
 
 - Never add feature props to `LearningAssetView`, `SplitSlot` or `ElementEditor`. If the core lacks
   something, add a general capability to `ReaderCore`.

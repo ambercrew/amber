@@ -11,7 +11,7 @@ import ElementEditor from "../ElementEditor";
 import { blockIndexOf } from "./core/blockIndexOf";
 import { SplitContext, useReaderCore } from "./core/readerCoreContext";
 import { useSplitStackWiring } from "./core/splitStackContext";
-import { PluginParts } from "./plugins/PluginHost";
+import { PluginContextMenuItems, PluginParts } from "./plugins/PluginHost";
 import { LearningAssetPlugin } from "./plugins/types";
 import SplitPlaceholder from "./SplitPlaceholder";
 
@@ -146,10 +146,7 @@ export default function SplitSlot({
 						onHighlightCreated={onHighlightCreated}
 						onRootElement={handleRootElement}
 						contextMenuItems={
-							<PluginParts
-								plugins={plugins}
-								part="ContextMenuItems"
-							/>
+							<PluginContextMenuItems plugins={plugins} />
 						}
 						onContextMenuClose={handleContextMenuClose}>
 						<CursorTrackerPlugin onCursorMove={handleCursorMove} />

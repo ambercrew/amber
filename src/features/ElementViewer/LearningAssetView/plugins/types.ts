@@ -10,8 +10,10 @@ export interface LearningAssetPlugin {
 	Provider?: ComponentType<PropsWithChildren>;
 	/** Rendered inside every mounted split's Lexical editor; reads its seq from `useSplit()`. */
 	SplitPlugin?: ComponentType;
-	/** Items added to a split's right-click menu. */
+	/** A section of a split's right-click menu; sections are separated by dividers. */
 	ContextMenuItems?: ComponentType;
+	/** Where `ContextMenuItems` sits in the menu, lowest first (default 0, then list order). */
+	contextMenuOrder?: number;
 	/** Rendered once, beside the split stack. */
 	Overlay?: ComponentType;
 }
