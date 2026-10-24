@@ -5,7 +5,7 @@ import FindInPageBar from "./FindInPageBar";
 import FolderView from "./FolderView";
 import RemoveHighlightModal from "./RemoveHighlightModal";
 import LearningAssetView from "./LearningAssetView/LearningAssetView";
-import PdfLearningAssetView from "./PdfView/components/PdfLearningAssetView";
+import PdfLearningAssetView from "./PdfView/PdfLearningAssetView";
 import SearchHighlightOverlay from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightOverlay";
 import useAppSelector from "../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../stores/elements/elementsSelectors";

@@ -4,7 +4,7 @@ import { ReadingPosition } from "../../../../../types/elements/readingPosition";
 import MarkScrollbarTicks from "../../../marks/MarkScrollbarTicks";
 import { useReaderCore } from "../../core/readerCoreContext";
 import { landingScrollTop } from "./landingScrollTop";
-import { useDisplayedReadPoint } from "../readPoint/readPointContext";
+import { useDisplayedReadPoint } from "../../../readPoint/readPointContext";
 
 /** Ticks on the main scrollbar for each set mark and the read point. */
 export default function MarksScrollbarOverlay() {

@@ -6,14 +6,14 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { notifications } from "@mantine/notifications";
 import { isNoReadPoint } from "../../../readPoint/readingPosition";
-import { useReadingCommand } from "../../../../../commands/readingCommands";
+import { useGoToReadPointCommand } from "../../../readPoint/useGoToReadPointCommand";
 import { flashElement } from "../../../marks/flashElement";
 import { READ_POINT_COLOR } from "../../../marks/markLogic";
+import { ReadingPosition } from "../../../../../types/elements/readingPosition";
 import { landOnBlock } from "../../core/landOnBlock";
 import { useReaderCore } from "../../core/readerCoreContext";
-import { ReadPointContext } from "./readPointContext";
+import { ReadPointContext } from "../../../readPoint/readPointContext";
 import { useReadPoint } from "./useReadPoint";
 
 const landOnReadPoint = (block: number) =>
@@ -45,15 +45,12 @@ export default function ReadPointProvider({ children }: PropsWithChildren) {
 	});
 
 	const shown = isNoReadPoint(displayed) ? null : displayed;
-	// Goes where the marker is, so the shortcut, marker and scrollbar tick agree.
-	const handleGoToRequested = useCallback(() => {
-		if (!shown) {
-			notifications.show({ message: "No read point set" });
-			return;
-		}
-		navigate(shown.split, landOnReadPoint(shown.block));
-	}, [shown, navigate]);
-	useReadingCommand("go-to-read-point", handleGoToRequested);
+	const goTo = useCallback(
+		(readPoint: ReadingPosition) =>
+			navigate(readPoint.split, landOnReadPoint(readPoint.block)),
+		[navigate],
+	);
+	useGoToReadPointCommand(shown, goTo);
 
 	// Replaces the core's plain restore on open, so the read point flashes as it does on "go to".
 	const restoreRequestedRef = useRef(false);

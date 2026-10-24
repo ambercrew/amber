@@ -197,6 +197,8 @@ A learning asset renders as a virtualized stack of splits: live Lexical editors 
 
 To add a feature, add a plugin folder and list it in `plugins/index.ts` — don't add props to `LearningAssetView`, `SplitSlot` or `ElementEditor`. List order is nesting order: a plugin may read the context of one listed before it (e.g. `marks` draws the read point beside its flags). `marks/` and `readPoint/` one level up hold the logic shared with the PDF view (mark storage/UI, read point precedence and saving). Read point and mark commands go through `runReadingCommand`/`useReadingCommand` (`src/commands/readingCommands.ts`), not window events.
 
+The PDF view (`src/features/ElementViewer/PdfView/`) mirrors this without a plugin registry: `core/PdfCoreProvider` shares the document and `goToPage(page, { flashColor })` (`usePdfCore()`), the only way to jump (it scrolls, hides the header and flashes the page on arrival), and `readPoint/`, `marks/`, `highlights/`, `search/` and `toolbar/` hold its features, nested as providers in `PdfDocumentContent`.
+
 ### Command Palette (`src/commands/`)
 
 A single registry in `commands.ts` drives the Spotlight palette (`mod+K`), global shortcuts, and in-app buttons — each command declared once, consumed everywhere.

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import ReadingGutterPlugin from "../../../marks/ReadingGutterPlugin";
 import { useMarksContext } from "../../../marks/marksContext";
 import { useSplit } from "../../core/readerCoreContext";
-import { useDisplayedReadPoint } from "../readPoint/readPointContext";
+import { useDisplayedReadPoint } from "../../../readPoint/readPointContext";
 
 /** This split's mark flags and read point marker, side by side in its gutter. */
 export default function MarksGutter() {
