@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useEffectEvent } from "react";
+import { createContext, use, useEffect, useEffectEvent } from "react";
 
 export type AppHotkeyItem = [string, (event: KeyboardEvent) => void];
 
@@ -138,7 +138,7 @@ export function useAppHotkeys(
 	tagsToIgnore: string[] = DEFAULT_TAGS_TO_IGNORE,
 	triggerOnContentEditable = false,
 ) {
-	const insideModal = useContext(ModalHotkeysContext);
+	const insideModal = use(ModalHotkeysContext);
 
 	const handleKeydown = useEffectEvent((event: KeyboardEvent) => {
 		if (!insideModal && isModalOpen()) return;

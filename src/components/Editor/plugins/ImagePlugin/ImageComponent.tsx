@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
@@ -64,8 +64,8 @@ export default function ImageComponent({
 	occlusionTarget,
 	nodeKey,
 }: Props) {
-	const getExtraMenuItems = useContext(ImageMenuItemsContext);
-	const renderOcclusionOverlay = useContext(ImageOcclusionOverlayContext);
+	const getExtraMenuItems = use(ImageMenuItemsContext);
+	const renderOcclusionOverlay = use(ImageOcclusionOverlayContext);
 	const [editor] = useLexicalComposerContext();
 	const [isSelected, setSelected, clearSelection] =
 		useLexicalNodeSelection(nodeKey);
