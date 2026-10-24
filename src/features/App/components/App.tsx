@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { Outlet } from "react-router";
 import {
 	AppShell,
@@ -66,6 +66,10 @@ import { useLexicalConversionBridge } from "../hooks/useLexicalConversionBridge.
 import { useOcclusionCardContentsBridge } from "../../ImageOcclusion/hooks/useOcclusionCardContentsBridge";
 import { MainScrollContext } from "../context/mainScrollContext.ts";
 import { HeadroomOverrideContext } from "../context/headroomOverrideContext.ts";
+import {
+	chromeInsets,
+	ChromeInsetsContext,
+} from "../context/chromeInsetsContext.ts";
 import { useElementHeadroom } from "../../../hooks/useElementHeadroom.ts";
 import { useWheelZoom } from "../../../hooks/useWheelZoom.ts";
 
@@ -110,6 +114,12 @@ function App() {
 	const footerSpace = `calc(${
 		studying ? "var(--app-shell-footer-height, 0px)" : "0px"
 	} + ${SAFE_AREA_BOTTOM})`;
+
+	// What the chrome covers right now, unlike the fixed spaces above; scrollbars and their ticks follow it.
+	const insets = useMemo(
+		() => chromeInsets(pinned, !footerCollapsed, SAFE_AREA_BOTTOM),
+		[pinned, footerCollapsed],
+	);
 
 	const { width: viewportWidth } = useViewportSize();
 	// Width each panel had before a drag collapsed it, keyed by panel.
@@ -194,146 +204,154 @@ function App() {
 	return (
 		<MainScrollContext value={mainElement}>
 			<HeadroomOverrideContext value={setPinnedOverride}>
-				<AppShell
-					resize={resize}
-					mode="fixed"
-					layout="alt"
-					h="100dvh"
-					style={{
-						overflow: "hidden",
-						"--app-shell-transition-duration": "calc(200ms * 2)",
-					}}
-					navbar={{
-						width: SIDEBAR_DEFAULT,
-						breakpoint: SMALL_SCREEN_BREAKPOINT,
-						collapsed: {
-							desktop: !sidebarExpanded,
-							mobile: !sidebarExpanded,
-						},
-					}}
-					aside={{
-						width: ASIDE_DEFAULT,
-						breakpoint: SMALL_SCREEN_BREAKPOINT,
-						collapsed: {
-							desktop: !asideExpanded,
-							mobile: !asideExpanded,
-						},
-					}}
-					header={{
-						height: mobile
-							? `calc(${HEADER_AND_FOOTER_HEIGHT}px + ${SAFE_AREA_TOP}${
-									isCurrentElementTrashed
-										? ` + ${TRASHED_ELEMENT_BANNER_HEIGHT}px`
-										: ""
-								})`
-							: HEADER_AND_FOOTER_HEIGHT +
-								(isCurrentElementTrashed
-									? TRASHED_ELEMENT_BANNER_HEIGHT
-									: 0),
-						collapsed: !pinned,
-						offset: false,
-					}}
-					footer={{
-						height: HEADER_AND_FOOTER_HEIGHT,
-						collapsed: footerCollapsed,
-						offset: false,
-					}}
-					padding="md">
-					{!mobile && <Updater />}
-					<CommandPalette />
-					<ImageLightbox />
-					<ImportModal />
-					<StudyProfileModal />
-					<SettingsModal />
-					<PriorityModal />
-					<DueDateModal />
-					<ShortcutsModal />
-					<AiPromptLibraryModal />
-					<StudySessionSettingsModal />
-					<AuthModal />
-					<VerifyEmailModal />
-					<ManageAccountModal />
-					<SyncingModal />
-					<Notifications classNames={notificationsClasses} />
-					<SafeAreaTopBackdrop />
-
-					<AppShell.Header style={safeAreaTop}>
-						<Box h={HEADER_AND_FOOTER_HEIGHT}>
-							<AppHeader
-								onToggleSidebar={() =>
-									setSidebarExpanded(v => !v)
-								}
-								onToggleAside={() => setAsideExpanded(v => !v)}
-							/>
-						</Box>
-						<TrashedElementBanner />
-					</AppShell.Header>
-
-					<AppShell.Footer
-						style={
-							mobile && footerCollapsed
-								? {
-										transform: `translateY(calc(var(--app-shell-footer-height) + ${SAFE_AREA_BOTTOM}))`,
-									}
-								: undefined
-						}>
-						<StudySessionBar />
-					</AppShell.Footer>
-
-					<AppShell.Navbar style={safeAreaTop}>
-						<Sidebar
-							onCollapse={() => setSidebarExpanded(false)}
-							onExpand={() => setSidebarExpanded(true)}
-							onToggle={() => setSidebarExpanded(v => !v)}
-						/>
-					</AppShell.Navbar>
-
-					<AppShell.Main
-						p={0}
+				<ChromeInsetsContext value={insets}>
+					<AppShell
+						resize={resize}
+						mode="fixed"
+						layout="alt"
+						h="100dvh"
 						style={{
-							position: "fixed",
-							minHeight: 0,
-							top: 0,
-							bottom: 0,
-							insetInlineStart:
-								"var(--app-shell-navbar-offset, 0rem)",
-							insetInlineEnd:
-								"var(--app-shell-aside-offset, 0rem)",
-							transitionProperty:
-								"inset-inline-start, inset-inline-end",
-						}}>
-						<ScrollArea
-							h="100%"
-							scrollbars="y"
-							viewportRef={setMainElement}
-							viewportProps={{
-								style: {
-									paddingInline: "var(--app-shell-padding)",
-									paddingTop: `calc(${headerSpace} + var(--app-shell-padding))`,
-									paddingBottom: `calc(${footerSpace} + var(--app-shell-padding))`,
-									scrollPaddingTop: headerSpace,
-									scrollPaddingBottom: footerSpace,
-								},
-							}}
-							styles={{
-								scrollbar: {
-									top: headerSpace,
-									bottom: footerSpace,
-								},
-								content: { display: "block" },
-							}}>
-							<Outlet />
-						</ScrollArea>
-					</AppShell.Main>
+							overflow: "hidden",
+							"--app-shell-transition-duration":
+								"calc(200ms * 2)",
+						}}
+						navbar={{
+							width: SIDEBAR_DEFAULT,
+							breakpoint: SMALL_SCREEN_BREAKPOINT,
+							collapsed: {
+								desktop: !sidebarExpanded,
+								mobile: !sidebarExpanded,
+							},
+						}}
+						aside={{
+							width: ASIDE_DEFAULT,
+							breakpoint: SMALL_SCREEN_BREAKPOINT,
+							collapsed: {
+								desktop: !asideExpanded,
+								mobile: !asideExpanded,
+							},
+						}}
+						header={{
+							height: mobile
+								? `calc(${HEADER_AND_FOOTER_HEIGHT}px + ${SAFE_AREA_TOP}${
+										isCurrentElementTrashed
+											? ` + ${TRASHED_ELEMENT_BANNER_HEIGHT}px`
+											: ""
+									})`
+								: HEADER_AND_FOOTER_HEIGHT +
+									(isCurrentElementTrashed
+										? TRASHED_ELEMENT_BANNER_HEIGHT
+										: 0),
+							collapsed: !pinned,
+							offset: false,
+						}}
+						footer={{
+							height: HEADER_AND_FOOTER_HEIGHT,
+							collapsed: footerCollapsed,
+							offset: false,
+						}}
+						padding="md">
+						{!mobile && <Updater />}
+						<CommandPalette />
+						<ImageLightbox />
+						<ImportModal />
+						<StudyProfileModal />
+						<SettingsModal />
+						<PriorityModal />
+						<DueDateModal />
+						<ShortcutsModal />
+						<AiPromptLibraryModal />
+						<StudySessionSettingsModal />
+						<AuthModal />
+						<VerifyEmailModal />
+						<ManageAccountModal />
+						<SyncingModal />
+						<Notifications classNames={notificationsClasses} />
+						<SafeAreaTopBackdrop />
 
-					<AppShell.Aside style={safeAreaVertical}>
-						<Aside
-							onCollapse={() => setAsideExpanded(false)}
-							onExpand={() => setAsideExpanded(true)}
-							onToggle={() => setAsideExpanded(v => !v)}
-						/>
-					</AppShell.Aside>
-				</AppShell>
+						<AppShell.Header style={safeAreaTop}>
+							<Box h={HEADER_AND_FOOTER_HEIGHT}>
+								<AppHeader
+									onToggleSidebar={() =>
+										setSidebarExpanded(v => !v)
+									}
+									onToggleAside={() =>
+										setAsideExpanded(v => !v)
+									}
+								/>
+							</Box>
+							<TrashedElementBanner />
+						</AppShell.Header>
+
+						<AppShell.Footer
+							style={
+								mobile && footerCollapsed
+									? {
+											transform: `translateY(calc(var(--app-shell-footer-height) + ${SAFE_AREA_BOTTOM}))`,
+										}
+									: undefined
+							}>
+							<StudySessionBar />
+						</AppShell.Footer>
+
+						<AppShell.Navbar style={safeAreaTop}>
+							<Sidebar
+								onCollapse={() => setSidebarExpanded(false)}
+								onExpand={() => setSidebarExpanded(true)}
+								onToggle={() => setSidebarExpanded(v => !v)}
+							/>
+						</AppShell.Navbar>
+
+						<AppShell.Main
+							p={0}
+							style={{
+								position: "fixed",
+								minHeight: 0,
+								top: 0,
+								bottom: 0,
+								insetInlineStart:
+									"var(--app-shell-navbar-offset, 0rem)",
+								insetInlineEnd:
+									"var(--app-shell-aside-offset, 0rem)",
+								transitionProperty:
+									"inset-inline-start, inset-inline-end",
+							}}>
+							<ScrollArea
+								h="100%"
+								scrollbars="y"
+								viewportRef={setMainElement}
+								viewportProps={{
+									style: {
+										paddingInline:
+											"var(--app-shell-padding)",
+										paddingTop: `calc(${headerSpace} + var(--app-shell-padding))`,
+										paddingBottom: `calc(${footerSpace} + var(--app-shell-padding))`,
+										scrollPaddingTop: headerSpace,
+										scrollPaddingBottom: footerSpace,
+									},
+								}}
+								styles={{
+									scrollbar: {
+										top: insets.top,
+										bottom: insets.bottom,
+										// Keeps Mantine's own hover fade alongside the inset animation.
+										transition: `${insets.transition}, background-color 150ms ease, opacity 150ms ease`,
+									},
+									content: { display: "block" },
+								}}>
+								<Outlet />
+							</ScrollArea>
+						</AppShell.Main>
+
+						<AppShell.Aside style={safeAreaVertical}>
+							<Aside
+								onCollapse={() => setAsideExpanded(false)}
+								onExpand={() => setAsideExpanded(true)}
+								onToggle={() => setAsideExpanded(v => !v)}
+							/>
+						</AppShell.Aside>
+					</AppShell>
+				</ChromeInsetsContext>
 			</HeadroomOverrideContext>
 		</MainScrollContext>
 	);

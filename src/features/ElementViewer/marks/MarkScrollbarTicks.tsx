@@ -63,6 +63,8 @@ interface MarkScrollbarTicksProps {
 	trackTop: string;
 	/** CSS inset of the scrollbar track from the container's bottom. */
 	trackBottom: string;
+	/** Animates inset changes to match a track that animates its own; omit for one that snaps. */
+	trackTransition?: string;
 	/** The read point shown in the reading, ticked in its own color; `null` when there is none. */
 	readPoint?: ReadingPosition | null;
 	/**
@@ -78,6 +80,7 @@ export default function MarkScrollbarTicks({
 	scrollElement,
 	trackTop,
 	trackBottom,
+	trackTransition,
 	readPoint,
 	landingScrollTopOf,
 }: MarkScrollbarTicksProps) {
@@ -122,7 +125,7 @@ export default function MarkScrollbarTicks({
 				: next;
 		});
 	}, [readPoint, marks, positionOf]);
-	// Measured a frame after any change, and again per frame while scrolling refines split height estimates.
+	// Measured a frame after any change, per frame while scrolling refines split height estimates, and as the track resizes with the chrome.
 	useEffect(() => {
 		if (!hasTicks) return;
 		let frame: number | null = null;
@@ -135,11 +138,17 @@ export default function MarkScrollbarTicks({
 		};
 		schedule();
 		scrollElement?.addEventListener("scroll", schedule, { passive: true });
+		const resizeObserver =
+			track && typeof ResizeObserver !== "undefined"
+				? new ResizeObserver(schedule)
+				: null;
+		if (track) resizeObserver?.observe(track);
 		return () => {
 			scrollElement?.removeEventListener("scroll", schedule);
+			resizeObserver?.disconnect();
 			if (frame !== null) cancelAnimationFrame(frame);
 		};
-	}, [scrollElement, hasTicks, measure]);
+	}, [scrollElement, track, hasTicks, measure]);
 
 	if (!container || !hasTicks) return null;
 	const readPointPosition = positions[READ_POINT_KEY] ?? null;
@@ -152,7 +161,11 @@ export default function MarkScrollbarTicks({
 			bottom={trackBottom}
 			right={0}
 			w={TRACK_WIDTH_IN_PX}
-			style={{ pointerEvents: "none", zIndex: 1 }}>
+			style={{
+				pointerEvents: "none",
+				zIndex: 1,
+				transition: trackTransition,
+			}}>
 			{readPoint && readPointPosition !== null && (
 				<ScrollbarTick
 					position={readPointPosition}

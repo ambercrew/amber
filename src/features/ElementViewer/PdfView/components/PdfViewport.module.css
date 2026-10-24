@@ -1,5 +1,24 @@
+/* Registered so they animate: a native scrollbar track can't transition its margin, but it re-reads these each frame. */
+@property --pdf-viewport-scrollbar-inset-top {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 0px;
+}
+
+@property --pdf-viewport-scrollbar-inset-bottom {
+	syntax: "<length>";
+	inherits: true;
+	initial-value: 0px;
+}
+
 .viewport {
 	scrollbar-gutter: stable;
+	transition:
+		--pdf-viewport-scrollbar-inset-top var(--app-shell-transition-duration)
+			var(--app-shell-transition-timing-function),
+		--pdf-viewport-scrollbar-inset-bottom
+			var(--app-shell-transition-duration)
+			var(--app-shell-transition-timing-function);
 	/* Trough the page rests on, so it doesn't blend into the app background. */
 	background-color: var(--pdf-viewport-bg);
 }
@@ -10,6 +29,7 @@
 
 .viewport::-webkit-scrollbar-track {
 	margin-top: var(--pdf-viewport-scrollbar-inset-top, 0px);
+	margin-bottom: var(--pdf-viewport-scrollbar-inset-bottom, 0px);
 }
 
 .viewport::-webkit-scrollbar-thumb {

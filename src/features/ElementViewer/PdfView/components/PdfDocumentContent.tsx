@@ -13,6 +13,7 @@ import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import { HEADROOM_FIXED_AT } from "../../../App/components/App";
 import { hideHeadroom } from "../../../../hooks/useElementHeadroom";
 import { useSetHeadroomOverride } from "../../../App/context/headroomOverrideContext";
+import { useChromeInsets } from "../../../App/context/chromeInsetsContext";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { isNoReadPoint } from "../../readPoint/readingPosition";
 import { MarkSlot } from "../../../../types/elements/learningAssetMark";
@@ -242,6 +243,7 @@ function LoadedPdfDocument({
 	const linkRenderers = usePdfLinkNavigationRenderer(activeDocumentId);
 
 	const [pinned, setPinned] = useState(true);
+	const insets = useChromeInsets();
 
 	return (
 		// Fixed, always full-height, never resized by the header (a resize
@@ -268,12 +270,11 @@ function LoadedPdfDocument({
 						style={{
 							width: "100%",
 							height: "100%",
-							// Inset the scrollbar below the header, same as the app's
-							// own ScrollArea does for its (custom-drawn) scrollbar.
+							// Clear of the header and footer, like the main scrollbar; animated by the viewport's CSS.
 							["--pdf-viewport-scrollbar-inset-top" as string]:
-								pinned
-									? "var(--app-shell-header-height, 0px)"
-									: "0px",
+								insets.top,
+							["--pdf-viewport-scrollbar-inset-bottom" as string]:
+								insets.bottom,
 						}}>
 						<ScrollWatcher
 							onPinnedChange={setPinned}
@@ -344,10 +345,9 @@ function LoadedPdfDocument({
 				<PdfToolbar documentId={activeDocumentId} pinned={pinned} />
 				<MarkScrollbarTicks
 					container={frame}
-					trackTop={
-						pinned ? "var(--app-shell-header-height, 0px)" : "0px"
-					}
-					trackBottom="0px"
+					trackTop={insets.top}
+					trackBottom={insets.bottom}
+					trackTransition={insets.transition}
 					readPoint={
 						readPointPage === null ? null : displayedReadPoint
 					}

@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useChromeInsets } from "../../../../App/context/chromeInsetsContext";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
 import MarkScrollbarTicks from "../../../marks/MarkScrollbarTicks";
 import { useReaderCore } from "../../core/readerCoreContext";
@@ -10,6 +11,7 @@ export default function MarksScrollbarOverlay() {
 	const { scrollElement, splits, getContentRoot, getSplitBox } =
 		useReaderCore();
 	const readPoint = useDisplayedReadPoint();
+	const insets = useChromeInsets();
 
 	const landingScrollTopOf = useCallback(
 		(anchor: ReadingPosition) =>
@@ -29,8 +31,9 @@ export default function MarksScrollbarOverlay() {
 		<MarkScrollbarTicks
 			container={scrollElement?.parentElement ?? null}
 			scrollElement={scrollElement}
-			trackTop="var(--app-shell-header-height, 0px)"
-			trackBottom="var(--app-shell-footer-offset, 0px)"
+			trackTop={insets.top}
+			trackBottom={insets.bottom}
+			trackTransition={insets.transition}
 			readPoint={readPoint}
 			landingScrollTopOf={landingScrollTopOf}
 		/>
