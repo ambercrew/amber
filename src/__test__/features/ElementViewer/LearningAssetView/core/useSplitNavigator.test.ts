@@ -296,7 +296,7 @@ describe("useSplitNavigator", () => {
 			// Assert
 
 			expect(landedEarly).toBe(0);
-			expect(laterLand).toHaveBeenCalledWith(root);
+			expect(laterLand).toHaveBeenCalledWith(root, null);
 			expect(restoreScroll).not.toHaveBeenCalled();
 		});
 
@@ -479,7 +479,7 @@ describe("useSplitNavigator", () => {
 			// Assert
 
 			expect(scrollTo).not.toHaveBeenCalled();
-			expect(land).toHaveBeenCalledWith(root);
+			expect(land).toHaveBeenCalledWith(root, scrollElement);
 		});
 
 		it("Should mark restored when a navigation replaced the pending restore before it landed", () => {

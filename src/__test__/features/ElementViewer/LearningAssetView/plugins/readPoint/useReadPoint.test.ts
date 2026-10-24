@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReadingAnchors } from "../../../../../../features/ElementViewer/LearningAssetView/core/useReadingAnchors";
 import { useReadPoint } from "../../../../../../features/ElementViewer/LearningAssetView/plugins/readPoint/useReadPoint";
 import { AUTO_SAVE_DELAY_IN_MILLISECONDS } from "../../../../../../config/constants";
+import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "../../../../../../features/ElementViewer/LearningAssetView/core/learningAssetViewConstants";
 import { ReadingPosition } from "../../../../../../types/elements/readingPosition";
 import { MainScrollContext } from "../../../../../../features/App/context/mainScrollContext";
 
@@ -78,7 +79,9 @@ const BOTTOMS_ALL_ON_SCREEN = [100, 100, 100, 100, 100];
  * matches jsdom's default `window.innerHeight` (768) so "is at document end"
  * checks behave the same as when the window itself used to scroll. */
 function makeScrollElement(): HTMLElement {
+	// Spans the window like the app's, with the header covering its top.
 	const scrollElement = document.createElement("div");
+	scrollElement.style.scrollPaddingTop = `${LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX}px`;
 	scrollElement.getBoundingClientRect = () => rect(768);
 	return scrollElement;
 }

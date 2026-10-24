@@ -42,7 +42,9 @@ split; seq from `useSplit()`), `ContextMenuItems` (a menu section; the host adds
 - `ReadingPosition { split: seq, block }` — `block` indexes the Lexical root's top-level children.
   `NO_READ_POINT` means none (`isNoReadPoint`).
 - Always scroll with `navigate(seq, land)`: it pre-scrolls to the split's estimated offset, mounts
-  it, waits a painted frame, then calls `land(root)`. Use `landOnBlock`. The last request wins.
+  it, waits a painted frame, then calls `land(root, scrollElement)`. Use `landOnBlock`. The last request
+  wins. Past the header's fixed zone a block lands flush with the top and the header is hidden
+  (`hideHeadroom`); measure "the top" with `viewportTop`, never a fixed header height.
 - `getContentRoot(seq)` is `undefined` for unmounted splits — handle it; don't query the DOM.
 - For "here" actions use `anchors.resolveVisibleAnchor()`.
 - Per-split ref callbacks must be stable: use `useKeyedRefCallbacks`.

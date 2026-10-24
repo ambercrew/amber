@@ -11,6 +11,7 @@ import { SelectionLayer } from "@embedpdf/plugin-selection/react";
 import { SearchLayer } from "@embedpdf/plugin-search/react";
 import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import { HEADROOM_FIXED_AT } from "../../../App/components/App";
+import { hideHeadroom } from "../../../../hooks/useElementHeadroom";
 import { useSetHeadroomOverride } from "../../../App/context/headroomOverrideContext";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { isNoReadPoint } from "../../readPoint/readingPosition";
@@ -46,10 +47,22 @@ import styles from "./PdfViewport.module.css";
  * state from inside that context back out to the parent. */
 function ScrollWatcher({
 	onPinnedChange,
+	hideRequests,
 }: {
 	onPinnedChange: (pinned: boolean) => void;
+	/** Bumped by each jump to hide the header; one made before this mounts (behind `<Viewport>`'s gate) still applies. */
+	hideRequests: number;
 }) {
-	const { pinned } = usePdfToolbarHeadroom({ fixedAt: HEADROOM_FIXED_AT });
+	const { pinned, viewportElement } = usePdfToolbarHeadroom({
+		fixedAt: HEADROOM_FIXED_AT,
+	});
+	const handledHideRequestsRef = useRef(0);
+	useEffect(() => {
+		if (!viewportElement || hideRequests === handledHideRequestsRef.current)
+			return;
+		handledHideRequestsRef.current = hideRequests;
+		hideHeadroom(viewportElement);
+	}, [hideRequests, viewportElement]);
 	const setHeadroomOverride = useSetHeadroomOverride();
 
 	useEffect(() => {
@@ -138,9 +151,12 @@ function LoadedPdfDocument({
 	const { provides: scrollCapability } = useScrollCapability();
 	const [pageFlash, setPageFlash] = useState<PdfPageFlash | null>(null);
 	const pendingFlashRef = useRef<PdfPageFlash | null>(null);
+	const [hideRequests, setHideRequests] = useState(0);
 	// Flashes once the jump reaches the page, not while it's still scrolling there.
+	// Every jump comes through here, so it also hides the header, as the text view does.
 	const flashOnArrival = useCallback(
 		(flash: PdfPageFlash) => {
+			setHideRequests(count => count + 1);
 			const currentPage = scrollCapability
 				?.forDocument(activeDocumentId)
 				.getCurrentPage();
@@ -259,7 +275,10 @@ function LoadedPdfDocument({
 									? "var(--app-shell-header-height, 0px)"
 									: "0px",
 						}}>
-						<ScrollWatcher onPinnedChange={setPinned} />
+						<ScrollWatcher
+							onPinnedChange={setPinned}
+							hideRequests={hideRequests}
+						/>
 						<ZoomGestureWrapper
 							documentId={activeDocumentId}
 							style={{ width: "100%", height: "100%" }}>

@@ -1,5 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
-import { useElementHeadroom } from "../../hooks/useElementHeadroom";
+import {
+	hideHeadroom,
+	useElementHeadroom,
+} from "../../hooks/useElementHeadroom";
 
 describe("useElementHeadroom", () => {
 	let element: HTMLElement;
@@ -203,5 +206,93 @@ describe("useElementHeadroom", () => {
 			scrollProgress: 0,
 		});
 		vi.useRealTimers();
+	});
+
+	describe("hideHeadroom", () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		/** Jumps to `scrollTop` the way a jump does: scroll, hide, then the scroll's own event arrives. */
+		function jumpTo(scrollTop: number) {
+			element.scrollTop = scrollTop;
+			act(() => {
+				hideHeadroom(element);
+				element.dispatchEvent(new Event("scroll"));
+			});
+		}
+
+		it("Should hide when a jump scrolls up but lands past the fixed zone", () => {
+			// Arrange
+
+			const { result } = render();
+			scrollTo(1000);
+			scrollTo(900);
+
+			// Act
+
+			jumpTo(500);
+
+			// Assert
+
+			expect(result.current.pinned).toBe(false);
+		});
+
+		it("Should hide when the jump's scroll arrives late and the scroller was paused", () => {
+			// Arrange
+
+			const { result } = render();
+			act(() => {
+				result.current.pause();
+				hideHeadroom(element);
+				vi.advanceTimersByTime(200);
+			});
+
+			// Act
+
+			scrollTo(1000);
+
+			// Assert
+
+			expect(result.current.pinned).toBe(false);
+		});
+
+		it("Should stay pinned when a jump lands within the fixed zone", () => {
+			// Arrange
+
+			const { result } = render();
+			scrollTo(1000);
+
+			// Act
+
+			jumpTo(50);
+
+			// Assert
+
+			expect(result.current.pinned).toBe(true);
+		});
+
+		it("Should reveal again when scrolling up by hand after a jump has settled", () => {
+			// Arrange
+
+			const { result } = render();
+			jumpTo(1000);
+			act(() => {
+				vi.advanceTimersByTime(1000);
+			});
+
+			// Act
+
+			scrollTo(990);
+			scrollTo(890);
+
+			// Assert
+
+			expect(result.current.scrollProgress).toBe(1);
+		});
 	});
 });

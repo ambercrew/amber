@@ -8,7 +8,10 @@ import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "./learningAssetViewCon
 import { landOnBlock } from "./landOnBlock";
 
 /** Scrolls to whatever the caller is after, once `root` (the split's live editor root) is available. */
-export type Land = (root: HTMLElement) => void;
+export type Land = (
+	root: HTMLElement,
+	scrollElement: HTMLElement | null,
+) => void;
 
 export type Navigate = (seq: number, land: Land) => void;
 
@@ -73,11 +76,11 @@ export function useSplitNavigator({
 			}
 			requestAnimationFrame(() => {
 				const root = getContentRoot(seq);
-				if (root) land(root);
+				if (root) land(root, scroller);
 				finish();
 			});
 		},
-		[getContentRoot, finish],
+		[getContentRoot, finish, scroller],
 	);
 
 	const navigate = useCallback<Navigate>(
@@ -94,7 +97,7 @@ export function useSplitNavigator({
 					pendingRef.current = null;
 					finish();
 				}
-				land(root);
+				land(root, scroller);
 				return;
 			}
 			// Pre-scroll to the split's estimated offset while it mounts, so a long jump doesn't visibly snap.

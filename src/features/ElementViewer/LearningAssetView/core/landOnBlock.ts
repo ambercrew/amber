@@ -6,8 +6,8 @@ export function landOnBlock(
 	block: number,
 	onLanded?: (element: Element) => void,
 ): Land {
-	return root => {
-		const landed = scrollBlockIntoView(root, block);
+	return (root, scrollElement) => {
+		const landed = scrollBlockIntoView(root, block, scrollElement);
 		if (landed) onLanded?.(landed);
 	};
 }

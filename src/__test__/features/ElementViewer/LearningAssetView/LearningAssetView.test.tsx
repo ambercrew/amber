@@ -20,6 +20,11 @@ import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
 const BLOCKS_PER_SPLIT = 3;
 
+/** Where the mocked editor places split `seq`'s block `block`, below the header's fixed zone so landings are flush. */
+function blockTop(seq: number, block: number) {
+	return 1000 * seq + 100 * block + 500;
+}
+
 const api = vi.hoisted(() => ({
 	getLearningAssetSplitManifest: vi.fn(),
 	getLearningAssetSplitContent: vi.fn(),
@@ -58,9 +63,17 @@ vi.mock("../../../../features/ElementViewer/ElementEditor", () => ({
 	}) {
 		const rootRef = useRef<HTMLDivElement>(null);
 		useEffect(() => {
+			const seq = Number(initialContent.replace("split-", ""));
+			Array.from(rootRef.current?.children ?? []).forEach((block, i) => {
+				block.getBoundingClientRect = () =>
+					({
+						top: blockTop(seq, i),
+						bottom: blockTop(seq, i) + 100,
+					}) as DOMRect;
+			});
 			onRootElement?.(rootRef.current);
 			return () => onRootElement?.(null);
-		}, [onRootElement]);
+		}, [initialContent, onRootElement]);
 		return (
 			<LexicalComposer
 				initialConfig={{
@@ -190,14 +203,18 @@ describe("LearningAssetView", () => {
 	it("Should scroll the saved read point's block into view when the learning asset opens", async () => {
 		// Arrange & Act
 
-		const { findByTestId } = renderView({
+		const { scrollTo } = renderView({
 			readPoint: { split: 2, block: 1 },
 		});
 
 		// Assert
 
-		const block = await findBlock(findByTestId, 2, 1);
-		await waitFor(() => expect(scrolledInto).toContain(block));
+		await waitFor(() =>
+			expect(scrollTo).toHaveBeenCalledWith({
+				top: blockTop(2, 1),
+				behavior: "instant",
+			}),
+		);
 	});
 
 	it("Should flash the saved read point's block when the learning asset opens", async () => {
@@ -228,7 +245,7 @@ describe("LearningAssetView", () => {
 		api.getLearningAssetMarks.mockResolvedValue([
 			{ slot: 2, anchor: { split: 3, block: 2 } },
 		]);
-		const { findByTestId, queryByTestId } = renderView();
+		const { findByTestId, queryByTestId, scrollTo } = renderView();
 		await findByTestId("split-0");
 		await waitFor(() =>
 			expect(api.getLearningAssetMarks).toHaveBeenCalled(),
@@ -243,8 +260,13 @@ describe("LearningAssetView", () => {
 
 		// Assert
 
-		const block = await findBlock(findByTestId, 3, 2);
-		await waitFor(() => expect(scrolledInto).toContain(block));
+		await findByTestId("split-3");
+		await waitFor(() =>
+			expect(scrollTo).toHaveBeenCalledWith({
+				top: blockTop(3, 2),
+				behavior: "instant",
+			}),
+		);
 	});
 
 	it("Should save the read point at the extract's end when a highlight is created in a split", async () => {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { isBlockInViewport } from "./blockIndexOf";
-import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "./learningAssetViewConstants";
+import { viewportTop } from "./viewportTop";
 
 interface Props {
 	/** seq of the split currently at the top of the viewport. */
@@ -58,12 +58,9 @@ export function useReadingAnchors({
 		const seq = primarySeqRef.current;
 		const root = getContentRoot(seq);
 		if (!root) return null;
-		const block = topVisibleBlockIndex(
-			root,
-			LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX,
-		);
+		const block = topVisibleBlockIndex(root, viewportTop(scrollElement));
 		return { split: seq, block };
-	}, [getContentRoot]);
+	}, [getContentRoot, scrollElement]);
 
 	const resolveVisibleAnchor = useCallback(() => {
 		if (menuAnchorRef.current) return menuAnchorRef.current;
@@ -76,7 +73,7 @@ export function useReadingAnchors({
 			isBlockInViewport(
 				root,
 				caret.block,
-				LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX,
+				viewportTop(scrollElement),
 				scrollElement.getBoundingClientRect().bottom,
 			)
 		) {

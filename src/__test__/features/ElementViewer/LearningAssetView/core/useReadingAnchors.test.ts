@@ -22,9 +22,11 @@ function makeRoot(spans: { top: number; bottom: number }[]): HTMLElement {
 }
 
 function renderAnchors(root: HTMLElement) {
+	// Spans the window like the app's, with the header covering its top.
 	const scrollElement = document.createElement("div");
+	scrollElement.style.scrollPaddingTop = `${LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX}px`;
 	scrollElement.getBoundingClientRect = () =>
-		({ bottom: VIEWPORT_BOTTOM_IN_PX }) as DOMRect;
+		({ top: 0, bottom: VIEWPORT_BOTTOM_IN_PX }) as DOMRect;
 	return renderHook(() =>
 		useReadingAnchors({
 			primarySeq: 2,

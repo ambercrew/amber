@@ -21,6 +21,17 @@ export interface UseElementHeadroomReturnValue {
 	pause: (quietMs?: number) => void;
 }
 
+const HEADROOM_HIDE_EVENT = "headroom:hide";
+// How long after the last scroll a jump counts as finished, so a smooth scroll's events don't reveal it.
+const HIDE_QUIET_MS = 150;
+// How long to wait for a jump's first scroll, which a PDF only applies once its pages lay out.
+const HIDE_SCROLL_WAIT_MS = 1000;
+
+/** Hides the chrome observing `element` after a jump, unless the jump landed within `fixedAt` of the top. */
+export function hideHeadroom(element: HTMLElement) {
+	element.dispatchEvent(new Event(HEADROOM_HIDE_EVENT));
+}
+
 /**
  * Element-scoped equivalent of Mantine's `useHeadroom`, which can only observe
  * the window scroller. Returns whether pinned chrome (the header, the footer)
@@ -58,7 +69,38 @@ export function useElementHeadroom({
 	useEffect(() => {
 		if (!element) return;
 
+		// Restarts tracking from wherever the jump ends, hidden unless it ends within `fixedAt`.
+		let hiding = false;
+		let hideTimeout: number | undefined;
+		const settleHidden = () => {
+			const { scrollTop } = element;
+			const fixed = scrollTop <= fixedAt;
+			previousScrollTop.current = scrollTop;
+			previouslyFixed.current = fixed;
+			previouslyScrollingUp.current = false;
+			directionChangeScrollTop.current = scrollTop;
+			progressAtDirectionChange.current = fixed ? 1 : 0;
+			setScrollProgress(fixed ? 1 : 0);
+		};
+		const stopHidingAfter = (ms: number) => {
+			window.clearTimeout(hideTimeout);
+			hideTimeout = window.setTimeout(() => {
+				hiding = false;
+			}, ms);
+		};
+		const onHide = () => {
+			hiding = true;
+			settleHidden();
+			stopHidingAfter(HIDE_SCROLL_WAIT_MS);
+		};
+
 		const onScroll = () => {
+			// Checked before `suppressed`, so a zoom's pause can't swallow the jump's scroll.
+			if (hiding) {
+				settleHidden();
+				stopHidingAfter(HIDE_QUIET_MS);
+				return;
+			}
 			// Skip programmatic scrolls (resize, or `pause` from a caller),
 			// resyncing so the next real scroll's delta starts from here.
 			if (suppressed.current) {
@@ -113,11 +155,14 @@ export function useElementHeadroom({
 
 		onScroll();
 		element.addEventListener("scroll", onScroll, { passive: true });
+		element.addEventListener(HEADROOM_HIDE_EVENT, onHide);
 		window.addEventListener("resize", onResize);
 
 		return () => {
 			element.removeEventListener("scroll", onScroll);
+			element.removeEventListener(HEADROOM_HIDE_EVENT, onHide);
 			window.removeEventListener("resize", onResize);
+			window.clearTimeout(hideTimeout);
 		};
 	}, [element, fixedAt, scrollDistance, pause]);
 

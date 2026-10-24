@@ -35,5 +35,5 @@ export function usePdfToolbarHeadroom(
 		return zoom.onZoomChange(() => pause());
 	}, [zoom, pause]);
 
-	return headroom;
+	return { ...headroom, viewportElement };
 }

@@ -12,10 +12,6 @@
 
 .content-editable {
 	outline: none;
-
-	& * {
-		scroll-margin-top: var(--app-shell-header-height);
-	}
 }
 
 .code-block {

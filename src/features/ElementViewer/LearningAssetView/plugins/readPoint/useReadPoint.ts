@@ -5,7 +5,7 @@ import { NO_READ_POINT } from "../../../readPoint/readingPosition";
 import { useMainScrollElement } from "../../../../App/context/mainScrollContext";
 import { ReadPointSource } from "../../../readPoint/readPointPrecedence";
 import { useReadPointPlacement } from "../../../readPoint/useReadPointPlacement";
-import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "../../core/learningAssetViewConstants";
+import { viewportTop } from "../../core/viewportTop";
 import {
 	ReadingAnchors,
 	topVisibleBlockIndex,
@@ -89,10 +89,7 @@ export function useReadPoint({
 			place(NO_READ_POINT, source);
 			return;
 		}
-		const block = topVisibleBlockIndex(
-			root,
-			LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX,
-		);
+		const block = topVisibleBlockIndex(root, viewportTop(scrollElement));
 		place({ split: seq, block }, source);
 	}, [
 		restoredRef,
