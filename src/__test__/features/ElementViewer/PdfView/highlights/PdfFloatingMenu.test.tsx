@@ -5,6 +5,7 @@ import PdfFloatingMenu from "../../../../../features/ElementViewer/PdfView/highl
 import {
 	createCardAction,
 	createExtractAction,
+	existsInTree,
 } from "../../../../../stores/elements/elementsActions";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
 import SettingsDto from "../../../../../api/settings/dto/settingsDto";
@@ -72,16 +73,18 @@ interface TestHighlight {
 function buildHighlight({
 	id,
 	commitState = "synced",
+	pageIndex = 0,
 }: {
 	id: string;
 	commitState?: TestHighlight["commitState"];
+	pageIndex?: number;
 }): TestHighlight {
 	return {
 		commitState,
 		object: {
 			id,
 			type: PdfAnnotationSubtype.HIGHLIGHT,
-			pageIndex: 0,
+			pageIndex,
 			rect: RECT,
 			segmentRects: [RECT],
 			custom: { elementId: "element-1", elementType: "extract" },
@@ -171,6 +174,7 @@ function renderMenu({
 	vi.mocked(createCardAction).mockReturnValue(() => Promise.resolve(true));
 
 	const onHighlightCreated = vi.fn();
+	const onConfirmRemoval = vi.fn();
 	const { store } = renderWithProviders(
 		<PdfFloatingMenu
 			rect={RECT}
@@ -181,6 +185,7 @@ function renderMenu({
 			context={{ type: "selection", pageIndex: 0 }}
 			learningAssetId={LEARNING_ASSET_ID}
 			onHighlightCreated={onHighlightCreated}
+			onConfirmRemoval={onConfirmRemoval}
 		/>,
 		{
 			preloadedState: {
@@ -191,7 +196,13 @@ function renderMenu({
 		},
 	);
 
-	return { selectionScope, annotationScope, onHighlightCreated, store };
+	return {
+		selectionScope,
+		annotationScope,
+		onHighlightCreated,
+		onConfirmRemoval,
+		store,
+	};
 }
 
 function lineRect(x: number, y: number, width: number) {
@@ -209,6 +220,10 @@ async function getMenuPosition() {
 }
 
 describe("PdfFloatingMenu", () => {
+	afterEach(() => {
+		vi.mocked(existsInTree).mockReset();
+	});
+
 	it("Should attach the selection and ask the AI for cards when Make Cards with AI is clicked", async () => {
 		// Arrange
 
@@ -419,7 +434,7 @@ describe("PdfFloatingMenu", () => {
 		).toBeNull();
 	});
 
-	it("Should delete the highlight when Remove Highlight is clicked", () => {
+	it("Should delete the highlight without asking when its element no longer exists", () => {
 		// Arrange
 
 		const { annotationScope } = renderMenu({
@@ -466,5 +481,63 @@ describe("PdfFloatingMenu", () => {
 			).toBeNull(),
 		);
 		expect(document.querySelector('[aria-label="Open"]')).toBeNull();
+	});
+
+	it("Should ask to confirm instead of deleting when the highlight's element still exists", () => {
+		// Arrange
+
+		vi.mocked(existsInTree).mockReturnValue(true);
+		const { annotationScope, onConfirmRemoval } = renderMenu({
+			selectedText: "Selected phrase",
+			pageText: "Full page text",
+			slice: { start: 0, count: 8 },
+			highlights: [buildHighlight({ id: "h1" })],
+		});
+
+		// Act
+
+		fireEvent.click(
+			document.querySelector('[aria-label="Remove Highlight"]')!,
+		);
+
+		// Assert
+
+		expect(onConfirmRemoval).toHaveBeenCalledWith({
+			annotations: [{ pageIndex: 0, id: "h1" }],
+			elementIds: [{ type: "extract", id: "element-1" }],
+		});
+		expect(annotationScope.deleteAnnotations).not.toHaveBeenCalled();
+	});
+
+	it("Should remove the element's highlights on other pages too when its highlight is removed", () => {
+		// Arrange
+
+		vi.mocked(existsInTree).mockReturnValue(true);
+		const { onConfirmRemoval } = renderMenu({
+			selectedText: "Selected phrase",
+			pageText: "Full page text",
+			slice: { start: 0, count: 8 },
+			highlights: [
+				buildHighlight({ id: "h1" }),
+				buildHighlight({ id: "h2", pageIndex: 1 }),
+			],
+		});
+
+		// Act
+
+		fireEvent.click(
+			document.querySelector('[aria-label="Remove Highlight"]')!,
+		);
+
+		// Assert
+
+		expect(onConfirmRemoval).toHaveBeenCalledWith(
+			expect.objectContaining({
+				annotations: [
+					{ pageIndex: 0, id: "h1" },
+					{ pageIndex: 1, id: "h2" },
+				],
+			}),
+		);
 	});
 });

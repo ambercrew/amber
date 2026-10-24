@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useMounted } from "@mantine/hooks";
 import { MantineTransition, Transition } from "@mantine/core";
+import { useStore } from "react-redux";
 import { useNavigate } from "react-router";
 import { useRegistry } from "@embedpdf/core/react";
 import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
@@ -27,7 +28,9 @@ import { paths } from "../../../../paths";
 import {
 	createCardAction,
 	createExtractAction,
+	existsInTree,
 } from "../../../../stores/elements/elementsActions";
+import { RootState } from "../../../../stores/store";
 import { selectSettings } from "../../../../stores/settings/settingsSelector";
 import {
 	addAiContextSnippet,
@@ -65,6 +68,7 @@ import {
 } from "./pdfMenuAnchor";
 import { Rect } from "@embedpdf/models";
 import { GlyphPointer } from "@embedpdf/plugin-selection";
+import { PdfHighlightRemoval } from "./usePdfHighlightRemoval";
 import { usePdfAnnotationState } from "./usePdfAnnotationState";
 
 const ALIGN_SHIFT: Record<PdfMenuAlign, string> = {
@@ -96,6 +100,8 @@ interface PdfFloatingMenuProps extends SelectionSelectionMenuProps {
 	/** Where the current selection's drag began, to tell which end the pointer let go at. */
 	selectionAnchor: GlyphPointer | null;
 	onHighlightCreated: (lastPageIndex: number) => void;
+	/** Asks to confirm a removal that would trash elements created from the highlights. */
+	onConfirmRemoval: (removal: PdfHighlightRemoval) => void;
 }
 
 export default function PdfFloatingMenu({
@@ -105,10 +111,12 @@ export default function PdfFloatingMenu({
 	learningAssetId,
 	selectionAnchor,
 	onHighlightCreated,
+	onConfirmRemoval,
 }: PdfFloatingMenuProps) {
 	// Mounts with the selection, so it opens a frame later for Mantine's enter animation to play.
 	const opened = useMounted();
 	const dispatch = useAppDispatch();
+	const store = useStore<RootState>();
 	const navigate = useNavigate();
 	const aiEnabled = useAppSelector(selectSettings)?.enableAi ?? false;
 	const { activeDocumentId } = useActiveDocument();
@@ -189,8 +197,39 @@ export default function PdfFloatingMenu({
 			selectionRects,
 		);
 		if (toDelete.length === 0) return;
-		annotation.forDocument(activeDocumentId).deleteAnnotations(toDelete);
-	}, [selection, annotation, activeDocumentId, highlights]);
+		// As in the editor, the element goes with every highlight made for it, on every page.
+		const removedIds = new Set(toDelete.map(({ id }) => id));
+		const elements = new Map(
+			highlights
+				.filter(({ id }) => removedIds.has(id))
+				.map(({ custom }) => [
+					custom.elementId,
+					{ type: custom.elementType, id: custom.elementId },
+				]),
+		);
+		const annotations = highlights
+			.filter(({ custom }) => elements.has(custom.elementId))
+			.map(({ pageIndex, id }) => ({ pageIndex, id }));
+		const { tree } = store.getState().elements;
+		const elementIds = Array.from(elements.values()).filter(elementId =>
+			existsInTree(tree, elementId),
+		);
+		// Nothing would be trashed, so there's nothing to confirm.
+		if (elementIds.length === 0) {
+			annotation
+				.forDocument(activeDocumentId)
+				.deleteAnnotations(annotations);
+			return;
+		}
+		onConfirmRemoval({ annotations, elementIds });
+	}, [
+		selection,
+		annotation,
+		activeDocumentId,
+		highlights,
+		store,
+		onConfirmRemoval,
+	]);
 
 	/** Attaches the selection to the AI chat, then sends `prompt` about it when given. */
 	const sendSelectionToAi = useCallback(

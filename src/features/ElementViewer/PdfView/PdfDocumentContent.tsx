@@ -19,6 +19,8 @@ import PdfStatus from "./core/PdfStatus";
 import { usePdfLinkNavigationRenderer } from "./core/usePdfLinkNavigation";
 import styles from "./core/PdfViewport.module.css";
 import { usePdfAnnotationsPersistence } from "./highlights/usePdfAnnotationsPersistence";
+import { usePdfHighlightRemoval } from "./highlights/usePdfHighlightRemoval";
+import RemoveHighlightModal from "../RemoveHighlightModal";
 import { pdfHighlightRenderer } from "./highlights/pdfHighlightRenderer";
 import { usePdfSelectionAnchor } from "./highlights/usePdfSelectionAnchor";
 import PdfMarksProvider from "./marks/PdfMarksProvider";
@@ -102,6 +104,8 @@ function PdfReader() {
 	const { documentId } = usePdfCore();
 	usePdfFindInPage(documentId);
 	const selectionAnchor = usePdfSelectionAnchor(documentId);
+	const { pendingRemoval, requestRemoval, confirmRemoval, cancelRemoval } =
+		usePdfHighlightRemoval(documentId);
 	const linkRenderers = usePdfLinkNavigationRenderer(documentId);
 	const annotationRenderers = useMemo(
 		() => [...linkRenderers, pdfHighlightRenderer],
@@ -152,6 +156,7 @@ function PdfReader() {
 									pageIndex={pageIndex}
 									annotationRenderers={annotationRenderers}
 									selectionAnchor={selectionAnchor}
+									onConfirmRemoval={requestRemoval}
 								/>
 							)}
 						/>
@@ -159,6 +164,11 @@ function PdfReader() {
 				</Viewport>
 			</PdfContextMenu>
 			<FindInPageBar />
+			<RemoveHighlightModal
+				removal={pendingRemoval}
+				onConfirm={confirmRemoval}
+				onClose={cancelRemoval}
+			/>
 			<PdfToolbar documentId={documentId} pinned={pinned} />
 			<PdfMarksScrollbar container={frame} />
 		</div>

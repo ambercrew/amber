@@ -10,6 +10,7 @@ import { GlyphPointer } from "@embedpdf/plugin-selection";
 import { SelectionLayer } from "@embedpdf/plugin-selection/react";
 import { useRecordExtractReadPoint } from "../../readPoint/readPointContext";
 import PdfFloatingMenu from "../highlights/PdfFloatingMenu";
+import { PdfHighlightRemoval } from "../highlights/usePdfHighlightRemoval";
 import PdfPageMarks from "../marks/PdfPageMarks";
 import { PDF_PAGE_ATTRIBUTE } from "./PdfContextMenu";
 import { usePdfCore } from "./pdfCoreContext";
@@ -19,6 +20,7 @@ interface PdfPageProps {
 	/** Shared by every page, so they're built once by the document rather than per page. */
 	annotationRenderers: BoxedAnnotationRenderer[];
 	selectionAnchor: GlyphPointer | null;
+	onConfirmRemoval: (removal: PdfHighlightRemoval) => void;
 }
 
 /** One PDF page with its layers: rendering, annotations, text selection, search matches and marks. */
@@ -26,6 +28,7 @@ export default function PdfPage({
 	pageIndex,
 	annotationRenderers,
 	selectionAnchor,
+	onConfirmRemoval,
 }: PdfPageProps) {
 	const { documentId, learningAssetId } = usePdfCore();
 	const recordExtractReadPoint = useRecordExtractReadPoint();
@@ -60,6 +63,7 @@ export default function PdfPage({
 						learningAssetId={learningAssetId}
 						selectionAnchor={selectionAnchor}
 						onHighlightCreated={handleHighlightCreated}
+						onConfirmRemoval={onConfirmRemoval}
 					/>
 				)}
 			/>
