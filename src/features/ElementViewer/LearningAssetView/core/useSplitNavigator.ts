@@ -82,6 +82,11 @@ export function useSplitNavigator({
 
 	const navigate = useCallback<Navigate>(
 		(seq, land) => {
+			// The split is still mounting: swap in this landing and keep waiting for it to be ready.
+			if (pendingRef.current?.seq === seq) {
+				pendingRef.current = { seq, land };
+				return;
+			}
 			const root = getContentRoot(seq);
 			if (root) {
 				// Drop any older pending jump so it can't override this one when its split mounts.

@@ -270,6 +270,36 @@ describe("useSplitNavigator", () => {
 			expect(unlock).toHaveBeenCalledTimes(1);
 		});
 
+		it("Should wait for the split to be ready when navigating to a split that's still mounting", () => {
+			// Arrange
+
+			const root = makeRoot(5);
+			const restoreScroll = vi.fn();
+			const laterLand = vi.fn();
+			(root.children[2] as HTMLElement).scrollIntoView = restoreScroll;
+			const { result } = renderNavigator({
+				initial: { split: 3, block: 2 },
+				getContentRoot: () => root,
+			});
+
+			// Act
+
+			act(() => {
+				result.current.navigate(3, laterLand);
+			});
+			const landedEarly = laterLand.mock.calls.length;
+			act(() => {
+				result.current.notifySplitReady(3);
+				vi.runAllTimers();
+			});
+
+			// Assert
+
+			expect(landedEarly).toBe(0);
+			expect(laterLand).toHaveBeenCalledWith(root);
+			expect(restoreScroll).not.toHaveBeenCalled();
+		});
+
 		it("Should force the target split into the mount window when it isn't mounted yet", () => {
 			// Arrange
 

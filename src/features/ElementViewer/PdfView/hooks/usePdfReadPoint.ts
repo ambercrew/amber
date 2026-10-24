@@ -13,7 +13,7 @@ interface Props {
 	documentId: string | null;
 	/** Read point to restore to on open. `split` is the 1-based page number; `block` is unused for PDFs. */
 	initial: ReadingPosition;
-	/** Called with the 1-based page a "go to read point" jump lands on. */
+	/** Called with the 1-based page a "go to read point" jump, or the restore on open, lands on. */
 	onGoTo?: (pageNumber: number) => void;
 	/** The page right-clicked to open the context menu, which a manual set targets over the page in view. */
 	menuPageRef?: RefObject<number | null>;
@@ -57,6 +57,11 @@ export function usePdfReadPoint({
 	// do), gating automatic saves off it so the restore scroll itself isn't
 	// recorded as the reader jumping back to page 1.
 	const restoredRef = useRef(false);
+	// Read from the restore's layout-ready listener, which subscribes once per document.
+	const onGoToRef = useRef(onGoTo);
+	useEffect(() => {
+		onGoToRef.current = onGoTo;
+	}, [onGoTo]);
 
 	useEffect(() => {
 		if (!scrollCapability || !documentId) return;
@@ -77,6 +82,7 @@ export function usePdfReadPoint({
 				event.totalPages,
 			);
 			scope.scrollToPage({ pageNumber, behavior: "instant" });
+			onGoToRef.current?.(pageNumber);
 		});
 
 		return () => {

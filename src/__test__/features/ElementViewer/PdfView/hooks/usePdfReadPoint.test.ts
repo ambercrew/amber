@@ -91,15 +91,23 @@ function renderPdfReadPoint(overrides: {
 	documentId?: string | null;
 	learningAssetId?: string;
 	menuPageRef?: { current: number | null };
+	onGoTo?: (pageNumber: number) => void;
 }) {
 	const {
 		initial,
 		documentId = DOCUMENT_ID,
 		learningAssetId = LEARNING_ASSET_ID,
 		menuPageRef,
+		onGoTo,
 	} = overrides;
 	return renderHook(() =>
-		usePdfReadPoint({ learningAssetId, documentId, initial, menuPageRef }),
+		usePdfReadPoint({
+			learningAssetId,
+			documentId,
+			initial,
+			onGoTo,
+			menuPageRef,
+		}),
 	);
 }
 
@@ -145,6 +153,28 @@ describe("usePdfReadPoint", () => {
 			pageNumber: 4,
 			behavior: "instant",
 		});
+	});
+
+	it("Should report the restored page as landed on, so it flashes, once the initial layout is ready", () => {
+		// Arrange
+
+		const onGoTo = vi.fn();
+		renderPdfReadPoint({ initial: { split: 40, block: 0 }, onGoTo });
+
+		// Act
+
+		act(() => {
+			capability.emitLayoutReady({
+				documentId: DOCUMENT_ID,
+				isInitial: true,
+				pageNumber: 1,
+				totalPages: 10,
+			});
+		});
+
+		// Assert
+
+		expect(onGoTo).toHaveBeenCalledWith(10);
 	});
 
 	it("Should clamp the restored page to the document's total page count", () => {
