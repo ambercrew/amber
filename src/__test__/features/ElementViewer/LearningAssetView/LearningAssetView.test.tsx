@@ -29,6 +29,7 @@ const api = vi.hoisted(() => ({
 	getLearningAssetSplitManifest: vi.fn(),
 	getLearningAssetSplitContent: vi.fn(),
 	getLearningAssetSplitTexts: vi.fn(),
+	getLearningAssetHeadings: vi.fn(),
 	getLearningAssetMarks: vi.fn(),
 	setLearningAssetMark: vi.fn(),
 	clearLearningAssetMark: vi.fn(),
@@ -146,16 +147,6 @@ function renderView({
 	return { ...rendered, scrollTo };
 }
 
-/** The block `block` of split `seq`'s editor, once that split has mounted. */
-async function findBlock(
-	findByTestId: (id: string) => Promise<HTMLElement>,
-	seq: number,
-	block: number,
-) {
-	const root = await findByTestId(`split-${seq}`);
-	return root.children[block];
-}
-
 describe("LearningAssetView", () => {
 	let scrolledInto: Element[];
 	const originalClientWidth = Object.getOwnPropertyDescriptor(
@@ -185,6 +176,7 @@ describe("LearningAssetView", () => {
 			({ seq }: { seq: number }) => Promise.resolve(`split-${seq}`),
 		);
 		api.getLearningAssetSplitTexts.mockResolvedValue([]);
+		api.getLearningAssetHeadings.mockResolvedValue([]);
 		api.getLearningAssetMarks.mockResolvedValue([]);
 		api.updateReadPoint.mockResolvedValue(undefined);
 	});
@@ -215,28 +207,6 @@ describe("LearningAssetView", () => {
 				behavior: "instant",
 			}),
 		);
-	});
-
-	it("Should flash the saved read point's block when the learning asset opens", async () => {
-		// Arrange
-
-		const flashed: Element[] = [];
-		HTMLElement.prototype.animate = function (this: Element) {
-			flashed.push(this);
-			return {} as Animation;
-		};
-
-		// Act
-
-		const { findByTestId } = renderView({
-			readPoint: { split: 2, block: 1 },
-		});
-
-		// Assert
-
-		const block = await findBlock(findByTestId, 2, 1);
-		await waitFor(() => expect(flashed).toContain(block));
-		delete (HTMLElement.prototype as Partial<HTMLElement>).animate;
 	});
 
 	it("Should mount the split and land on the mark when going to a mark in an unmounted split", async () => {

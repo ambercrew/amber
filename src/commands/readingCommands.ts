@@ -7,7 +7,8 @@ export type ReadingCommand =
 	| { type: "clear-read-point" }
 	| { type: "go-to-read-point" }
 	| { type: "set-mark"; slot: MarkSlot }
-	| { type: "go-to-mark"; slot: MarkSlot };
+	| { type: "go-to-mark"; slot: MarkSlot }
+	| { type: "go-to-table-of-contents-entry"; entryId: string };
 
 type ReadingCommandType = ReadingCommand["type"];
 type ReadingCommandOf<T extends ReadingCommandType> = Extract<

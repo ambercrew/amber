@@ -2,7 +2,6 @@ import { act, renderHook } from "@testing-library/react";
 import { runReadingCommand } from "../../../../../commands/readingCommands";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePdfReadPoint } from "../../../../../features/ElementViewer/PdfView/readPoint/usePdfReadPoint";
-import { READ_POINT_COLOR } from "../../../../../features/ElementViewer/marks/markLogic";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
 
 const { updateReadPointMock, useScrollCapabilityMock, notificationsShowMock } =
@@ -132,7 +131,6 @@ describe("usePdfReadPoint", () => {
 
 		expect(goToPage).toHaveBeenCalledWith(4, {
 			behavior: "instant",
-			flashColor: READ_POINT_COLOR,
 		});
 	});
 
@@ -149,7 +147,6 @@ describe("usePdfReadPoint", () => {
 
 		expect(goToPage).toHaveBeenCalledWith(10, {
 			behavior: "instant",
-			flashColor: READ_POINT_COLOR,
 		});
 	});
 
@@ -422,9 +419,7 @@ describe("usePdfReadPoint", () => {
 
 		// Assert
 
-		expect(goToPage).toHaveBeenCalledWith(4, {
-			flashColor: READ_POINT_COLOR,
-		});
+		expect(goToPage).toHaveBeenCalledWith(4);
 	});
 
 	it("Should scroll to the highlight's page when a goto is requested after a highlight is created", async () => {
@@ -446,9 +441,7 @@ describe("usePdfReadPoint", () => {
 
 		// Assert
 
-		expect(goToPage).toHaveBeenLastCalledWith(9, {
-			flashColor: READ_POINT_COLOR,
-		});
+		expect(goToPage).toHaveBeenLastCalledWith(9);
 	});
 
 	it("Should persist the read point when a highlight is created", async () => {

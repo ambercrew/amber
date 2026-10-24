@@ -49,6 +49,7 @@ export function useElementHeadroom({
 	const [scrollProgress, setScrollProgress] = useState(1);
 
 	const previousScrollTop = useRef(0);
+	const previousScrollHeight = useRef(0);
 	const previouslyFixed = useRef(true);
 	const previouslyScrollingUp = useRef(false);
 	const directionChangeScrollTop = useRef(0);
@@ -76,6 +77,7 @@ export function useElementHeadroom({
 			const { scrollTop } = element;
 			const fixed = scrollTop <= fixedAt;
 			previousScrollTop.current = scrollTop;
+			previousScrollHeight.current = element.scrollHeight;
 			previouslyFixed.current = fixed;
 			previouslyScrollingUp.current = false;
 			directionChangeScrollTop.current = scrollTop;
@@ -108,6 +110,17 @@ export function useElementHeadroom({
 				suppressTimeout.current = window.setTimeout(() => {
 					suppressed.current = false;
 				}, suppressQuietMs.current);
+				previousScrollTop.current = element.scrollTop;
+				previousScrollHeight.current = element.scrollHeight;
+				return;
+			}
+
+			// Content resized (e.g. a split mounting above), so the browser may have moved scrollTop to keep
+			// the reader in place; that shift isn't the reader scrolling, so it neither hides nor reveals.
+			if (element.scrollHeight !== previousScrollHeight.current) {
+				previousScrollHeight.current = element.scrollHeight;
+				directionChangeScrollTop.current +=
+					element.scrollTop - previousScrollTop.current;
 				previousScrollTop.current = element.scrollTop;
 				return;
 			}
@@ -153,6 +166,7 @@ export function useElementHeadroom({
 
 		const onResize = () => pause(300);
 
+		previousScrollHeight.current = element.scrollHeight;
 		onScroll();
 		element.addEventListener("scroll", onScroll, { passive: true });
 		element.addEventListener(HEADROOM_HIDE_EVENT, onHide);

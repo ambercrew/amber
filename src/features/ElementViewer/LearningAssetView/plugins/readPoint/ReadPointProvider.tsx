@@ -1,23 +1,11 @@
-import {
-	PropsWithChildren,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { PropsWithChildren, useCallback, useMemo, useState } from "react";
 import { isNoReadPoint } from "../../../readPoint/readingPosition";
 import { useGoToReadPointCommand } from "../../../readPoint/useGoToReadPointCommand";
-import { flashElement } from "../../../marks/flashElement";
-import { READ_POINT_COLOR } from "../../../marks/markLogic";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
 import { landOnBlock } from "../../core/landOnBlock";
 import { useReaderCore } from "../../core/readerCoreContext";
 import { ReadPointContext } from "../../../readPoint/readPointContext";
 import { useReadPoint } from "./useReadPoint";
-
-const landOnReadPoint = (block: number) =>
-	landOnBlock(block, landed => flashElement(landed, READ_POINT_COLOR));
 
 /** Saves the read point as the reader goes, and handles the set/clear/go-to read point commands. */
 export default function ReadPointProvider({ children }: PropsWithChildren) {
@@ -47,18 +35,10 @@ export default function ReadPointProvider({ children }: PropsWithChildren) {
 	const shown = isNoReadPoint(displayed) ? null : displayed;
 	const goTo = useCallback(
 		(readPoint: ReadingPosition) =>
-			navigate(readPoint.split, landOnReadPoint(readPoint.block)),
+			navigate(readPoint.split, landOnBlock(readPoint.block)),
 		[navigate],
 	);
 	useGoToReadPointCommand(shown, goTo);
-
-	// Replaces the core's plain restore on open, so the read point flashes as it does on "go to".
-	const restoreRequestedRef = useRef(false);
-	useEffect(() => {
-		if (restoreRequestedRef.current || isNoReadPoint(initial)) return;
-		restoreRequestedRef.current = true;
-		navigate(initial.split, landOnReadPoint(initial.block));
-	}, [initial, navigate]);
 
 	const value = useMemo(
 		() => ({ displayed: shown, recordExtractReadPoint }),

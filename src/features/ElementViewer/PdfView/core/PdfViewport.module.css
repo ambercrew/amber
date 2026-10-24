@@ -23,6 +23,12 @@
 	background-color: var(--pdf-viewport-bg);
 }
 
+/* Held still below the viewport, so animating them restyles only its scrollbar, not every page's text layer each frame. */
+.viewport > * {
+	--pdf-viewport-scrollbar-inset-top: 0px;
+	--pdf-viewport-scrollbar-inset-bottom: 0px;
+}
+
 .viewport::-webkit-scrollbar {
 	width: 12px;
 }

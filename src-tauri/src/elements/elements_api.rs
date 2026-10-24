@@ -11,6 +11,7 @@ use crate::elements::dto::create_extract_dto::CreateExtractDto;
 use crate::elements::dto::create_folder_dto::CreateFolderDto;
 use crate::elements::dto::create_learning_asset_dto::CreateLearningAssetDto;
 use crate::elements::dto::element_details_dto::ElementDetailsResponseDto;
+use crate::elements::dto::learning_asset_heading_dto::LearningAssetHeadingDto;
 use crate::elements::dto::learning_asset_mark_dto::{
     ClearLearningAssetMarkRequestDto, LearningAssetMarkResponseDto, SetLearningAssetMarkRequestDto,
 };
@@ -209,6 +210,23 @@ pub async fn get_learning_asset_split_texts(
     Ok(texts
         .into_iter()
         .map(LearningAssetSplitTextDto::from)
+        .collect())
+}
+
+#[tauri::command]
+pub async fn get_learning_asset_headings(
+    injector: State<'_, Arc<Injector>>,
+    learning_asset_id: Uuid,
+) -> Result<Vec<LearningAssetHeadingDto>, ApiError> {
+    let scope = injector.start_scope();
+    let headings = scope
+        .resolve::<dyn LearningAssetRepository>()
+        .await
+        .get_headings(learning_asset_id)
+        .await?;
+    Ok(headings
+        .into_iter()
+        .map(LearningAssetHeadingDto::from)
         .collect())
 }
 

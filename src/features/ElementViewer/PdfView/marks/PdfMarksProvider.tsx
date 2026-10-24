@@ -1,7 +1,6 @@
 import { PropsWithChildren, useCallback, useMemo } from "react";
-import { MarkSlot } from "../../../../types/elements/learningAssetMark";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
-import { MARK_COLORS, pdfAnchorProgress } from "../../marks/markLogic";
+import { pdfAnchorProgress } from "../../marks/markLogic";
 import { MarksContext } from "../../marks/marksContext";
 import { useMarks } from "../../marks/useMarks";
 import { usePdfCore } from "../core/pdfCoreContext";
@@ -24,8 +23,7 @@ export default function PdfMarksProvider({ children }: PropsWithChildren) {
 		[getMenuPage, getCurrentPage],
 	);
 	const goTo = useCallback(
-		(anchor: ReadingPosition, slot: MarkSlot) =>
-			goToPage(anchor.split, { flashColor: MARK_COLORS[slot] }),
+		(anchor: ReadingPosition) => goToPage(anchor.split),
 		[goToPage],
 	);
 	const marks = useMarks({ learningAssetId, resolveSetAnchor, goTo });

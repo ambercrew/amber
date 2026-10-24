@@ -4,14 +4,12 @@ import {
 	Divider,
 	Group,
 	NumberInput,
-	Popover,
 	Text,
 	TextInput,
 } from "@mantine/core";
 import {
 	CursorTextIcon,
 	HandIcon,
-	ListBulletsIcon,
 	MinusIcon,
 	PlusIcon,
 } from "@phosphor-icons/react";
@@ -33,7 +31,6 @@ import {
 	ZOOM_OUT_SHORTCUT,
 } from "../../../../config/shortcuts";
 import { usePdfCore } from "../core/pdfCoreContext";
-import PdfOutline from "./PdfOutline";
 
 interface PdfToolbarProps {
 	documentId: string;
@@ -49,16 +46,9 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 	// Activated directly: the pan plugin's own toggle falls back to the default mode, which "mobile" makes pan for good.
 	const isPanning = interactionState.activeMode === "panMode";
 	const isCoarsePointer = useIsCoarsePointer();
-	const [outlineOpened, setOutlineOpened] = useState(false);
 
 	// Floats above the study session footer while it's shown, instead of behind it.
 	const insets = useChromeInsets();
-
-	const [prevPinned, setPrevPinned] = useState(pinned);
-	if (pinned !== prevPinned) {
-		setPrevPinned(pinned);
-		if (!pinned) setOutlineOpened(false);
-	}
 
 	useAppHotkeys(
 		[
@@ -128,30 +118,6 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 					transitionProperty: "transform",
 					transitionDuration: "var(--app-shell-transition-duration)",
 				}}>
-				<Popover
-					opened={outlineOpened}
-					onChange={setOutlineOpened}
-					position="top-start"
-					shadow="md"
-					withArrow>
-					<Popover.Target>
-						<AppTooltip label="Table of contents">
-							<ActionIcon
-								variant={outlineOpened ? "light" : "subtle"}
-								size="lg"
-								onClick={() => setOutlineOpened(o => !o)}>
-								<ListBulletsIcon size={18} />
-							</ActionIcon>
-						</AppTooltip>
-					</Popover.Target>
-					<Popover.Dropdown p={0}>
-						<PdfOutline
-							documentId={documentId}
-							onNavigate={() => setOutlineOpened(false)}
-						/>
-					</Popover.Dropdown>
-				</Popover>
-				<Divider orientation="vertical" />
 				<Group gap={4} wrap="nowrap">
 					<TextInput
 						size="xs"

@@ -8,7 +8,6 @@ import {
 import { useScrollCapability } from "@embedpdf/plugin-scroll/react";
 import { useReadingCommand } from "../../../../commands/readingCommands";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
-import { READ_POINT_COLOR } from "../../marks/markLogic";
 import { isNoReadPoint, NO_READ_POINT } from "../../readPoint/readingPosition";
 import { useGoToReadPointCommand } from "../../readPoint/useGoToReadPointCommand";
 import { useReadPointPlacement } from "../../readPoint/useReadPointPlacement";
@@ -75,7 +74,6 @@ export function usePdfReadPoint({
 		if (isNoReadPoint(initial)) return;
 		goToPage(Math.min(Math.max(initial.split, 1), pageCount), {
 			behavior: "instant",
-			flashColor: READ_POINT_COLOR,
 		});
 	});
 	// Once per document: `layoutReady` only turns false again for another document.
@@ -121,8 +119,7 @@ export function usePdfReadPoint({
 
 	const shown = isNoReadPoint(displayed) ? null : displayed;
 	const goTo = useCallback(
-		(readPoint: ReadingPosition) =>
-			goToPage(readPoint.split, { flashColor: READ_POINT_COLOR }),
+		(readPoint: ReadingPosition) => goToPage(readPoint.split),
 		[goToPage],
 	);
 	useGoToReadPointCommand(shown, goTo);

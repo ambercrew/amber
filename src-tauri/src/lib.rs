@@ -210,6 +210,7 @@ pub async fn run() {
             get_learning_asset_split_manifest,
             get_learning_asset_split_content,
             get_learning_asset_split_texts,
+            get_learning_asset_headings,
             get_pdf_bytes,
             get_pdf_highlights,
             update_pdf_highlights,

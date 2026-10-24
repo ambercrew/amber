@@ -17,6 +17,7 @@ import {
 import { PdfHighlightsDto } from "../../../types/elements/pdfHighlightsDto";
 import { LearningAssetSplitIdDto } from "../../../types/elements/learningAssetSplitIdDto";
 import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAssetSplitMetaDto";
+import { LearningAssetHeadingDto } from "../../../types/elements/learningAssetHeadingDto";
 import { LearningAssetSplitTextDto } from "../../../types/elements/learningAssetSplitTextDto";
 import { AnyElementDto } from "../dto/anyElementDto";
 import { ElementDetailsResponseDto } from "../dto/elementDetailsDto";
@@ -75,6 +76,12 @@ export function getLearningAssetSplitTexts(
 	learningAssetId: string,
 ): Promise<LearningAssetSplitTextDto[]> {
 	return invoke("get_learning_asset_split_texts", { learningAssetId });
+}
+
+export function getLearningAssetHeadings(
+	learningAssetId: string,
+): Promise<LearningAssetHeadingDto[]> {
+	return invoke("get_learning_asset_headings", { learningAssetId });
 }
 
 export function updateReadPoint(dto: UpdateReadPointDto): Promise<void> {

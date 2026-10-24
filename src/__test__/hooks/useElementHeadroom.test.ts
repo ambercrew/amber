@@ -145,6 +145,59 @@ describe("useElementHeadroom", () => {
 		});
 	});
 
+	it("Should not hide when content resizing above shifts the scroller down while scrolling up", () => {
+		// Arrange
+
+		let scrollHeight = 5000;
+		Object.defineProperty(element, "scrollHeight", {
+			get: () => scrollHeight,
+		});
+		const { result } = render();
+		scrollTo(1000);
+		scrollTo(990);
+		scrollTo(800);
+
+		// Act
+
+		scrollHeight = 5600;
+		scrollTo(1400);
+		scrollTo(1390);
+
+		// Assert
+
+		expect(result.current).toMatchObject({
+			pinned: true,
+			scrollProgress: 1,
+		});
+	});
+
+	it("Should not count the shift toward hiding when scrolling down resumes after content resized", () => {
+		// Arrange
+
+		let scrollHeight = 5000;
+		Object.defineProperty(element, "scrollHeight", {
+			get: () => scrollHeight,
+		});
+		const { result } = render();
+		scrollTo(1000);
+		scrollTo(990);
+		scrollTo(800);
+		scrollTo(810);
+
+		// Act
+
+		scrollHeight = 5600;
+		scrollTo(1410);
+		scrollTo(1450);
+
+		// Assert
+
+		expect(result.current).toMatchObject({
+			pinned: true,
+			scrollProgress: 0.6,
+		});
+	});
+
 	it("Should be fully pinned again when scrolled back into the fixed zone", () => {
 		// Arrange
 

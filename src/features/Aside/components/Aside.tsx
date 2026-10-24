@@ -1,4 +1,4 @@
-import { InfoIcon } from "@phosphor-icons/react";
+import { InfoIcon, ListBulletsIcon } from "@phosphor-icons/react";
 import { AiIcon } from "../../../config/icons";
 import { useWindowEvent } from "@mantine/hooks";
 import { useSidebarTab } from "../../../components/CollapsibleSidebar/useSidebarTab";
@@ -8,6 +8,7 @@ import CollapsibleSidebar, {
 	SidebarTab,
 } from "../../../components/CollapsibleSidebar/CollapsibleSidebar";
 import ElementInfoPanel from "./ElementInfoPanel";
+import TableOfContentsPanel from "./TableOfContentsPanel";
 import AiPanel from "../../Ai/components/AiPanel";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectSettings } from "../../../stores/settings/settingsSelector";
@@ -23,7 +24,7 @@ interface AsideProps {
 function Aside({ onCollapse, onExpand, onToggle }: AsideProps) {
 	const settings = useAppSelector(selectSettings);
 	const aiEnabled = settings?.enableAi ?? false;
-	const [, setTab] = useSidebarTab(LOCAL_STORAGE_KEY, "info");
+	const [, setTab] = useSidebarTab(LOCAL_STORAGE_KEY, "ai");
 
 	useWindowEvent(TOGGLE_RIGHT_SIDEBAR_REQUESTED, onToggle);
 	// Reveal the AI chat; its input focuses itself once mounted.
@@ -44,6 +45,12 @@ function Aside({ onCollapse, onExpand, onToggle }: AsideProps) {
 					},
 				]
 			: []),
+		{
+			value: "tableOfContents",
+			title: "Table of contents",
+			icon: <ListBulletsIcon size={16} />,
+			panel: <TableOfContentsPanel onCollapse={onCollapse} />,
+		},
 		{
 			value: "info",
 			title: "Element info",

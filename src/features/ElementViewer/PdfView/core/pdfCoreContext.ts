@@ -1,6 +1,6 @@
 import { createContext, use } from "react";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
-import { GoToPage, PdfPageFlash } from "./usePdfNavigator";
+import { GoToPage } from "./usePdfNavigator";
 
 export interface PdfCoreValue {
 	learningAssetId: string;
@@ -28,10 +28,8 @@ export function usePdfCore(): PdfCoreValue {
 	return value;
 }
 
-/** What a jump leaves behind for the page and header; apart from `PdfCoreContext`, so each jump only re-renders their readers. */
+/** What a jump leaves behind for the header; apart from `PdfCoreContext`, so each jump only re-renders its readers. */
 export interface PdfArrivalValue {
-	flash: PdfPageFlash | null;
-	clearFlash: () => void;
 	hideRequests: number;
 }
 

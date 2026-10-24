@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { MatchFlag } from "@embedpdf/models";
 import { useSearch } from "@embedpdf/plugin-search/react";
-import { useScroll } from "@embedpdf/plugin-scroll/react";
+import { useScrollCapability } from "@embedpdf/plugin-scroll/react";
 import useAppDispatch from "../../../../hooks/useAppDispatch";
 import useAppSelector from "../../../../hooks/useAppSelector";
 import { setSearchMatchCounts } from "../../../../stores/search/searchReducer";
@@ -21,7 +21,8 @@ export function usePdfFindInPage(documentId: string | null): void {
 
 	const dispatch = useAppDispatch();
 	const { state, provides } = useSearch(documentId ?? "");
-	const { provides: scrollProvides } = useScroll(documentId ?? "");
+	// The capability, not `useScroll`, whose page state would re-render the whole reader on every page change.
+	const { provides: scroll } = useScrollCapability();
 	const { goToPage } = usePdfCore();
 
 	useEffect(() => {
@@ -71,7 +72,9 @@ export function usePdfFindInPage(documentId: string | null): void {
 		const results = state.results;
 		if (results.length === 0) return 0;
 
-		const metrics = scrollProvides?.getMetrics();
+		const metrics = documentId
+			? scroll?.forDocument(documentId).getMetrics()
+			: undefined;
 		const topVisiblePage = metrics?.visiblePages[0];
 		if (topVisiblePage === undefined) return 0;
 
@@ -88,7 +91,7 @@ export function usePdfFindInPage(documentId: string | null): void {
 		});
 
 		return index === -1 ? 0 : index;
-	}, [state.results, scrollProvides]);
+	}, [state.results, scroll, documentId]);
 
 	// Results stream in page by page; reporting 0 until they're all in keeps an early batch from seeding the wrong match.
 	useSyncSearchMatches({

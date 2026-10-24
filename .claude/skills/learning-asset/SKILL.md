@@ -14,7 +14,7 @@ document each) as a virtualized stack: live editors near the viewport, placehold
 
 - `core/` — `ReaderCoreProvider` owns mounting, heights, content roots, navigation and reading
   anchors; plugins read it via `useReaderCore()`.
-- `plugins/` — features (`readPoint`, `marks`, `search`), each a `LearningAssetPlugin`
+- `plugins/` — features (`readPoint`, `marks`, `search`, `tableOfContents`), each a `LearningAssetPlugin`
   (`plugins/types.ts`) listed in `plugins/index.ts`.
 - `../marks/`, `../readPoint/` — shared with the PDF view (mark storage and UI, read point
   precedence and saving); keep them renderer-agnostic.

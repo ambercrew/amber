@@ -10,8 +10,10 @@ use crate::elements::entities::learning_asset::LearningAsset;
 use crate::elements::entities::learning_asset_split::LearningAssetSplit;
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::repositories::meta_repository::MetaRepository;
+use crate::elements::utils::heading_extractor::extract_headings;
 use crate::elements::utils::plain_text_extractor::extract_plain_text;
 use crate::elements::value_objects::learning_asset_content::LearningAssetContent;
+use crate::elements::value_objects::learning_asset_heading::LearningAssetHeading;
 use crate::elements::value_objects::learning_asset_split_id::LearningAssetSplitId;
 use crate::elements::value_objects::learning_asset_split_meta::LearningAssetSplitMeta;
 use crate::elements::value_objects::learning_asset_split_text::LearningAssetSplitText;
@@ -214,6 +216,29 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
                 seq: row.seq as u32,
                 text: row.content_text,
             })
+            .collect())
+    }
+
+    async fn get_headings(
+        &self,
+        learning_asset_id: Uuid,
+    ) -> Result<Vec<LearningAssetHeading>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query!(
+            r#"SELECT seq, content
+            FROM learning_asset_splits
+            WHERE learning_asset_id = $1
+            ORDER BY seq"#,
+            learning_asset_id.hyphenated()
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .flat_map(|row| extract_headings(row.seq as u32, &row.content))
             .collect())
     }
 
@@ -773,6 +798,72 @@ mod tests {
         // Assert
 
         assert_eq!(3, actual[0].block_count);
+    }
+
+    #[tokio::test]
+    async fn get_headings_multiple_splits_returns_headings_in_document_order() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let learning_asset_repo = scope.resolve::<dyn LearningAssetRepository>().await;
+
+        let folder = Folder {
+            meta: folder_meta(),
+        };
+        let learning_asset = LearningAsset {
+            r#type: Default::default(),
+            interval_multiplier: 1.2,
+            meta: Meta {
+                parent: Some(folder.meta.element_id),
+                ..learning_asset_meta()
+            },
+            read_point: ReadingPosition::default(),
+        };
+        let heading = |text: &str| {
+            format!(
+                r#"{{"root":{{"children":[{{"type":"paragraph","children":[]}},{{"type":"heading","tag":"h1","children":[{{"type":"text","text":"{text}"}}]}}]}}}}"#
+            )
+        };
+        folder_repo.create(folder).await.unwrap();
+        learning_asset_repo
+            .create(
+                learning_asset.clone(),
+                LearningAssetContent::Extracted(vec![
+                    LearningAssetSplit::new(1, heading("Second")),
+                    LearningAssetSplit::new(0, heading("First")),
+                ]),
+            )
+            .await
+            .unwrap();
+
+        // Act
+
+        let actual = learning_asset_repo
+            .get_headings(learning_asset.meta.element_id.id())
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(
+            vec![
+                LearningAssetHeading {
+                    seq: 0,
+                    block: 1,
+                    level: 1,
+                    text: "First".into(),
+                },
+                LearningAssetHeading {
+                    seq: 1,
+                    block: 1,
+                    level: 1,
+                    text: "Second".into(),
+                },
+            ],
+            actual
+        );
     }
 
     #[tokio::test]

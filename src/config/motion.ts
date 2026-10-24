@@ -6,6 +6,3 @@ export const MOTION_EASING = "ease";
 export const VIEW_TRANSITION_DURATION_MS = 250;
 /** How far (px) a view slides in from the side it's coming from. */
 export const VIEW_SLIDE_OFFSET_PX = 16;
-
-/** A jump target's (read point, mark) whole tint: fade in, hold, fade out. */
-export const FLASH_DURATION_MS = 800;

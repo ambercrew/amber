@@ -5,6 +5,7 @@ use crate::common::repository_error::RepositoryError;
 use crate::elements::entities::learning_asset::LearningAsset;
 use crate::elements::entities::learning_asset_split::LearningAssetSplit;
 use crate::elements::value_objects::learning_asset_content::LearningAssetContent;
+use crate::elements::value_objects::learning_asset_heading::LearningAssetHeading;
 use crate::elements::value_objects::learning_asset_split_id::LearningAssetSplitId;
 use crate::elements::value_objects::learning_asset_split_meta::LearningAssetSplitMeta;
 use crate::elements::value_objects::learning_asset_split_text::LearningAssetSplitText;
@@ -36,6 +37,12 @@ pub trait LearningAssetRepository: Send + Sync {
         &self,
         learning_asset_id: Uuid,
     ) -> Result<Vec<LearningAssetSplitText>, RepositoryError>;
+    /// Top-level headings of every split, in document order. Used for the table of
+    /// contents, which lists headings in splits that aren't mounted.
+    async fn get_headings(
+        &self,
+        learning_asset_id: Uuid,
+    ) -> Result<Vec<LearningAssetHeading>, RepositoryError>;
     async fn update_content(
         &self,
         learning_asset_id: Uuid,

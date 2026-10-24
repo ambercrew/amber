@@ -25,6 +25,7 @@ import { pdfHighlightRenderer } from "./highlights/pdfHighlightRenderer";
 import { usePdfSelectionAnchor } from "./highlights/usePdfSelectionAnchor";
 import PdfMarksProvider from "./marks/PdfMarksProvider";
 import PdfMarksScrollbar from "./marks/PdfMarksScrollbar";
+import { usePdfOutline } from "./outline/usePdfOutline";
 import PdfReadPointProvider from "./readPoint/PdfReadPointProvider";
 import { usePdfFindInPage } from "./search/usePdfFindInPage";
 import PdfToolbar from "./toolbar/PdfToolbar";
@@ -101,8 +102,9 @@ function LoadedPdfDocument({
 }
 
 function PdfReader() {
-	const { documentId } = usePdfCore();
+	const { learningAssetId, documentId, goToPage } = usePdfCore();
 	usePdfFindInPage(documentId);
+	usePdfOutline(learningAssetId, documentId, goToPage);
 	const selectionAnchor = usePdfSelectionAnchor(documentId);
 	const { pendingRemoval, requestRemoval, confirmRemoval, cancelRemoval } =
 		usePdfHighlightRemoval(documentId);

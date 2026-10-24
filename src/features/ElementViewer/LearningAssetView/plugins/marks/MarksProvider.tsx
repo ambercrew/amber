@@ -1,8 +1,6 @@
 import { PropsWithChildren, useCallback, useMemo } from "react";
-import { MarkSlot } from "../../../../../types/elements/learningAssetMark";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
-import { flashElement } from "../../../marks/flashElement";
-import { MARK_COLORS, textAnchorProgress } from "../../../marks/markLogic";
+import { textAnchorProgress } from "../../../marks/markLogic";
 import { MarksContext } from "../../../marks/marksContext";
 import { useMarks } from "../../../marks/useMarks";
 import { landOnBlock } from "../../core/landOnBlock";
@@ -14,13 +12,8 @@ export default function MarksProvider({ children }: PropsWithChildren) {
 		useReaderCore();
 
 	const goTo = useCallback(
-		(anchor: ReadingPosition, slot: MarkSlot) =>
-			navigate(
-				anchor.split,
-				landOnBlock(anchor.block, block =>
-					flashElement(block, MARK_COLORS[slot]),
-				),
-			),
+		(anchor: ReadingPosition) =>
+			navigate(anchor.split, landOnBlock(anchor.block)),
 		[navigate],
 	);
 	const marks = useMarks({

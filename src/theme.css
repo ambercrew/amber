@@ -4,3 +4,17 @@
 	background-color: var(--selection-bg);
 	color: var(--selection-color);
 }
+
+/* From `--sidebar-hover-bg` in theme.ts; NavLink's own hover is a literal gray-0 in
+   its CSS, not a variable, so it can't be set from the theme. */
+@media (hover: hover) {
+	.mantine-NavLink-root:not([data-active]):hover {
+		background-color: var(--sidebar-hover-bg);
+	}
+}
+
+@media (hover: none) {
+	.mantine-NavLink-root:not([data-active]):active {
+		background-color: var(--sidebar-hover-bg);
+	}
+}

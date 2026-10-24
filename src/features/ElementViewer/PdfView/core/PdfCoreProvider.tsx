@@ -27,8 +27,7 @@ export default function PdfCoreProvider({
 	children,
 }: PdfCoreProviderProps) {
 	const { provides: scroll } = useScrollCapability();
-	const { goToPage, flash, clearFlash, hideRequests } =
-		usePdfNavigator(documentId);
+	const { goToPage, hideRequests } = usePdfNavigator(documentId);
 	const pageCount = useDocumentState(documentId)?.document?.pageCount ?? 0;
 
 	// The zoom applies within the layout-ready event, so a restoring jump made after it can't be undone by its re-centering.
@@ -84,10 +83,7 @@ export default function PdfCoreProvider({
 			setMenuPage,
 		],
 	);
-	const arrival = useMemo(
-		() => ({ flash, clearFlash, hideRequests }),
-		[flash, clearFlash, hideRequests],
-	);
+	const arrival = useMemo(() => ({ hideRequests }), [hideRequests]);
 
 	return (
 		<PdfCoreContext value={value}>

@@ -7,7 +7,7 @@ import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAsset
 import { ReadingPosition } from "../../../types/elements/readingPosition";
 import { estimateOffsetBeforeSplit } from "../LearningAssetView/core/heights/estimateCumulativeOffset";
 
-/** The read point's color, flashed when jumping to it. */
+/** The read point's color. */
 export const READ_POINT_COLOR: MantineColor = "amber";
 
 /** Each slot's fixed color. Never amber or yellow, which belong to the read point. */
