@@ -1,17 +1,10 @@
 import { RefObject, useCallback, useEffect, useRef, useState } from "react";
-import { useWindowEvent } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useScrollCapability } from "@embedpdf/plugin-scroll/react";
-import useAutoSave from "../../hooks/useAutoSave";
-import useApi from "../../../../hooks/useApi";
-import { updateReadPoint } from "../../../../api/elements/api/elementsApi";
+import { useReadingCommand } from "../../../../commands/readingCommands";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
-import { READ_POINT_MANUAL_SET_REQUESTED } from "../../../../types/events/readPointManualSetRequestedEvent";
-import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../../../../types/events/readPointManualClearRequestedEvent";
-import { READ_POINT_MANUAL_GOTO_REQUESTED } from "../../../../types/events/readPointManualGotoRequestedEvent";
-
-/** The sentinel value meaning "no read point" — mirrors `useReadPoint`'s `NO_READ_POINT` for text learning assets. */
-export const NO_PDF_READ_POINT: ReadingPosition = { split: 0, block: 0 };
+import { isNoReadPoint, NO_READ_POINT } from "../../readPoint/readingPosition";
+import { useReadPointPlacement } from "../../readPoint/useReadPointPlacement";
 
 interface Props {
 	learningAssetId: string;
@@ -39,8 +32,8 @@ interface ReturnValue {
 }
 
 /** Persists the read point (current page) as the user scrolls a PDF, restores
- * it on open, and wires the "Set/clear/go to read point" commands — see
- * `precedenceRef` for how manual, highlight and automatic placements interact. */
+ * it on open, and handles the set/clear/go to read point commands. Which
+ * placement may override which is decided by `useReadPointPlacement`. */
 export function usePdfReadPoint({
 	learningAssetId,
 	documentId,
@@ -56,46 +49,19 @@ export function usePdfReadPoint({
 		currentPageRef.current = currentPage;
 	}, [currentPage]);
 
-	const lastSavedRef = useRef<ReadingPosition>(initial);
+	const { place, accepts, reset } = useReadPointPlacement({
+		learningAssetId,
+		initial,
+	});
 	// Flipped to `true` once the initial restore has run (or had nothing to
 	// do), gating automatic saves off it so the restore scroll itself isn't
 	// recorded as the reader jumping back to page 1.
 	const restoredRef = useRef(false);
-	// Tracks which mechanism currently owns the read point for this opening.
-	// Higher-priority placements block lower-priority ones from overwriting
-	// them again, but never the other way around.
-	const precedenceRef = useRef<"automatic" | "highlight" | "manual">(
-		"automatic",
-	);
-
-	const { callApi } = useApi();
-	const handleSave = useCallback(
-		async (content: string) => {
-			const readPoint = JSON.parse(content) as ReadingPosition;
-			const last = lastSavedRef.current;
-			if (
-				last.split === readPoint.split &&
-				last.block === readPoint.block
-			) {
-				return;
-			}
-			lastSavedRef.current = readPoint;
-			await updateReadPoint({ learningAssetId, readPoint });
-		},
-		[learningAssetId],
-	);
-	const { onContentUpdate } = useAutoSave({ onSave: handleSave, callApi });
-	const persistReadPoint = useCallback(
-		(readPoint: ReadingPosition) => {
-			onContentUpdate(() => JSON.stringify(readPoint));
-		},
-		[onContentUpdate],
-	);
 
 	useEffect(() => {
 		if (!scrollCapability || !documentId) return;
 		restoredRef.current = false;
-		precedenceRef.current = "automatic";
+		reset();
 		const scope = scrollCapability.forDocument(documentId);
 
 		const unsubscribePageChange = scrollCapability.onPageChange(event => {
@@ -105,7 +71,7 @@ export function usePdfReadPoint({
 		const unsubscribeLayoutReady = scrollCapability.onLayoutReady(event => {
 			if (event.documentId !== documentId || !event.isInitial) return;
 			restoredRef.current = true;
-			if (initial.split === NO_PDF_READ_POINT.split) return;
+			if (isNoReadPoint(initial)) return;
 			const pageNumber = Math.min(
 				Math.max(initial.split, 1),
 				event.totalPages,
@@ -122,46 +88,44 @@ export function usePdfReadPoint({
 	}, [scrollCapability, documentId]);
 
 	useEffect(() => {
-		if (!restoredRef.current || precedenceRef.current !== "automatic")
-			return;
-		persistReadPoint({ split: currentPage, block: 0 });
-	}, [currentPage, persistReadPoint]);
+		if (!restoredRef.current || !accepts("automatic")) return;
+		place({ split: currentPage, block: 0 }, "automatic");
+	}, [currentPage, accepts, place]);
 
 	const [displayedReadPoint, setDisplayedReadPoint] = useState(initial);
 
-	const recordHighlightReadPoint = useCallback(
-		(lastPageIndex: number) => {
-			// A manual placement is a deliberate bookmark; a highlight created
-			// afterward shouldn't relocate it.
-			if (precedenceRef.current === "manual") return;
-			precedenceRef.current = "highlight";
-			const readPoint = { split: lastPageIndex + 1, block: 0 };
-			persistReadPoint(readPoint);
-			setDisplayedReadPoint(readPoint);
+	// Unlike the text view, a highlight moves the marker too: its page is what the reader just read.
+	const placeShown = useCallback(
+		(readPoint: ReadingPosition, source: "extract" | "manual") => {
+			if (place(readPoint, source)) setDisplayedReadPoint(readPoint);
 		},
-		[persistReadPoint],
+		[place],
 	);
-
-	const handleManualSet = useCallback(() => {
-		precedenceRef.current = "manual";
-		const readPoint = {
-			split: menuPageRef?.current ?? currentPageRef.current,
-			block: 0,
-		};
-		persistReadPoint(readPoint);
-		setDisplayedReadPoint(readPoint);
-	}, [persistReadPoint, menuPageRef]);
-
-	const handleManualClear = useCallback(() => {
-		precedenceRef.current = "manual";
-		persistReadPoint(NO_PDF_READ_POINT);
-		setDisplayedReadPoint(NO_PDF_READ_POINT);
-	}, [persistReadPoint]);
+	const recordHighlightReadPoint = useCallback(
+		(lastPageIndex: number) =>
+			placeShown({ split: lastPageIndex + 1, block: 0 }, "extract"),
+		[placeShown],
+	);
+	const handleManualSet = useCallback(
+		() =>
+			placeShown(
+				{
+					split: menuPageRef?.current ?? currentPageRef.current,
+					block: 0,
+				},
+				"manual",
+			),
+		[placeShown, menuPageRef],
+	);
+	const handleManualClear = useCallback(
+		() => placeShown(NO_READ_POINT, "manual"),
+		[placeShown],
+	);
 
 	// Goes where the marker is, so the shortcut, marker and scrollbar tick agree.
 	const handleManualGoto = useCallback(() => {
 		const target = displayedReadPoint;
-		if (target.split === NO_PDF_READ_POINT.split) {
+		if (isNoReadPoint(target)) {
 			notifications.show({ message: "No read point set" });
 			return;
 		}
@@ -172,9 +136,9 @@ export function usePdfReadPoint({
 		onGoTo?.(target.split);
 	}, [displayedReadPoint, scrollCapability, documentId, onGoTo]);
 
-	useWindowEvent(READ_POINT_MANUAL_SET_REQUESTED, handleManualSet);
-	useWindowEvent(READ_POINT_MANUAL_CLEAR_REQUESTED, handleManualClear);
-	useWindowEvent(READ_POINT_MANUAL_GOTO_REQUESTED, handleManualGoto);
+	useReadingCommand("set-read-point", handleManualSet);
+	useReadingCommand("clear-read-point", handleManualClear);
+	useReadingCommand("go-to-read-point", handleManualGoto);
 
 	const getCurrentPage = useCallback(() => currentPageRef.current, []);
 

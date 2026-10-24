@@ -1,14 +1,3 @@
-import { READ_POINT_MANUAL_SET_REQUESTED } from "./types/events/readPointManualSetRequestedEvent";
-import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "./types/events/readPointManualClearRequestedEvent";
-import { READ_POINT_MANUAL_GOTO_REQUESTED } from "./types/events/readPointManualGotoRequestedEvent";
-import {
-	MARK_SET_REQUESTED,
-	MarkSetRequestedEvent,
-} from "./types/events/markSetRequestedEvent";
-import {
-	MARK_GOTO_REQUESTED,
-	MarkGotoRequestedEvent,
-} from "./types/events/markGotoRequestedEvent";
 import { PRIORITY_CHANGED } from "./types/events/priorityChangedEvent";
 import { STUDY_SESSION_SETTINGS_CHANGED } from "./types/events/studySessionSettingsChangedEvent";
 import { TOGGLE_LEFT_SIDEBAR_REQUESTED } from "./types/events/toggleLeftSidebarRequestedEvent";
@@ -20,11 +9,6 @@ import {
 
 declare global {
 	interface WindowEventMap {
-		[READ_POINT_MANUAL_SET_REQUESTED]: Event;
-		[READ_POINT_MANUAL_CLEAR_REQUESTED]: Event;
-		[READ_POINT_MANUAL_GOTO_REQUESTED]: Event;
-		[MARK_SET_REQUESTED]: MarkSetRequestedEvent;
-		[MARK_GOTO_REQUESTED]: MarkGotoRequestedEvent;
 		[PRIORITY_CHANGED]: Event;
 		[STUDY_SESSION_SETTINGS_CHANGED]: Event;
 		[TOGGLE_LEFT_SIDEBAR_REQUESTED]: Event;

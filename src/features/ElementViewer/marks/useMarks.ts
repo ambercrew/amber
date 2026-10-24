@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useWindowEvent } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
 	clearLearningAssetMark,
@@ -16,14 +15,7 @@ import {
 	MarkSlot,
 } from "../../../types/elements/learningAssetMark";
 import { ReadingPosition } from "../../../types/elements/readingPosition";
-import {
-	MARK_GOTO_REQUESTED,
-	MarkGotoRequestedEvent,
-} from "../../../types/events/markGotoRequestedEvent";
-import {
-	MARK_SET_REQUESTED,
-	MarkSetRequestedEvent,
-} from "../../../types/events/markSetRequestedEvent";
+import { useReadingCommand } from "../../../commands/readingCommands";
 import { findMark, withMark } from "./markLogic";
 import { showMarkUndoNotification } from "./markUndoNotification";
 
@@ -128,13 +120,12 @@ export function useMarks({
 		[resolveSetAnchor, writeMark],
 	);
 	const handleSetRequested = useCallback(
-		(event: MarkSetRequestedEvent) => void setMark(event.detail),
+		({ slot }: { slot: MarkSlot }) => void setMark(slot),
 		[setMark],
 	);
 
 	const handleGotoRequested = useCallback(
-		(event: MarkGotoRequestedEvent) => {
-			const slot = event.detail;
+		({ slot }: { slot: MarkSlot }) => {
 			const mark = findMark(marksRef.current, slot);
 			if (!mark) {
 				notifications.show({ message: `Mark ${slot} isn't set` });
@@ -145,8 +136,8 @@ export function useMarks({
 		[goTo],
 	);
 
-	useWindowEvent(MARK_SET_REQUESTED, handleSetRequested);
-	useWindowEvent(MARK_GOTO_REQUESTED, handleGotoRequested);
+	useReadingCommand("set-mark", handleSetRequested);
+	useReadingCommand("go-to-mark", handleGotoRequested);
 
 	return marks;
 }

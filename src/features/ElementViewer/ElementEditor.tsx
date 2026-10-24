@@ -10,24 +10,10 @@ import {
 } from "../../components/Editor/plugins/FloatingMenuPlugin";
 import { HighlightCreatedPayload } from "../../components/Editor/plugins/HighlightPlugin/highlightCommands";
 import RootElementPlugin from "../../components/Editor/plugins/RootElementPlugin";
-import CursorTrackerPlugin from "../../components/Editor/plugins/CursorTrackerPlugin";
-import SearchHighlightPlugin from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightPlugin";
 import useApi from "../../hooks/useApi";
 import { useImageOcclusionMenuItems } from "../ImageOcclusion/hooks/useImageOcclusionMenuItems";
 import { renderOcclusionOverlay } from "../ImageOcclusion/review/renderOcclusionOverlay";
 import useAutoSave from "./hooks/useAutoSave";
-import ReadingGutterPlugin, { MarkBlock } from "./marks/ReadingGutterPlugin";
-
-export interface ElementEditorSearchProps {
-	/** Unique key identifying this editor instance among any others on screen. */
-	editorKey: string;
-	query: string;
-	caseSensitive: boolean;
-	/** Local index (within this instance's own matches) of the globally-current match, or null if this instance doesn't own it. */
-	currentMatchLocalIndex: number | null;
-	/** Reports this instance's own match count — authoritative for it. */
-	onMatches: (editorKey: string, count: number) => void;
-}
 
 interface ElementEditorProps {
 	initialContent: string;
@@ -36,20 +22,14 @@ interface ElementEditorProps {
 	onChange: (content: string) => Promise<void>;
 	/** Receives the editor's root element (see `RootElementPlugin`). */
 	onRootElement?: (element: HTMLElement | null) => void;
-	/** Block index to mark as the reader's saved read point, if any. */
-	markerBlockIndex?: number;
-	/** Marks anchored in this editor, flagged in its gutter. */
-	markBlocks?: MarkBlock[];
-	/** Receives the block index containing the caret (see `CursorTrackerPlugin`). */
-	onCursorMove?: (blockIndex: number) => void;
 	/** Extra items for the editor's right-click menu, if any. */
 	contextMenuItems?: React.ReactNode;
 	/** Called when the right-click menu closes. */
 	onContextMenuClose?: () => void;
-	/** Find-in-page search wiring for this editor instance, if search is active here. */
-	search?: ElementEditorSearchProps;
 	/** Receives the Lexical editor, for reading its live content. */
 	editorRef?: React.RefObject<LexicalEditor | null>;
+	/** Extra Lexical plugins (e.g. `SearchHighlightPlugin`). */
+	children?: React.ReactNode;
 }
 
 export default function ElementEditor({
@@ -58,13 +38,10 @@ export default function ElementEditor({
 	onHighlightCreated,
 	onChange,
 	onRootElement,
-	markerBlockIndex,
-	markBlocks,
-	onCursorMove,
 	contextMenuItems,
 	onContextMenuClose,
-	search,
 	editorRef,
+	children,
 }: ElementEditorProps) {
 	const { callApi, errorMessage, clearErrorMessage } = useApi();
 	const imageMenuItems = useImageOcclusionMenuItems();
@@ -118,24 +95,7 @@ export default function ElementEditor({
 				{onRootElement && (
 					<RootElementPlugin onRootElement={onRootElement} />
 				)}
-				{(markerBlockIndex !== undefined || !!markBlocks?.length) && (
-					<ReadingGutterPlugin
-						readPointBlock={markerBlockIndex}
-						marks={markBlocks ?? []}
-					/>
-				)}
-				{onCursorMove && (
-					<CursorTrackerPlugin onCursorMove={onCursorMove} />
-				)}
-				{search && (
-					<SearchHighlightPlugin
-						editorKey={search.editorKey}
-						query={search.query}
-						caseSensitive={search.caseSensitive}
-						currentMatchLocalIndex={search.currentMatchLocalIndex}
-						onMatches={search.onMatches}
-					/>
-				)}
+				{children}
 			</Editor>
 		</>
 	);

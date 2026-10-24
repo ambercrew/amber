@@ -13,6 +13,7 @@ import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import { HEADROOM_FIXED_AT } from "../../../App/components/App";
 import { useSetHeadroomOverride } from "../../../App/context/headroomOverrideContext";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
+import { isNoReadPoint } from "../../readPoint/readingPosition";
 import { MarkSlot } from "../../../../types/elements/learningAssetMark";
 import {
 	MARK_COLORS,
@@ -30,7 +31,7 @@ import FindInPageBar from "../../FindInPageBar";
 import { usePdfAnnotationsPersistence } from "../hooks/usePdfAnnotationsPersistence";
 import { usePdfFindInPage } from "../hooks/usePdfFindInPage";
 import { usePdfLinkNavigationRenderer } from "../hooks/usePdfLinkNavigation";
-import { NO_PDF_READ_POINT, usePdfReadPoint } from "../hooks/usePdfReadPoint";
+import { usePdfReadPoint } from "../hooks/usePdfReadPoint";
 import { usePdfSelectionAnchor } from "../hooks/usePdfSelectionAnchor";
 import { usePdfToolbarHeadroom } from "../hooks/usePdfToolbarHeadroom";
 import { usePdfZoomPersistence } from "../hooks/usePdfZoomPersistence";
@@ -203,10 +204,9 @@ function LoadedPdfDocument({
 		},
 		[scrollCapability, activeDocumentId, flashOnArrival],
 	);
-	const readPointPage =
-		displayedReadPoint.split === NO_PDF_READ_POINT.split
-			? null
-			: displayedReadPoint.split;
+	const readPointPage = isNoReadPoint(displayedReadPoint)
+		? null
+		: displayedReadPoint.split;
 	const marks = useMarks({
 		learningAssetId,
 		resolveSetAnchor: resolveMarkAnchor,

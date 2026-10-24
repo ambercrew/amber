@@ -1,10 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
+import { runReadingCommand } from "../../../../../commands/readingCommands";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePdfReadPoint } from "../../../../../features/ElementViewer/PdfView/hooks/usePdfReadPoint";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
-import { READ_POINT_MANUAL_SET_REQUESTED } from "../../../../../types/events/readPointManualSetRequestedEvent";
-import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../../../../../types/events/readPointManualClearRequestedEvent";
-import { READ_POINT_MANUAL_GOTO_REQUESTED } from "../../../../../types/events/readPointManualGotoRequestedEvent";
 
 const { updateReadPointMock, useScrollCapabilityMock, notificationsShowMock } =
 	vi.hoisted(() => ({
@@ -316,7 +314,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
+			runReadingCommand({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -349,7 +347,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
+			runReadingCommand({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -379,7 +377,7 @@ describe("usePdfReadPoint", () => {
 			});
 		});
 		await act(async () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
+			runReadingCommand({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -413,7 +411,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_CLEAR_REQUESTED));
+			runReadingCommand({ type: "clear-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -438,7 +436,7 @@ describe("usePdfReadPoint", () => {
 			});
 		});
 		await act(async () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_CLEAR_REQUESTED));
+			runReadingCommand({ type: "clear-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -470,7 +468,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_GOTO_REQUESTED));
+			runReadingCommand({ type: "go-to-read-point" });
 		});
 
 		// Assert
@@ -489,7 +487,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_GOTO_REQUESTED));
+			runReadingCommand({ type: "go-to-read-point" });
 		});
 
 		// Assert
@@ -514,7 +512,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_GOTO_REQUESTED));
+			runReadingCommand({ type: "go-to-read-point" });
 		});
 
 		// Assert
@@ -608,7 +606,7 @@ describe("usePdfReadPoint", () => {
 			});
 		});
 		await act(async () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
+			runReadingCommand({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -655,7 +653,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
+			runReadingCommand({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 

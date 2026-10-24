@@ -5,7 +5,7 @@ import {
 } from "../../../types/elements/learningAssetMark";
 import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAssetSplitMetaDto";
 import { ReadingPosition } from "../../../types/elements/readingPosition";
-import { estimateOffsetBeforeSplit } from "../LearningAssetView/heights/estimateCumulativeOffset";
+import { estimateOffsetBeforeSplit } from "../LearningAssetView/core/heights/estimateCumulativeOffset";
 
 /** The read point's color, flashed when jumping to it. */
 export const READ_POINT_COLOR: MantineColor = "amber";

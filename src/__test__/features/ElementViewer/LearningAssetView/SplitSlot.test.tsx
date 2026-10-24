@@ -1,6 +1,14 @@
 import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SplitSlot from "../../../../features/ElementViewer/LearningAssetView/SplitSlot";
+import {
+	ReaderCore,
+	ReaderCoreContext,
+} from "../../../../features/ElementViewer/LearningAssetView/core/readerCoreContext";
+import {
+	SplitStackContext,
+	SplitStackWiring,
+} from "../../../../features/ElementViewer/LearningAssetView/core/splitStackContext";
 
 const editorProps = vi.hoisted(() => ({
 	current: null as null | {
@@ -21,25 +29,33 @@ vi.mock("../../../../features/ElementViewer/ElementEditor", () => ({
 	},
 }));
 
-vi.mock("../../../../components/Editor/plugins/ReadPointMenu", () => ({
-	default: () => null,
-}));
-
 function renderSlot(mounted: boolean) {
+	const core = {
+		learningAssetId: "asset",
+		mountedSeqs: new Set(mounted ? [1] : []),
+		getHeight: () => 100,
+		anchors: { trackCursor: vi.fn(), setMenuAnchor: vi.fn() },
+	} as unknown as ReaderCore;
+	const wiring: SplitStackWiring = {
+		contentWidth: 100,
+		containerRef: vi.fn(),
+		slotRef: () => vi.fn(),
+		observeSplit: () => vi.fn(),
+		contentRootRef: () => vi.fn(),
+		splitBoxRef: () => vi.fn(),
+		notifyContentReady: vi.fn(),
+	};
 	return (
-		<SplitSlot
-			learningAssetId="asset"
-			seq={1}
-			splitNumber={1}
-			isFirst
-			mounted={mounted}
-			height={100}
-			buttons={[]}
-			slotRef={vi.fn()}
-			observeSplit={vi.fn()}
-			registerContentRoot={vi.fn()}
-			onContentReady={vi.fn()}
-		/>
+		<ReaderCoreContext value={core}>
+			<SplitStackContext value={wiring}>
+				<SplitSlot
+					split={{ seq: 1, charCount: 10, blockCount: 1 }}
+					index={0}
+					buttons={[]}
+					plugins={[]}
+				/>
+			</SplitStackContext>
+		</ReaderCoreContext>
 	);
 }
 

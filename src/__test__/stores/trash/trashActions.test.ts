@@ -7,7 +7,7 @@ import {
 	trashElement,
 } from "../../../api/trash/api/trashApi";
 import { TrashedElementDto } from "../../../api/trash/dto/trashedElementDto";
-import { clearSplitHeights } from "../../../features/ElementViewer/LearningAssetView/heights/splitHeightsStorage";
+import { clearSplitHeights } from "../../../features/ElementViewer/LearningAssetView/core/heights/splitHeightsStorage";
 import { setTree } from "../../../stores/elements/elementsReducer";
 import {
 	deleteElementPermanentlyAction,
@@ -24,7 +24,7 @@ import {
 vi.mock(import("../../../api/trash/api/trashApi"));
 vi.mock(import("../../../api/elements/api/elementsApi"));
 vi.mock(
-	import("../../../features/ElementViewer/LearningAssetView/heights/splitHeightsStorage"),
+	import("../../../features/ElementViewer/LearningAssetView/core/heights/splitHeightsStorage"),
 );
 
 const TRASHED_LEARNING_ASSET: TrashedElementDto = {

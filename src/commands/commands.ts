@@ -60,11 +60,7 @@ import {
 	selectIsSignedIn,
 	selectUserInformation,
 } from "../stores/user/userSelectors";
-import { READ_POINT_MANUAL_SET_REQUESTED } from "../types/events/readPointManualSetRequestedEvent";
-import { READ_POINT_MANUAL_CLEAR_REQUESTED } from "../types/events/readPointManualClearRequestedEvent";
-import { READ_POINT_MANUAL_GOTO_REQUESTED } from "../types/events/readPointManualGotoRequestedEvent";
-import { MARK_SET_REQUESTED } from "../types/events/markSetRequestedEvent";
-import { MARK_GOTO_REQUESTED } from "../types/events/markGotoRequestedEvent";
+import { runReadingCommand } from "./readingCommands";
 import { MarkSlot } from "../types/elements/learningAssetMark";
 import { isMobile } from "../utils/tauriUtils";
 import { isCoarsePointer } from "../utils/pointer";
@@ -304,7 +300,7 @@ export const commandsById: Record<CommandId, Command> = {
 		icon: createElement(ReadPointIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
 		execute: () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_SET_REQUESTED));
+			runReadingCommand({ type: "set-read-point" });
 			notifications.show({ message: "Read point set" });
 		},
 	},
@@ -316,9 +312,7 @@ export const commandsById: Record<CommandId, Command> = {
 		shortcut: GO_TO_READ_POINT_SHORTCUT,
 		icon: createElement(MapPinIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
-		execute: () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_GOTO_REQUESTED));
-		},
+		execute: () => runReadingCommand({ type: "go-to-read-point" }),
 	},
 	"clear-read-point": {
 		id: "clear-read-point",
@@ -328,7 +322,7 @@ export const commandsById: Record<CommandId, Command> = {
 		icon: createElement(EraserIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
 		execute: () => {
-			window.dispatchEvent(new Event(READ_POINT_MANUAL_CLEAR_REQUESTED));
+			runReadingCommand({ type: "clear-read-point" });
 			notifications.show({ message: "Read point cleared" });
 		},
 	},
@@ -587,11 +581,7 @@ function setMarkCommand(slot: MarkSlot, shortcut: string): Command {
 		shortcut,
 		icon: createElement(SetMarkIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
-		execute: () => {
-			window.dispatchEvent(
-				new CustomEvent(MARK_SET_REQUESTED, { detail: slot }),
-			);
-		},
+		execute: () => runReadingCommand({ type: "set-mark", slot }),
 	};
 }
 
@@ -604,11 +594,7 @@ function goToMarkCommand(slot: MarkSlot, shortcut: string): Command {
 		shortcut,
 		icon: createElement(GoToMarkIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
-		execute: () => {
-			window.dispatchEvent(
-				new CustomEvent(MARK_GOTO_REQUESTED, { detail: slot }),
-			);
-		},
+		execute: () => runReadingCommand({ type: "go-to-mark", slot }),
 	};
 }
 

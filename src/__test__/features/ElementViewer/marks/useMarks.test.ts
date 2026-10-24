@@ -1,10 +1,12 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { runReadingCommand } from "../../../../commands/readingCommands";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMarks } from "../../../../features/ElementViewer/marks/useMarks";
-import { LearningAssetMark } from "../../../../types/elements/learningAssetMark";
+import {
+	LearningAssetMark,
+	MarkSlot,
+} from "../../../../types/elements/learningAssetMark";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
-import { MARK_GOTO_REQUESTED } from "../../../../types/events/markGotoRequestedEvent";
-import { MARK_SET_REQUESTED } from "../../../../types/events/markSetRequestedEvent";
 
 const {
 	addSyncListenerMock,
@@ -66,11 +68,9 @@ async function renderMarks(
 	return { ...hook, goTo };
 }
 
-async function requestSet(slot: number) {
+async function requestSet(slot: MarkSlot) {
 	await act(async () => {
-		window.dispatchEvent(
-			new CustomEvent(MARK_SET_REQUESTED, { detail: slot }),
-		);
+		runReadingCommand({ type: "set-mark", slot });
 	});
 }
 
@@ -212,9 +212,7 @@ describe("useMarks", () => {
 		// Act
 
 		act(() => {
-			window.dispatchEvent(
-				new CustomEvent(MARK_GOTO_REQUESTED, { detail: 2 }),
-			);
+			runReadingCommand({ type: "go-to-mark", slot: 2 });
 		});
 
 		// Assert
@@ -230,9 +228,7 @@ describe("useMarks", () => {
 		// Act
 
 		act(() => {
-			window.dispatchEvent(
-				new CustomEvent(MARK_GOTO_REQUESTED, { detail: 1 }),
-			);
+			runReadingCommand({ type: "go-to-mark", slot: 1 });
 		});
 
 		// Assert

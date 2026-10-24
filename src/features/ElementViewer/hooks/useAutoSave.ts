@@ -10,27 +10,31 @@ import { CallApiFn } from "../../../hooks/useApi";
 
 export const CLOSE_REQUESTED_HANDLER_NAME_PREFIX = "useAutoSave handler";
 
-interface Props {
-	onSave: (content: string) => Promise<void>;
+interface Props<T> {
+	onSave: (content: T) => Promise<void>;
 	onSaveComplete?: () => Promise<void>;
 	callApi: CallApiFn;
 }
 
-interface ReturnValue {
+interface ReturnValue<T> {
 	saveChanges: () => Promise<void>;
-	onContentUpdate: (getContent: () => string) => void;
+	onContentUpdate: (getContent: () => T) => void;
 }
 
 /**
  * This hook is used to save an element's content automatically, with a
  * delay, after it gets updated.
  */
-function useAutoSave({ onSave, onSaveComplete, callApi }: Props): ReturnValue {
+function useAutoSave<T = string>({
+	onSave,
+	onSaveComplete,
+	callApi,
+}: Props<T>): ReturnValue<T> {
 	// Holds a getter for the latest content that is not yet saved. Producing
 	// the content (e.g. serializing the editor state to JSON) can be
 	// expensive on large documents, so it is deferred until a save actually
 	// happens instead of running on every update.
-	const pendingContent = useRef<(() => string) | null>(null);
+	const pendingContent = useRef<(() => T) | null>(null);
 	const autoSaveTimeoutId = useRef<number>(null);
 	// Multiple ElementEditor instances (e.g. a card's front and back) can be
 	// mounted at once, each with their own useAutoSave instance, so the
@@ -55,7 +59,7 @@ function useAutoSave({ onSave, onSaveComplete, callApi }: Props): ReturnValue {
 		});
 	}, [callApi, onSave, onSaveComplete]);
 
-	const handleContentUpdate = (getContent: () => string) => {
+	const handleContentUpdate = (getContent: () => T) => {
 		pendingContent.current = getContent;
 
 		if (autoSaveTimeoutId.current !== null) {

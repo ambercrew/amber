@@ -13,7 +13,10 @@ import {
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { SlashMenuPlugin } from "./plugins/SlashMenuPlugin";
 import { EquationExtension } from "./plugins/EquationPlugin/EquationExtension";
-import { HighlightPlugin } from "./plugins/HighlightPlugin/HighlightPlugin";
+import {
+	HighlightCreatedListener,
+	HighlightPlugin,
+} from "./plugins/HighlightPlugin/HighlightPlugin";
 import { HighlightCreatedPayload } from "./plugins/HighlightPlugin/highlightCommands";
 import { ImagePlugin } from "./plugins/ImagePlugin/ImagePlugin";
 import {
@@ -171,9 +174,12 @@ function EditorContent({
 							<LinkClickPlugin
 								onContextMenuLink={handleContextMenuLink}
 							/>
-							<HighlightPlugin
-								onHighlightCreated={onHighlightCreated}
-							/>
+							<HighlightPlugin />
+							{onHighlightCreated && (
+								<HighlightCreatedListener
+									onHighlightCreated={onHighlightCreated}
+								/>
+							)}
 							{children}
 						</Box>
 					</LexicalExtensionComposer>

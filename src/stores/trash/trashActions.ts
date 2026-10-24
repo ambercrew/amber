@@ -7,7 +7,7 @@ import {
 	trashElement,
 } from "../../api/trash/api/trashApi";
 import { TrashedElementDto } from "../../api/trash/dto/trashedElementDto";
-import { clearSplitHeights } from "../../features/ElementViewer/LearningAssetView/heights/splitHeightsStorage";
+import { clearSplitHeights } from "../../features/ElementViewer/LearningAssetView/core/heights/splitHeightsStorage";
 import { ElementId } from "../../types/elements/elementId";
 import errorToString from "../../utils/errorToString";
 import { setTree } from "../elements/elementsReducer";

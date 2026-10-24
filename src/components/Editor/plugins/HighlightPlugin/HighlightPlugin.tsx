@@ -5,6 +5,7 @@ import {
 	$getSelection,
 	$isRangeSelection,
 	COMMAND_PRIORITY_EDITOR,
+	COMMAND_PRIORITY_LOW,
 } from "lexical";
 import { $wrapSelectionInMarkNode } from "@lexical/mark";
 import { $generateJSONFromSelectedNodes } from "@lexical/clipboard";
@@ -12,15 +13,12 @@ import { type SerializedLexicalNodeTree } from "../../lexicalJsonConversion";
 import { $createHighlightNode, HighlightNode } from "./HighlightNode";
 import {
 	CREATE_HIGHLIGHT_COMMAND,
+	HIGHLIGHT_CREATED_COMMAND,
 	HighlightCreatedPayload,
 } from "./highlightCommands";
 import { $trimSelectionWhitespace } from "./trimSelectionWhitespace";
 
-interface Props {
-	onHighlightCreated?: (payload: HighlightCreatedPayload) => void;
-}
-
-export function HighlightPlugin({ onHighlightCreated }: Props) {
+export function HighlightPlugin() {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
@@ -72,7 +70,7 @@ export function HighlightPlugin({ onHighlightCreated }: Props) {
 						null,
 					);
 				const fullText = $getRoot().getTextContent();
-				onHighlightCreated?.({
+				const payload: HighlightCreatedPayload = {
 					id,
 					selectionNodes,
 					fullNodes,
@@ -80,12 +78,37 @@ export function HighlightPlugin({ onHighlightCreated }: Props) {
 					fullText,
 					color,
 					endBlockIndex,
-				});
+				};
+				editor.dispatchCommand(HIGHLIGHT_CREATED_COMMAND, payload);
 				return true;
 			},
 			COMMAND_PRIORITY_EDITOR,
 		);
-	}, [editor, onHighlightCreated]);
+	}, [editor]);
 
+	return null;
+}
+
+interface HighlightCreatedListenerProps {
+	onHighlightCreated: (payload: HighlightCreatedPayload) => void;
+}
+
+/** Calls `onHighlightCreated` for each `HIGHLIGHT_CREATED_COMMAND`, letting other listeners run too. */
+export function HighlightCreatedListener({
+	onHighlightCreated,
+}: HighlightCreatedListenerProps) {
+	const [editor] = useLexicalComposerContext();
+	useEffect(
+		() =>
+			editor.registerCommand(
+				HIGHLIGHT_CREATED_COMMAND,
+				payload => {
+					onHighlightCreated(payload);
+					return false;
+				},
+				COMMAND_PRIORITY_LOW,
+			),
+		[editor, onHighlightCreated],
+	);
 	return null;
 }

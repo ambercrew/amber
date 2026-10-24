@@ -3,6 +3,7 @@ import { Container } from "@mantine/core";
 import { LexicalEditor } from "lexical";
 import ContentOriginPanel from "./ContentOriginPanel";
 import ElementEditor from "./ElementEditor";
+import SearchHighlightPlugin from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightPlugin";
 import ExtractAiCardsButton from "./ExtractAiCardsButton";
 import { ExtractResponseDto } from "../../api/elements/dto/anyElementDto";
 import { FloatingMenuItem } from "../../components/Editor/plugins/FloatingMenuPlugin";
@@ -42,15 +43,15 @@ export default function ExtractElementViewer({
 				buttons={buttons}
 				onChange={onChange}
 				onHighlightCreated={onHighlightCreated}
-				editorRef={editorRef}
-				search={{
-					editorKey: "extract",
-					query,
-					caseSensitive,
-					currentMatchLocalIndex: matchIndexFor("extract"),
-					onMatches,
-				}}
-			/>
+				editorRef={editorRef}>
+				<SearchHighlightPlugin
+					editorKey="extract"
+					query={query}
+					caseSensitive={caseSensitive}
+					currentMatchLocalIndex={matchIndexFor("extract")}
+					onMatches={onMatches}
+				/>
+			</ElementEditor>
 			<ContentOriginPanel meta={extract.meta} />
 		</Container>
 	);

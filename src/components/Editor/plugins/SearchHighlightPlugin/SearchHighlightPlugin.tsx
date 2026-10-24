@@ -43,22 +43,22 @@ export default function SearchHighlightPlugin({
 				const { text, entries } = buildOffsetMap($getRoot());
 				const matches = findMatches(text, query, caseSensitive);
 
-				const ranges: Range[] = [];
-				for (const match of matches) {
+				// One entry per match, so a match's local index points at its own range.
+				const ranges = matches.map(match => {
 					const anchor = offsetToPoint(entries, match.start);
 					const focus = offsetToPoint(entries, match.end);
-					if (!anchor || !focus) continue;
-					const range = createDOMRange(
+					if (!anchor || !focus) return null;
+					return createDOMRange(
 						editor,
 						anchor.node,
 						anchor.offset,
 						focus.node,
 						focus.offset,
 					);
-					if (range) ranges.push(range);
-				}
+				});
 
-				onMatches(editorKey, ranges.length);
+				// Counted from the text, not the ranges: those are missing while the editor's DOM mounts or unmounts.
+				onMatches(editorKey, matches.length);
 
 				const currentRange =
 					currentMatchLocalIndex !== null
