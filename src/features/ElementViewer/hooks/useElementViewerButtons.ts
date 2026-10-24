@@ -17,6 +17,7 @@ import {
 	HighlightNode,
 } from "../../../components/Editor/plugins/HighlightPlugin/HighlightNode";
 import { paths } from "../../../paths";
+import { CLOZE_COLOR, EXTRACT_COLOR } from "../highlightColors";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectSettings } from "../../../stores/settings/settingsSelector";
@@ -38,8 +39,6 @@ import {
 	OPEN_HIGHLIGHT_BUTTON,
 	REMOVE_HIGHLIGHT_BUTTON,
 } from "../highlightFloatingMenuButtons";
-
-export const CLOZE_COLOR = "blue";
 
 function $getHighlightNodeFromSelection(selection: RangeSelection) {
 	for (const node of selection.getNodes()) {
@@ -152,7 +151,10 @@ export function useElementViewerButtons() {
 				...EXTRACT_BUTTON,
 				isActive: () => false,
 				onClick: editor => {
-					editor.dispatchCommand(CREATE_HIGHLIGHT_COMMAND, "yellow");
+					editor.dispatchCommand(
+						CREATE_HIGHLIGHT_COMMAND,
+						EXTRACT_COLOR,
+					);
 				},
 			},
 			{

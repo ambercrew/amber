@@ -17,7 +17,7 @@ import {
 } from "../../../stores/elements/elementsActions";
 import { ElementId } from "../../../types/elements/elementId";
 import { truncateToWords } from "../../../utils/truncateToWords";
-import { CLOZE_COLOR } from "./useElementViewerButtons";
+import { CLOZE_COLOR } from "../highlightColors";
 
 export function useHighlightCreatedHandler(elementId: ElementId | undefined) {
 	const dispatch = useAppDispatch();

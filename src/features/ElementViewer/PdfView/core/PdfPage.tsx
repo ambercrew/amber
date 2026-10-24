@@ -17,14 +17,14 @@ import { usePdfCore } from "./pdfCoreContext";
 interface PdfPageProps {
 	pageIndex: number;
 	/** Shared by every page, so they're built once by the document rather than per page. */
-	linkRenderers: BoxedAnnotationRenderer[];
+	annotationRenderers: BoxedAnnotationRenderer[];
 	selectionAnchor: GlyphPointer | null;
 }
 
 /** One PDF page with its layers: rendering, annotations, text selection, search matches and marks. */
 export default function PdfPage({
 	pageIndex,
-	linkRenderers,
+	annotationRenderers,
 	selectionAnchor,
 }: PdfPageProps) {
 	const { documentId, learningAssetId } = usePdfCore();
@@ -49,7 +49,7 @@ export default function PdfPage({
 			<AnnotationLayer
 				documentId={documentId}
 				pageIndex={pageIndex}
-				annotationRenderers={linkRenderers}
+				annotationRenderers={annotationRenderers}
 			/>
 			<SelectionLayer
 				documentId={documentId}

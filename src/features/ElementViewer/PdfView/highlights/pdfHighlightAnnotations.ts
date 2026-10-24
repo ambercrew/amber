@@ -8,7 +8,7 @@ import {
 import { AnnotationDocumentState } from "@embedpdf/plugin-annotation";
 import { ElementNodeType } from "../../../../types/elements/elementNodeType";
 
-// Matches the annotation plugin's own default "highlight" tool color.
+// Stored with each annotation; the view itself draws ours in the editor's theme colors (`pdfHighlightRenderer`).
 export const EXTRACT_HIGHLIGHT_COLOR = "#FFCD45";
 export const CLOZE_HIGHLIGHT_COLOR = "#4DABF7";
 

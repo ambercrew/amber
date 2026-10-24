@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Text } from "@mantine/core";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useActiveDocument } from "@embedpdf/plugin-document-manager/react";
@@ -19,6 +19,7 @@ import PdfStatus from "./core/PdfStatus";
 import { usePdfLinkNavigationRenderer } from "./core/usePdfLinkNavigation";
 import styles from "./core/PdfViewport.module.css";
 import { usePdfAnnotationsPersistence } from "./highlights/usePdfAnnotationsPersistence";
+import { pdfHighlightRenderer } from "./highlights/pdfHighlightRenderer";
 import { usePdfSelectionAnchor } from "./highlights/usePdfSelectionAnchor";
 import PdfMarksProvider from "./marks/PdfMarksProvider";
 import PdfMarksScrollbar from "./marks/PdfMarksScrollbar";
@@ -102,6 +103,10 @@ function PdfReader() {
 	usePdfFindInPage(documentId);
 	const selectionAnchor = usePdfSelectionAnchor(documentId);
 	const linkRenderers = usePdfLinkNavigationRenderer(documentId);
+	const annotationRenderers = useMemo(
+		() => [...linkRenderers, pdfHighlightRenderer],
+		[linkRenderers],
+	);
 	const [frame, setFrame] = useState<HTMLDivElement | null>(null);
 	const [pinned, setPinned] = useState(true);
 	const insets = useChromeInsets();
@@ -145,7 +150,7 @@ function PdfReader() {
 							renderPage={({ pageIndex }) => (
 								<PdfPage
 									pageIndex={pageIndex}
-									linkRenderers={linkRenderers}
+									annotationRenderers={annotationRenderers}
 									selectionAnchor={selectionAnchor}
 								/>
 							)}
