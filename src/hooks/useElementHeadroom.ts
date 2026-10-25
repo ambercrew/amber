@@ -12,8 +12,6 @@ export interface UseElementHeadroomInput {
 export interface UseElementHeadroomReturnValue {
 	/** True when the element is at least partially visible. */
 	pinned: boolean;
-	/** Reveal progress: 0 = fully hidden, 1 = fully visible. */
-	scrollProgress: number;
 	/** Ignore scroll events (programmatic ones, e.g. from zoom recentering)
 	 * until they stop for `quietMs` — a zoom can trigger more than one
 	 * scroll adjustment (e.g. the browser clamping scrollTop as content
@@ -46,7 +44,9 @@ export function useElementHeadroom({
 	fixedAt = 0,
 	scrollDistance = 70,
 }: UseElementHeadroomInput): UseElementHeadroomReturnValue {
-	const [scrollProgress, setScrollProgress] = useState(1);
+	// Progress (0 = hidden, 1 = shown) changes every scroll frame, so only the boolean is state;
+	// otherwise everything under the caller (the whole App) re-renders while the header slides.
+	const [pinned, setPinned] = useState(true);
 
 	const previousScrollTop = useRef(0);
 	const previousScrollHeight = useRef(0);
@@ -82,7 +82,7 @@ export function useElementHeadroom({
 			previouslyScrollingUp.current = false;
 			directionChangeScrollTop.current = scrollTop;
 			progressAtDirectionChange.current = fixed ? 1 : 0;
-			setScrollProgress(fixed ? 1 : 0);
+			setPinned(fixed);
 		};
 		const stopHidingAfter = (ms: number) => {
 			window.clearTimeout(hideTimeout);
@@ -151,16 +151,15 @@ export function useElementHeadroom({
 				directionChangeScrollTop.current = scrollTop;
 			}
 
-			setScrollProgress(
-				fixed
-					? 1
-					: progressAt(
-							scrollTop,
-							scrollingUp,
-							directionChangeScrollTop.current,
-							progressAtDirectionChange.current,
-							scrollDistance,
-						),
+			setPinned(
+				fixed ||
+					progressAt(
+						scrollTop,
+						scrollingUp,
+						directionChangeScrollTop.current,
+						progressAtDirectionChange.current,
+						scrollDistance,
+					) > 0,
 			);
 		};
 
@@ -181,10 +180,8 @@ export function useElementHeadroom({
 	}, [element, fixedAt, scrollDistance, pause]);
 
 	// While there is no scroller yet nothing can be scrolled away, so the
-	// chrome reads as fully revealed regardless of the last known progress.
-	const progress = element ? scrollProgress : 1;
-
-	return { pinned: progress > 0, scrollProgress: progress, pause };
+	// chrome reads as revealed regardless of the last known state.
+	return { pinned: !element || pinned, pause };
 }
 
 /** Progress reached after scrolling from `origin` to `scrollTop`, clamped to 0..1. */

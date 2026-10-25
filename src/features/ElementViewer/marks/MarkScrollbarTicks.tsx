@@ -136,15 +136,22 @@ export default function MarkScrollbarTicks({
 				measure();
 			});
 		};
+		// Ticks sit at a % of the track, so they follow its slide with the chrome; re-measuring every frame of it only re-renders.
+		const onResize = () => {
+			if (track?.getAnimations?.().length) return;
+			schedule();
+		};
 		schedule();
 		scrollElement?.addEventListener("scroll", schedule, { passive: true });
+		track?.addEventListener("transitionend", schedule);
 		const resizeObserver =
 			track && typeof ResizeObserver !== "undefined"
-				? new ResizeObserver(schedule)
+				? new ResizeObserver(onResize)
 				: null;
 		if (track) resizeObserver?.observe(track);
 		return () => {
 			scrollElement?.removeEventListener("scroll", schedule);
+			track?.removeEventListener("transitionend", schedule);
 			resizeObserver?.disconnect();
 			if (frame !== null) cancelAnimationFrame(frame);
 		};

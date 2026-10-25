@@ -34,10 +34,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 1,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should stay fully pinned when the scroller is within the fixed zone", () => {
@@ -51,10 +48,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 1,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should partially hide when scrolled down less than the scroll distance past the fixed zone", () => {
@@ -68,10 +62,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 0.6,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should fully hide when scrolled down a full scroll distance past the fixed zone", () => {
@@ -85,10 +76,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: false,
-			scrollProgress: 0,
-		});
+		expect(result.current.pinned).toBe(false);
 	});
 
 	it("Should not hide before the scroll distance is exceeded when a longer distance is given", () => {
@@ -102,10 +90,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 0.5,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should reveal again from where it stopped when the direction changes", () => {
@@ -120,10 +105,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 0.5,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should be fully revealed when scrolled up a full scroll distance", () => {
@@ -139,10 +121,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 1,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should not hide when content resizing above shifts the scroller down while scrolling up", () => {
@@ -165,10 +144,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 1,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should not count the shift toward hiding when scrolling down resumes after content resized", () => {
@@ -192,10 +168,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 0.6,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should be fully pinned again when scrolled back into the fixed zone", () => {
@@ -210,10 +183,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 1,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should ignore scrolling when the window is being resized", () => {
@@ -230,10 +200,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 1,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should observe scrolling again when the resize settled", () => {
@@ -254,10 +221,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: false,
-			scrollProgress: 0,
-		});
+		expect(result.current.pinned).toBe(false);
 		vi.useRealTimers();
 	});
 
@@ -345,7 +309,7 @@ describe("useElementHeadroom", () => {
 
 			// Assert
 
-			expect(result.current.scrollProgress).toBe(1);
+			expect(result.current.pinned).toBe(true);
 		});
 	});
 });
