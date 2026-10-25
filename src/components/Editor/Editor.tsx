@@ -19,6 +19,7 @@ import {
 } from "./plugins/HighlightPlugin/HighlightPlugin";
 import { HighlightCreatedPayload } from "./plugins/HighlightPlugin/highlightCommands";
 import { ImagePlugin } from "./plugins/ImagePlugin/ImagePlugin";
+import { EquationEditingPlugin } from "./plugins/EquationPlugin/EquationEditingPlugin";
 import {
 	ImageMenuItems,
 	ImageMenuItemsContext,
@@ -171,6 +172,7 @@ function EditorContent({
 							/>
 							<SlashMenuPlugin />
 							<ImagePlugin />
+							<EquationEditingPlugin />
 							<LinkClickPlugin
 								onContextMenuLink={handleContextMenuLink}
 							/>

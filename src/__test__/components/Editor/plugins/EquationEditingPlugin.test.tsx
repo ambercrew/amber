@@ -19,6 +19,7 @@ import {
 	$isEquationNode,
 	EquationNode,
 } from "../../../../components/Editor/plugins/EquationPlugin/EquationNode";
+import { EquationEditingPlugin } from "../../../../components/Editor/plugins/EquationPlugin/EquationEditingPlugin";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
 function EditorCapture({
@@ -48,6 +49,7 @@ function renderEditor() {
 				placeholder={null}
 				ErrorBoundary={LexicalErrorBoundary}
 			/>
+			<EquationEditingPlugin />
 			<EditorCapture
 				onReady={editor => {
 					capturedEditor = editor;
@@ -131,7 +133,7 @@ function getTextarea() {
 	return document.querySelector('textarea:not([aria-hidden="true"])');
 }
 
-describe("EquationComponent", () => {
+describe("EquationEditingPlugin", () => {
 	it("Should commit the value and close the editor when Enter is pressed", async () => {
 		// Arrange
 
@@ -252,5 +254,86 @@ describe("EquationComponent", () => {
 		expect(document.activeElement).toBe(
 			document.querySelector("[contenteditable]"),
 		);
+	});
+
+	it("Should redraw the equation in place when an edit is committed", async () => {
+		// Arrange
+
+		const editor = renderEditor();
+		await insertEquation(editor, "x");
+		const content = document.querySelector<HTMLElement>(
+			"[data-lexical-decorator] span",
+		)!;
+		const before = content.innerHTML;
+		await flush(() => {
+			fireEvent.doubleClick(content);
+		});
+
+		// Act
+
+		await flush(() => {
+			fireEvent.change(getTextarea()!, { target: { value: "y" } });
+		});
+		await flush(() => {
+			fireEvent.keyDown(getTextarea()!, { key: "Enter", code: "Enter" });
+		});
+
+		// Assert
+
+		expect(content.innerHTML).not.toBe(before);
+		expect(content.style.display).toBe("");
+	});
+
+	it("Should remove the equation when an empty edit is committed", async () => {
+		// Arrange
+
+		const editor = renderEditor();
+		const nodeKey = await insertEquation(editor, "x");
+		await flush(() => {
+			fireEvent.doubleClick(
+				document.querySelector("[data-lexical-decorator] span")!,
+			);
+		});
+
+		// Act
+
+		await flush(() => {
+			fireEvent.change(getTextarea()!, { target: { value: "  " } });
+		});
+		await flush(() => {
+			fireEvent.keyDown(getTextarea()!, { key: "Enter", code: "Enter" });
+		});
+
+		// Assert
+
+		expect(readEquation(editor, nodeKey)).toBeNull();
+		expect(getTextarea()).toBeNull();
+	});
+
+	it("Should not commit the draft when the field blurs after Escape", async () => {
+		// Arrange
+
+		const editor = renderEditor();
+		const nodeKey = await insertEquation(editor, "x");
+		await flush(() => {
+			fireEvent.doubleClick(
+				document.querySelector("[data-lexical-decorator] span")!,
+			);
+		});
+		const textarea = getTextarea()!;
+		await flush(() => {
+			fireEvent.change(textarea, { target: { value: "y^2" } });
+		});
+
+		// Act
+
+		await flush(() => {
+			fireEvent.keyDown(textarea, { key: "Escape", code: "Escape" });
+			fireEvent.blur(textarea);
+		});
+
+		// Assert
+
+		expect(readEquation(editor, nodeKey)).toBe("x");
 	});
 });
