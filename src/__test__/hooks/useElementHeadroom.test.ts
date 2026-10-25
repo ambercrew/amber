@@ -171,6 +171,48 @@ describe("useElementHeadroom", () => {
 		expect(result.current.pinned).toBe(true);
 	});
 
+	it("Should show again when new content clamps the scroller into the fixed zone", () => {
+		// Arrange
+
+		let scrollHeight = 5000;
+		Object.defineProperty(element, "scrollHeight", {
+			get: () => scrollHeight,
+		});
+		const { result } = render();
+		scrollTo(400);
+
+		// Act
+
+		// A shorter element replaced the content, so the browser clamped scrollTop to the top.
+		scrollHeight = 600;
+		scrollTo(0);
+
+		// Assert
+
+		expect(result.current.pinned).toBe(true);
+	});
+
+	it("Should hide again on scrolling down when new content clamped the scroller into the fixed zone", () => {
+		// Arrange
+
+		let scrollHeight = 5000;
+		Object.defineProperty(element, "scrollHeight", {
+			get: () => scrollHeight,
+		});
+		const { result } = render();
+		scrollTo(400);
+		scrollHeight = 3000;
+		scrollTo(0);
+
+		// Act
+
+		scrollTo(200);
+
+		// Assert
+
+		expect(result.current.pinned).toBe(false);
+	});
+
 	it("Should be fully pinned again when scrolled back into the fixed zone", () => {
 		// Arrange
 

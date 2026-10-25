@@ -119,6 +119,16 @@ export function useElementHeadroom({
 			// the reader in place; that shift isn't the reader scrolling, so it neither hides nor reveals.
 			if (element.scrollHeight !== previousScrollHeight.current) {
 				previousScrollHeight.current = element.scrollHeight;
+				// New content can clamp the scroller into the fixed zone (e.g. opening a short element), where the chrome always shows.
+				if (element.scrollTop <= fixedAt) {
+					previousScrollTop.current = element.scrollTop;
+					previouslyFixed.current = true;
+					previouslyScrollingUp.current = false;
+					directionChangeScrollTop.current = element.scrollTop;
+					progressAtDirectionChange.current = 1;
+					setPinned(true);
+					return;
+				}
 				directionChangeScrollTop.current +=
 					element.scrollTop - previousScrollTop.current;
 				previousScrollTop.current = element.scrollTop;
