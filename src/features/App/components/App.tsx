@@ -1,9 +1,16 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import {
+	useEffect,
+	useRef,
+	useState,
+	useMemo,
+	type CSSProperties,
+} from "react";
 import { Outlet } from "react-router";
 import {
 	AppShell,
 	AppShellResizeSection,
 	Box,
+	rem,
 	ScrollArea,
 	useAppShellResize,
 } from "@mantine/core";
@@ -266,7 +273,20 @@ function App() {
 						<VerifyEmailModal />
 						<ManageAccountModal />
 						<SyncingModal />
-						<Notifications classNames={notificationsClasses} />
+						<Notifications
+							classNames={notificationsClasses}
+							// Bottom notifications sit above the study session footer while it's shown.
+							// Portaled outside the AppShell, so its scoped --app-shell-footer-height isn't visible here.
+							style={
+								{
+									"--notifications-chrome-bottom": `calc(${
+										footerCollapsed
+											? "0px"
+											: rem(HEADER_AND_FOOTER_HEIGHT)
+									} + ${SAFE_AREA_BOTTOM})`,
+								} as CSSProperties
+							}
+						/>
 						<SafeAreaTopBackdrop />
 
 						<AppShell.Header style={safeAreaTop}>
