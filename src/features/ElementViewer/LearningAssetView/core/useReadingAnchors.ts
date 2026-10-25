@@ -19,16 +19,24 @@ export interface ReadingAnchors {
 	resolveVisibleAnchor: () => ReadingPosition | null;
 }
 
-/** Index of the first block whose bottom edge is still below the viewport top. */
+/**
+ * Index of the first block whose bottom edge is still below the viewport top.
+ * Blocks stack in order, so a binary search keeps this cheap on every scroll frame of a long split.
+ */
 export function topVisibleBlockIndex(
 	root: HTMLElement,
 	topOffset: number,
 ): number {
 	const blocks = root.children;
-	for (let i = 0; i < blocks.length; i++) {
-		if (blocks[i].getBoundingClientRect().bottom > topOffset + 1) return i;
+	let low = 0;
+	let high = blocks.length - 1;
+	while (low < high) {
+		const middle = (low + high) >> 1;
+		if (blocks[middle].getBoundingClientRect().bottom > topOffset + 1)
+			high = middle;
+		else low = middle + 1;
 	}
-	return Math.max(0, blocks.length - 1);
+	return Math.max(0, low);
 }
 
 /** Tracks the positions a "here" action (set read point, set mark) can target: caret, right-clicked block, viewport top. */

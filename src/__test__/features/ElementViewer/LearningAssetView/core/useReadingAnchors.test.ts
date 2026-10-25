@@ -1,6 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { useReadingAnchors } from "../../../../../features/ElementViewer/LearningAssetView/core/useReadingAnchors";
+import {
+	topVisibleBlockIndex,
+	useReadingAnchors,
+} from "../../../../../features/ElementViewer/LearningAssetView/core/useReadingAnchors";
 import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "../../../../../features/ElementViewer/LearningAssetView/core/learningAssetViewConstants";
 
 const VIEWPORT_BOTTOM_IN_PX = 768;
@@ -89,5 +92,69 @@ describe("useReadingAnchors", () => {
 		// Assert
 
 		expect(anchor).toEqual({ split: 2, block: 1 });
+	});
+
+	describe("topVisibleBlockIndex", () => {
+		/** Blocks 100px tall, stacked from the given top. */
+		function stackedRoot(count: number, top = 0): HTMLElement {
+			return makeRoot(
+				Array.from({ length: count }, (_, i) => ({
+					top: top + i * 100,
+					bottom: top + (i + 1) * 100,
+				})),
+			);
+		}
+
+		it.each([
+			[0, 0],
+			[98, 0],
+			[99, 1],
+			[100, 1],
+			[150, 1],
+			[49_950, 499],
+		])(
+			"Should return the first block reaching below the top when the top offset is %i",
+			(topOffset, expected) => {
+				// Arrange
+
+				const root = stackedRoot(1000);
+
+				// Act
+
+				const actual = topVisibleBlockIndex(root, topOffset);
+
+				// Assert
+
+				expect(actual).toBe(expected);
+			},
+		);
+
+		it("Should return the last block when every block is above the top", () => {
+			// Arrange
+
+			const root = stackedRoot(5, -1000);
+
+			// Act
+
+			const actual = topVisibleBlockIndex(root, 0);
+
+			// Assert
+
+			expect(actual).toBe(4);
+		});
+
+		it("Should return 0 when there are no blocks", () => {
+			// Arrange
+
+			const root = stackedRoot(0);
+
+			// Act
+
+			const actual = topVisibleBlockIndex(root, 0);
+
+			// Assert
+
+			expect(actual).toBe(0);
+		});
 	});
 });
