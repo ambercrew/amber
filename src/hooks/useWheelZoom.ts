@@ -54,8 +54,31 @@ export function useWheelZoom() {
 			persistZoom(next);
 		}
 
-		window.addEventListener("wheel", onWheel, { passive: false });
-		return () => window.removeEventListener("wheel", onWheel);
+		// A non-passive wheel listener makes every scroll wait on the main thread, so it's only attached while Ctrl/Cmd is held.
+		let attached = false;
+		function setAttached(next: boolean) {
+			if (next === attached) return;
+			attached = next;
+			if (next)
+				window.addEventListener("wheel", onWheel, { passive: false });
+			else window.removeEventListener("wheel", onWheel);
+		}
+		// The mouse catches a modifier pressed before the window had focus.
+		const syncModifier = (e: KeyboardEvent | MouseEvent) =>
+			setAttached(e.ctrlKey || e.metaKey);
+		const release = () => setAttached(false);
+
+		window.addEventListener("keydown", syncModifier);
+		window.addEventListener("keyup", syncModifier);
+		window.addEventListener("mousemove", syncModifier, { passive: true });
+		window.addEventListener("blur", release);
+		return () => {
+			window.removeEventListener("keydown", syncModifier);
+			window.removeEventListener("keyup", syncModifier);
+			window.removeEventListener("mousemove", syncModifier);
+			window.removeEventListener("blur", release);
+			release();
+		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 }
