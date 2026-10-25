@@ -10,7 +10,7 @@ interface Props {
 }
 
 interface ReturnValue {
-	/** seqs that should currently render a live editor. */
+	/** seqs that should currently render a live editor: only the locked split while a jump lands, then its neighbours too. */
 	mountedSeqs: Set<number>;
 	/** seq of the split currently at the top of the viewport. */
 	primarySeq: number;
@@ -45,6 +45,8 @@ export function useSplitMountWindow({
 	// top-of-document splits as intersecting and collapse the window there
 	// before anything scrolls to the actual target.
 	const lockedRef = useRef(true);
+	// Neighbours wait for the landing, so opening or jumping paints one split instead of three (slow with many equations).
+	const [neighborsMounted, setNeighborsMounted] = useState(false);
 	const scroller = useMainScrollElement();
 
 	useEffect(() => {
@@ -101,23 +103,24 @@ export function useSplitMountWindow({
 			split => split.seq === primarySeq,
 		);
 		const center = primaryIndex === -1 ? 0 : primaryIndex;
-		for (
-			let i = center - LEARNING_ASSET_SPLIT_MOUNT_NEIGHBORS;
-			i <= center + LEARNING_ASSET_SPLIT_MOUNT_NEIGHBORS;
-			i++
-		) {
+		const reach = neighborsMounted
+			? LEARNING_ASSET_SPLIT_MOUNT_NEIGHBORS
+			: 0;
+		for (let i = center - reach; i <= center + reach; i++) {
 			if (i >= 0 && i < splits.length) mounted.add(splits[i].seq);
 		}
 		return mounted;
-	}, [splits, primarySeq]);
+	}, [splits, primarySeq, neighborsMounted]);
 
 	const lockTo = useCallback((seq: number) => {
 		lockedRef.current = true;
+		setNeighborsMounted(false);
 		setPrimarySeq(seq);
 	}, []);
 
 	const unlock = useCallback(() => {
 		lockedRef.current = false;
+		setNeighborsMounted(true);
 	}, []);
 
 	return { mountedSeqs, primarySeq, registerSlot, lockTo, unlock };

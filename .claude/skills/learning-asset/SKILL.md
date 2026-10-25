@@ -45,6 +45,8 @@ split; seq from `useSplit()`), `ContextMenuItems` (a menu section; the host adds
   it, waits a painted frame, then calls `land(root, scrollElement)`. Use `landOnBlock`. The last request
   wins. Past the header's fixed zone a block lands flush with the top and the header is hidden
   (`hideHeadroom`); measure "the top" with `viewportTop`, never a fixed header height.
+- While a jump (including the read point restore on open) lands, only its split is mounted; its
+  neighbours mount once it has landed, so a neighbour's content root may not exist yet right after.
 - `getContentRoot(seq)` is `undefined` for unmounted splits — handle it; don't query the DOM.
 - For "here" actions use `anchors.resolveVisibleAnchor()`.
 - Per-split ref callbacks must be stable: use `useKeyedRefCallbacks`.
