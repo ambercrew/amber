@@ -2,7 +2,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use super::create_meta_dto::CreateMetaDto;
-use crate::elements::entities::learning_asset::LearningAssetType;
+use crate::elements::value_objects::learning_asset_type::LearningAssetType;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

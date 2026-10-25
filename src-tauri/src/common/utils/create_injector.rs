@@ -46,6 +46,7 @@ use crate::elements::repositories::card_repository::CardRepository;
 use crate::elements::repositories::extract_repository::ExtractRepository;
 use crate::elements::repositories::folder_repository::FolderRepository;
 use crate::elements::repositories::meta_repository::MetaRepository;
+use crate::elements::repositories::learning_asset_mark_repository::LearningAssetMarkRepository;
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::services::element_content_service::ElementContentService;
 use crate::elements::services::element_creation_service::ElementCreationService;
@@ -74,6 +75,7 @@ use crate::infrastructure::repositories::sqlite::sqlite_extract_repository::Sqli
 use crate::infrastructure::repositories::sqlite::sqlite_folder_repository::SqliteFolderRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_local_configuration_repository::SqliteLocalConfigurationRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_meta_repository::SqliteMetaRepository;
+use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_mark_repository::SqliteLearningAssetMarkRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_repository::SqliteLearningAssetRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_log_repository::SqliteLearningAssetReviewLogRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_repository::SqliteLearningAssetReviewRepository;
@@ -275,6 +277,11 @@ pub async fn create_injector<R: tauri::Runtime>(
         injector,
         dyn LearningAssetRepository,
         SqliteLearningAssetRepository
+    );
+    register_scope!(
+        injector,
+        dyn LearningAssetMarkRepository,
+        SqliteLearningAssetMarkRepository
     );
     register_scope!(injector, dyn ExtractRepository, SqliteExtractRepository);
     register_scope!(injector, dyn CardRepository, SqliteCardRepository);

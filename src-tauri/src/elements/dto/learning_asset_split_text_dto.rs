@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::elements::entities::learning_asset::LearningAssetSplitText;
+use crate::elements::value_objects::learning_asset_split_text::LearningAssetSplitText;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -1,5 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
-import { useElementHeadroom } from "../../hooks/useElementHeadroom";
+import {
+	hideHeadroom,
+	useElementHeadroom,
+} from "../../hooks/useElementHeadroom";
 
 describe("useElementHeadroom", () => {
 	let element: HTMLElement;
@@ -31,10 +34,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 1,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should stay fully pinned when the scroller is within the fixed zone", () => {
@@ -48,10 +48,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 1,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should partially hide when scrolled down less than the scroll distance past the fixed zone", () => {
@@ -65,10 +62,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 0.6,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should fully hide when scrolled down a full scroll distance past the fixed zone", () => {
@@ -82,10 +76,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: false,
-			scrollProgress: 0,
-		});
+		expect(result.current.pinned).toBe(false);
 	});
 
 	it("Should not hide before the scroll distance is exceeded when a longer distance is given", () => {
@@ -99,10 +90,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 0.5,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should reveal again from where it stopped when the direction changes", () => {
@@ -117,10 +105,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 0.5,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should be fully revealed when scrolled up a full scroll distance", () => {
@@ -136,10 +121,96 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 1,
+		expect(result.current.pinned).toBe(true);
+	});
+
+	it("Should not hide when content resizing above shifts the scroller down while scrolling up", () => {
+		// Arrange
+
+		let scrollHeight = 5000;
+		Object.defineProperty(element, "scrollHeight", {
+			get: () => scrollHeight,
 		});
+		const { result } = render();
+		scrollTo(1000);
+		scrollTo(990);
+		scrollTo(800);
+
+		// Act
+
+		scrollHeight = 5600;
+		scrollTo(1400);
+		scrollTo(1390);
+
+		// Assert
+
+		expect(result.current.pinned).toBe(true);
+	});
+
+	it("Should not count the shift toward hiding when scrolling down resumes after content resized", () => {
+		// Arrange
+
+		let scrollHeight = 5000;
+		Object.defineProperty(element, "scrollHeight", {
+			get: () => scrollHeight,
+		});
+		const { result } = render();
+		scrollTo(1000);
+		scrollTo(990);
+		scrollTo(800);
+		scrollTo(810);
+
+		// Act
+
+		scrollHeight = 5600;
+		scrollTo(1410);
+		scrollTo(1450);
+
+		// Assert
+
+		expect(result.current.pinned).toBe(true);
+	});
+
+	it("Should show again when new content clamps the scroller into the fixed zone", () => {
+		// Arrange
+
+		let scrollHeight = 5000;
+		Object.defineProperty(element, "scrollHeight", {
+			get: () => scrollHeight,
+		});
+		const { result } = render();
+		scrollTo(400);
+
+		// Act
+
+		// A shorter element replaced the content, so the browser clamped scrollTop to the top.
+		scrollHeight = 600;
+		scrollTo(0);
+
+		// Assert
+
+		expect(result.current.pinned).toBe(true);
+	});
+
+	it("Should hide again on scrolling down when new content clamped the scroller into the fixed zone", () => {
+		// Arrange
+
+		let scrollHeight = 5000;
+		Object.defineProperty(element, "scrollHeight", {
+			get: () => scrollHeight,
+		});
+		const { result } = render();
+		scrollTo(400);
+		scrollHeight = 3000;
+		scrollTo(0);
+
+		// Act
+
+		scrollTo(200);
+
+		// Assert
+
+		expect(result.current.pinned).toBe(false);
 	});
 
 	it("Should be fully pinned again when scrolled back into the fixed zone", () => {
@@ -154,10 +225,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 1,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should ignore scrolling when the window is being resized", () => {
@@ -174,10 +242,7 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: true,
-			scrollProgress: 1,
-		});
+		expect(result.current.pinned).toBe(true);
 	});
 
 	it("Should observe scrolling again when the resize settled", () => {
@@ -198,10 +263,95 @@ describe("useElementHeadroom", () => {
 
 		// Assert
 
-		expect(result.current).toMatchObject({
-			pinned: false,
-			scrollProgress: 0,
-		});
+		expect(result.current.pinned).toBe(false);
 		vi.useRealTimers();
+	});
+
+	describe("hideHeadroom", () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		/** Jumps to `scrollTop` the way a jump does: scroll, hide, then the scroll's own event arrives. */
+		function jumpTo(scrollTop: number) {
+			element.scrollTop = scrollTop;
+			act(() => {
+				hideHeadroom(element);
+				element.dispatchEvent(new Event("scroll"));
+			});
+		}
+
+		it("Should hide when a jump scrolls up but lands past the fixed zone", () => {
+			// Arrange
+
+			const { result } = render();
+			scrollTo(1000);
+			scrollTo(900);
+
+			// Act
+
+			jumpTo(500);
+
+			// Assert
+
+			expect(result.current.pinned).toBe(false);
+		});
+
+		it("Should hide when the jump's scroll arrives late and the scroller was paused", () => {
+			// Arrange
+
+			const { result } = render();
+			act(() => {
+				result.current.pause();
+				hideHeadroom(element);
+				vi.advanceTimersByTime(200);
+			});
+
+			// Act
+
+			scrollTo(1000);
+
+			// Assert
+
+			expect(result.current.pinned).toBe(false);
+		});
+
+		it("Should stay pinned when a jump lands within the fixed zone", () => {
+			// Arrange
+
+			const { result } = render();
+			scrollTo(1000);
+
+			// Act
+
+			jumpTo(50);
+
+			// Assert
+
+			expect(result.current.pinned).toBe(true);
+		});
+
+		it("Should reveal again when scrolling up by hand after a jump has settled", () => {
+			// Arrange
+
+			const { result } = render();
+			jumpTo(1000);
+			act(() => {
+				vi.advanceTimersByTime(1000);
+			});
+
+			// Act
+
+			scrollTo(990);
+			scrollTo(890);
+
+			// Assert
+
+			expect(result.current.pinned).toBe(true);
+		});
 	});
 });

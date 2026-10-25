@@ -4,39 +4,23 @@ import {
 	getLearningAssetSplitContent,
 	updateLearningAsset,
 } from "../../../api/elements/api/elementsApi";
+import CursorTrackerPlugin from "../../../components/Editor/plugins/CursorTrackerPlugin";
 import { FloatingMenuItem } from "../../../components/Editor/plugins/FloatingMenuPlugin";
-import { HighlightCreatedPayload } from "../../../components/Editor/plugins/HighlightPlugin/highlightCommands";
-import ReadPointMenu from "../../../components/Editor/plugins/ReadPointMenu";
-import ElementEditor, { ElementEditorSearchProps } from "../ElementEditor";
+import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAssetSplitMetaDto";
+import ElementEditor from "../ElementEditor";
+import { blockIndexOf } from "./core/blockIndexOf";
+import { SplitContext, useReaderCore } from "./core/readerCoreContext";
+import { useSplitStackWiring } from "./core/splitStackContext";
+import { PluginContextMenuItems, PluginParts } from "./plugins/PluginHost";
+import { LearningAssetPlugin } from "./plugins/types";
 import SplitPlaceholder from "./SplitPlaceholder";
 
 interface SplitSlotProps {
-	learningAssetId: string;
-	seq: number;
-	/** 1-based ordinal shown in the boundary gutter marker. */
-	splitNumber: number;
-	isFirst: boolean;
-	mounted: boolean;
-	/** Best-known height (px) for the placeholder state. */
-	height: number;
+	split: LearningAssetSplitMetaDto;
+	/** Position in the stack, from 0. */
+	index: number;
 	buttons: FloatingMenuItem[];
-	/** Ref for the slot root (observed for viewport entry + slot lookup). */
-	slotRef: (element: Element | null) => void;
-	/** Ref for the mounted editor's measured element. */
-	observeSplit: (element: HTMLElement | null) => void;
-	/** Registers the mounted editor's root element for this split. */
-	registerContentRoot: (element: HTMLElement | null) => void;
-	onHighlightCreated?: (
-		payload: HighlightCreatedPayload,
-		seq: number,
-	) => void;
-	onContentReady: (seq: number) => void;
-	/** Block index to mark as the reader's saved read point, if it's in this split. */
-	markerBlockIndex?: number;
-	/** Called with the block index containing the caret, whenever it moves in this split. */
-	onCursorMove?: (seq: number, blockIndex: number) => void;
-	/** Find-in-page search wiring for this split's editor instance. */
-	search?: ElementEditorSearchProps;
+	plugins: LearningAssetPlugin[];
 }
 
 /**
@@ -45,28 +29,40 @@ interface SplitSlotProps {
  * split except the first) so the seam between Lexical instances is legible.
  */
 export default function SplitSlot({
-	learningAssetId,
-	seq,
-	splitNumber,
-	isFirst,
-	mounted,
-	height,
+	split,
+	index,
 	buttons,
-	slotRef,
-	observeSplit,
-	registerContentRoot,
-	onHighlightCreated,
-	onContentReady,
-	markerBlockIndex,
-	onCursorMove,
-	search,
+	plugins,
 }: SplitSlotProps) {
-	const [content, setContent] = useState<string | null>(null);
-	const contentElementRef = useRef<HTMLDivElement | null>(null);
+	const { seq, charCount } = split;
+	const { learningAssetId, mountedSeqs, getHeight, anchors } =
+		useReaderCore();
+	const {
+		slotRef,
+		observeSplit,
+		contentRootRef: contentRootRefFor,
+		splitBoxRef,
+		notifyContentReady,
+		onHighlightCreated,
+	} = useSplitStackWiring();
+	const mounted = mountedSeqs.has(seq);
+	const registerContentRoot = contentRootRefFor(seq);
+	const observeContent = observeSplit(seq, charCount);
+	const registerSplitBox = splitBoxRef(seq);
 
-	// Fetches once, the first time this slot enters the mount window. Kept on
-	// later re-mounts instead of re-fetching, since local edits are already
-	// persisted.
+	const [content, setContent] = useState<string | null>(null);
+	const contentRootRef = useRef<HTMLElement | null>(null);
+
+	const handleRootElement = useCallback(
+		(element: HTMLElement | null) => {
+			contentRootRef.current = element;
+			registerContentRoot(element);
+		},
+		[registerContentRoot],
+	);
+
+	// Fetches once, the first time this slot enters the mount window. Later
+	// re-mounts reuse it, so `handleChange` keeps it current with local edits.
 	useEffect(() => {
 		if (!mounted || content !== null) return;
 		let cancelled = false;
@@ -83,22 +79,37 @@ export default function SplitSlot({
 	}, [mounted, learningAssetId, seq, content]);
 
 	useEffect(() => {
-		if (mounted && content !== null) onContentReady(seq);
-	}, [mounted, content, seq, onContentReady]);
+		if (mounted && content !== null) notifyContentReady(seq);
+	}, [mounted, content, seq, notifyContentReady]);
 
-	const handleHighlightCreated = useCallback(
-		(payload: HighlightCreatedPayload) =>
-			onHighlightCreated?.(payload, seq),
-		[onHighlightCreated, seq],
+	const { trackCursor, setMenuAnchor } = anchors;
+	const handleCursorMove = useCallback(
+		(blockIndex: number) => trackCursor(seq, blockIndex),
+		[trackCursor, seq],
 	);
 
-	const handleCursorMove = useCallback(
-		(blockIndex: number) => onCursorMove?.(seq, blockIndex),
-		[onCursorMove, seq],
+	// A right-click doesn't always move the caret, but the menu's "set here" actions mean the clicked block.
+	const handleContextMenuCapture = useCallback(
+		(event: React.MouseEvent) => {
+			const root = contentRootRef.current;
+			const block = root && blockIndexOf(root, event.target as Node);
+			setMenuAnchor(
+				block === null || block === undefined
+					? null
+					: { split: seq, block },
+			);
+		},
+		[setMenuAnchor, seq],
+	);
+	const handleContextMenuClose = useCallback(
+		() => setMenuAnchor(null),
+		[setMenuAnchor],
 	);
 
 	const handleChange = useCallback(
 		async (updated: string) => {
+			// Without this, scrolling back re-mounts the editor with pre-edit content.
+			setContent(updated);
 			await updateLearningAsset({
 				splitId: { learningAssetId, seq },
 				content: updated,
@@ -111,32 +122,38 @@ export default function SplitSlot({
 	// isn't double-counted when reused for the placeholder.
 	const setContentElement = useCallback(
 		(element: HTMLDivElement | null) => {
-			contentElementRef.current = element;
-			observeSplit(mounted ? element : null);
+			registerSplitBox(element);
+			observeContent(mounted ? element : null);
 		},
-		[observeSplit, mounted],
+		[registerSplitBox, observeContent, mounted],
 	);
 
 	const showPlaceholder = !mounted || content === null;
 
 	return (
-		<div ref={slotRef} data-seq={seq}>
-			{!isFirst && <Divider label={`Split ${splitNumber}`} my="lg" />}
-			<div ref={setContentElement}>
+		<div ref={slotRef(seq)}>
+			{index > 0 && <Divider label={`Split ${index + 1}`} my="lg" />}
+			<div
+				ref={setContentElement}
+				onContextMenuCapture={handleContextMenuCapture}>
 				{showPlaceholder ? (
-					<SplitPlaceholder height={height} />
+					<SplitPlaceholder height={getHeight(seq, charCount)} />
 				) : (
 					<ElementEditor
 						initialContent={content}
 						buttons={buttons}
 						onChange={handleChange}
-						onHighlightCreated={handleHighlightCreated}
-						onRootElement={registerContentRoot}
-						markerBlockIndex={markerBlockIndex}
-						onCursorMove={handleCursorMove}
-						contextMenuItems={<ReadPointMenu />}
-						search={search}
-					/>
+						onHighlightCreated={onHighlightCreated}
+						onRootElement={handleRootElement}
+						contextMenuItems={
+							<PluginContextMenuItems plugins={plugins} />
+						}
+						onContextMenuClose={handleContextMenuClose}>
+						<CursorTrackerPlugin onCursorMove={handleCursorMove} />
+						<SplitContext value={seq}>
+							<PluginParts plugins={plugins} part="SplitPlugin" />
+						</SplitContext>
+					</ElementEditor>
 				)}
 			</div>
 		</div>

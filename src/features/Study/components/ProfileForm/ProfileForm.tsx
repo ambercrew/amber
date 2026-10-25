@@ -3,8 +3,8 @@ import {
 	Button,
 	Divider,
 	Group,
-	SegmentedControl,
 	Stack,
+	Tabs,
 	Text,
 	TextInput,
 } from "@mantine/core";
@@ -24,6 +24,11 @@ import CardsTab from "./CardsTab";
 import QueueTab from "./QueueTab";
 import LearningAssetsAndExtractsTab from "./LearningAssetsAndExtractsTab";
 import { useFsrsOptimization } from "./useFsrsOptimization";
+import {
+	VIEW_SLIDE_OFFSET_PX,
+	VIEW_TRANSITION_DURATION_MS,
+} from "../../../../config/motion";
+import { useViewReveal } from "../../../../hooks/useViewReveal";
 import {
 	FSRS_PARAM_COUNT,
 	initialValues,
@@ -76,6 +81,18 @@ const FIELD_TABS: Partial<Record<keyof ProfileFormValues, TabValue>> = {
 
 function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 	const [tab, setTab] = useState<TabValue>(TABS[0].value);
+	// A later tab slides in from the right, an earlier one from the left.
+	const [tabDirection, setTabDirection] = useState<1 | -1>(1);
+	function selectTab(next: TabValue) {
+		const index = (value: TabValue) =>
+			TABS.findIndex(candidate => candidate.value === value);
+		setTabDirection(index(next) < index(tab) ? -1 : 1);
+		setTab(next);
+	}
+	const tabStyle = useViewReveal(tab, {
+		offsetX: tabDirection * VIEW_SLIDE_OFFSET_PX,
+		durationMs: VIEW_TRANSITION_DURATION_MS,
+	});
 	const form = useForm<ProfileFormValues>({
 		initialValues: initialValues(profile),
 		validate: {
@@ -96,8 +113,6 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 
 	const optimization = useFsrsOptimization(form, profile?.id ?? null);
 
-	const description = TABS.find(entry => entry.value === tab)?.description;
-
 	async function handleSubmit(values: ProfileFormValues) {
 		const payload = toRequestDto(values);
 		if (profile) {
@@ -113,7 +128,7 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 		const firstInvalid = Object.keys(errors)[0] as
 			keyof ProfileFormValues | undefined;
 		const owner = firstInvalid && FIELD_TABS[firstInvalid];
-		if (owner) setTab(owner);
+		if (owner) selectTab(owner);
 	}
 
 	async function handleClone() {
@@ -169,28 +184,46 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 					{...form.getInputProps("name")}
 				/>
 
-				<SegmentedControl
-					fullWidth
+				<Tabs
 					value={tab}
-					onChange={value => setTab(value as TabValue)}
-					data={TABS.map(({ value, label }) => ({ value, label }))}
-				/>
+					onChange={value => value && selectTab(value as TabValue)}>
+					<Tabs.List grow>
+						{TABS.map(({ value, label }) => (
+							<Tabs.Tab key={value} value={value}>
+								{label}
+							</Tabs.Tab>
+						))}
+					</Tabs.List>
 
-				<Stack gap="sm">
-					<Text size="sm" c="dimmed">
-						{description}
-					</Text>
-					{tab === "cards" && (
-						<CardsTab
-							form={form}
-							optimization={profile ? optimization : null}
-						/>
-					)}
-					{tab === "learningAssets" && (
-						<LearningAssetsAndExtractsTab form={form} />
-					)}
-					{tab === "queue" && <QueueTab form={form} />}
-				</Stack>
+					{TABS.map(({ value, description }) => (
+						// Clips the slide sideways so it doesn't flash a scrollbar; the gutter keeps focus rings visible.
+						<Tabs.Panel
+							key={value}
+							value={value}
+							pt="sm"
+							mx={-4}
+							px={4}
+							style={{ overflowX: "clip" }}>
+							<Stack gap="sm" style={tabStyle}>
+								<Text size="sm" c="dimmed">
+									{description}
+								</Text>
+								{value === "cards" && (
+									<CardsTab
+										form={form}
+										optimization={
+											profile ? optimization : null
+										}
+									/>
+								)}
+								{value === "learningAssets" && (
+									<LearningAssetsAndExtractsTab form={form} />
+								)}
+								{value === "queue" && <QueueTab form={form} />}
+							</Stack>
+						</Tabs.Panel>
+					))}
+				</Tabs>
 
 				<Divider mt="auto" />
 

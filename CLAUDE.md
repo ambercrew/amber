@@ -188,6 +188,17 @@ The editor uses **Lexical**, built via its extension system (`@lexical/extension
 
 Keep node types, extension dependencies, and the static theme in sync between these two — a mismatch (e.g. a missing theme key like `tableScrollableWrapper`) causes divergent behavior or dev-only warnings between them. Cell content is stored and transferred as Lexical JSON.
 
+### Learning Asset View (`src/features/ElementViewer/LearningAssetView/`)
+
+A learning asset renders as a virtualized stack of splits: live Lexical editors near the viewport, placeholders elsewhere. It's split into a **core** and **plugins**:
+
+- `core/` — `ReaderCoreProvider` owns the mount window, split heights, content roots, reading anchors (caret, right-clicked block, top visible block) and `navigate(seq, land)`, the only way to scroll somewhere (it mounts the split first and lands once it's painted). Plugins read it via `useReaderCore()`.
+- `plugins/` — each feature (`readPoint`, `marks`, `search`, `tableOfContents`) is a `LearningAssetPlugin` (`plugins/types.ts`) with optional `Provider` (view-wide hooks + its own context), `SplitPlugin` (a Lexical plugin rendered in every mounted split, seq from `useSplit()`), `ContextMenuItems` and `Overlay`.
+
+To add a feature, add a plugin folder and list it in `plugins/index.ts` — don't add props to `LearningAssetView`, `SplitSlot` or `ElementEditor`. List order is nesting order: a plugin may read the context of one listed before it (e.g. `marks` draws the read point beside its flags). `marks/` and `readPoint/` one level up hold the logic shared with the PDF view (mark storage/UI, read point precedence and saving). Read point and mark commands go through `runReadingCommand`/`useReadingCommand` (`src/commands/readingCommands.ts`), not window events.
+
+The PDF view (`src/features/ElementViewer/PdfView/`) mirrors this without a plugin registry: `core/PdfCoreProvider` shares the document and `goToPage(page, options)` (`usePdfCore()`), the only way to jump (it scrolls and hides the header), and `readPoint/`, `marks/`, `highlights/`, `search/`, `outline/` and `toolbar/` hold its features, nested as providers in `PdfDocumentContent`. A view shows its headings in the side panel's table of contents tab by dispatching them to the `tableOfContents` slice (`src/stores/tableOfContents/`) and handles the `go-to-table-of-contents-entry` reading command, as `outline/usePdfOutline` does with the PDF's bookmarks and the text view's `tableOfContents` plugin does with its headings (stored ones from `get_learning_asset_headings`, live ones from mounted splits).
+
 ### Command Palette (`src/commands/`)
 
 A single registry in `commands.ts` drives the Spotlight palette (`mod+K`), global shortcuts, and in-app buttons — each command declared once, consumed everywhere.

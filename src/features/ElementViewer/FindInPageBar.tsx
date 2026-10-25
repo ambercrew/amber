@@ -32,9 +32,7 @@ import {
 	selectSearchQuery,
 	selectSearchTotalMatches,
 } from "../../stores/search/searchSelectors";
-import { HEADROOM_FIXED_AT } from "../App/components/App";
-import { useMainScrollElement } from "../App/context/mainScrollContext";
-import { useElementHeadroom } from "../../hooks/useElementHeadroom";
+import { useChromeInsets } from "../App/context/chromeInsetsContext";
 import { SAFE_AREA_TOP } from "../../utils/safeArea";
 import { MOTION_DURATION_MS, MOTION_EASING } from "../../config/motion";
 
@@ -54,12 +52,8 @@ export default function FindInPageBar() {
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const onNext = () => dispatch(goToNextMatch());
 	const onPrevious = () => dispatch(goToPreviousMatch());
-	// Mirrors App.tsx's headroom: collapsing the header doesn't change
-	// --app-shell-header-height, so this needs the same pinned state.
-	const { pinned: headerPinned } = useElementHeadroom({
-		element: useMainScrollElement(),
-		fixedAt: HEADROOM_FIXED_AT,
-	});
+	// Follows the header as it hides, in the text view and the PDF's own viewport alike.
+	const { top: headerSpace } = useChromeInsets();
 
 	// Mirrors the query locally so typing feels instant; only the debounced
 	// value is dispatched. Resynced from Redux on open (adjusted during
@@ -135,11 +129,7 @@ export default function FindInPageBar() {
 					withBorder
 					p="xs"
 					pos="fixed"
-					top={
-						headerPinned
-							? "calc(var(--app-shell-header-height) + 4px)"
-							: `calc(${SAFE_AREA_TOP} + 4px)`
-					}
+					top={`calc(max(${headerSpace}, ${SAFE_AREA_TOP}) + 4px)`}
 					left={{ base: 8, sm: "auto" }}
 					right={{
 						base: 8,

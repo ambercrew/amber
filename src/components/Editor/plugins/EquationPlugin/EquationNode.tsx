@@ -1,4 +1,3 @@
-import type { JSX } from "react";
 import {
 	$applyNodeReplacement,
 	DecoratorNode,
@@ -8,8 +7,8 @@ import {
 	type SerializedLexicalNode,
 	type Spread,
 } from "lexical";
-import { render } from "katex";
-import EquationComponent from "./EquationComponent";
+import "katex/dist/katex.min.css";
+import { renderEquation } from "./renderEquation";
 import {
 	createEquationElement,
 	decodeEquation,
@@ -24,7 +23,16 @@ export type SerializedEquationNode = Spread<
 	SerializedLexicalNode
 >;
 
-export class EquationNode extends DecoratorNode<JSX.Element> {
+/** The span holding the rendered equation inside an equation node's DOM element. */
+export function equationContentOf(
+	element: HTMLElement | null,
+): HTMLElement | null {
+	return (element?.firstElementChild as HTMLElement | null) ?? null;
+}
+
+// Rendered straight into the DOM rather than by a React decorator: a portal per equation makes
+// mounting an equation-heavy split hundreds of milliseconds slower. Editing is EquationEditingPlugin's.
+export class EquationNode extends DecoratorNode<null> {
 	__equation: string;
 	__display: boolean;
 
@@ -43,10 +51,31 @@ export class EquationNode extends DecoratorNode<JSX.Element> {
 	}
 
 	createDOM(): HTMLElement {
-		return document.createElement(this.__display ? "div" : "span");
+		const element = document.createElement(this.__display ? "div" : "span");
+		const content = document.createElement("span");
+		Object.assign(content.style, {
+			cursor: "pointer",
+			display: this.__display ? "block" : "inline-block",
+			maxWidth: "100%",
+			// KaTeX's invisible struts overflow by a few px; the padding
+			// absorbs them and the negative margin keeps the line height.
+			overflowX: "auto",
+			overflowY: "hidden",
+			padding: "0.2em 2px",
+			margin: "-0.2em 0",
+			verticalAlign: "top",
+			borderRadius: "var(--mantine-radius-xs)",
+		});
+		content.innerHTML = renderEquation(this.__equation, this.__display);
+		element.appendChild(content);
+		return element;
 	}
 
-	updateDOM(): boolean {
+	updateDOM(prevNode: EquationNode, dom: HTMLElement): boolean {
+		if (prevNode.__display !== this.__display) return true;
+		const content = equationContentOf(dom);
+		if (prevNode.__equation !== this.__equation && content)
+			content.innerHTML = renderEquation(this.__equation, this.__display);
 		return false;
 	}
 
@@ -56,11 +85,7 @@ export class EquationNode extends DecoratorNode<JSX.Element> {
 			this.__equation,
 			this.__display,
 		);
-		render(this.__equation, element, {
-			displayMode: this.__display,
-			throwOnError: false,
-			output: "html",
-		});
+		element.innerHTML = renderEquation(this.__equation, this.__display);
 		return { element };
 	}
 
@@ -110,14 +135,8 @@ export class EquationNode extends DecoratorNode<JSX.Element> {
 		return `${delimiter}${this.__equation}${delimiter}`;
 	}
 
-	decorate(): JSX.Element {
-		return (
-			<EquationComponent
-				equation={this.__equation}
-				display={this.__display}
-				nodeKey={this.__key}
-			/>
-		);
+	decorate(): null {
+		return null;
 	}
 }
 

@@ -13,8 +13,13 @@ pub fn extract_plain_text(content: &str) -> String {
         return String::new();
     };
 
+    node_plain_text(&root)
+}
+
+/// The plain text of one already-parsed Lexical node and its descendants.
+pub fn node_plain_text(node: &Value) -> String {
     let mut out = String::new();
-    walk(&root, &mut out);
+    walk(node, &mut out);
     out.trim().to_string()
 }
 

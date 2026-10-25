@@ -12,13 +12,22 @@ export interface UseElementHeadroomInput {
 export interface UseElementHeadroomReturnValue {
 	/** True when the element is at least partially visible. */
 	pinned: boolean;
-	/** Reveal progress: 0 = fully hidden, 1 = fully visible. */
-	scrollProgress: number;
 	/** Ignore scroll events (programmatic ones, e.g. from zoom recentering)
 	 * until they stop for `quietMs` — a zoom can trigger more than one
 	 * scroll adjustment (e.g. the browser clamping scrollTop as content
 	 * shrinks, then the plugin's own recenter). */
 	pause: (quietMs?: number) => void;
+}
+
+const HEADROOM_HIDE_EVENT = "headroom:hide";
+// How long after the last scroll a jump counts as finished, so a smooth scroll's events don't reveal it.
+const HIDE_QUIET_MS = 150;
+// How long to wait for a jump's first scroll, which a PDF only applies once its pages lay out.
+const HIDE_SCROLL_WAIT_MS = 1000;
+
+/** Hides the chrome observing `element` after a jump, unless the jump landed within `fixedAt` of the top. */
+export function hideHeadroom(element: HTMLElement) {
+	element.dispatchEvent(new Event(HEADROOM_HIDE_EVENT));
 }
 
 /**
@@ -35,9 +44,12 @@ export function useElementHeadroom({
 	fixedAt = 0,
 	scrollDistance = 70,
 }: UseElementHeadroomInput): UseElementHeadroomReturnValue {
-	const [scrollProgress, setScrollProgress] = useState(1);
+	// Progress (0 = hidden, 1 = shown) changes every scroll frame, so only the boolean is state;
+	// otherwise everything under the caller (the whole App) re-renders while the header slides.
+	const [pinned, setPinned] = useState(true);
 
 	const previousScrollTop = useRef(0);
+	const previousScrollHeight = useRef(0);
 	const previouslyFixed = useRef(true);
 	const previouslyScrollingUp = useRef(false);
 	const directionChangeScrollTop = useRef(0);
@@ -58,7 +70,39 @@ export function useElementHeadroom({
 	useEffect(() => {
 		if (!element) return;
 
+		// Restarts tracking from wherever the jump ends, hidden unless it ends within `fixedAt`.
+		let hiding = false;
+		let hideTimeout: number | undefined;
+		const settleHidden = () => {
+			const { scrollTop } = element;
+			const fixed = scrollTop <= fixedAt;
+			previousScrollTop.current = scrollTop;
+			previousScrollHeight.current = element.scrollHeight;
+			previouslyFixed.current = fixed;
+			previouslyScrollingUp.current = false;
+			directionChangeScrollTop.current = scrollTop;
+			progressAtDirectionChange.current = fixed ? 1 : 0;
+			setPinned(fixed);
+		};
+		const stopHidingAfter = (ms: number) => {
+			window.clearTimeout(hideTimeout);
+			hideTimeout = window.setTimeout(() => {
+				hiding = false;
+			}, ms);
+		};
+		const onHide = () => {
+			hiding = true;
+			settleHidden();
+			stopHidingAfter(HIDE_SCROLL_WAIT_MS);
+		};
+
 		const onScroll = () => {
+			// Checked before `suppressed`, so a zoom's pause can't swallow the jump's scroll.
+			if (hiding) {
+				settleHidden();
+				stopHidingAfter(HIDE_QUIET_MS);
+				return;
+			}
 			// Skip programmatic scrolls (resize, or `pause` from a caller),
 			// resyncing so the next real scroll's delta starts from here.
 			if (suppressed.current) {
@@ -66,6 +110,27 @@ export function useElementHeadroom({
 				suppressTimeout.current = window.setTimeout(() => {
 					suppressed.current = false;
 				}, suppressQuietMs.current);
+				previousScrollTop.current = element.scrollTop;
+				previousScrollHeight.current = element.scrollHeight;
+				return;
+			}
+
+			// Content resized (e.g. a split mounting above), so the browser may have moved scrollTop to keep
+			// the reader in place; that shift isn't the reader scrolling, so it neither hides nor reveals.
+			if (element.scrollHeight !== previousScrollHeight.current) {
+				previousScrollHeight.current = element.scrollHeight;
+				// New content can clamp the scroller into the fixed zone (e.g. opening a short element), where the chrome always shows.
+				if (element.scrollTop <= fixedAt) {
+					previousScrollTop.current = element.scrollTop;
+					previouslyFixed.current = true;
+					previouslyScrollingUp.current = false;
+					directionChangeScrollTop.current = element.scrollTop;
+					progressAtDirectionChange.current = 1;
+					setPinned(true);
+					return;
+				}
+				directionChangeScrollTop.current +=
+					element.scrollTop - previousScrollTop.current;
 				previousScrollTop.current = element.scrollTop;
 				return;
 			}
@@ -96,36 +161,37 @@ export function useElementHeadroom({
 				directionChangeScrollTop.current = scrollTop;
 			}
 
-			setScrollProgress(
-				fixed
-					? 1
-					: progressAt(
-							scrollTop,
-							scrollingUp,
-							directionChangeScrollTop.current,
-							progressAtDirectionChange.current,
-							scrollDistance,
-						),
+			setPinned(
+				fixed ||
+					progressAt(
+						scrollTop,
+						scrollingUp,
+						directionChangeScrollTop.current,
+						progressAtDirectionChange.current,
+						scrollDistance,
+					) > 0,
 			);
 		};
 
 		const onResize = () => pause(300);
 
+		previousScrollHeight.current = element.scrollHeight;
 		onScroll();
 		element.addEventListener("scroll", onScroll, { passive: true });
+		element.addEventListener(HEADROOM_HIDE_EVENT, onHide);
 		window.addEventListener("resize", onResize);
 
 		return () => {
 			element.removeEventListener("scroll", onScroll);
+			element.removeEventListener(HEADROOM_HIDE_EVENT, onHide);
 			window.removeEventListener("resize", onResize);
+			window.clearTimeout(hideTimeout);
 		};
 	}, [element, fixedAt, scrollDistance, pause]);
 
 	// While there is no scroller yet nothing can be scrolled away, so the
-	// chrome reads as fully revealed regardless of the last known progress.
-	const progress = element ? scrollProgress : 1;
-
-	return { pinned: progress > 0, scrollProgress: progress, pause };
+	// chrome reads as revealed regardless of the last known state.
+	return { pinned: !element || pinned, pause };
 }
 
 /** Progress reached after scrolling from `origin` to `scrollTop`, clamped to 0..1. */

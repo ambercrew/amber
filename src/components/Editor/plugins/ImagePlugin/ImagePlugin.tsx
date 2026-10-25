@@ -35,6 +35,7 @@ const ACCEPTABLE_IMAGE_TYPES = [
 	"image/jpeg",
 	"image/gif",
 	"image/webp",
+	"image/svg+xml",
 	"image/heic",
 	"image/heif",
 ];

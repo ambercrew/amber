@@ -13,9 +13,13 @@ import {
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { SlashMenuPlugin } from "./plugins/SlashMenuPlugin";
 import { EquationExtension } from "./plugins/EquationPlugin/EquationExtension";
-import { HighlightPlugin } from "./plugins/HighlightPlugin/HighlightPlugin";
+import {
+	HighlightCreatedListener,
+	HighlightPlugin,
+} from "./plugins/HighlightPlugin/HighlightPlugin";
 import { HighlightCreatedPayload } from "./plugins/HighlightPlugin/highlightCommands";
 import { ImagePlugin } from "./plugins/ImagePlugin/ImagePlugin";
+import { EquationEditingPlugin } from "./plugins/EquationPlugin/EquationEditingPlugin";
 import {
 	ImageMenuItems,
 	ImageMenuItemsContext,
@@ -55,6 +59,8 @@ interface EditorProps {
 	children?: React.ReactNode;
 	onHighlightCreated?: (payload: HighlightCreatedPayload) => void;
 	contextMenuItems?: React.ReactNode;
+	/** Called when the right-click menu closes. */
+	onContextMenuClose?: () => void;
 	/** Extra actions for an image's popover, e.g. image occlusion. */
 	imageMenuItems?: ImageMenuItems;
 	/** Draws an occlusion card's masks over its image. */
@@ -84,6 +90,7 @@ function EditorContent({
 	children,
 	onHighlightCreated,
 	contextMenuItems,
+	onContextMenuClose,
 }: EditorProps) {
 	const colorScheme = useComputedColorScheme("light");
 	const { openLink } = useLinkOpener();
@@ -139,7 +146,7 @@ function EditorContent({
 	);
 
 	return (
-		<Menu withinPortal shadow="lg">
+		<Menu withinPortal shadow="lg" onClose={onContextMenuClose}>
 			<Menu.ContextMenu disabled={contextMenuDisabled}>
 				<Typography
 					className={styles.typography}
@@ -165,12 +172,16 @@ function EditorContent({
 							/>
 							<SlashMenuPlugin />
 							<ImagePlugin />
+							<EquationEditingPlugin />
 							<LinkClickPlugin
 								onContextMenuLink={handleContextMenuLink}
 							/>
-							<HighlightPlugin
-								onHighlightCreated={onHighlightCreated}
-							/>
+							<HighlightPlugin />
+							{onHighlightCreated && (
+								<HighlightCreatedListener
+									onHighlightCreated={onHighlightCreated}
+								/>
+							)}
 							{children}
 						</Box>
 					</LexicalExtensionComposer>

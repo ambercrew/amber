@@ -142,16 +142,16 @@ mod tests {
 
     use crate::{
         elements::{
-            entities::{
-                card::Card,
-                learning_asset::{LearningAsset, LearningAssetContent},
-            },
+            entities::{card::Card, learning_asset::LearningAsset},
             repositories::{
                 card_repository::CardRepository,
                 learning_asset_repository::LearningAssetRepository,
                 meta_repository::MetaRepository,
             },
-            value_objects::{element_id::ElementId, meta::Meta, read_point::ReadPoint},
+            value_objects::{
+                element_id::ElementId, learning_asset_content::LearningAssetContent, meta::Meta,
+                reading_position::ReadingPosition,
+            },
         },
         infrastructure::repositories::sqlite::{
             sqlite_card_repository::SqliteCardRepository,
@@ -277,7 +277,7 @@ mod tests {
                     r#type: Default::default(),
                     interval_multiplier: 1.2,
                     meta: meta(ElementId::LearningAsset(learning_asset_id)),
-                    read_point: ReadPoint::default(),
+                    read_point: ReadingPosition::default(),
                 },
                 LearningAssetContent::Extracted(Vec::new()),
             )
@@ -413,7 +413,7 @@ mod tests {
                     r#type: Default::default(),
                     interval_multiplier: 1.2,
                     meta: meta(ElementId::LearningAsset(element_id)),
-                    read_point: ReadPoint::default(),
+                    read_point: ReadingPosition::default(),
                 },
                 LearningAssetContent::Extracted(Vec::new()),
             )

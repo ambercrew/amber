@@ -25,8 +25,8 @@ interface ReturnValue {
 /**
  * Wires up find-in-page for a small, fixed, always-mounted set of editors
  * (an extract's single editor, or a card's front/back). LearningAsset uses
- * `useLearningAssetSearch`/`useSearchNavigation` instead, since unmounted splits
- * make that case more involved.
+ * its search plugin (`LearningAssetView/plugins/search/`) instead, since
+ * unmounted splits make that case more involved.
  */
 export function useEditorFindInPage(editorKeys: string[]): ReturnValue {
 	const query = useAppSelector(selectSearchQuery);
@@ -54,8 +54,9 @@ export function useEditorFindInPage(editorKeys: string[]): ReturnValue {
 			firstMatchIndex ??= globalIndex;
 			const localIndex = ranges.findIndex(
 				range =>
+					range !== null &&
 					range.getBoundingClientRect().top >=
-					HEADER_AND_FOOTER_HEIGHT,
+						HEADER_AND_FOOTER_HEIGHT,
 			);
 			if (localIndex !== -1) return globalIndex + localIndex;
 			globalIndex += ranges.length;

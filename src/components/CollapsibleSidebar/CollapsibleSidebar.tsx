@@ -83,6 +83,7 @@ function CollapsibleSidebar({
 				onChange={v => v && setValue(v)}
 				variant="pills"
 				style={{
+					"--tab-hover-color": "var(--sidebar-hover-bg)",
 					flex: 1,
 					display: "flex",
 					flexDirection: "column",

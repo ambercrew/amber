@@ -11,6 +11,10 @@ use crate::assets::value_objects::asset_id::AssetId;
 /// Custom URI scheme serving stored assets to the webview, addressed by asset id.
 pub const ASSET_PROTOCOL: &str = "amber-asset";
 
+// An SVG asset may carry scripts; `<img>` never runs them, and this keeps them inert if one is opened directly.
+const ASSET_CONTENT_SECURITY_POLICY: &str =
+    "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox";
+
 // Each read holds a pooled transaction, so an image-heavy page must not starve other commands of connections.
 static ASSET_READ_PERMITS: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(2));
 
@@ -49,6 +53,11 @@ async fn build_response(injector: &Injector, id: &str) -> Response<Vec<u8>> {
             .header(header::CONTENT_TYPE, asset.mime_type)
             .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
             .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+            .header(
+                header::CONTENT_SECURITY_POLICY,
+                ASSET_CONTENT_SECURITY_POLICY,
+            )
+            .header(header::X_CONTENT_TYPE_OPTIONS, "nosniff")
             .body(asset.data)
             .expect("Asset response is always valid"),
         // Not cached: the asset may still arrive through sync.

@@ -113,6 +113,26 @@ mod tests {
     }
 
     #[test]
+    fn decode_image_data_uri_svg_returns_declared_mime() {
+        // Arrange
+
+        let src = format!(
+            "data:image/svg+xml;base64,{}",
+            general_purpose::STANDARD.encode("<svg></svg>")
+        );
+
+        // Act
+
+        let decoded = decode_image_data_uri(&src);
+
+        // Assert
+
+        let (mime, bytes) = decoded.unwrap();
+        assert_eq!(mime, "image/svg+xml");
+        assert_eq!(bytes, b"<svg></svg>");
+    }
+
+    #[test]
     fn decode_image_data_uri_non_image_returns_none() {
         // Arrange
 

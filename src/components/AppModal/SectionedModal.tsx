@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useState } from "react";
 import {
 	Box,
 	Burger,
@@ -11,8 +11,8 @@ import { useDisclosure } from "@mantine/hooks";
 import AppModal, { AppModalProps } from "./AppModal";
 import AppDrawer from "../AppDrawer/AppDrawer";
 import { useIsSmallScreen } from "../../hooks/useIsSmallScreen";
-import { MOTION_EASING } from "../../config/motion";
 import { useMotionDuration } from "../../hooks/useMotionDuration";
+import { useViewReveal } from "../../hooks/useViewReveal";
 
 export interface ModalSection {
 	value: string;
@@ -60,22 +60,7 @@ function SectionedModal({
 	const activeSection =
 		sections.find(section => section.value === active) ?? sections[0];
 
-	// Lags a frame behind the active section, so newly shown content starts transparent and fades in.
-	const [revealedValue, setRevealedValue] = useState(activeSection.value);
-	useEffect(() => {
-		const frame = requestAnimationFrame(() =>
-			setRevealedValue(activeSection.value),
-		);
-		return () => cancelAnimationFrame(frame);
-	}, [activeSection.value]);
-	const revealed = revealedValue === activeSection.value;
-	// Snaps to transparent on switch, then only the fade-in is animated.
-	const contentStyle = {
-		opacity: revealed ? 1 : 0,
-		transition: revealed
-			? `opacity ${motionDuration}ms ${MOTION_EASING}`
-			: "none",
-	};
+	const contentStyle = useViewReveal(activeSection.value);
 
 	function renderNavLinks(onSelect?: () => void) {
 		return (

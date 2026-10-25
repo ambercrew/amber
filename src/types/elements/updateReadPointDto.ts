@@ -1,6 +1,6 @@
-import { ReadPoint } from "./readPoint";
+import { ReadingPosition } from "./readingPosition";
 
 export interface UpdateReadPointDto {
 	learningAssetId: string;
-	readPoint: ReadPoint;
+	readPoint: ReadingPosition;
 }

@@ -1,11 +1,13 @@
 use chrono::{DateTime, Utc};
 use uuid::fmt::Hyphenated;
 
-use crate::elements::entities::learning_asset::{LearningAsset, LearningAssetType};
+use crate::elements::entities::learning_asset::LearningAsset;
+
 use crate::elements::extensions::into_element_id_ext::IntoOptionalElementIdExt;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::elements::value_objects::learning_asset_type::LearningAssetType;
 use crate::elements::value_objects::meta::Meta;
-use crate::elements::value_objects::read_point::ReadPoint;
+use crate::elements::value_objects::reading_position::ReadingPosition;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct LearningAssetRow {
@@ -52,7 +54,7 @@ impl TryFrom<LearningAssetRow> for LearningAsset {
                 created_at: row.created_at,
                 modified_at: row.modified_at,
             },
-            read_point: ReadPoint {
+            read_point: ReadingPosition {
                 split: row.readpoint_split as u32,
                 block: row.readpoint_block as u32,
             },

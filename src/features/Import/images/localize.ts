@@ -1,6 +1,7 @@
 import { fetchImage } from "../../../api/import/api/importApi";
 import { createAssets } from "../../../api/assets/api/assetsApi";
 import { compressDataUri, estimateDataUriBytes } from "./compressImage";
+import { SVG_MIME, toBase64SvgDataUri } from "./svg";
 
 export type LocalizedImage =
 	{ ok: true; src: string } | { ok: false; originalUrl: string };
@@ -54,8 +55,8 @@ async function prepareImage(
 	referer: string | null,
 ): Promise<PreparedImage> {
 	if (absoluteUrl.startsWith("data:")) {
-		if (absoluteUrl.startsWith("data:image/svg+xml")) {
-			return { ok: false, originalUrl: absoluteUrl };
+		if (absoluteUrl.startsWith(`data:${SVG_MIME}`)) {
+			return prepareSvg(absoluteUrl, absoluteUrl);
 		}
 		return compressImage(absoluteUrl, absoluteUrl);
 	}
@@ -67,12 +68,18 @@ async function prepareImage(
 		return { ok: false, originalUrl: absoluteUrl };
 	}
 
-	if (fetched.mime === "image/svg+xml") {
-		return { ok: false, originalUrl: absoluteUrl };
-	}
-
 	const dataUri = `data:${fetched.mime};base64,${fetched.bytesBase64}`;
+	if (fetched.mime === SVG_MIME) return prepareSvg(dataUri, absoluteUrl);
 	return compressImage(dataUri, absoluteUrl);
+}
+
+// Vector images stay as they are: there's nothing to gain from re-encoding them as rasters.
+function prepareSvg(dataUri: string, originalUrl: string): PreparedImage {
+	const base64 = toBase64SvgDataUri(dataUri);
+	if (base64 === null || estimateDataUriBytes(base64) > MAX_DATA_URI_BYTES) {
+		return { ok: false, originalUrl };
+	}
+	return { ok: true, dataUri: base64 };
 }
 
 async function compressImage(

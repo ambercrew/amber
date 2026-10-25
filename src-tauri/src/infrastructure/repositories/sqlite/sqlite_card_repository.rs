@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::elements::value_objects::read_point::ReadPoint;
+use crate::elements::value_objects::reading_position::ReadingPosition;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -152,18 +152,16 @@ mod tests {
 
     use crate::{
         elements::{
-            entities::{
-                card::Card,
-                folder::Folder,
-                learning_asset::{LearningAsset, LearningAssetContent},
-            },
+            entities::{card::Card, folder::Folder, learning_asset::LearningAsset},
             repositories::{
                 card_repository::CardRepository, extract_repository::ExtractRepository,
                 folder_repository::FolderRepository,
                 learning_asset_repository::LearningAssetRepository,
                 meta_repository::MetaRepository,
             },
-            value_objects::{element_id::ElementId, meta::Meta},
+            value_objects::{
+                element_id::ElementId, learning_asset_content::LearningAssetContent, meta::Meta,
+            },
         },
         infrastructure::repositories::sqlite::{
             sqlite_extract_repository::SqliteExtractRepository,
@@ -236,7 +234,7 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         let card = Card {
             meta: Meta {
@@ -288,7 +286,7 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         let card = Card {
             meta: Meta {
@@ -343,7 +341,7 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         let card = Card {
             meta: Meta {

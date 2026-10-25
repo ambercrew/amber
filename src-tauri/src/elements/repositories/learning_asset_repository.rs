@@ -2,11 +2,14 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
-use crate::elements::entities::learning_asset::{
-    LearningAsset, LearningAssetContent, LearningAssetSplitId, LearningAssetSplitMeta,
-    LearningAssetSplitText,
-};
-use crate::elements::value_objects::read_point::ReadPoint;
+use crate::elements::entities::learning_asset::LearningAsset;
+use crate::elements::entities::learning_asset_split::LearningAssetSplit;
+use crate::elements::value_objects::learning_asset_content::LearningAssetContent;
+use crate::elements::value_objects::learning_asset_heading::LearningAssetHeading;
+use crate::elements::value_objects::learning_asset_split_id::LearningAssetSplitId;
+use crate::elements::value_objects::learning_asset_split_meta::LearningAssetSplitMeta;
+use crate::elements::value_objects::learning_asset_split_text::LearningAssetSplitText;
+use crate::elements::value_objects::reading_position::ReadingPosition;
 
 #[async_trait]
 pub trait LearningAssetRepository: Send + Sync {
@@ -34,10 +37,16 @@ pub trait LearningAssetRepository: Send + Sync {
         &self,
         learning_asset_id: Uuid,
     ) -> Result<Vec<LearningAssetSplitText>, RepositoryError>;
+    /// Top-level headings of every split, in document order. Used for the table of
+    /// contents, which lists headings in splits that aren't mounted.
+    async fn get_headings(
+        &self,
+        learning_asset_id: Uuid,
+    ) -> Result<Vec<LearningAssetHeading>, RepositoryError>;
     async fn update_content(
         &self,
-        split_id: LearningAssetSplitId,
-        content: String,
+        learning_asset_id: Uuid,
+        split: LearningAssetSplit,
     ) -> Result<(), RepositoryError>;
     /// Splits whose content still embeds a `data:image/` URI.
     async fn find_split_ids_with_embedded_images(
@@ -46,7 +55,7 @@ pub trait LearningAssetRepository: Send + Sync {
     async fn update_read_point(
         &self,
         learning_asset_id: Uuid,
-        read_point: ReadPoint,
+        read_point: ReadingPosition,
     ) -> Result<(), RepositoryError>;
     async fn update_interval_multiplier(
         &self,

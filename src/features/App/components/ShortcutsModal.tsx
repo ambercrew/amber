@@ -108,6 +108,19 @@ const CONTEXT_SECTIONS: ContextSection[] = [
 		],
 	},
 	{
+		title: "Elements",
+		rows: [
+			{
+				commands: ["set-mark-1", "set-mark-2", "set-mark-3"],
+				description: "Set mark 1 / 2 / 3",
+			},
+			{
+				commands: ["go-to-mark-1", "go-to-mark-2", "go-to-mark-3"],
+				description: "Go to mark 1 / 2 / 3",
+			},
+		],
+	},
+	{
 		title: "Editor",
 		rows: [
 			{

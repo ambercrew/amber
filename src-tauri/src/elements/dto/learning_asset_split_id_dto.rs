@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::elements::entities::learning_asset::LearningAssetSplitId;
+use crate::elements::value_objects::learning_asset_split_id::LearningAssetSplitId;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

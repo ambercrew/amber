@@ -46,7 +46,7 @@ function makeProfile(
 
 /** Each group of fields lives behind its own tab, so reveal it before querying. */
 async function openTab(name: string) {
-	await userEvent.setup().click(screen.getByRole("radio", { name }));
+	await userEvent.setup().click(screen.getByRole("tab", { name }));
 }
 
 const openCardsTab = () => openTab("Cards");

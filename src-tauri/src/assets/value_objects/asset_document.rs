@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use crate::elements::entities::learning_asset::LearningAssetSplitId;
+use crate::elements::value_objects::learning_asset_split_id::LearningAssetSplitId;
 
 /// An element whose stored Lexical JSON can embed images.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

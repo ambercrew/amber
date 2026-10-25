@@ -222,6 +222,8 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--editor-surface-bg": "var(--sidebar-bg)",
 		"--inset-surface-bg": "var(--sidebar-bg)",
 		"--pdf-viewport-bg": "#e8e5dc",
+		// Mantine's gray-0 hover (nav links, tabs) is the sidebar's own background, so it never shows there.
+		"--sidebar-hover-bg": "var(--mantine-color-gray-2)",
 	},
 	dark: {
 		"--mantine-color-body": "var(--mantine-color-dark-7)",
@@ -229,6 +231,7 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--editor-surface-bg": "var(--sidebar-bg)",
 		"--inset-surface-bg": "var(--sidebar-bg)",
 		"--pdf-viewport-bg": "var(--mantine-color-body)",
+		"--sidebar-hover-bg": "var(--mantine-color-dark-6)",
 
 		// Mantine's dark defaults for these come from shade 8 of a stock red/teal
 		// it never sees us replace, which reads ~2:1 on our body. Shade 4 is where

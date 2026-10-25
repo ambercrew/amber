@@ -520,9 +520,8 @@ mod tests {
     use crate::bibliographical_sources::value_objects::bibliographical_source_type::BibliographicalSourceType;
     use crate::elements::entities::card::Card;
     use crate::elements::entities::folder::Folder;
-    use crate::elements::entities::learning_asset::{
-        LearningAsset, LearningAssetContent, LearningAssetSplit,
-    };
+    use crate::elements::entities::learning_asset::LearningAsset;
+    use crate::elements::entities::learning_asset_split::LearningAssetSplit;
     use crate::elements::repositories::card_repository::CardRepository;
     use crate::elements::repositories::folder_repository::FolderRepository;
     use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
@@ -530,8 +529,9 @@ mod tests {
     use crate::elements::services::implementations::default_priority_service::DefaultPriorityService;
     use crate::elements::services::priority_service::PriorityService;
     use crate::elements::value_objects::element_id::ElementId;
+    use crate::elements::value_objects::learning_asset_content::LearningAssetContent;
     use crate::elements::value_objects::meta::Meta;
-    use crate::elements::value_objects::read_point::ReadPoint;
+    use crate::elements::value_objects::reading_position::ReadingPosition;
     use crate::infrastructure::repositories::sqlite::sqlite_bibliographical_source_repository::SqliteBibliographicalSourceRepository;
     use crate::infrastructure::repositories::sqlite::sqlite_card_repository::SqliteCardRepository;
     use crate::infrastructure::repositories::sqlite::sqlite_card_review_repository::SqliteCardReviewRepository;
@@ -647,7 +647,7 @@ mod tests {
                 created_at: Utc::now(),
                 modified_at: Utc::now(),
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
             interval_multiplier: 1.0,
         }
     }
@@ -1650,10 +1650,7 @@ mod tests {
         learning_asset_repository
             .create(
                 learning_asset,
-                LearningAssetContent::Extracted(vec![LearningAssetSplit {
-                    seq: 0,
-                    content: "content".into(),
-                }]),
+                LearningAssetContent::Extracted(vec![LearningAssetSplit::new(0, "content".into())]),
             )
             .await
             .unwrap();

@@ -87,6 +87,48 @@ describe("matchesShortcut", () => {
 		expect(actual).toBe(true);
 	});
 
+	it("Should match an alt digit when it's on the number row", () => {
+		// Arrange
+
+		const event = keyEvent({ key: "1", code: "Digit1", altKey: true });
+
+		// Act
+
+		const actual = matchesShortcut("alt+1", event);
+
+		// Assert
+
+		expect(actual).toBe(true);
+	});
+
+	it("Should match an alt digit when macOS Option turns it into a symbol", () => {
+		// Arrange
+
+		const event = keyEvent({ key: "¡", code: "Digit1", altKey: true });
+
+		// Act
+
+		const actual = matchesShortcut("alt+1", event);
+
+		// Assert
+
+		expect(actual).toBe(true);
+	});
+
+	it("Should not match an alt digit when it's on the numpad", () => {
+		// Arrange
+
+		const event = keyEvent({ key: "0", code: "Numpad0", altKey: true });
+
+		// Act
+
+		const actual = matchesShortcut("alt+0", event);
+
+		// Assert
+
+		expect(actual).toBe(false);
+	});
+
 	it("Should match punctuation shortcuts", () => {
 		// Arrange
 

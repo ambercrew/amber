@@ -1,9 +1,10 @@
 import { Text } from "@mantine/core";
 import ConfirmModal from "../../components/AppModal/ConfirmModal";
-import { PendingHighlightRemoval } from "./hooks/useElementViewerButtons";
+import { ElementId } from "../../types/elements/elementId";
 
 interface RemoveHighlightModalProps {
-	removal: PendingHighlightRemoval | null;
+	/** The elements the removal would trash; `null` while nothing awaits confirmation. */
+	removal: { elementIds: ElementId[] } | null;
 	onConfirm: () => void;
 	onClose: () => void;
 }

@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::elements::value_objects::read_point::ReadPoint;
+use crate::elements::value_objects::reading_position::ReadingPosition;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -126,16 +126,13 @@ mod tests {
 
     use crate::{
         elements::{
-            entities::{
-                extract::Extract,
-                learning_asset::{LearningAsset, LearningAssetContent},
-            },
+            entities::{extract::Extract, learning_asset::LearningAsset},
             repositories::{
                 extract_repository::ExtractRepository,
                 learning_asset_repository::LearningAssetRepository,
                 meta_repository::MetaRepository,
             },
-            value_objects::meta::Meta,
+            value_objects::{learning_asset_content::LearningAssetContent, meta::Meta},
         },
         infrastructure::repositories::sqlite::{
             sqlite_extract_repository::SqliteExtractRepository,
@@ -204,7 +201,7 @@ mod tests {
                     r#type: Default::default(),
                     interval_multiplier: 1.2,
                     meta: make_meta(learning_asset_id),
-                    read_point: ReadPoint::default(),
+                    read_point: ReadingPosition::default(),
                 },
                 LearningAssetContent::Extracted(Vec::new()),
             )
@@ -244,7 +241,7 @@ mod tests {
                     r#type: Default::default(),
                     interval_multiplier: 1.2,
                     meta: make_meta(new_learning_asset_id),
-                    read_point: ReadPoint::default(),
+                    read_point: ReadingPosition::default(),
                 },
                 LearningAssetContent::Extracted(Vec::new()),
             )
@@ -274,7 +271,7 @@ mod tests {
                     r#type: Default::default(),
                     interval_multiplier: 1.2,
                     meta: make_meta(finished_learning_asset_id),
-                    read_point: ReadPoint::default(),
+                    read_point: ReadingPosition::default(),
                 },
                 LearningAssetContent::Extracted(Vec::new()),
             )

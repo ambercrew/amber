@@ -1,4 +1,9 @@
-/* Mantine renders a container per position; only the bottom ones clear the gesture bar. */
+/* Mantine renders a container per position; only the bottom ones clear the footer and gesture bar. */
 .root[data-position^="bottom"] {
-	bottom: calc(var(--mantine-spacing-md) + env(safe-area-inset-bottom));
+	bottom: calc(
+		var(--mantine-spacing-md) +
+			var(--notifications-chrome-bottom, env(safe-area-inset-bottom))
+	);
+	transition: bottom var(--app-shell-transition-duration)
+		var(--app-shell-transition-timing-function);
 }

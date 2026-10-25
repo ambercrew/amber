@@ -6,14 +6,18 @@ use uuid::Uuid;
 use uuid::fmt::Hyphenated;
 
 use crate::common::repository_error::RepositoryError;
-use crate::elements::entities::learning_asset::{
-    LearningAsset, LearningAssetContent, LearningAssetSplitId, LearningAssetSplitMeta,
-    LearningAssetSplitText,
-};
+use crate::elements::entities::learning_asset::LearningAsset;
+use crate::elements::entities::learning_asset_split::LearningAssetSplit;
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::repositories::meta_repository::MetaRepository;
+use crate::elements::utils::heading_extractor::extract_headings;
 use crate::elements::utils::plain_text_extractor::extract_plain_text;
-use crate::elements::value_objects::read_point::ReadPoint;
+use crate::elements::value_objects::learning_asset_content::LearningAssetContent;
+use crate::elements::value_objects::learning_asset_heading::LearningAssetHeading;
+use crate::elements::value_objects::learning_asset_split_id::LearningAssetSplitId;
+use crate::elements::value_objects::learning_asset_split_meta::LearningAssetSplitMeta;
+use crate::elements::value_objects::learning_asset_split_text::LearningAssetSplitText;
+use crate::elements::value_objects::reading_position::ReadingPosition;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::learning_asset_row::LearningAssetRow;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 
@@ -53,13 +57,16 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
             match content {
                 LearningAssetContent::Extracted(splits) => {
                     for split in splits {
-                        let content_text = extract_plain_text(&split.content);
+                        let content_text = extract_plain_text(split.content());
+                        let content = split.content();
+                        let block_count = split.block_count();
                         sqlx::query!(
-                            "INSERT INTO learning_asset_splits (learning_asset_id, seq, content, content_text) VALUES ($1, $2, $3, $4)",
+                            "INSERT INTO learning_asset_splits (learning_asset_id, seq, content, content_text, block_count) VALUES ($1, $2, $3, $4, $5)",
                             uuid,
                             split.seq,
-                            split.content,
+                            content,
                             content_text,
+                            block_count,
                         )
                         .execute(&mut *tx)
                         .await?;
@@ -167,7 +174,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
         let tx = tx.as_mut();
 
         let rows = sqlx::query!(
-            r#"SELECT seq, LENGTH(content_text) as "char_count!: i64"
+            r#"SELECT seq as "seq!: i64", LENGTH(content_text) as "char_count!: i64", block_count
             FROM learning_asset_splits
             WHERE learning_asset_id = $1
             ORDER BY seq"#,
@@ -181,6 +188,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
             .map(|row| LearningAssetSplitMeta {
                 seq: row.seq as u32,
                 char_count: row.char_count as u32,
+                block_count: row.block_count as u32,
             })
             .collect())
     }
@@ -211,6 +219,29 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
             .collect())
     }
 
+    async fn get_headings(
+        &self,
+        learning_asset_id: Uuid,
+    ) -> Result<Vec<LearningAssetHeading>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query!(
+            r#"SELECT seq, content
+            FROM learning_asset_splits
+            WHERE learning_asset_id = $1
+            ORDER BY seq"#,
+            learning_asset_id.hyphenated()
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .flat_map(|row| extract_headings(row.seq as u32, &row.content))
+            .collect())
+    }
+
     async fn get_split_content(
         &self,
         split_id: LearningAssetSplitId,
@@ -231,18 +262,21 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
 
     async fn update_content(
         &self,
-        split_id: LearningAssetSplitId,
-        content: String,
+        learning_asset_id: Uuid,
+        split: LearningAssetSplit,
     ) -> Result<(), RepositoryError> {
-        let content_text = extract_plain_text(&content);
+        let content_text = extract_plain_text(split.content());
+        let content = split.content();
+        let block_count = split.block_count();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
-            "UPDATE learning_asset_splits SET content = $1, content_text = $2 WHERE learning_asset_id = $3 AND seq = $4",
+            "UPDATE learning_asset_splits SET content = $1, content_text = $2, block_count = $3 WHERE learning_asset_id = $4 AND seq = $5",
             content,
             content_text,
-            split_id.learning_asset_id.hyphenated(),
-            split_id.seq,
+            block_count,
+            learning_asset_id.hyphenated(),
+            split.seq,
         )
         .execute(&mut *tx)
         .await?;
@@ -272,7 +306,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
     async fn update_read_point(
         &self,
         learning_asset_id: Uuid,
-        read_point: ReadPoint,
+        read_point: ReadingPosition,
     ) -> Result<(), RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
@@ -358,10 +392,8 @@ mod tests {
     use crate::{
         elements::{
             entities::{
-                card::Card,
-                extract::Extract,
-                folder::Folder,
-                learning_asset::{LearningAsset, LearningAssetSplit},
+                card::Card, extract::Extract, folder::Folder, learning_asset::LearningAsset,
+                learning_asset_split::LearningAssetSplit,
             },
             repositories::{
                 card_repository::CardRepository, extract_repository::ExtractRepository,
@@ -451,7 +483,7 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         let extract = Extract {
             interval_multiplier: 1.2,
@@ -509,7 +541,7 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         let card = Card {
             meta: Meta {
@@ -566,7 +598,7 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         folder_repo.create(folder).await.unwrap();
         learning_asset_repo
@@ -614,7 +646,7 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         folder_repo.create(folder).await.unwrap();
         learning_asset_repo
@@ -676,21 +708,15 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         folder_repo.create(folder).await.unwrap();
         learning_asset_repo
             .create(
                 learning_asset.clone(),
                 LearningAssetContent::Extracted(vec![
-                    LearningAssetSplit {
-                        seq: 1,
-                        content: split_content_json("abcd"),
-                    },
-                    LearningAssetSplit {
-                        seq: 0,
-                        content: split_content_json("ab"),
-                    },
+                    LearningAssetSplit::new(1, split_content_json("abcd")),
+                    LearningAssetSplit::new(0, split_content_json("ab")),
                 ]),
             )
             .await
@@ -710,10 +736,130 @@ mod tests {
                 LearningAssetSplitMeta {
                     seq: 0,
                     char_count: 2,
+                    block_count: 1,
                 },
                 LearningAssetSplitMeta {
                     seq: 1,
                     char_count: 4,
+                    block_count: 1,
+                },
+            ],
+            actual
+        );
+    }
+
+    #[tokio::test]
+    async fn update_content_more_blocks_updates_manifest_block_count() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let learning_asset_repo = scope.resolve::<dyn LearningAssetRepository>().await;
+
+        let folder = Folder {
+            meta: folder_meta(),
+        };
+        let learning_asset = LearningAsset {
+            r#type: Default::default(),
+            interval_multiplier: 1.2,
+            meta: Meta {
+                parent: Some(folder.meta.element_id),
+                ..learning_asset_meta()
+            },
+            read_point: ReadingPosition::default(),
+        };
+        let learning_asset_id = learning_asset.meta.element_id.id();
+        folder_repo.create(folder).await.unwrap();
+        learning_asset_repo
+            .create(
+                learning_asset,
+                LearningAssetContent::Extracted(vec![LearningAssetSplit::new(
+                    0,
+                    split_content_json("a"),
+                )]),
+            )
+            .await
+            .unwrap();
+        let paragraph = r#"{"type":"paragraph","children":[]}"#;
+        let content = format!(r#"{{"root":{{"children":[{paragraph},{paragraph},{paragraph}]}}}}"#);
+
+        // Act
+
+        learning_asset_repo
+            .update_content(learning_asset_id, LearningAssetSplit::new(0, content))
+            .await
+            .unwrap();
+        let actual = learning_asset_repo
+            .get_split_manifest(learning_asset_id)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(3, actual[0].block_count);
+    }
+
+    #[tokio::test]
+    async fn get_headings_multiple_splits_returns_headings_in_document_order() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let learning_asset_repo = scope.resolve::<dyn LearningAssetRepository>().await;
+
+        let folder = Folder {
+            meta: folder_meta(),
+        };
+        let learning_asset = LearningAsset {
+            r#type: Default::default(),
+            interval_multiplier: 1.2,
+            meta: Meta {
+                parent: Some(folder.meta.element_id),
+                ..learning_asset_meta()
+            },
+            read_point: ReadingPosition::default(),
+        };
+        let heading = |text: &str| {
+            format!(
+                r#"{{"root":{{"children":[{{"type":"paragraph","children":[]}},{{"type":"heading","tag":"h1","children":[{{"type":"text","text":"{text}"}}]}}]}}}}"#
+            )
+        };
+        folder_repo.create(folder).await.unwrap();
+        learning_asset_repo
+            .create(
+                learning_asset.clone(),
+                LearningAssetContent::Extracted(vec![
+                    LearningAssetSplit::new(1, heading("Second")),
+                    LearningAssetSplit::new(0, heading("First")),
+                ]),
+            )
+            .await
+            .unwrap();
+
+        // Act
+
+        let actual = learning_asset_repo
+            .get_headings(learning_asset.meta.element_id.id())
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(
+            vec![
+                LearningAssetHeading {
+                    seq: 0,
+                    block: 1,
+                    level: 1,
+                    text: "First".into(),
+                },
+                LearningAssetHeading {
+                    seq: 1,
+                    block: 1,
+                    level: 1,
+                    text: "Second".into(),
                 },
             ],
             actual
@@ -739,21 +885,15 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         folder_repo.create(folder).await.unwrap();
         learning_asset_repo
             .create(
                 learning_asset.clone(),
                 LearningAssetContent::Extracted(vec![
-                    LearningAssetSplit {
-                        seq: 1,
-                        content: split_content_json("second"),
-                    },
-                    LearningAssetSplit {
-                        seq: 0,
-                        content: split_content_json("first"),
-                    },
+                    LearningAssetSplit::new(1, split_content_json("second")),
+                    LearningAssetSplit::new(0, split_content_json("first")),
                 ]),
             )
             .await
@@ -802,16 +942,16 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         folder_repo.create(folder).await.unwrap();
         learning_asset_repo
             .create(
                 learning_asset.clone(),
-                LearningAssetContent::Extracted(vec![LearningAssetSplit {
-                    seq: 0,
-                    content: "hello world".into(),
-                }]),
+                LearningAssetContent::Extracted(vec![LearningAssetSplit::new(
+                    0,
+                    "hello world".into(),
+                )]),
             )
             .await
             .unwrap();
@@ -850,7 +990,7 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         folder_repo.create(folder).await.unwrap();
         learning_asset_repo
@@ -866,7 +1006,7 @@ mod tests {
         learning_asset_repo
             .update_read_point(
                 learning_asset.meta.element_id.id(),
-                ReadPoint { split: 3, block: 7 },
+                ReadingPosition { split: 3, block: 7 },
             )
             .await
             .unwrap();
@@ -894,13 +1034,13 @@ mod tests {
             meta: folder_meta(),
         };
         let learning_asset = LearningAsset {
-            r#type: crate::elements::entities::learning_asset::LearningAssetType::Pdf,
+            r#type: crate::elements::value_objects::learning_asset_type::LearningAssetType::Pdf,
             interval_multiplier: 1.2,
             meta: Meta {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         folder_repo.create(folder).await.unwrap();
 
@@ -945,7 +1085,7 @@ mod tests {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         folder_repo.create(folder).await.unwrap();
 
@@ -966,7 +1106,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            crate::elements::entities::learning_asset::LearningAssetType::Extracted,
+            crate::elements::value_objects::learning_asset_type::LearningAssetType::Extracted,
             created.r#type
         );
     }
@@ -985,13 +1125,13 @@ mod tests {
             meta: folder_meta(),
         };
         let learning_asset = LearningAsset {
-            r#type: crate::elements::entities::learning_asset::LearningAssetType::Pdf,
+            r#type: crate::elements::value_objects::learning_asset_type::LearningAssetType::Pdf,
             interval_multiplier: 1.2,
             meta: Meta {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         folder_repo.create(folder).await.unwrap();
         learning_asset_repo
@@ -1033,13 +1173,13 @@ mod tests {
             meta: folder_meta(),
         };
         let learning_asset = LearningAsset {
-            r#type: crate::elements::entities::learning_asset::LearningAssetType::Pdf,
+            r#type: crate::elements::value_objects::learning_asset_type::LearningAssetType::Pdf,
             interval_multiplier: 1.2,
             meta: Meta {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         folder_repo.create(folder).await.unwrap();
 
@@ -1078,13 +1218,13 @@ mod tests {
             meta: folder_meta(),
         };
         let learning_asset = LearningAsset {
-            r#type: crate::elements::entities::learning_asset::LearningAssetType::Pdf,
+            r#type: crate::elements::value_objects::learning_asset_type::LearningAssetType::Pdf,
             interval_multiplier: 1.2,
             meta: Meta {
                 parent: Some(folder.meta.element_id),
                 ..learning_asset_meta()
             },
-            read_point: ReadPoint::default(),
+            read_point: ReadingPosition::default(),
         };
         folder_repo.create(folder).await.unwrap();
         learning_asset_repo

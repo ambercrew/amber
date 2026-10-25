@@ -1,0 +1,460 @@
+import { useCallback, useMemo } from "react";
+import { useMounted } from "@mantine/hooks";
+import { MantineTransition, Transition } from "@mantine/core";
+import { useStore } from "react-redux";
+import { useNavigate } from "react-router";
+import { useRegistry } from "@embedpdf/core/react";
+import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
+import {
+	useActiveDocument,
+	useDocumentManagerCapability,
+} from "@embedpdf/plugin-document-manager/react";
+import {
+	SelectionSelectionMenuProps,
+	useSelectionCapability,
+} from "@embedpdf/plugin-selection/react";
+import FloatingMenuBar, {
+	FloatingMenuBarItem,
+} from "../../../../components/FloatingMenuBar/FloatingMenuBar";
+import { floatingMenuPop } from "../../../../components/FloatingMenuBar/floatingMenuPop";
+import { MOTION_DURATION_MS, MOTION_EASING } from "../../../../config/motion";
+import {
+	AppHotkeyItem,
+	useAppHotkeys,
+} from "../../../../commands/useAppHotkeys";
+import useAppDispatch from "../../../../hooks/useAppDispatch";
+import useAppSelector from "../../../../hooks/useAppSelector";
+import { paths } from "../../../../paths";
+import {
+	createCardAction,
+	createExtractAction,
+	existsInTree,
+} from "../../../../stores/elements/elementsActions";
+import { RootState } from "../../../../stores/store";
+import { selectSettings } from "../../../../stores/settings/settingsSelector";
+import {
+	addAiContextSnippet,
+	requestAiPrompt,
+} from "../../../../stores/aiContext/aiReducer";
+import { requestFocus } from "../../../../hooks/useFocusRequest";
+import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../../Ai/aiPrompts";
+import {
+	ADD_AI_CONTEXT_BUTTON,
+	AI_CARDS_BUTTON,
+	CLOZE_BUTTON,
+	EXTRACT_BUTTON,
+	OPEN_HIGHLIGHT_BUTTON,
+	REMOVE_HIGHLIGHT_BUTTON,
+} from "../../highlightFloatingMenuButtons";
+import {
+	buildClozeCardDto,
+	buildExtractDto,
+	ClozeSelectionSlice,
+} from "./pdfFloatingMenuContent";
+import {
+	buildHighlightAnnotations,
+	CLOZE_HIGHLIGHT_COLOR,
+	EXTRACT_HIGHLIGHT_COLOR,
+	findFirstHighlightedElement,
+	findHighlightsUnderSelection,
+	flattenHighlightRects,
+	getActivePdfHighlights,
+	PdfHighlightCustomData,
+} from "./pdfHighlightAnnotations";
+import {
+	isBackwardPdfSelection,
+	PdfMenuAlign,
+	pdfMenuAnchor,
+} from "./pdfMenuAnchor";
+import { Rect } from "@embedpdf/models";
+import { GlyphPointer } from "@embedpdf/plugin-selection";
+import { PdfHighlightRemoval } from "./usePdfHighlightRemoval";
+import { usePdfAnnotationState } from "./usePdfAnnotationState";
+
+const ALIGN_SHIFT: Record<PdfMenuAlign, string> = {
+	start: "0%",
+	center: "-50%",
+	end: "-100%",
+};
+const ALIGN_ORIGIN: Record<PdfMenuAlign, string> = {
+	start: "left",
+	center: "center",
+	end: "right",
+};
+
+/** Mantine's `pop`, growing out of the anchor whether the menu sits above or below it. */
+function popTransition(above: boolean, align: PdfMenuAlign): MantineTransition {
+	return {
+		...floatingMenuPop(above),
+		common: {
+			transformOrigin: `${above ? "bottom" : "top"} ${ALIGN_ORIGIN[align]}`,
+		},
+	};
+}
+
+// The bar's height plus its gap, needed above the selection to open there.
+const MENU_ROOM_ABOVE_PX = 56;
+
+interface PdfFloatingMenuProps extends SelectionSelectionMenuProps {
+	learningAssetId: string;
+	/** Where the current selection's drag began, to tell which end the pointer let go at. */
+	selectionAnchor: GlyphPointer | null;
+	onHighlightCreated: (lastPageIndex: number) => void;
+	/** Asks to confirm a removal that would trash elements created from the highlights. */
+	onConfirmRemoval: (removal: PdfHighlightRemoval) => void;
+}
+
+export default function PdfFloatingMenu({
+	menuWrapperProps,
+	placement,
+	context,
+	learningAssetId,
+	selectionAnchor,
+	onHighlightCreated,
+	onConfirmRemoval,
+}: PdfFloatingMenuProps) {
+	// Mounts with the selection, so it opens a frame later for Mantine's enter animation to play.
+	const opened = useMounted();
+	const dispatch = useAppDispatch();
+	const store = useStore<RootState>();
+	const navigate = useNavigate();
+	const aiEnabled = useAppSelector(selectSettings)?.enableAi ?? false;
+	const { activeDocumentId } = useActiveDocument();
+	const { provides: selection } = useSelectionCapability();
+	const { provides: documentManager } = useDocumentManagerCapability();
+	const { provides: annotation } = useAnnotationCapability();
+	const { registry } = useRegistry();
+	const parent = useMemo(
+		() => ({ type: "learningAsset" as const, id: learningAssetId }),
+		[learningAssetId],
+	);
+
+	// Live, so the highlight set below can't go stale while this menu stays mounted.
+	const annotationState = usePdfAnnotationState(activeDocumentId);
+
+	// Scanning all annotations is O(n), so only recompute when the set changes.
+	const highlights = useMemo(
+		() => getActivePdfHighlights(annotationState),
+		[annotationState],
+	);
+
+	const highlightUnderSelection = useMemo(() => {
+		if (!selection || !activeDocumentId) return null;
+		const selectionRects = flattenHighlightRects(
+			selection.forDocument(activeDocumentId).getHighlightRects(),
+		);
+		if (selectionRects.length === 0) return null;
+		return findFirstHighlightedElement(highlights, selectionRects);
+	}, [selection, activeDocumentId, highlights]);
+
+	// Embedpdf always prefers below; a backward drag ends at the top, so open above when it fits.
+	const { above, anchor } = useMemo(() => {
+		const scope =
+			selection && activeDocumentId
+				? selection.forDocument(activeDocumentId)
+				: null;
+		const range = scope?.getState().selection ?? null;
+		const backward = isBackwardPdfSelection(selectionAnchor, range);
+		const above =
+			placement.suggestTop ||
+			(backward === true &&
+				range?.start.page === context.pageIndex &&
+				(placement.spaceAbove ?? 0) > MENU_ROOM_ABOVE_PX);
+		return {
+			above,
+			// A fraction of the selection's width, so the page's zoom doesn't matter.
+			anchor: pdfMenuAnchor(
+				scope?.getHighlightRectsForPage(context.pageIndex) ?? [],
+				backward ?? above,
+			),
+		};
+	}, [
+		selection,
+		activeDocumentId,
+		selectionAnchor,
+		placement,
+		context.pageIndex,
+	]);
+
+	const handleOpenHighlight = useCallback(() => {
+		if (!highlightUnderSelection) return;
+		void navigate(
+			paths.element(
+				highlightUnderSelection.elementType,
+				highlightUnderSelection.elementId,
+			),
+		);
+	}, [highlightUnderSelection, navigate]);
+
+	const handleRemoveHighlight = useCallback(() => {
+		if (!selection || !annotation || !activeDocumentId) return;
+		const selectionRects = flattenHighlightRects(
+			selection.forDocument(activeDocumentId).getHighlightRects(),
+		);
+		if (selectionRects.length === 0) return;
+		const toDelete = findHighlightsUnderSelection(
+			highlights,
+			selectionRects,
+		);
+		if (toDelete.length === 0) return;
+		// As in the editor, the element goes with every highlight made for it, on every page.
+		const removedIds = new Set(toDelete.map(({ id }) => id));
+		const elements = new Map(
+			highlights
+				.filter(({ id }) => removedIds.has(id))
+				.map(({ custom }) => [
+					custom.elementId,
+					{ type: custom.elementType, id: custom.elementId },
+				]),
+		);
+		const annotations = highlights
+			.filter(({ custom }) => elements.has(custom.elementId))
+			.map(({ pageIndex, id }) => ({ pageIndex, id }));
+		const { tree } = store.getState().elements;
+		const elementIds = Array.from(elements.values()).filter(elementId =>
+			existsInTree(tree, elementId),
+		);
+		// Nothing would be trashed, so there's nothing to confirm.
+		if (elementIds.length === 0) {
+			annotation
+				.forDocument(activeDocumentId)
+				.deleteAnnotations(annotations);
+			return;
+		}
+		onConfirmRemoval({ annotations, elementIds });
+	}, [
+		selection,
+		annotation,
+		activeDocumentId,
+		highlights,
+		store,
+		onConfirmRemoval,
+	]);
+
+	/** Attaches the selection to the AI chat, then sends `prompt` about it when given. */
+	const sendSelectionToAi = useCallback(
+		(prompt?: string) => {
+			if (!selection || !activeDocumentId) return;
+			const scope = selection.forDocument(activeDocumentId);
+			void scope
+				.getSelectedText()
+				.toPromise()
+				.then(pages => {
+					const text = pages.join(" ").trim();
+					if (!text) return;
+					dispatch(addAiContextSnippet(text));
+					if (prompt) {
+						dispatch(requestAiPrompt(prompt));
+						requestFocus("aiChat");
+					}
+					scope.clear();
+				});
+		},
+		[selection, activeDocumentId, dispatch],
+	);
+	const handleAddAiContext = useCallback(
+		() => sendSelectionToAi(),
+		[sendSelectionToAi],
+	);
+	const handleAiCards = useCallback(
+		() => sendSelectionToAi(CONVERT_SNIPPET_TO_CARDS_PROMPT),
+		[sendSelectionToAi],
+	);
+
+	/** Highlights the selection as the element just created from it, then moves the read point and clears the selection. */
+	const highlightCreatedElement = useCallback(
+		(
+			boundingRects: { page: number; rect: Rect }[],
+			elementId: string,
+			kind: PdfHighlightCustomData["elementType"],
+			color: string,
+		) => {
+			if (!selection || !annotation || !activeDocumentId) return;
+			const annotationScope = annotation.forDocument(activeDocumentId);
+			for (const highlight of buildHighlightAnnotations(
+				boundingRects,
+				elementId,
+				kind,
+				color,
+			))
+				annotationScope.createAnnotation(
+					highlight.pageIndex,
+					highlight,
+				);
+			onHighlightCreated(
+				Math.max(...boundingRects.map(({ page }) => page)),
+			);
+			selection.forDocument(activeDocumentId).clear();
+		},
+		[selection, annotation, activeDocumentId, onHighlightCreated],
+	);
+
+	const handleCreateExtract = useCallback(() => {
+		if (!selection || !activeDocumentId || !annotation) return;
+		const scope = selection.forDocument(activeDocumentId);
+		const boundingRects = flattenHighlightRects(scope.getHighlightRects());
+		if (boundingRects.length === 0) return;
+		void scope
+			.getSelectedText()
+			.toPromise()
+			.then(async pages => {
+				const dto = buildExtractDto(pages, parent);
+				if (!dto) return;
+				// Awaited so its DB write finishes before the highlight's save starts; concurrent writes race into SQLITE_BUSY.
+				await dispatch(createExtractAction(dto));
+				highlightCreatedElement(
+					boundingRects,
+					dto.id,
+					"extract",
+					EXTRACT_HIGHLIGHT_COLOR,
+				);
+			});
+	}, [
+		selection,
+		activeDocumentId,
+		annotation,
+		parent,
+		dispatch,
+		highlightCreatedElement,
+	]);
+
+	const handleCreateCloze = useCallback(() => {
+		if (
+			!selection ||
+			!activeDocumentId ||
+			!documentManager ||
+			!registry ||
+			!annotation
+		) {
+			return;
+		}
+		const scope = selection.forDocument(activeDocumentId);
+		const boundingRects = flattenHighlightRects(scope.getHighlightRects());
+		const pageIndexes = Array.from(
+			new Set(boundingRects.map(({ page }) => page)),
+		).sort((a, b) => a - b);
+		const doc = documentManager.getActiveDocument();
+		if (pageIndexes.length === 0 || !doc) return;
+
+		const engine = registry.getEngine();
+		const slices = scope.getState().slices;
+		const selectionSlices: (ClozeSelectionSlice | undefined)[] =
+			pageIndexes.map(pageIndex => slices[pageIndex]);
+		void Promise.all([
+			scope.getSelectedText().toPromise(),
+			Promise.all(
+				pageIndexes.map(pageIndex =>
+					engine.extractText(doc, [pageIndex]).toPromise(),
+				),
+			),
+		]).then(async ([selectedTexts, pageTexts]) => {
+			const dto = buildClozeCardDto(
+				pageTexts,
+				selectedTexts,
+				parent,
+				selectionSlices,
+			);
+			if (!dto) return;
+			// Awaited for the same reason as the extract's.
+			await dispatch(createCardAction(dto));
+			highlightCreatedElement(
+				boundingRects,
+				dto.id,
+				"card",
+				CLOZE_HIGHLIGHT_COLOR,
+			);
+		});
+	}, [
+		selection,
+		activeDocumentId,
+		documentManager,
+		registry,
+		annotation,
+		parent,
+		dispatch,
+		highlightCreatedElement,
+	]);
+
+	const items = useMemo<FloatingMenuBarItem[]>(
+		() => [
+			{ ...EXTRACT_BUTTON, onClick: handleCreateExtract },
+			{ ...CLOZE_BUTTON, onClick: handleCreateCloze },
+			...(aiEnabled
+				? [
+						{
+							name: "add-ai-context-divider",
+							divider: true as const,
+						},
+						{
+							...ADD_AI_CONTEXT_BUTTON,
+							onClick: handleAddAiContext,
+						},
+						{ ...AI_CARDS_BUTTON, onClick: handleAiCards },
+					]
+				: []),
+			{ name: "create-highlight-divider", divider: true },
+			{
+				...OPEN_HIGHLIGHT_BUTTON,
+				isVisible: !!highlightUnderSelection,
+				onClick: handleOpenHighlight,
+			},
+			{
+				...REMOVE_HIGHLIGHT_BUTTON,
+				isVisible: !!highlightUnderSelection,
+				onClick: handleRemoveHighlight,
+			},
+		],
+		[
+			aiEnabled,
+			handleAddAiContext,
+			handleAiCards,
+			handleCreateExtract,
+			handleCreateCloze,
+			highlightUnderSelection,
+			handleOpenHighlight,
+			handleRemoveHighlight,
+		],
+	);
+
+	// This menu only mounts while text is selected, so its shortcuts can be global.
+	useAppHotkeys(
+		items.flatMap(item =>
+			!item.divider &&
+			item.shortcut &&
+			item.onClick &&
+			item.isVisible !== false
+				? [[item.shortcut, item.onClick] satisfies AppHotkeyItem]
+				: [],
+		),
+	);
+
+	return (
+		<div {...menuWrapperProps}>
+			<div
+				style={{
+					position: "absolute",
+					left: `${anchor.offset * 100}%`,
+					transform: `translateX(${ALIGN_SHIFT[anchor.align]})`,
+					pointerEvents: "auto",
+					zIndex: 100,
+					width: "max-content",
+					...(above
+						? { bottom: "100%", marginBottom: 8 }
+						: { top: "100%", marginTop: 8 }),
+				}}>
+				<Transition
+					mounted={opened}
+					transition={popTransition(above, anchor.align)}
+					duration={MOTION_DURATION_MS}
+					timingFunction={MOTION_EASING}>
+					{transitionStyles => (
+						<FloatingMenuBar
+							items={items}
+							style={transitionStyles}
+						/>
+					)}
+				</Transition>
+			</div>
+		</div>
+	);
+}

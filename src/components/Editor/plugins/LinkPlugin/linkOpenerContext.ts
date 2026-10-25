@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 
 export interface LinkOpenerContextValue {
 	/** Confirms the URL with the user, then opens it in their default browser. */
@@ -10,7 +10,7 @@ export const LinkOpenerContext = createContext<LinkOpenerContextValue | null>(
 );
 
 export function useLinkOpener() {
-	const context = useContext(LinkOpenerContext);
+	const context = use(LinkOpenerContext);
 	if (!context) {
 		throw new Error(
 			"useLinkOpener must be used inside a LinkOpenerProvider",

@@ -3,6 +3,7 @@ import { Container, Divider, Group, Stack, Text } from "@mantine/core";
 import { QuestionIcon, CheckCircleIcon } from "@phosphor-icons/react";
 import ContentOriginPanel from "./ContentOriginPanel";
 import ElementEditor from "./ElementEditor";
+import SearchHighlightPlugin from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightPlugin";
 import { CardResponseDto } from "../../api/elements/dto/anyElementDto";
 import { FloatingMenuItem } from "../../components/Editor/plugins/FloatingMenuPlugin";
 import { HighlightCreatedPayload } from "../../components/Editor/plugins/HighlightPlugin/highlightCommands";
@@ -58,15 +59,15 @@ export default function CardElementViewer({
 						initialContent={card.front}
 						buttons={buttons}
 						onChange={onFrontChange}
-						onHighlightCreated={onHighlightCreated}
-						search={{
-							editorKey: "front",
-							query,
-							caseSensitive,
-							currentMatchLocalIndex: matchIndexFor("front"),
-							onMatches,
-						}}
-					/>
+						onHighlightCreated={onHighlightCreated}>
+						<SearchHighlightPlugin
+							editorKey="front"
+							query={query}
+							caseSensitive={caseSensitive}
+							currentMatchLocalIndex={matchIndexFor("front")}
+							onMatches={onMatches}
+						/>
+					</ElementEditor>
 				</Stack>
 				<Divider />
 				<Stack gap="md">
@@ -85,15 +86,15 @@ export default function CardElementViewer({
 							initialContent={card.back}
 							buttons={buttons}
 							onChange={onBackChange}
-							onHighlightCreated={onHighlightCreated}
-							search={{
-								editorKey: "back",
-								query,
-								caseSensitive,
-								currentMatchLocalIndex: matchIndexFor("back"),
-								onMatches,
-							}}
-						/>
+							onHighlightCreated={onHighlightCreated}>
+							<SearchHighlightPlugin
+								editorKey="back"
+								query={query}
+								caseSensitive={caseSensitive}
+								currentMatchLocalIndex={matchIndexFor("back")}
+								onMatches={onMatches}
+							/>
+						</ElementEditor>
 					)}
 				</Stack>
 			</Stack>

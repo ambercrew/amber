@@ -246,4 +246,19 @@ describe("useAutoSave", () => {
 			expect.anything(),
 		);
 	});
+
+	it("Should keep the same onContentUpdate when it rerenders", () => {
+		// Arrange
+
+		const { returnValue } = renderAutoSave();
+		const before = returnValue.result.current.onContentUpdate;
+
+		// Act
+
+		returnValue.rerender();
+
+		// Assert
+
+		expect(returnValue.result.current.onContentUpdate).toBe(before);
+	});
 });
