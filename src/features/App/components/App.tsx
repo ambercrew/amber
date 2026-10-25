@@ -113,6 +113,21 @@ function App() {
 	const safeAreaVertical = safeAreaVerticalStyle();
 	const studying = studyStatus === "studying";
 	const footerCollapsed = !studying || !pinned;
+	// The headroom slides the header and footer by inline transform, never through AppShell's `collapsed`:
+	// that rewrites :root CSS variables, restyling every element on the page (slow with many equations).
+	const headerStyle = {
+		...safeAreaTop,
+		transform: pinned
+			? undefined
+			: "translateY(calc(var(--app-shell-header-height) * -1))",
+	};
+	const footerStyle = footerCollapsed
+		? {
+				transform: `translateY(calc(var(--app-shell-footer-height) + ${
+					mobile ? SAFE_AREA_BOTTOM : "0px"
+				}))`,
+			}
+		: undefined;
 
 	// Chrome floats above the scroll viewport; these reserve the space it covers
 	// via the fixed *-height variables (not *-offset), so hiding it never reflows
@@ -249,12 +264,11 @@ function App() {
 									(isCurrentElementTrashed
 										? TRASHED_ELEMENT_BANNER_HEIGHT
 										: 0),
-							collapsed: !pinned,
 							offset: false,
 						}}
 						footer={{
 							height: HEADER_AND_FOOTER_HEIGHT,
-							collapsed: footerCollapsed,
+							collapsed: !studying,
 							offset: false,
 						}}
 						padding="md">
@@ -289,7 +303,7 @@ function App() {
 						/>
 						<SafeAreaTopBackdrop />
 
-						<AppShell.Header style={safeAreaTop}>
+						<AppShell.Header style={headerStyle}>
 							<Box h={HEADER_AND_FOOTER_HEIGHT}>
 								<AppHeader
 									onToggleSidebar={() =>
@@ -303,14 +317,7 @@ function App() {
 							<TrashedElementBanner />
 						</AppShell.Header>
 
-						<AppShell.Footer
-							style={
-								mobile && footerCollapsed
-									? {
-											transform: `translateY(calc(var(--app-shell-footer-height) + ${SAFE_AREA_BOTTOM}))`,
-										}
-									: undefined
-							}>
+						<AppShell.Footer style={footerStyle}>
 							<StudySessionBar />
 						</AppShell.Footer>
 
@@ -342,6 +349,9 @@ function App() {
 								viewportRef={setMainElement}
 								viewportProps={{
 									style: {
+										// Opaque, so Chromium scrolls it on the compositor; otherwise it repaints every frame (slow with many equations).
+										backgroundColor:
+											"var(--mantine-color-body)",
 										paddingInline:
 											"var(--app-shell-padding)",
 										paddingTop: `calc(${headerSpace} + var(--app-shell-padding))`,
