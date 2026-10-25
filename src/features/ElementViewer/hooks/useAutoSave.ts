@@ -59,17 +59,21 @@ function useAutoSave<T = string>({
 		});
 	}, [callApi, onSave, onSaveComplete]);
 
-	const handleContentUpdate = (getContent: () => T) => {
-		pendingContent.current = getContent;
+	// Stable, so callers can depend on it without re-subscribing listeners every render.
+	const handleContentUpdate = useCallback(
+		(getContent: () => T) => {
+			pendingContent.current = getContent;
 
-		if (autoSaveTimeoutId.current !== null) {
-			clearTimeout(autoSaveTimeoutId.current);
-			autoSaveTimeoutId.current = null;
-		}
-		autoSaveTimeoutId.current = setTimeout(() => {
-			void saveChanges();
-		}, AUTO_SAVE_DELAY_IN_MILLISECONDS);
-	};
+			if (autoSaveTimeoutId.current !== null) {
+				clearTimeout(autoSaveTimeoutId.current);
+				autoSaveTimeoutId.current = null;
+			}
+			autoSaveTimeoutId.current = setTimeout(() => {
+				void saveChanges();
+			}, AUTO_SAVE_DELAY_IN_MILLISECONDS);
+		},
+		[saveChanges],
+	);
 
 	// Used for saving changes before unmounting.
 	useEffect(() => {
