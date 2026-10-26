@@ -71,7 +71,9 @@ function NavigatorPanel({ treeState }: NavigatorPanelProps) {
 				ref={setNavRef}
 				style={{ position: "relative", isolation: "isolate" }}>
 				{/* Slides between rows in place of the active row's own background; hidden when neither is active. */}
+				{/* Remounts on reappearing so it lands on the row instead of sliding from the top. */}
 				<FloatingIndicator
+					key={activeLink ? "shown" : "hidden"}
 					target={activeLink}
 					parent={navRef}
 					transitionDuration={motionDuration}
