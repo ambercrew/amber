@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "../../../../../features/ElementViewer/LearningAssetView/core/learningAssetViewConstants";
 import { viewportTop } from "../../../../../features/ElementViewer/LearningAssetView/core/viewportTop";
+import { safeAreaTopInPx } from "../../../../../utils/safeArea";
+
+vi.mock(import("../../../../../utils/safeArea"));
 
 function makeScrollElement(
 	top: number,
@@ -15,6 +18,10 @@ function makeScrollElement(
 }
 
 describe("viewportTop", () => {
+	beforeEach(() => {
+		vi.mocked(safeAreaTopInPx).mockReturnValue(0);
+	});
+
 	it("Should be below the scroller's scroll padding when the header is taller than usual", () => {
 		// Arrange
 
@@ -55,6 +62,21 @@ describe("viewportTop", () => {
 		// Assert
 
 		expect(actual).toBe(0);
+	});
+
+	it("Should be below the status bar when the header is hidden on a phone", () => {
+		// Arrange
+
+		vi.mocked(safeAreaTopInPx).mockReturnValue(24);
+		const scrollElement = makeScrollElement(0, "56px", 1000);
+
+		// Act
+
+		const actual = viewportTop(scrollElement);
+
+		// Assert
+
+		expect(actual).toBe(24);
 	});
 
 	it("Should fall back to the default header height when there is no scroller", () => {
