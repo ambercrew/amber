@@ -50,12 +50,14 @@ use crate::elements::repositories::learning_asset_mark_repository::LearningAsset
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::services::element_content_service::ElementContentService;
 use crate::elements::services::element_creation_service::ElementCreationService;
+use crate::elements::services::element_naming_service::ElementNamingService;
 use crate::elements::services::element_details_service::ElementDetailsService;
 use crate::elements::services::element_index_service::ElementIndexService;
 use crate::elements::services::element_move_service::ElementMoveService;
 use crate::elements::services::element_tree_service::ElementTreeService;
 use crate::elements::services::implementations::default_element_content_service::DefaultElementContentService;
 use crate::elements::services::implementations::default_element_creation_service::DefaultElementCreationService;
+use crate::elements::services::implementations::default_element_naming_service::DefaultElementNamingService;
 use crate::elements::services::implementations::default_element_details_service::DefaultElementDetailsService;
 use crate::elements::services::implementations::default_element_index_service::DefaultElementIndexService;
 use crate::elements::services::implementations::default_element_move_service::DefaultElementMoveService;
@@ -364,6 +366,11 @@ pub async fn create_injector<R: tauri::Runtime>(
         injector,
         dyn ElementContentService,
         DefaultElementContentService
+    );
+    register_scope!(
+        injector,
+        dyn ElementNamingService,
+        DefaultElementNamingService
     );
 
     // Bibliographical sources

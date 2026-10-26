@@ -111,6 +111,7 @@ impl ElementDetailsService for DefaultElementDetailsService {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
     use chrono::{Duration, Utc};
     use fractional_index::FractionalIndex;
@@ -205,6 +206,7 @@ mod tests {
         Meta {
             element_id: id,
             name: "test".into(),
+            name_source: NameSource::Manual,
             parent,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),

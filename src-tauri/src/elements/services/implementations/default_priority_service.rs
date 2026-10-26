@@ -410,6 +410,7 @@ fn priority_info(position: i64, total: i64) -> PriorityInfo {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use chrono::Utc;
     use injector::{injector::Injector, register_scope};
     use uuid::Uuid;
@@ -459,6 +460,7 @@ mod tests {
             meta: Meta {
                 element_id: ElementId::Folder(Uuid::new_v4()),
                 name: "test".into(),
+                name_source: NameSource::Manual,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority,

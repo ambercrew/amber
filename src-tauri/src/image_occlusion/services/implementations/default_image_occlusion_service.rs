@@ -77,7 +77,8 @@ impl ImageOcclusionService for DefaultImageOcclusionService {
     async fn create(&self, dto: CreateImageOcclusionDto) -> Result<(), ImageOcclusionError> {
         let occlusion = ImageOcclusion {
             id: dto.id,
-            name: dto.meta.name,
+            // Occlusions are always named by the frontend; their cards never follow content.
+            name: dto.meta.name.unwrap_or_default(),
             image_asset_id: dto.image_asset_id,
             image_width: dto.image_width,
             image_height: dto.image_height,
@@ -255,7 +256,7 @@ impl DefaultImageOcclusionService {
                 .create_card(CreateCardDto {
                     id: card_id,
                     meta: CreateMetaDto {
-                        name: format!("{} · {}", occlusion.name, index + 1),
+                        name: Some(format!("{} · {}", occlusion.name, index + 1)),
                         parent,
                         origin: origin.clone(),
                     },
@@ -277,6 +278,7 @@ impl DefaultImageOcclusionService {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use chrono::Utc;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, injector_scope::InjectorScope, register_scope};
@@ -447,6 +449,7 @@ mod tests {
             meta: Meta {
                 element_id,
                 name: "parent".into(),
+                name_source: NameSource::Manual,
                 parent,
                 position: FractionalIndex::default(),
                 priority: FractionalIndex::default(),
@@ -486,7 +489,7 @@ mod tests {
         CreateImageOcclusionDto {
             id: Uuid::new_v4(),
             meta: CreateMetaDto {
-                name: "Heart".into(),
+                name: Some("Heart".into()),
                 parent,
                 origin: Origin::Inherited,
             },

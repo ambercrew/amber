@@ -107,6 +107,7 @@ impl AgentProvider for DefaultAgentProvider {
 
 #[cfg(test)]
 pub mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_log_repository::SqliteLearningAssetReviewLogRepository;
     use crate::study::repositories::learning_asset_review_log_repository::LearningAssetReviewLogRepository;
     use crate::study::services::implementations::default_learning_asset_scheduling_service::DefaultLearningAssetSchedulingService;
@@ -473,6 +474,7 @@ pub mod tests {
         Meta {
             element_id: id,
             name: "My Learning Asset".into(),
+            name_source: NameSource::Manual,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),

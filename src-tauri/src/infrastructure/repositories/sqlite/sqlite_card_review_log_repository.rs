@@ -71,6 +71,7 @@ impl CardReviewLogRepository for SqliteCardReviewLogRepository {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use chrono::{Duration, TimeZone};
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
@@ -112,6 +113,7 @@ mod tests {
                 meta: Meta {
                     element_id: ElementId::Card(card_id),
                     name: "test".into(),
+                    name_source: NameSource::Manual,
                     parent: None,
                     position: FractionalIndex::default(),
                     priority: FractionalIndex::default(),

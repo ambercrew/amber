@@ -40,9 +40,11 @@ use crate::elements::services::element_content_service::ElementContentService;
 use crate::elements::services::element_creation_service::ElementCreationService;
 use crate::elements::services::element_details_service::ElementDetailsService;
 use crate::elements::services::element_move_service::ElementMoveService;
+use crate::elements::services::element_naming_service::ElementNamingService;
 use crate::elements::services::element_tree_service::ElementTreeService;
 use crate::elements::services::priority_service::PriorityService;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::elements::value_objects::name_source::NameSource;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use injector::injector::Injector;
@@ -71,6 +73,22 @@ pub async fn rename_element(
         .resolve::<dyn MetaRepository>()
         .await
         .rename(element_id, new_name)
+        .await?;
+    scope.save_changes().await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_element_name_source(
+    injector: State<'_, Arc<Injector>>,
+    element_id: ElementId,
+    name_source: NameSource,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    scope
+        .resolve::<dyn ElementNamingService>()
+        .await
+        .set_name_source(element_id, name_source)
         .await?;
     scope.save_changes().await?;
     Ok(())

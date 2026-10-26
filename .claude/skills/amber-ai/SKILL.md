@@ -30,6 +30,8 @@ the existing tool closest to what you need and follow its shape.
 - **Go through services**, never repositories, so events, sync and UI refreshes still happen.
 - **The open element comes from the context**, not from the model's arguments, so the model can't
   act on something else.
+- **Leave new elements' names `None`** (`CreateMetaDto`), so they're named after their content
+  with clozes hidden and keep following it until the user renames them.
 - **Return ids** for anything a tool creates or finds. The model can only link to elements whose ids
   it has seen, and links use `element_reference`.
 - **Use the app's wording** in names, descriptions and approval text (e.g. "finished", not "done").

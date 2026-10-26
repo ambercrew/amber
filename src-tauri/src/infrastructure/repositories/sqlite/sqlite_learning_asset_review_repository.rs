@@ -120,6 +120,7 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use chrono::Duration;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
@@ -165,6 +166,7 @@ mod tests {
         Meta {
             element_id: id,
             name: "test".into(),
+            name_source: NameSource::Manual,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),

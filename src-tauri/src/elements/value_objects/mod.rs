@@ -8,5 +8,6 @@ pub mod learning_asset_split_text;
 pub mod learning_asset_type;
 pub mod mark_slot;
 pub mod meta;
+pub mod name_source;
 pub mod origin;
 pub mod reading_position;

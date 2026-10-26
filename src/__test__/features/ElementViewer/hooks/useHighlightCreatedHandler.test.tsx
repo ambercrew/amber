@@ -103,8 +103,6 @@ describe("useHighlightCreatedHandler", () => {
 			id: "new-id",
 			selectionNodes: [text("New Text")],
 			fullNodes,
-			selectionText: "New Text",
-			fullText: "A Old B New Text C",
 			color: "blue",
 			endBlockIndex: 0,
 		});
@@ -114,7 +112,7 @@ describe("useHighlightCreatedHandler", () => {
 		const dto = vi.mocked(createCardAction).mock.calls[0][0];
 		expect(dto.id).toBe("new-id");
 		expect(dto.meta).toEqual({
-			name: "A Old B New Text C",
+			name: null,
 			parent: ELEMENT_ID,
 			origin: { type: "inherited" },
 		});
@@ -128,72 +126,6 @@ describe("useHighlightCreatedHandler", () => {
 		expect(frontClozes[0].hiddenText).toBe("New Text");
 
 		expect(collectText(parseRoot(dto.back))).toBe("New Text");
-	});
-
-	it("Should name the card from the full document's plain text rather than the back text", () => {
-		// Arrange
-
-		const handleHighlightCreated = renderHandler();
-		const fullNodes = [
-			paragraph([
-				text("Some context before "),
-				highlight("new-id", "blue", [text("the answer")]),
-				text(" and after"),
-			]),
-		];
-
-		// Act
-
-		handleHighlightCreated({
-			id: "new-id",
-			selectionNodes: [text("the answer")],
-			fullNodes,
-			selectionText: "the answer",
-			fullText: "Some context before the answer and after",
-			color: "blue",
-			endBlockIndex: 0,
-		});
-
-		// Assert
-
-		expect(createCardAction).toHaveBeenCalledWith(
-			expect.objectContaining({
-				meta: expect.objectContaining({
-					name: "Some context before the answer and after",
-				}) as object,
-			}),
-		);
-	});
-
-	it("Should truncate the card name to 50 characters", () => {
-		// Arrange
-
-		const handleHighlightCreated = renderHandler();
-		const longText = "A".repeat(60);
-
-		// Act
-
-		handleHighlightCreated({
-			id: "new-id",
-			selectionNodes: [text(longText)],
-			fullNodes: [
-				paragraph([highlight("new-id", "blue", [text(longText)])]),
-			],
-			selectionText: longText,
-			fullText: longText,
-			color: "blue",
-			endBlockIndex: 0,
-		});
-
-		// Assert
-
-		expect(createCardAction).toHaveBeenCalledWith(
-			expect.objectContaining({
-				meta: expect.objectContaining({
-					name: "A".repeat(50),
-				}) as object,
-			}),
-		);
 	});
 
 	it("Should create an extract stripped of other highlights when color is not blue", () => {
@@ -212,8 +144,6 @@ describe("useHighlightCreatedHandler", () => {
 				]),
 			],
 			fullNodes: [paragraph([text("irrelevant")])],
-			selectionText: "Nested Rest",
-			fullText: "irrelevant",
 			color: "yellow",
 			endBlockIndex: 0,
 		});
@@ -223,7 +153,7 @@ describe("useHighlightCreatedHandler", () => {
 		const dto = vi.mocked(createExtractAction).mock.calls[0][0];
 		expect(dto.id).toBe("new-id");
 		expect(dto.meta).toEqual({
-			name: "Nested Rest",
+			name: null,
 			parent: ELEMENT_ID,
 			origin: { type: "inherited" },
 		});
@@ -259,8 +189,6 @@ describe("useHighlightCreatedHandler", () => {
 			id: "new-id",
 			selectionNodes,
 			fullNodes,
-			selectionText: "Old New Text",
-			fullText: "First Second New Text Third",
 			color: "blue",
 			endBlockIndex: 0,
 		});
@@ -269,7 +197,7 @@ describe("useHighlightCreatedHandler", () => {
 
 		const dto = vi.mocked(createCardAction).mock.calls[0][0];
 		expect(dto.meta).toEqual({
-			name: "First Second New Text Third",
+			name: null,
 			parent: ELEMENT_ID,
 			origin: { type: "inherited" },
 		});
@@ -310,8 +238,6 @@ describe("useHighlightCreatedHandler", () => {
 			id: "new-id",
 			selectionNodes,
 			fullNodes,
-			selectionText: "Before Old Cloze New Text",
-			fullText: "Old Cloze New Text",
 			color: "blue",
 			endBlockIndex: 0,
 		});
@@ -320,7 +246,7 @@ describe("useHighlightCreatedHandler", () => {
 
 		const dto = vi.mocked(createCardAction).mock.calls[0][0];
 		expect(dto.meta).toEqual({
-			name: "Old Cloze New Text",
+			name: null,
 			parent: ELEMENT_ID,
 			origin: { type: "inherited" },
 		});
@@ -354,8 +280,6 @@ describe("useHighlightCreatedHandler", () => {
 				]),
 			],
 			fullNodes: [paragraph([text("irrelevant")])],
-			selectionText: "Before Old Cloze Rest",
-			fullText: "irrelevant",
 			color: "yellow",
 			endBlockIndex: 0,
 		});
@@ -364,7 +288,7 @@ describe("useHighlightCreatedHandler", () => {
 
 		const dto = vi.mocked(createExtractAction).mock.calls[0][0];
 		expect(dto.meta).toEqual({
-			name: "Before Old Cloze Rest",
+			name: null,
 			parent: ELEMENT_ID,
 			origin: { type: "inherited" },
 		});
@@ -390,8 +314,6 @@ describe("useHighlightCreatedHandler", () => {
 				]),
 			],
 			fullNodes: [paragraph([text("irrelevant")])],
-			selectionText: "First Middle Second",
-			fullText: "irrelevant",
 			color: "yellow",
 			endBlockIndex: 0,
 		});
@@ -400,7 +322,7 @@ describe("useHighlightCreatedHandler", () => {
 
 		const dto = vi.mocked(createExtractAction).mock.calls[0][0];
 		expect(dto.meta).toEqual({
-			name: "First Middle Second",
+			name: null,
 			parent: ELEMENT_ID,
 			origin: { type: "inherited" },
 		});
@@ -418,8 +340,6 @@ describe("useHighlightCreatedHandler", () => {
 			id: "new-id",
 			selectionNodes: [paragraph([text("Heart "), occludedImage()])],
 			fullNodes: [paragraph([text("irrelevant")])],
-			selectionText: "Heart ",
-			fullText: "irrelevant",
 			color: "yellow",
 			endBlockIndex: 0,
 		});

@@ -6,6 +6,7 @@ use crate::common::repository_error::RepositoryError;
 use crate::elements::entities::tag::Tag;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::meta::Meta;
+use crate::elements::value_objects::name_source::NameSource;
 
 #[async_trait]
 pub trait MetaRepository: Send + Sync {
@@ -22,7 +23,22 @@ pub trait MetaRepository: Send + Sync {
 
     /// Removes `tags` from the element's existing tags, ignoring ones not present.
     async fn remove_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError>;
+    /// A rename by the user, so the name becomes `NameSource::Manual`.
     async fn rename(&self, id: ElementId, new_name: String) -> Result<(), RepositoryError>;
+
+    /// Switches how the element's name is chosen, leaving the name itself as it is.
+    async fn set_name_source(
+        &self,
+        id: ElementId,
+        name_source: NameSource,
+    ) -> Result<(), RepositoryError>;
+
+    /// Renames the element only while its name is `NameSource::Automatic`, returning whether it changed.
+    async fn rename_automatically(
+        &self,
+        id: ElementId,
+        new_name: &str,
+    ) -> Result<bool, RepositoryError>;
     async fn exists(&self, id: ElementId) -> Result<bool, RepositoryError>;
 
     async fn get_name(&self, id: ElementId) -> Result<String, RepositoryError>;

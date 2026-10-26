@@ -1,14 +1,25 @@
-import { Stack, Text } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
+import FieldInfoIcon from "../../../components/FieldLabel/FieldInfoIcon";
 
 interface InfoFieldProps {
 	label: string;
+	/** Explains the field behind an info icon beside its label. */
+	tooltip?: string;
 	children: React.ReactNode;
 }
 
-function InfoField({ label, children }: InfoFieldProps) {
+function InfoField({ label, tooltip, children }: InfoFieldProps) {
+	const labelText = <Text size="xs">{label}</Text>;
 	return (
 		<Stack gap={2}>
-			<Text size="xs">{label}</Text>
+			{tooltip ? (
+				<Group gap={4}>
+					{labelText}
+					<FieldInfoIcon tooltip={tooltip} />
+				</Group>
+			) : (
+				labelText
+			)}
 			{children}
 		</Stack>
 	);

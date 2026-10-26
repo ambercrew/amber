@@ -510,6 +510,7 @@ fn escape_like(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
     use chrono::Utc;
     use fractional_index::FractionalIndex;
@@ -601,6 +602,7 @@ mod tests {
             meta: Meta {
                 element_id: ElementId::Folder(Uuid::new_v4()),
                 name: name.into(),
+                name_source: NameSource::Manual,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority,
@@ -618,6 +620,7 @@ mod tests {
             meta: Meta {
                 element_id: ElementId::Card(Uuid::new_v4()),
                 name: name.into(),
+                name_source: NameSource::Manual,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority,
@@ -638,6 +641,7 @@ mod tests {
             meta: Meta {
                 element_id: ElementId::LearningAsset(Uuid::new_v4()),
                 name: name.into(),
+                name_source: NameSource::Manual,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority,

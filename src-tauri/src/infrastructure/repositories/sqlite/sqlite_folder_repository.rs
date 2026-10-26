@@ -52,7 +52,8 @@ impl FolderRepository for SqliteFolderRepository {
                 m.study_profile_id as "study_profile_id: _",
                 m.bibliographical_source_id as "bibliographical_source_id: _",
                 m.created_at as "created_at: _",
-                m.modified_at as "modified_at: _"
+                m.modified_at as "modified_at: _",
+                m.name_source
             FROM folders f
             INNER JOIN meta m ON f.id = m.element_id
             WHERE m.trashed_at IS NULL
@@ -82,7 +83,8 @@ impl FolderRepository for SqliteFolderRepository {
                 m.study_profile_id as "study_profile_id: _",
                 m.bibliographical_source_id as "bibliographical_source_id: _",
                 m.created_at as "created_at: _",
-                m.modified_at as "modified_at: _"
+                m.modified_at as "modified_at: _",
+                m.name_source
             FROM folders f
             INNER JOIN meta m ON f.id = m.element_id
             WHERE f.id = $1"#,
@@ -97,6 +99,7 @@ impl FolderRepository for SqliteFolderRepository {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use chrono::Utc;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
@@ -146,6 +149,7 @@ mod tests {
         Meta {
             element_id: id,
             name: "test".into(),
+            name_source: NameSource::Manual,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),

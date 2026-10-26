@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
-	$getRoot,
 	$getSelection,
 	$isRangeSelection,
 	COMMAND_PRIORITY_EDITOR,
@@ -36,7 +35,6 @@ export function HighlightPlugin() {
 				}
 				if (!selection.getTextContent().trim()) return false;
 				$trimSelectionWhitespace(selection);
-				const selectionText = selection.getTextContent();
 
 				const { nodes: selectionNodes } =
 					$generateJSONFromSelectedNodes<SerializedLexicalNodeTree>(
@@ -69,13 +67,10 @@ export function HighlightPlugin() {
 						editor,
 						null,
 					);
-				const fullText = $getRoot().getTextContent();
 				const payload: HighlightCreatedPayload = {
 					id,
 					selectionNodes,
 					fullNodes,
-					selectionText,
-					fullText,
 					color,
 					endBlockIndex,
 				};

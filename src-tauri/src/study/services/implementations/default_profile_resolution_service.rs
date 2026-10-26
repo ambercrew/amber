@@ -180,6 +180,7 @@ impl DefaultProfileResolutionService {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
 
@@ -219,6 +220,7 @@ mod tests {
         Meta {
             element_id: id,
             name: "test".into(),
+            name_source: NameSource::Manual,
             parent,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),

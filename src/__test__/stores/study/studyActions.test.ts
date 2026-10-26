@@ -44,6 +44,7 @@ const META_FIELDS = {
 	tags: [],
 	createdAt: "2024-01-01T00:00:00Z",
 	modifiedAt: "2024-01-01T00:00:00Z",
+	nameSource: "manual" as const,
 	bibliographicalSourceId: null,
 	derivedFrom: null,
 };

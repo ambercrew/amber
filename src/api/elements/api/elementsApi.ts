@@ -1,3 +1,4 @@
+import { NameSource } from "../../../types/elements/nameSource";
 import { invoke } from "@tauri-apps/api/core";
 import { CreateCardDto } from "../../../types/elements/createCardDto";
 import { CreateExtractDto } from "../../../types/elements/createExtractDto";
@@ -130,6 +131,13 @@ export function updateExtract(dto: UpdateExtractDto): Promise<void> {
 
 export function updateCard(dto: UpdateCardDto): Promise<void> {
 	return invoke("update_card", { dto });
+}
+
+export function setElementNameSource(
+	elementId: ElementId,
+	nameSource: NameSource,
+): Promise<void> {
+	return invoke("set_element_name_source", { elementId, nameSource });
 }
 
 export function elementExists(elementId: ElementId): Promise<boolean> {

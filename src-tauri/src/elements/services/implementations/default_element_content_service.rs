@@ -13,6 +13,8 @@ use crate::elements::repositories::card_repository::CardRepository;
 use crate::elements::repositories::extract_repository::ExtractRepository;
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::services::element_content_service::ElementContentService;
+use crate::elements::services::element_naming_service::ElementNamingService;
+use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::learning_asset_split_id::LearningAssetSplitId;
 
 #[derive(ScopeInjectable)]
@@ -21,6 +23,7 @@ pub struct DefaultElementContentService {
     extract_repository: Arc<dyn ExtractRepository>,
     card_repository: Arc<dyn CardRepository>,
     asset_service: Arc<dyn AssetService>,
+    naming_service: Arc<dyn ElementNamingService>,
 }
 
 #[async_trait]
@@ -31,6 +34,15 @@ impl ElementContentService for DefaultElementContentService {
     ) -> Result<(), RepositoryError> {
         let content = self.asset_service.ingest_content(dto.content).await?;
         let split_id: LearningAssetSplitId = dto.split_id.into();
+        // Only the first split's opening words name the learning asset.
+        if split_id.seq == 0 {
+            self.naming_service
+                .rename_from_content(
+                    ElementId::LearningAsset(split_id.learning_asset_id),
+                    &[&content],
+                )
+                .await?;
+        }
         self.learning_asset_repository
             .update_content(
                 split_id.learning_asset_id,
@@ -41,6 +53,9 @@ impl ElementContentService for DefaultElementContentService {
 
     async fn update_extract(&self, dto: UpdateExtractDto) -> Result<(), RepositoryError> {
         let content = self.asset_service.ingest_content(dto.content).await?;
+        self.naming_service
+            .rename_from_content(ElementId::Extract(dto.id), &[&content])
+            .await?;
         self.extract_repository
             .update_content(dto.id, content)
             .await
@@ -49,6 +64,9 @@ impl ElementContentService for DefaultElementContentService {
     async fn update_card(&self, dto: UpdateCardDto) -> Result<(), RepositoryError> {
         let front = self.asset_service.ingest_content(dto.front).await?;
         let back = self.asset_service.ingest_content(dto.back).await?;
+        self.naming_service
+            .rename_from_content(ElementId::Card(dto.id), &[&front, &back])
+            .await?;
         self.card_repository
             .update_content(dto.id, front, back)
             .await

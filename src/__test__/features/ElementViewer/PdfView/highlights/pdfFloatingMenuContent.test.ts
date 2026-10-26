@@ -240,25 +240,11 @@ describe("buildExtractDto", () => {
 
 		expect(dto).not.toBeNull();
 		expect(dto!.meta).toEqual({
-			name: "Selected phrase",
+			name: null,
 			parent: PARENT,
 			origin: { type: "inherited" },
 		});
 		expect(collectText(parseRoot(dto!.content))).toBe("Selected phrase");
-	});
-
-	it("Should truncate a long selection's name to 50 characters", () => {
-		// Arrange
-
-		const longText = "A".repeat(60);
-
-		// Act
-
-		const dto = buildExtractDto([longText], PARENT);
-
-		// Assert
-
-		expect(dto!.meta.name).toBe("A".repeat(50));
 	});
 });
 
@@ -292,7 +278,7 @@ describe("buildClozeCardDto", () => {
 
 		expect(dto).not.toBeNull();
 		expect(dto!.meta).toEqual({
-			name: "Selected",
+			name: null,
 			parent: PARENT,
 			origin: { type: "inherited" },
 		});
@@ -320,20 +306,5 @@ describe("buildClozeCardDto", () => {
 
 		const clozes = collectByType(parseRoot(dto!.front), "cloze-hidden");
 		expect(clozes[0].hiddenText).toBe(`"quoted phrase"`);
-	});
-
-	it("Should name the card from the selected text joined across pages", () => {
-		// Arrange
-
-		const pageTexts = ["Page one Selected1", "Page two Selected2"];
-		const selectedTexts = ["Selected1", "Selected2"];
-
-		// Act
-
-		const dto = buildClozeCardDto(pageTexts, selectedTexts, PARENT);
-
-		// Assert
-
-		expect(dto!.meta.name).toBe("Selected1 Selected2");
 	});
 });

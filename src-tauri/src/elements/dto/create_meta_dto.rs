@@ -6,7 +6,8 @@ use crate::elements::value_objects::origin::Origin;
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateMetaDto {
-    pub name: String,
+    /// `None` names the element after its content until the user renames it (see `auto_name`).
+    pub name: Option<String>,
     pub parent: Option<ElementId>,
     pub origin: Origin,
 }

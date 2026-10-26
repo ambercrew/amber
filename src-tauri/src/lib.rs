@@ -186,6 +186,7 @@ pub async fn run() {
             get_element_by_id,
             get_element_details,
             rename_element,
+            set_element_name_source,
             element_exists,
             get_element_name,
             move_element,

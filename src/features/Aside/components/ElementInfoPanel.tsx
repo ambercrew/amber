@@ -7,7 +7,6 @@ import {
 	Text,
 	TagsInput,
 } from "@mantine/core";
-import { useEffect, useRef, useState } from "react";
 import { useDebouncedCallback } from "@mantine/hooks";
 import useAppSelector from "../../../hooks/useAppSelector";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -16,7 +15,6 @@ import {
 	updateElementTags,
 	updateIntervalMultiplier,
 } from "../../../api/elements/api/elementsApi";
-import { renameElementAction } from "../../../stores/elements/elementsActions";
 import { selectCurrentElementDetails } from "../../../stores/elementDetails/elementDetailsSelectors";
 import { selectElementRefreshCount } from "../../../stores/sync/syncSelector";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
@@ -25,11 +23,11 @@ import { ElementId } from "../../../types/elements/elementId";
 import { dueIsoFor, hasDue } from "../../../utils/elementDue";
 import { openPriorityModal } from "../../../stores/app/appReducer";
 import { commandIcon } from "../../../commands/commandIcon";
-import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
 import ElementProfileRow from "../../Study/components/ElementProfileRow";
 import DueDateInput from "../../Study/components/DueDateInput";
 import FinishedSwitch from "../../Study/components/FinishedSwitch";
 import InfoField from "./InfoField";
+import ElementNameField from "./ElementNameField";
 import InfoGroup from "./InfoGroup";
 import ReviewDetails from "./ReviewDetails";
 import OriginSection from "./OriginSection";
@@ -46,14 +44,6 @@ function ElementInfoPanel() {
 	const details = useAppSelector(selectCurrentElementDetails);
 	const refreshCount = useAppSelector(selectElementRefreshCount);
 
-	const debouncedRename = useDebouncedCallback(
-		async (id: ElementId, name: string) => {
-			if (!name) return;
-			await dispatch(renameElementAction(id, name));
-		},
-		500,
-	);
-
 	const debouncedUpdateTags = useDebouncedCallback(
 		(id: ElementId, tags: string[]) => updateElementTags(id, tags),
 		500,
@@ -63,18 +53,6 @@ function ElementInfoPanel() {
 		(id: ElementId, value: number) => updateIntervalMultiplier(id, value),
 		500,
 	);
-
-	const storedName = storedMeta?.name ?? "";
-	const nameRef = useRef<HTMLTextAreaElement>(null);
-	const [name, setName] = useState(storedName);
-
-	useEffect(() => {
-		// Renames from elsewhere (e.g. the sidebar) must land in the field, but
-		// the echo of our own debounced rename must not clobber what is being
-		// typed here.
-		if (document.activeElement === nameRef.current) return;
-		setName(storedName);
-	}, [storedName]);
 
 	if (!storedMeta) {
 		return (
@@ -92,20 +70,11 @@ function ElementInfoPanel() {
 	return (
 		<Stack gap="lg">
 			<InfoGroup title="Details" storageKey="details">
-				<InfoField label="Name">
-					<AutosizeTextInput
-						ref={nameRef}
-						size="sm"
-						value={name}
-						onChange={e => {
-							setName(e.currentTarget.value);
-							debouncedRename(
-								storedMeta.elementId,
-								e.currentTarget.value,
-							);
-						}}
-					/>
-				</InfoField>
+				<ElementNameField
+					elementId={storedMeta.elementId}
+					name={storedMeta.name}
+					nameSource={storedMeta.nameSource}
+				/>
 				<InfoField label="Tags">
 					<TagsInput
 						key={`tags-${storedMeta.elementId.id}-${refreshCount}`}

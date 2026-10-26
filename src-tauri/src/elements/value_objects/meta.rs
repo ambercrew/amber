@@ -3,11 +3,13 @@ use fractional_index::FractionalIndex;
 use uuid::Uuid;
 
 use crate::elements::value_objects::element_id::ElementId;
+use crate::elements::value_objects::name_source::NameSource;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Meta {
     pub element_id: ElementId,
     pub name: String,
+    pub name_source: NameSource,
     pub parent: Option<ElementId>,
     pub position: FractionalIndex,
     /// Global ordering across all elements, independent of `position` (which

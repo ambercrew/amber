@@ -161,6 +161,7 @@ fn validate_fsrs_params(
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
@@ -396,6 +397,7 @@ mod tests {
             .create_meta(&Meta {
                 element_id: folder_id,
                 name: "test".into(),
+                name_source: NameSource::Manual,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority: FractionalIndex::default(),
@@ -434,6 +436,7 @@ mod tests {
         let make_folder = |id: ElementId| Meta {
             element_id: id,
             name: "test".into(),
+            name_source: NameSource::Manual,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),

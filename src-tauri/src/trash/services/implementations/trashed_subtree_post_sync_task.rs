@@ -50,6 +50,7 @@ impl PostSyncTask for TrashedSubtreePostSyncTask {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use chrono::{TimeZone, Utc};
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, injector_scope::InjectorScope, register_scope};
@@ -81,6 +82,7 @@ mod tests {
             meta: Meta {
                 element_id: ElementId::Folder(Uuid::new_v4()),
                 name: name.into(),
+                name_source: NameSource::Manual,
                 parent,
                 position: FractionalIndex::default(),
                 priority: FractionalIndex::default(),

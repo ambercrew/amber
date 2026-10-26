@@ -32,10 +32,12 @@ use crate::elements::services::element_creation_service::{
 };
 use crate::elements::services::element_index_service::ElementIndexService;
 use crate::elements::services::priority_service::PriorityService;
+use crate::elements::utils::auto_name::auto_name;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::learning_asset_content::LearningAssetContent;
 use crate::elements::value_objects::learning_asset_type::LearningAssetType;
 use crate::elements::value_objects::meta::Meta;
+use crate::elements::value_objects::name_source::NameSource;
 use crate::elements::value_objects::origin::Origin;
 use crate::study::entities::card_review::CardReview;
 use crate::study::entities::learning_asset_review::LearningAssetReview;
@@ -78,11 +80,13 @@ impl ElementCreationService for DefaultElementCreationService {
             .await?;
 
         let element_id = ElementId::Folder(Uuid::new_v4());
+        let (name, name_source) = resolve_name(dto.meta.name, &[], now);
 
         let folder = Folder {
             meta: Meta {
                 element_id,
-                name: dto.meta.name,
+                name,
+                name_source,
                 parent,
                 position,
                 priority,
@@ -125,11 +129,15 @@ impl ElementCreationService for DefaultElementCreationService {
             }
         };
 
+        let first_split = dto.splits.first().map(String::as_str);
+        let (name, name_source) = resolve_name(dto.meta.name, first_split.as_slice(), now);
+
         let learning_asset = LearningAsset {
             r#type: dto.r#type,
             meta: Meta {
                 element_id,
-                name: dto.meta.name,
+                name,
+                name_source,
                 parent,
                 position,
                 priority,
@@ -191,10 +199,13 @@ impl ElementCreationService for DefaultElementCreationService {
             .resolve_priority(derived_from, parent, &profile)
             .await?;
 
+        let (name, name_source) = resolve_name(dto.meta.name, &[&dto.content], now);
+
         let extract = Extract {
             meta: Meta {
                 element_id,
-                name: dto.meta.name,
+                name,
+                name_source,
                 parent,
                 position,
                 priority,
@@ -231,10 +242,13 @@ impl ElementCreationService for DefaultElementCreationService {
             .resolve_priority(derived_from, parent, &profile)
             .await?;
 
+        let (name, name_source) = resolve_name(dto.meta.name, &[&dto.front, &dto.back], now);
+
         let card = Card {
             meta: Meta {
                 element_id,
-                name: dto.meta.name,
+                name,
+                name_source,
                 parent,
                 position,
                 priority,
@@ -252,6 +266,18 @@ impl ElementCreationService for DefaultElementCreationService {
         self.copy_parent_tags(parent, element_id).await?;
         self.emit_element_created(parent).await;
         Ok(())
+    }
+}
+
+/// The given name, else one derived from `contents`.
+fn resolve_name(
+    name: Option<String>,
+    contents: &[&str],
+    created_at: DateTime<Utc>,
+) -> (String, NameSource) {
+    match name {
+        Some(name) => (name, NameSource::Manual),
+        None => (auto_name(contents, created_at), NameSource::Automatic),
     }
 }
 
@@ -475,6 +501,7 @@ mod tests {
             meta: Meta {
                 element_id,
                 name: "parent".into(),
+                name_source: NameSource::Manual,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority: FractionalIndex::default(),
@@ -502,7 +529,7 @@ mod tests {
 
     fn dto_meta(parent: Option<ElementId>) -> crate::elements::dto::create_meta_dto::CreateMetaDto {
         crate::elements::dto::create_meta_dto::CreateMetaDto {
-            name: "test".into(),
+            name: Some("test".into()),
             parent,
             origin: Origin::Custom {
                 derived_from: None,
@@ -730,6 +757,70 @@ mod tests {
             .await
             .unwrap();
         assert!(review.is_some());
+    }
+
+    #[tokio::test]
+    async fn create_extract_no_name_names_it_automatically_after_content() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile(&scope, 1.0).await;
+        let service = create_service(&scope).await;
+        let dto = CreateExtractDto {
+            id: Uuid::new_v4(),
+            meta: crate::elements::dto::create_meta_dto::CreateMetaDto {
+                name: None,
+                ..dto_meta(None)
+            },
+            content: r#"{"root":{"children":[{"type":"paragraph","children":[{"type":"text","text":"Cell biology"}]}]}}"#.into(),
+        };
+        let element_id = ElementId::Extract(dto.id);
+
+        // Act
+
+        service.create_extract(dto).await.unwrap();
+
+        // Assert
+
+        let meta = scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .get_by_id(element_id.id())
+            .await
+            .unwrap();
+        assert_eq!("Cell biology", meta.name);
+        assert_eq!(NameSource::Automatic, meta.name_source);
+    }
+
+    #[tokio::test]
+    async fn create_extract_given_name_keeps_it_manual() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile(&scope, 1.0).await;
+        let service = create_service(&scope).await;
+        let dto = CreateExtractDto {
+            id: Uuid::new_v4(),
+            meta: dto_meta(None),
+            content: String::new(),
+        };
+        let element_id = ElementId::Extract(dto.id);
+
+        // Act
+
+        service.create_extract(dto).await.unwrap();
+
+        // Assert
+
+        let meta = scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .get_by_id(element_id.id())
+            .await
+            .unwrap();
+        assert_eq!(NameSource::Manual, meta.name_source);
     }
 
     async fn create_test_profile_with_interval_multiplier(
@@ -1109,6 +1200,7 @@ mod tests {
             meta: Meta {
                 element_id: ElementId::Folder(Uuid::new_v4()),
                 name: "root".into(),
+                name_source: NameSource::Manual,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority,

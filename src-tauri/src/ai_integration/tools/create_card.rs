@@ -21,8 +21,6 @@ use crate::elements::services::element_creation_service::{
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::origin::Origin;
 
-const MAX_NAME_LEN: usize = 60;
-
 #[derive(Deserialize, Debug, Clone, Serialize, schemars::JsonSchema)]
 pub struct CreateCardArgs {
     #[schemars(description = "The text shown on the front of the card (the question or prompt).")]
@@ -95,7 +93,7 @@ impl Tool for CreateCard {
         let dto = CreateCardDto {
             id: card_id,
             meta: CreateMetaDto {
-                name: card_name(&args.front),
+                name: None,
                 parent: self.parent,
                 origin: Origin::Inherited,
             },
@@ -132,20 +130,6 @@ pub(super) fn card_approval_markdown(parent: Option<ElementId>, front: &str, bac
 
 pub(super) fn card_approved_markdown(card_id: Uuid) -> String {
     format!("Created {}", element_reference(ElementId::Card(card_id)))
-}
-
-/// Derives a short element name from the front text.
-pub(super) fn card_name(front: &str) -> String {
-    let trimmed = front.trim();
-
-    if trimmed.chars().count() > MAX_NAME_LEN {
-        format!(
-            "{}…",
-            trimmed.chars().take(MAX_NAME_LEN).collect::<String>()
-        )
-    } else {
-        trimmed.to_string()
-    }
 }
 
 #[cfg(test)]
@@ -397,7 +381,6 @@ pub(super) mod tests {
         let cards = card_repository.get_all().await.unwrap();
         assert_eq!(1, cards.len());
         assert_eq!(cards[0].meta.element_id.id(), actual.card_id);
-        assert_eq!("What is the capital of France?", cards[0].meta.name);
         assert_eq!("What is the capital of France?", cards[0].front);
         assert_eq!("Paris", cards[0].back);
     }
@@ -432,7 +415,7 @@ pub(super) mod tests {
         element_creation_service
             .create_folder(crate::elements::dto::create_folder_dto::CreateFolderDto {
                 meta: CreateMetaDto {
-                    name: "Parent folder".to_string(),
+                    name: Some("Parent folder".to_string()),
                     parent: None,
                     origin: Origin::Custom {
                         derived_from: None,

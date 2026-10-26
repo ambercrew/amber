@@ -4,6 +4,7 @@ pub mod element_details_service;
 pub mod element_index_service;
 pub mod element_move_error;
 pub mod element_move_service;
+pub mod element_naming_service;
 pub mod element_tree_service;
 pub mod implementations;
 pub mod priority_service;

@@ -23,6 +23,7 @@ import { loadElementDetailsAction } from "../elementDetails/elementDetailsAction
 import {
 	setCurrentElement,
 	setCurrentElementMeta,
+	setElementNameSource,
 	setTree,
 	setTreeError,
 	setTreeLoading,
@@ -60,8 +61,13 @@ export function setDerivedFromAction(
 	};
 }
 
+// Renaming makes the name manual on the backend, so the open element follows.
 export function renameElementAction(elementId: ElementId, newName: string) {
-	return withTreeRefresh(() => renameElement(elementId, newName));
+	return (dispatch: AppDispatch) =>
+		withTreeRefresh(async () => {
+			await renameElement(elementId, newName);
+			dispatch(setElementNameSource({ elementId, nameSource: "manual" }));
+		})(dispatch);
 }
 
 // The backend emits an `elementCreated` event for every one of these, which
