@@ -464,7 +464,7 @@ describe("gradeCardAction", () => {
 });
 
 describe("stopStudySessionAction", () => {
-	it("Should reset the session state and fire STUDY_SESSION_FINISHED", () => {
+	it("Should reset the session state, keep the queue and fire STUDY_SESSION_FINISHED", () => {
 		// Arrange
 
 		const store = setupStore({
@@ -483,7 +483,7 @@ describe("stopStudySessionAction", () => {
 		// Assert
 
 		expect(store.getState().study.status).toBe("editing");
-		expect(store.getState().study.queue).toEqual([]);
+		expect(store.getState().study.queue).toHaveLength(2);
 		expect(listener).toHaveBeenCalledTimes(1);
 		window.removeEventListener(STUDY_SESSION_FINISHED, listener);
 	});

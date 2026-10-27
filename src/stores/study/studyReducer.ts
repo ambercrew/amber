@@ -145,7 +145,13 @@ const studySlice = createSlice({
 				state.shownAt = Date.now();
 			}
 		},
-		sessionStopped: resetSession,
+		// Keeps the remaining queue (still due) so the sidebar preview doesn't
+		// blank out before its refresh replaces it.
+		sessionStopped: state => {
+			const { queue } = state;
+			resetSession(state);
+			state.queue = queue;
+		},
 		summaryDismissed: state => {
 			state.summary = null;
 		},

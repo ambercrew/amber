@@ -362,7 +362,7 @@ describe("studyReducer", () => {
 		});
 	});
 
-	it("Should reset the session state when sessionStopped is dispatched", () => {
+	it("Should reset the session state but keep the queue when sessionStopped is dispatched", () => {
 		// Arrange
 
 		const state: StudyState = {
@@ -380,7 +380,7 @@ describe("studyReducer", () => {
 		// Assert
 
 		expect(actual.status).toBe("editing");
-		expect(actual.queue).toEqual([]);
+		expect(actual.queue).toEqual([queueItem("card", "1")]);
 		expect(actual.cardPhase).toBe("question");
 		expect(actual.shownAt).toBeNull();
 	});
