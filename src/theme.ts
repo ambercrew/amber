@@ -2,6 +2,7 @@ import {
 	alpha,
 	AppShell,
 	Collapse,
+	Combobox,
 	createTheme,
 	Fieldset,
 	lighten,
@@ -156,6 +157,11 @@ export const theme = createTheme({
 		// Matches the app's other animations, and the carets turning beside it.
 		Collapse: Collapse.extend({
 			defaultProps: { transitionDuration: MOTION_DURATION_MS },
+		}),
+		// Absolute dropdowns portaled into the body shift the page layout, making
+		// full-screen modals flicker on mobile and dropdowns bounce on scroll.
+		Combobox: Combobox.extend({
+			defaultProps: { floatingStrategy: "fixed" },
 		}),
 		Fieldset: Fieldset.extend({
 			styles: {
