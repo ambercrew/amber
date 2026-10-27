@@ -22,8 +22,8 @@ import {
 	MoonIcon,
 	PencilSimpleIcon,
 	QueueIcon,
-	ShuffleIcon,
 	SidebarSimpleIcon,
+	SlidersIcon,
 	TrashIcon,
 	UploadSimpleIcon,
 } from "@phosphor-icons/react";
@@ -222,7 +222,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "open-study-session-settings",
 		group: "Study",
 		label: "Study session settings",
-		icon: createElement(ShuffleIcon),
+		icon: createElement(SlidersIcon),
 		execute: dispatch => dispatch(openStudySessionSettingsModal()),
 	},
 	"manage-study-profiles": {

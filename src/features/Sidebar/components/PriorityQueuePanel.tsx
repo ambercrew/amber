@@ -1,8 +1,18 @@
-import { Badge, Box, Group, NavLink, Stack, Text } from "@mantine/core";
+import {
+	Box,
+	Divider,
+	Group,
+	NavLink,
+	Progress,
+	Stack,
+	Text,
+} from "@mantine/core";
 import { IconProps } from "@phosphor-icons/react";
-import { ReactElement, useMemo } from "react";
+import { ReactElement, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { getHomeStatistics } from "../../../api/statistics/api/statisticsApi";
 import { commandIcon } from "../../../commands/commandIcon";
+import useApi from "../../../hooks/useApi";
 import { useElementParams } from "../../../hooks/useElementParams";
 import { paths } from "../../../paths";
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
@@ -13,17 +23,19 @@ import { selectStudyQueue } from "../../../stores/study/studySelectors";
 import { openStudySessionSettingsModal } from "../../../stores/app/appReducer";
 import { useDueElementsPreview } from "../../Study/hooks/useDueElementsPreview";
 import { ElementNodeType } from "../../../types/elements/elementNodeType";
-import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import PanelHeader from "./PanelHeader";
 
 const ICON_SIZE = 18;
-const COUNT_ICON_SIZE = 16;
 
 // Only the types that can actually be due, in the order they're shown.
-const COUNTED_TYPES: { type: ElementNodeType; label: string }[] = [
-	{ type: "learningAsset", label: "Learning assets" },
-	{ type: "extract", label: "Extracts" },
-	{ type: "card", label: "Cards" },
+const COUNTED_TYPES: {
+	type: ElementNodeType;
+	singular: string;
+	plural: string;
+}[] = [
+	{ type: "learningAsset", singular: "asset", plural: "assets" },
+	{ type: "extract", singular: "extract", plural: "extracts" },
+	{ type: "card", singular: "card", plural: "cards" },
 ];
 
 function PriorityQueuePanel() {
@@ -31,8 +43,22 @@ function PriorityQueuePanel() {
 	const dispatch = useAppDispatch();
 	const selected = useElementParams();
 	const queue = useAppSelector(selectStudyQueue);
+	const { callApi } = useApi();
+	const [reviewedToday, setReviewedToday] = useState<number | null>(null);
 
 	useDueElementsPreview();
+
+	// The queue shrinks as elements are reviewed, so refetch alongside it.
+	useEffect(() => {
+		void callApi(getHomeStatistics).then(result => {
+			if (!result) return;
+			setReviewedToday(
+				result.learningAssetCount +
+					result.extractCount +
+					result.cardCount,
+			);
+		});
+	}, [callApi, queue]);
 
 	const counts = useMemo(
 		() =>
@@ -45,6 +71,20 @@ function PriorityQueuePanel() {
 			),
 		[queue],
 	);
+
+	const progress =
+		reviewedToday === null
+			? null
+			: Math.round(
+					(reviewedToday / (reviewedToday + queue.length)) * 100,
+				);
+
+	const breakdown = COUNTED_TYPES.filter(({ type }) => counts[type])
+		.map(({ type, singular, plural }) => {
+			const count = counts[type] ?? 0;
+			return `${count} ${count === 1 ? singular : plural}`;
+		})
+		.join(" · ");
 
 	const header = (
 		<PanelHeader
@@ -77,37 +117,28 @@ function PriorityQueuePanel() {
 			<Box px="md" py="sm">
 				<Stack gap="xs">
 					{header}
-					<Group gap="xs" align="baseline">
-						<Text size="1.75rem" fw={700}>
-							{queue.length}
-						</Text>
-						<Text size="sm" c="dimmed">
-							due
-						</Text>
+					<Group justify="space-between" align="baseline">
+						<Group gap="xs" align="baseline">
+							<Text size="1.75rem" fw={700}>
+								{queue.length}
+							</Text>
+							<Text size="sm" c="dimmed">
+								due
+							</Text>
+						</Group>
+						{progress !== null && (
+							<Text size="xs" c="dimmed">
+								{progress}%
+							</Text>
+						)}
 					</Group>
-					<Group gap={4}>
-						{COUNTED_TYPES.map(({ type, label }) => (
-							<AppTooltip key={type} label={label} touch>
-								<Badge
-									size="lg"
-									radius="xl"
-									variant="default"
-									fw={700}
-									leftSection={
-										<Box display="flex">
-											<ElementNodeIcon
-												type={type}
-												size={COUNT_ICON_SIZE}
-											/>
-										</Box>
-									}>
-									{counts[type] ?? 0}
-								</Badge>
-							</AppTooltip>
-						))}
-					</Group>
+					<Progress value={progress ?? 0} size="sm" radius="xl" />
+					<Text size="sm" c="dimmed">
+						{breakdown} due
+					</Text>
 				</Stack>
 			</Box>
+			<Divider mb="xs" />
 			{queue.map(({ elementId, title }) => {
 				const isSelected =
 					selected?.type === elementId.type &&
