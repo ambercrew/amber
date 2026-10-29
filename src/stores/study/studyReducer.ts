@@ -3,6 +3,7 @@ import { DueElementDto } from "../../api/study/dto/dueElementDto";
 import { StudyScopeDto } from "../../api/study/dto/studyScopeDto";
 import { ElementId } from "../../types/elements/elementId";
 import { ElementNodeType } from "../../types/elements/elementNodeType";
+import { loadStudyScope } from "./studyScopeStorage";
 
 export type StudyStatus = "editing" | "studying";
 export type CardPhase = "question" | "answer";
@@ -41,7 +42,7 @@ const initialState: StudyState = {
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
-	studyScope: null,
+	studyScope: loadStudyScope(),
 };
 
 function isSameElement(a: ElementId, b: ElementId): boolean {

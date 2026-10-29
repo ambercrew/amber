@@ -1,14 +1,19 @@
 import { setupStore } from "../../../stores/store";
 import {
 	loadCurrentElementAction,
+	loadElementTree,
 	setDerivedFromAction,
 } from "../../../stores/elements/elementsActions";
 import {
 	elementExists,
 	getElementById,
 	getElementDetails,
+	getElementTree,
 	setDerivedFrom,
 } from "../../../api/elements/api/elementsApi";
+import { notifications } from "@mantine/notifications";
+import studyReducer from "../../../stores/study/studyReducer";
+import { elementStudyScope } from "../../../utils/studyScope";
 import { AnyElementDto } from "../../../api/elements/dto/anyElementDto";
 import { ElementDetailsResponseDto } from "../../../api/elements/dto/elementDetailsDto";
 import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
@@ -135,5 +140,32 @@ describe("setDerivedFromAction", () => {
 		expect(
 			store.getState().elements.currentElement?.data.meta.derivedFrom,
 		).toEqual(source);
+	});
+
+	it("Should reset a study scope on an element that is gone when the tree loads", async () => {
+		// Arrange
+
+		vi.mocked(getElementTree).mockResolvedValue([]);
+		const showNotification = vi
+			.spyOn(notifications, "show")
+			.mockImplementation(() => "");
+		const store = setupStore({
+			study: {
+				...studyReducer(undefined, { type: "" }),
+				studyScope: elementStudyScope({
+					type: "folder",
+					id: "folder-1",
+				}),
+			},
+		});
+
+		// Act
+
+		await store.dispatch(loadElementTree());
+
+		// Assert
+
+		expect(store.getState().study.studyScope).toBeNull();
+		showNotification.mockRestore();
 	});
 });

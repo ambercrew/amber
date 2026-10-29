@@ -20,6 +20,7 @@ import { ElementId } from "../../types/elements/elementId";
 import errorToString from "../../utils/errorToString";
 import { AppDispatch } from "../store";
 import { loadElementDetailsAction } from "../elementDetails/elementDetailsActions";
+import { resetStaleStudyScopeAction } from "../study/studyScopeActions";
 import {
 	setCurrentElement,
 	setCurrentElementMeta,
@@ -100,6 +101,7 @@ function withTreeRefresh(operation: () => Promise<void>) {
 			await operation();
 			const tree = await getElementTree();
 			dispatch(setTree(tree));
+			dispatch(resetStaleStudyScopeAction());
 		} catch (error) {
 			dispatch(setTreeError(errorToString(error)));
 		}

@@ -13,6 +13,7 @@ import errorToString from "../../utils/errorToString";
 import { setTree } from "../elements/elementsReducer";
 import { AppDispatch } from "../store";
 import { setTrash, setTrashError, setTrashLoading } from "./trashReducer";
+import { resetStaleStudyScopeAction } from "../study/studyScopeActions";
 
 export function loadTrash() {
 	return withTrashRefresh(() => Promise.resolve());
@@ -61,6 +62,7 @@ function withTrashRefresh(operation: () => Promise<void>) {
 			]);
 			dispatch(setTree(tree));
 			dispatch(setTrash(trash));
+			dispatch(resetStaleStudyScopeAction());
 		} catch (error) {
 			dispatch(setTrashError(errorToString(error)));
 		}

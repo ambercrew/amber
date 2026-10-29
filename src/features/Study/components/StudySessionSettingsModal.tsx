@@ -19,7 +19,7 @@ import { STUDY_SESSION_SETTINGS_CHANGED } from "../../../types/events/studySessi
 import { listSavedSearches } from "../../../api/savedSearches/api/savedSearchesApi";
 import { SavedSearchResponseDto } from "../../../api/savedSearches/dto/savedSearchResponseDto";
 import { StudyScopeDto } from "../../../api/study/dto/studyScopeDto";
-import { studyScopeChanged } from "../../../stores/study/studyReducer";
+import { changeStudyScopeAction } from "../../../stores/study/studyScopeActions";
 import {
 	selectStudyScope,
 	selectStudyStatus,
@@ -83,7 +83,7 @@ function StudySessionSettingsModal() {
 				: scopeDraft;
 		void callApplyApi(async () => {
 			await setFuzzFactor(fuzzFactor);
-			dispatch(studyScopeChanged(scope));
+			dispatch(changeStudyScopeAction(scope));
 			if (scope?.type === "custom") remember(scope.filters);
 			window.dispatchEvent(new Event(STUDY_SESSION_SETTINGS_CHANGED));
 			handleClose();

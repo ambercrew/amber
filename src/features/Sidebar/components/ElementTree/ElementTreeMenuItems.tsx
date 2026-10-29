@@ -9,7 +9,7 @@ import { ElementId } from "../../../../types/elements/elementId";
 import CreateElementDropDown from "../CreateElementMenuDropDown";
 import useAppDispatch from "../../../../hooks/useAppDispatch";
 import useAppSelector from "../../../../hooks/useAppSelector";
-import { studyScopeChanged } from "../../../../stores/study/studyReducer";
+import { changeStudyScopeAction } from "../../../../stores/study/studyScopeActions";
 import { selectStudyStatus } from "../../../../stores/study/studySelectors";
 import { elementStudyScope } from "../../../../utils/studyScope";
 import { useRecentCustomQueries } from "../../../Study/hooks/useRecentCustomQueries";
@@ -60,7 +60,7 @@ function ElementTreeMenuItems({
 				disabled={isStudying}
 				onClick={() => {
 					const scope = elementStudyScope(elementId);
-					dispatch(studyScopeChanged(scope));
+					dispatch(changeStudyScopeAction(scope));
 					remember(scope.filters);
 					runCommand("enter-study-mode");
 				}}>
