@@ -4,6 +4,7 @@ import {
 	MetaResponseDto,
 } from "../../api/elements/dto/anyElementDto";
 import { NodeDto } from "../../api/elements/dto/nodeDto";
+import { findTreeNode } from "../../utils/elementTree";
 import { ElementId } from "../../types/elements/elementId";
 import { NameSource } from "../../types/elements/nameSource";
 
@@ -103,16 +104,3 @@ export const {
 	setElementNameSource,
 	setZoomOwnedByCurrentView,
 } = elementsSlice.actions;
-
-function findTreeNode(nodes: NodeDto[], id: string): NodeDto | undefined {
-	for (const node of nodes) {
-		if (node.meta.elementId.id === id) return node;
-		const { folders, learningAssets, extracts, cards } = node.children;
-		const found = findTreeNode(
-			[...folders, ...learningAssets, ...extracts, ...cards],
-			id,
-		);
-		if (found) return found;
-	}
-	return undefined;
-}

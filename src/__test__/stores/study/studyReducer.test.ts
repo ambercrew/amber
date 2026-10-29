@@ -2,6 +2,7 @@ import studyReducer, {
 	answerShown,
 	cardGraded,
 	elementRequeued,
+	newlyDueElementsAdded,
 	learningAssetAdvanced,
 	learningAssetFinished,
 	sessionAdvanced,
@@ -24,6 +25,7 @@ const BASE_STATE: StudyState = {
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
+	studyScope: null,
 };
 
 describe("studyReducer", () => {
@@ -268,6 +270,81 @@ describe("studyReducer", () => {
 			// Assert
 
 			expect(actual.queue).toEqual(queue);
+		});
+	});
+
+	describe("newlyDueElementsAdded", () => {
+		const ids = (state: StudyState) =>
+			state.queue.map(item => item.elementId.id);
+
+		it("Should insert new elements in priority order between queued ones when they become due", () => {
+			// Arrange
+
+			const state: StudyState = {
+				...BASE_STATE,
+				status: "studying",
+				queue: [queueItem("card", "a"), queueItem("card", "c")],
+				totalCount: 2,
+			};
+			const due = ["a", "b", "c", "d"].map(id => queueItem("card", id));
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				newlyDueElementsAdded({ due, currentIndex: 0 }),
+			);
+
+			// Assert
+
+			expect(ids(actual)).toEqual(["a", "b", "c", "d"]);
+			expect(actual.totalCount).toBe(4);
+		});
+
+		it("Should insert after the current element when the new element outranks it", () => {
+			// Arrange
+
+			const state: StudyState = {
+				...BASE_STATE,
+				status: "studying",
+				queue: [queueItem("card", "b"), queueItem("card", "c")],
+				totalCount: 2,
+			};
+			const due = ["x", "y", "b", "c"].map(id => queueItem("card", id));
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				newlyDueElementsAdded({ due, currentIndex: 0 }),
+			);
+
+			// Assert
+
+			expect(ids(actual)).toEqual(["b", "x", "y", "c"]);
+		});
+
+		it("Should leave the queue unchanged when no session is running", () => {
+			// Arrange
+
+			const state: StudyState = {
+				...BASE_STATE,
+				queue: [queueItem("card", "a")],
+			};
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				newlyDueElementsAdded({
+					due: [queueItem("card", "a"), queueItem("card", "b")],
+					currentIndex: 0,
+				}),
+			);
+
+			// Assert
+
+			expect(ids(actual)).toEqual(["a"]);
 		});
 	});
 

@@ -161,6 +161,7 @@ const BASE_STUDY_STATE: StudyState = {
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
+	studyScope: null,
 };
 
 function elementsStateFor(currentElement: AnyElementDto): ElementsState {

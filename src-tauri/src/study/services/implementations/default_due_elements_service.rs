@@ -14,32 +14,83 @@ use crate::elements::value_objects::element_id_with_priority::ElementIdWithPrior
 use crate::local_configurations::repositories::local_configuration_repository::{
     LocalConfigurationRepository, LocalConfigurationRepositoryExt,
 };
+use crate::saved_searches::entities::saved_search_filter::ElementFilter;
+use crate::saved_searches::repositories::saved_search_repository::SavedSearchRepository;
+use crate::search::repositories::search_repository::SearchRepository;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::services::due_elements_service::DueElementsService;
 use crate::study::value_objects::fuzz_factor_configuration::{
     FUZZ_FACTOR_CONFIGURATION_NAME, FuzzFactorConfiguration,
 };
+use crate::study::value_objects::study_scope::StudyScope;
 
 #[derive(ScopeInjectable)]
 pub struct DefaultDueElementsService {
     card_review_repository: Arc<dyn CardReviewRepository>,
     learning_asset_review_repository: Arc<dyn LearningAssetReviewRepository>,
     local_configuration_repository: Arc<dyn LocalConfigurationRepository>,
+    saved_search_repository: Arc<dyn SavedSearchRepository>,
+    search_repository: Arc<dyn SearchRepository>,
 }
 
-#[async_trait]
-impl DueElementsService for DefaultDueElementsService {
-    async fn get_due_elements(&self) -> Result<Vec<ElementId>, RepositoryError> {
+impl DefaultDueElementsService {
+    async fn all_due(&self) -> Result<Vec<ElementIdWithPriority>, RepositoryError> {
         let as_of = Utc::now();
 
         let mut due = self.card_review_repository.get_due_cards(as_of).await?;
-
         due.extend(
             self.learning_asset_review_repository
                 .get_due_elements(as_of)
                 .await?,
         );
+        Ok(due)
+    }
+
+    async fn scope_filters(
+        &self,
+        scope: StudyScope,
+    ) -> Result<Vec<ElementFilter>, RepositoryError> {
+        match scope {
+            StudyScope::SavedSearch(id) => Ok(self
+                .saved_search_repository
+                .get_filters(id)
+                .await?
+                .into_iter()
+                .map(|saved| saved.filter)
+                .collect()),
+            StudyScope::Custom(filters) => Ok(filters),
+        }
+    }
+
+    /// Keeps the entries matching the scope; a scope without filters matches all.
+    async fn retain_matching(
+        &self,
+        due: &mut Vec<ElementIdWithPriority>,
+        scope: StudyScope,
+    ) -> Result<(), RepositoryError> {
+        let filters = self.scope_filters(scope).await?;
+        if filters.is_empty() {
+            return Ok(());
+        }
+
+        let matching = self.search_repository.matching_ids(&filters).await?;
+        due.retain(|entry| matching.contains(&entry.element_id));
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl DueElementsService for DefaultDueElementsService {
+    async fn get_due_elements(
+        &self,
+        scope: Option<StudyScope>,
+    ) -> Result<Vec<ElementId>, RepositoryError> {
+        let mut due = self.all_due().await?;
+
+        if let Some(scope) = scope {
+            self.retain_matching(&mut due, scope).await?;
+        }
 
         let fuzz_factor = self
             .local_configuration_repository
@@ -92,6 +143,10 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
+        elements::services::{
+            implementations::default_priority_service::DefaultPriorityService,
+            priority_service::PriorityService,
+        },
         elements::{
             entities::{card::Card, learning_asset::LearningAsset},
             repositories::{
@@ -111,6 +166,14 @@ mod tests {
             sqlite_learning_asset_review_repository::SqliteLearningAssetReviewRepository,
             sqlite_local_configuration_repository::SqliteLocalConfigurationRepository,
             sqlite_meta_repository::SqliteMetaRepository,
+        },
+        infrastructure::repositories::sqlite::{
+            sqlite_saved_search_repository::SqliteSavedSearchRepository,
+            sqlite_search_repository::SqliteSearchRepository,
+        },
+        saved_searches::entities::{
+            saved_search::SavedSearch,
+            saved_search_filter::{SavedSearchFilter, StringFilterOperator},
         },
         study::entities::learning_asset_review::LearningAssetReview,
         test_utils::create_test_injector,
@@ -142,8 +205,39 @@ mod tests {
             dyn LocalConfigurationRepository,
             SqliteLocalConfigurationRepository
         );
+        register_scope!(
+            injector,
+            dyn SavedSearchRepository,
+            SqliteSavedSearchRepository
+        );
+        register_scope!(injector, dyn PriorityService, DefaultPriorityService);
+        register_scope!(injector, dyn SearchRepository, SqliteSearchRepository);
         register_scope!(injector, dyn DueElementsService, DefaultDueElementsService);
         injector
+    }
+
+    async fn create_new_card(card_repo: &Arc<dyn CardRepository>, name: &str) -> ElementId {
+        let card_id = ElementId::Card(Uuid::new_v4());
+        card_repo
+            .create(Card {
+                meta: Meta {
+                    name: name.into(),
+                    ..make_meta(card_id)
+                },
+                front: String::new(),
+                back: String::new(),
+            })
+            .await
+            .unwrap();
+        card_id
+    }
+
+    fn name_contains(value: &str) -> ElementFilter {
+        ElementFilter::Name {
+            id: Uuid::new_v4(),
+            operator: StringFilterOperator::Contains,
+            value: value.into(),
+        }
     }
 
     fn make_meta(id: ElementId) -> Meta {
@@ -209,12 +303,138 @@ mod tests {
 
         // Act
 
-        let due = service.get_due_elements().await.unwrap();
+        let due = service.get_due_elements(None).await.unwrap();
 
         // Assert
 
         assert!(due.contains(&card_id));
         assert!(!due.contains(&learning_asset_id));
+    }
+
+    async fn create_saved_search(
+        saved_search_repo: &Arc<dyn SavedSearchRepository>,
+        name: &str,
+        filters: Vec<ElementFilter>,
+    ) -> Uuid {
+        let saved_search = SavedSearch {
+            id: Uuid::new_v4(),
+            created_at: Utc::now(),
+            modified_at: Utc::now(),
+            name: name.into(),
+            sort: None,
+        };
+        saved_search_repo.create(&saved_search).await.unwrap();
+        let filters: Vec<SavedSearchFilter> = filters
+            .into_iter()
+            .enumerate()
+            .map(|(index, filter)| SavedSearchFilter {
+                index: index as i64,
+                filter,
+            })
+            .collect();
+        saved_search_repo
+            .replace_filters(saved_search.id, &filters)
+            .await
+            .unwrap();
+        saved_search.id
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_saved_search_scope_returns_only_matching_due_elements() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let saved_search_repo = scope.resolve::<dyn SavedSearchRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+
+        let matching = create_new_card(&card_repo, "Rust ownership").await;
+        let other = create_new_card(&card_repo, "French verbs").await;
+        let saved_search_id =
+            create_saved_search(&saved_search_repo, "Rust", vec![name_contains("Rust")]).await;
+
+        // Act
+
+        let due = service
+            .get_due_elements(Some(StudyScope::SavedSearch(saved_search_id)))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(due.contains(&matching));
+        assert!(!due.contains(&other));
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_no_scope_returns_every_due_element() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+
+        let first = create_new_card(&card_repo, "Rust ownership").await;
+        let second = create_new_card(&card_repo, "French verbs").await;
+
+        // Act
+
+        let due = service.get_due_elements(None).await.unwrap();
+
+        // Assert
+
+        assert!(due.contains(&first));
+        assert!(due.contains(&second));
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_deleted_saved_search_scope_returns_every_due_element() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+
+        let card = create_new_card(&card_repo, "Rust ownership").await;
+
+        // Act
+
+        let due = service
+            .get_due_elements(Some(StudyScope::SavedSearch(Uuid::new_v4())))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(due.contains(&card));
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_custom_scope_returns_only_matching_due_elements() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+
+        let matching = create_new_card(&card_repo, "Rust ownership").await;
+        let other = create_new_card(&card_repo, "French verbs").await;
+
+        // Act
+
+        let due = service
+            .get_due_elements(Some(StudyScope::Custom(vec![name_contains("Rust")])))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(due.contains(&matching));
+        assert!(!due.contains(&other));
     }
 
     fn ordered_entries(count: usize) -> Vec<ElementIdWithPriority> {

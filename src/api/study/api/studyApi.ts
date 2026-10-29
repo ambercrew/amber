@@ -5,9 +5,12 @@ import { CardReviewDto } from "../dto/cardReviewDto";
 import { CardSchedulingDto } from "../dto/cardSchedulingDto";
 import { DueElementDto } from "../dto/dueElementDto";
 import { LearningAssetReviewDto } from "../dto/learningAssetReviewDto";
+import { StudyScopeDto } from "../dto/studyScopeDto";
 
-export function getDueElements(): Promise<DueElementDto[]> {
-	return invoke("get_due_elements");
+export function getDueElements(
+	studyScope: StudyScopeDto | null,
+): Promise<DueElementDto[]> {
+	return invoke("get_due_elements", { studyScope });
 }
 
 export function registerCardReview(

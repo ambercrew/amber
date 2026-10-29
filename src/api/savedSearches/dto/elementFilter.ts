@@ -11,7 +11,7 @@ export type StringFilterOperator =
 
 export type RangeFilterOperator = "between";
 
-export type DescendantFilterOperator = "is" | "isNot";
+export type DescendantFilterOperator = "is" | "isNot" | "isOrSelf";
 
 export interface NameFilter {
 	id: string;

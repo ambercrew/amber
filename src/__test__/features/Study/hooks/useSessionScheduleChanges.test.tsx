@@ -1,7 +1,10 @@
 import { act, waitFor } from "@testing-library/react";
 import { listen } from "@tauri-apps/api/event";
 import { useSessionScheduleChanges } from "../../../../features/Study/hooks/useSessionScheduleChanges";
-import { getCardReview } from "../../../../api/study/api/studyApi";
+import {
+	getCardReview,
+	getDueElements,
+} from "../../../../api/study/api/studyApi";
 import { CardReviewDto } from "../../../../api/study/dto/cardReviewDto";
 import { AnyElementDto } from "../../../../api/elements/dto/anyElementDto";
 import { ELEMENT_DUE_CHANGED_EVENT } from "../../../../api/study/events/elementDueChangedEvent";
@@ -42,6 +45,7 @@ const STUDYING_STATE: StudyState = {
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
+	studyScope: null,
 };
 
 function cardReview(due: string): CardReviewDto {
@@ -76,6 +80,7 @@ function emitTauriEvent(event: string) {
 describe("useSessionScheduleChanges", () => {
 	beforeEach(() => {
 		vi.mocked(listen).mockClear();
+		vi.mocked(getDueElements).mockResolvedValue([]);
 	});
 
 	it("Should drop the current element from the session queue when the backend reports it is no longer due", async () => {
@@ -145,5 +150,45 @@ describe("useSessionScheduleChanges", () => {
 		expect(
 			store.getState().study.queue.map(item => item.elementId.id),
 		).toEqual(["1", "2"]);
+	});
+
+	it("Should add an element to the session queue when the backend reports it became due", async () => {
+		// Arrange
+
+		vi.mocked(getCardReview).mockResolvedValue(
+			cardReview(new Date(Date.now() - 60_000).toISOString()),
+		);
+		vi.mocked(getDueElements).mockResolvedValue([
+			{ elementId: { type: "card", id: "1" }, title: "Card 1" },
+			{ elementId: { type: "card", id: "3" }, title: "Card 3" },
+			{ elementId: { type: "card", id: "2" }, title: "Card 2" },
+		]);
+		const { store } = renderWithProviders(<HookWrapper />, {
+			preloadedState: {
+				study: STUDYING_STATE,
+				elements: {
+					tree: [],
+					isLoading: false,
+					error: null,
+					currentElement: CARD_ELEMENT,
+					zoomOwnedByCurrentView: false,
+				},
+			},
+		});
+
+		// Act
+
+		act(() => {
+			emitTauriEvent(ELEMENT_DUE_CHANGED_EVENT);
+		});
+
+		// Assert
+
+		await waitFor(() => {
+			expect(
+				store.getState().study.queue.map(item => item.elementId.id),
+			).toEqual(["1", "3", "2"]);
+		});
+		expect(store.getState().study.totalCount).toBe(3);
 	});
 });

@@ -46,6 +46,7 @@ describe("StudyModeToggle", () => {
 						finished: 0,
 					},
 					summary: null,
+					studyScope: null,
 				},
 			},
 		});
@@ -124,6 +125,7 @@ describe("StudyModeToggle", () => {
 						finished: 0,
 					},
 					summary: null,
+					studyScope: null,
 				},
 			},
 		});

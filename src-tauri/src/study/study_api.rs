@@ -17,6 +17,7 @@ use crate::study::dto::card_review_response_dto::CardReviewResponseDto;
 use crate::study::dto::card_scheduling_dto::CardSchedulingDto;
 use crate::study::dto::due_element_dto::DueElementDto;
 use crate::study::dto::learning_asset_review_dto::LearningAssetReviewResponseDto;
+use crate::study::dto::study_scope_request_dto::StudyScopeRequestDto;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::services::card_grading_service::CardGradingService;
@@ -61,12 +62,13 @@ pub async fn get_learning_asset_review(
 #[tauri::command]
 pub async fn get_due_elements(
     injector: State<'_, Arc<Injector>>,
+    study_scope: Option<StudyScopeRequestDto>,
 ) -> Result<Vec<DueElementDto>, ApiError> {
     let scope = injector.start_scope();
     let due_elements = scope
         .resolve::<dyn DueElementsService>()
         .await
-        .get_due_elements()
+        .get_due_elements(study_scope.map(Into::into))
         .await?;
     let meta_repository = scope.resolve::<dyn MetaRepository>().await;
 

@@ -19,12 +19,16 @@ import {
 } from "../../../../api/savedSearches/api/savedSearchesApi";
 import { SearchSortDto } from "../../../../api/search/dto/searchSortDto";
 import { isSavedSearchEdited } from "../../utils/isSavedSearchEdited";
-import { isSameSearchSort, savedSearchSort } from "../../utils/searchSort";
+import {
+	isSameSearchSort,
+	savedSearchSort,
+} from "../../../../utils/searchSort";
 import {
 	fromSavedSearchFilterDtos,
 	toSavedSearchFilterDtos,
-} from "../../utils/savedSearchFilterDto";
+} from "../../../../utils/savedSearchFilterDto";
 import SavedSearchMenuRow from "./SavedSearchMenuRow";
+import { SAVED_SEARCHES_CHANGED } from "../../../../types/events/savedSearchesChangedEvent";
 import SaveSavedSearchModal from "./SaveSavedSearchModal";
 import RenameSavedSearchModal from "./RenameSavedSearchModal";
 import DeleteSavedSearchModal from "./DeleteSavedSearchModal";
@@ -108,6 +112,7 @@ export default function SavedSearchSelector({
 			filters: toSavedSearchFilterDtos(filters),
 			sort,
 		});
+		window.dispatchEvent(new Event(SAVED_SEARCHES_CHANGED));
 		await refresh();
 		setLoadedFilters(filters);
 	}
@@ -128,6 +133,7 @@ export default function SavedSearchSelector({
 		name: string,
 	) {
 		await renameSavedSearch(savedSearch.id, { name });
+		window.dispatchEvent(new Event(SAVED_SEARCHES_CHANGED));
 		await refresh();
 	}
 
@@ -145,6 +151,7 @@ export default function SavedSearchSelector({
 
 	async function handleDelete(savedSearch: SavedSearchResponseDto) {
 		await deleteSavedSearch(savedSearch.id);
+		window.dispatchEvent(new Event(SAVED_SEARCHES_CHANGED));
 		await refresh();
 		if (loadedSavedSearchId === savedSearch.id) {
 			onLoadedSavedSearchIdChange(null);

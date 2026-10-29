@@ -18,7 +18,7 @@ import {
 } from "../../../../../api/savedSearches/api/savedSearchesApi";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
 import { SearchSortDto } from "../../../../../api/search/dto/searchSortDto";
-import { DEFAULT_SEARCH_SORT } from "../../../../../features/ElementsBrowser/utils/searchSort";
+import { DEFAULT_SEARCH_SORT } from "../../../../../utils/searchSort";
 
 vi.mock(import("../../../../../api/savedSearches/api/savedSearchesApi"));
 

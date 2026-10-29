@@ -108,6 +108,7 @@ pub enum SelectFilterOperator {
 pub enum DescendantFilterOperator {
     Is,
     IsNot,
+    IsOrSelf,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

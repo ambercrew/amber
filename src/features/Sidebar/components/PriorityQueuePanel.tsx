@@ -24,6 +24,7 @@ import { openStudySessionSettingsModal } from "../../../stores/app/appReducer";
 import { useDueElementsPreview } from "../../Study/hooks/useDueElementsPreview";
 import { ElementNodeType } from "../../../types/elements/elementNodeType";
 import PanelHeader from "./PanelHeader";
+import StudyScopeBanner from "./StudyScopeBanner";
 
 const ICON_SIZE = 18;
 
@@ -87,18 +88,22 @@ function PriorityQueuePanel() {
 		.join(" · ");
 
 	const header = (
-		<PanelHeader
-			title="Study queue"
-			actions={[
-				{
-					icon: commandIcon(
-						"open-study-session-settings",
-					) as ReactElement<IconProps>,
-					label: "Study session settings",
-					onClick: () => dispatch(openStudySessionSettingsModal()),
-				},
-			]}
-		/>
+		<Stack gap={6}>
+			<PanelHeader
+				title="Study queue"
+				actions={[
+					{
+						icon: commandIcon(
+							"open-study-session-settings",
+						) as ReactElement<IconProps>,
+						label: "Study session settings",
+						onClick: () =>
+							dispatch(openStudySessionSettingsModal()),
+					},
+				]}
+			/>
+			<StudyScopeBanner />
+		</Stack>
 	);
 
 	if (queue.length === 0) {
