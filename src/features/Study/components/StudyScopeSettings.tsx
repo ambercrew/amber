@@ -20,11 +20,16 @@ const CUSTOM = "custom";
 const SAVED_PREFIX = "saved:";
 const RECENT_PREFIX = "recent:";
 
-function toValue(scope: StudyScopeDto | null, isActive: boolean): string {
+function toValue(
+	scope: StudyScopeDto | null,
+	isActive: boolean,
+	recentIndex: number,
+): string {
 	if (!scope || !isActive) return EVERYTHING;
-	return scope.type === "custom"
-		? CUSTOM
-		: `${SAVED_PREFIX}${scope.savedSearchId}`;
+	if (scope.type === "savedSearch") {
+		return `${SAVED_PREFIX}${scope.savedSearchId}`;
+	}
+	return recentIndex === -1 ? CUSTOM : `${RECENT_PREFIX}${recentIndex}`;
 }
 
 export default function StudyScopeSettings({
@@ -43,15 +48,15 @@ export default function StudyScopeSettings({
 	const label = useStudyScopeLabel(value, savedSearches);
 	const customFilters = value?.type === "custom" ? value.filters : null;
 	const { recents } = useRecentCustomQueries();
-	// The selected query already shows above, so it isn't repeated here.
-	const otherRecents = useMemo(
+	// A recent query is selected in its own group rather than listed under Scope.
+	const recentIndex = useMemo(
 		() =>
-			recents.filter(
-				query => !customFilters || !isSameQuery(query, customFilters),
-			),
+			customFilters
+				? recents.findIndex(query => isSameQuery(query, customFilters))
+				: -1,
 		[recents, customFilters],
 	);
-	const recentLabels = useCustomQueryLabels(otherRecents);
+	const recentLabels = useCustomQueryLabels(recents);
 	const [queryModal, setQueryModal] = useState({
 		opened: false,
 		// Bumped on every open so the modal remounts with fresh state.
@@ -71,7 +76,7 @@ export default function StudyScopeSettings({
 		if (!selected || selected === EVERYTHING) onChange(null);
 		else if (selected.startsWith(RECENT_PREFIX)) {
 			const index = Number(selected.slice(RECENT_PREFIX.length));
-			onChange({ type: "custom", filters: otherRecents[index] });
+			onChange({ type: "custom", filters: recents[index] });
 		} else if (selected.startsWith(SAVED_PREFIX)) {
 			onChange({
 				type: "savedSearch",
@@ -85,12 +90,12 @@ export default function StudyScopeSettings({
 			group: "Scope",
 			items: [
 				{ value: EVERYTHING, label: "Everything" },
-				...(customFilters
+				...(customFilters && recentIndex === -1
 					? [{ value: CUSTOM, label: label ?? CUSTOM_QUERY_LABEL }]
 					: []),
 			],
 		},
-		...(otherRecents.length > 0
+		...(recents.length > 0
 			? [
 					{
 						group: "Recent queries",
@@ -128,7 +133,7 @@ export default function StudyScopeSettings({
 				<Select
 					aria-label="Study scope"
 					data={data}
-					value={toValue(value, label !== null)}
+					value={toValue(value, label !== null, recentIndex)}
 					onChange={handleSelect}
 					allowDeselect={false}
 					withAlignedLabels

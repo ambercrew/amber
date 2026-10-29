@@ -26,6 +26,7 @@ import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
 import useApi from "../../../hooks/useApi";
 import { toSavedSearchFilterDtos } from "../../../utils/savedSearchFilterDto";
 import { DEFAULT_SEARCH_SORT } from "../../../utils/searchSort";
+import { useRecentCustomQueries } from "../hooks/useRecentCustomQueries";
 
 /**
  * Builds a study scope query, used as is or saved as a search first.
@@ -52,6 +53,7 @@ export default function ScopeQueryModal({
 		errorMessage: saveError,
 		isSendingRequest: isSaving,
 	} = useApi();
+	const { remember } = useRecentCustomQueries();
 	const [name, setName] = useState("");
 	const [filters, setFilters] = useState<ElementFilter[]>(initialFilters);
 	const [sources, setSources] = useState<BibliographicalSourceResponseDto[]>(
@@ -89,6 +91,7 @@ export default function ScopeQueryModal({
 	}, [opened, debouncedFilters, sort, callSearchApi]);
 
 	function handleUseCustom() {
+		remember(filters);
 		onUseCustom(filters);
 		onClose();
 	}

@@ -38,6 +38,7 @@ function render(initialFilters: ElementFilter[] = []) {
 
 describe("ScopeQueryModal", () => {
 	beforeEach(() => {
+		window.localStorage.clear();
 		vi.mocked(listStudyProfiles).mockResolvedValue([]);
 		vi.mocked(listBibliographicalSources).mockResolvedValue([]);
 		vi.mocked(searchElements).mockResolvedValue([]);
@@ -131,5 +132,28 @@ describe("ScopeQueryModal", () => {
 		expect(onUseCustom).toHaveBeenCalledWith([filter]);
 		expect(createSavedSearch).not.toHaveBeenCalled();
 		expect(onClose).toHaveBeenCalledTimes(1);
+	});
+
+	it("Should remember the query as a recent one when use without saving is clicked", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		const filter = createDefaultFilter("tags");
+		render([filter]);
+
+		// Act
+
+		await user.click(
+			await screen.findByRole("button", { name: "Use without saving" }),
+		);
+
+		// Assert
+
+		expect(
+			JSON.parse(
+				window.localStorage.getItem("study.recent-custom-queries") ??
+					"[]",
+			),
+		).toEqual([[filter]]);
 	});
 });

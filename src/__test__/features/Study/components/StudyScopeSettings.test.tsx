@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import StudyScopeSettings from "../../../../features/Study/components/StudyScopeSettings";
 import { StudyScopeDto } from "../../../../api/study/dto/studyScopeDto";
@@ -163,5 +163,41 @@ describe("StudyScopeSettings", () => {
 			type: "custom",
 			filters: recent,
 		});
+	});
+
+	it("Should select the query under recent queries when the scope is a recent query", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		const recent = [
+			{
+				id: "f1",
+				field: "name" as const,
+				operator: "contains" as const,
+				value: "Rust",
+			},
+		];
+		window.localStorage.setItem(
+			"study.recent-custom-queries",
+			JSON.stringify([recent]),
+		);
+		render({ type: "custom", filters: recent });
+
+		// Act
+
+		await user.click(
+			screen.getByLabelText("Study scope", { selector: "input" }),
+		);
+
+		// Assert
+
+		const options = await screen.findAllByRole("option", {
+			name: "Custom query: Name contains Rust",
+		});
+		expect(options).toHaveLength(1);
+		expect(options[0]).toHaveAttribute("aria-selected", "true");
+		expect(
+			within(screen.getByRole("listbox")).getByText("Recent queries"),
+		).toBeInTheDocument();
 	});
 });
