@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Group, Stack, Text } from "@mantine/core";
+import { Box, Group, Stack, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import ElementNodeIcon from "../ElementNodeIcon/ElementNodeIcon";
 import { getPriorityNeighbors } from "../../api/elements/api/elementsApi";
@@ -126,7 +126,9 @@ function PreviewRow({
 			<Text size="xs" c="dimmed" w={48} style={{ flexShrink: 0 }}>
 				{label}
 			</Text>
-			<ElementNodeIcon type={type} size={14} />
+			<Box style={{ flexShrink: 0, display: "flex" }}>
+				<ElementNodeIcon type={type} size={14} />
+			</Box>
 			<Text size="sm" truncate fw={highlighted ? 600 : undefined}>
 				{name}
 			</Text>
