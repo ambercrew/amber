@@ -12,12 +12,12 @@ use crate::generated_code::{ChangeBatch, PullResponse};
 use crate::secrets::repositories::secrets_repository::SecretsRepository;
 use async_trait::async_trait;
 use prost::Message;
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
-use reqwest_retry::{RetryError, RetryTransientMiddleware, policies::ExponentialBackoff};
-use tauri_plugin_http::reqwest::{
+use reqwest::{
     Response, StatusCode, Url,
     header::{CONTENT_TYPE, HeaderValue},
 };
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
+use reqwest_retry::{RetryError, RetryTransientMiddleware, policies::ExponentialBackoff};
 
 const PROTOBUF_CONTENT_TYPE: &str = "application/x-protobuf";
 
@@ -44,7 +44,7 @@ impl AmberBackendHttpClient {
             log::info!("The application was not able to load a stored authentication token.")
         }
 
-        let reqwest_client = tauri_plugin_http::reqwest::Client::builder().build();
+        let reqwest_client = reqwest::Client::builder().build();
 
         if let Err(err) = reqwest_client {
             return Err(err.to_string());

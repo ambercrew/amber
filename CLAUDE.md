@@ -53,7 +53,7 @@ cargo clippy --all-targets --features wry
 
 `Cargo.toml` has **no default runtime feature** — each platform's `tauri.<platform>.conf.json` opts into its own runtime (**CEF on Linux, WRY elsewhere**). Bare `cargo build`/`test`/`clippy` therefore fails to compile (`tauri::Wry` not found); always pass `--features wry` for local dev/CI regardless of host OS. Never add a `default` feature — it would silently combine with a platform's own choice.
 
-`[patch.crates-io]` redirects `tauri`/`tauri-plugin-*`/`tauri-runtime-wry` to a `feat/cef` fork (adds CEF support upstream lacks). Behavior may diverge from published Tauri — keep this in mind when a bug looks upstream.
+Tauri and its plugins are on the **v3 alphas** (the line where upstream CEF support lives), so APIs may still change between alphas — check the `.changes/` notes of `tauri-apps/tauri`'s `v3` branch when bumping. `tauri-plugin-http` no longer re-exports `reqwest`; use the direct `reqwest` dependency.
 
 ## Backend Architecture (`src-tauri/src/`)
 

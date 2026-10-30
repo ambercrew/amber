@@ -69,19 +69,18 @@ jobs:
             args: "--target x86_64-apple-darwin"
           - platform: "ubuntu-24.04"
             args: ""
-            # Linux builds with the CEF runtime, which only the feat/cef fork of
-            # the Tauri CLI knows how to bundle. See the install step below.
+            # Linux builds with the CEF runtime, bundled by a source-built Tauri
+            # CLI with a pinned AppImage script. See the install step below.
             tauriScript: "cargo tauri"
           - platform: "windows-latest"
             args: ""
 
     runs-on: ${{ matrix.platform }}
-    # Must match the `tauri` revision resolved in src-tauri/Cargo.lock. The npm
-    # `@tauri-apps/cli` is upstream and has no CEF support, so the Linux job
-    # builds the CLI from the same fork the crates are patched to.
+    # The `@tauri-apps/cli-v3.0.0-alpha.5` tag, matching the `@tauri-apps/cli` in
+    # package.json; the Linux job builds it from source (see below).
     # QUICK_SHARUN_REV: the upstream AppImage bundling script v0.16.0 was built with.
     env:
-      TAURI_CLI_REV: fe0e5155c12459f3250dd9ae5867dd627d7c8286
+      TAURI_CLI_REV: 1991873f5e2baa68773f21465f61baa93077498f
       QUICK_SHARUN_REV: fcfa5b42a69cb88636a284c661f0b0d3309775fe
     steps:
       - uses: actions/checkout@v5
@@ -104,7 +103,7 @@ jobs:
         if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libgtk-4-dev librsvg2-dev patchelf
 
       # The AppImage/deb/rpm bundlers only ship libcef.so and the CEF resource
       # files when the CLI resolves a `cef_path`, which upstream cannot do.
@@ -114,9 +113,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/cargo-tauri
-          key: cargo-tauri-${{ runner.os }}-${{ env.TAURI_CLI_REV }}-${{ env.QUICK_SHARUN_REV }}
+          key: cargo-tauri-${{ runner.os }}-${{ env.TAURI_CLI_REV }}-${{ env.QUICK_SHARUN_REV }}-no-angle
 
-      - name: install tauri CLI from feat/cef fork (ubuntu only)
+      - name: install tauri CLI from source (ubuntu only)
         if: matrix.platform == 'ubuntu-24.04' && steps.tauri-cli-cache.outputs.cache-hit != 'true'
         # The bundler downloads quick-sharun.sh from a moving branch of a stale fork (which drops the NSS
         # modules CEF needs); pin it to the upstream commit v0.16.0 was built with.
@@ -128,6 +127,10 @@ jobs:
           f="$src/crates/tauri-bundler/src/bundle/linux/appimage/sharun_cef.rs"
           sed -i "s|[A-Za-z]*/Anylinux-AppImages/refs/heads/main/useful-tools/quick-sharun.sh|pkgforge-dev/Anylinux-AppImages/$QUICK_SHARUN_REV/useful-tools/quick-sharun.sh|" "$f"
           grep -q "pkgforge-dev/Anylinux-AppImages/$QUICK_SHARUN_REV/useful-tools/quick-sharun.sh" "$f"
+          # TODO: (Next three lines) CEF 152+ builds ANGLE into libcef.so, but the Linux bundlers still copy its old files; drop once tauri#16338 lands.
+          linux="$src/crates/tauri-bundler/src/bundle/linux"
+          sed -i -e '/^\s*\/\/ ANGLE support$/d' -e '/^\s*"libEGL\.so",$/d' -e '/^\s*"libGLESv2\.so",$/d' "$f" "$linux/debian.rs" "$linux/rpm.rs"
+          ! grep -q 'libEGL\|libGLESv2' "$f" "$linux/debian.rs" "$linux/rpm.rs"
           cargo install --path "$src/crates/tauri-cli" --locked --force
 
       - name: install protoc

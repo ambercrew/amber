@@ -16,7 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 prost-build = "0.14.4"
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "3.0.0-alpha.4", features = [] }
 sqlx = { version = "0.9.0", features = [ "runtime-tokio", "tls-native-tls", "macros", "sqlite" ] }
 tokio = { version = "1.53.1", features = ["full"] }
 
@@ -34,19 +34,21 @@ prost = "0.14.4"
 prost-types = "0.14.4"
 rand = "0.10.3"
 regex = "1.13.1"
-tauri-plugin-http = "2.5.9"
+tauri-plugin-http = "3.0.0-alpha.3"
+reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls", "http2", "charset", "macos-system-configuration"] }
 reqwest-middleware = { version = "0.4", features = ["json"] }
 reqwest-retry = "0.8"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151", features = ["raw_value"] }
 serde_repr = "0.1.21"
-tauri-plugin-log = "2.8.0"
+tauri-plugin-log = "3.0.0-alpha.3"
 sqlx = { version = "0.9.0", features = [ "runtime-tokio", "tls-native-tls", "macros", "sqlite", "chrono", "uuid" ] }
-tauri-plugin-clipboard-manager = "2"
-tauri-plugin-dialog = "2.7.1"
-tauri-plugin-opener = "2.5.4"
-tauri-plugin-os = "2"
-tauri-plugin-process = "2.3.1"
+tauri-plugin-clipboard-manager = "3.0.0-alpha.3"
+# Dialog backend is picked per runtime below: CEF uses GTK 4, which cannot share a process with GTK 3.
+tauri-plugin-dialog = { version = "3.0.0-alpha.4", default-features = false }
+tauri-plugin-opener = "3.0.0-alpha.3"
+tauri-plugin-os = "3.0.0-alpha.3"
+tauri-plugin-process = "3.0.0-alpha.3"
 thiserror = "2.0.21"
 tokio = { version = "1.53.1", features = ["full"] }
 tokio-stream = "0.1.19"
@@ -72,65 +74,39 @@ sha2 = "0.11.0"
 # config override, NOT true for `tauri android build`), so a default would
 # silently combine with whatever a platform opts into via config.
 #
-# The runtime is its own crate (not a `tauri` feature) on feat/cef; each
+# The runtime is its own crate (not a `tauri` feature) since Tauri v3; each
 # feature pulls one in and `lib.rs` selects it on the builder.
 [dependencies.tauri]
-version = "2"
+version = "3.0.0-alpha.5"
 default-features = false
 features = [
   "test",
 ]
 
 [dependencies.tauri-runtime-wry]
-version = "2"
+version = "3.0.0-alpha.5"
 default-features = false
 optional = true
 
 [dependencies.tauri-runtime-cef]
-version = "0.1"
+version = "3.0.0-alpha.6"
 optional = true
 
 [dev-dependencies]
 mockall = "0.15.0"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-single-instance = "2.4.2"
-tauri-plugin-updater = "2.10.1"
-tauri-plugin-window-state = "2.4.1"
+tauri-plugin-single-instance = "3.0.0-alpha.3"
+tauri-plugin-updater = "3.0.0-alpha.3"
+tauri-plugin-window-state = "3.0.0-alpha.2"
 
 [features]
 store = []
-wry = ["dep:tauri-runtime-wry"]
-cef = ["dep:tauri-runtime-cef"]
+wry = ["dep:tauri-runtime-wry", "tauri-plugin-dialog/gtk3"]
+cef = ["dep:tauri-runtime-cef", "tauri-plugin-dialog/xdg-portal"]
 
 [target.'cfg(target_os = "android")'.dependencies]
 openssl = { version = "*", features = ["vendored"] }
-
-# Redirect every crates.io consumer of tauri (your app AND all
-# tauri-plugin-* crates) to the feat/cef branch. Cargo.lock pins the exact
-# commit; `cargo update` moves it to the branch head.
-[patch.crates-io]
-tauri = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
-tauri-build = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
-tauri-plugin = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
-tauri-utils = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
-tauri-runtime = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
-tauri-runtime-wry = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
-tauri-runtime-cef = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
-tauri-macros = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
-tauri-codegen = { git = "https://github.com/tauri-apps/tauri", branch = "feat/cef" }
-
-tauri-plugin-http              = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "feat/cef" }
-tauri-plugin-fs                = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "feat/cef" }
-tauri-plugin-log               = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "feat/cef" }
-tauri-plugin-clipboard-manager = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "feat/cef" }
-tauri-plugin-dialog            = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "feat/cef" }
-tauri-plugin-opener            = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "feat/cef" }
-tauri-plugin-os                = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "feat/cef" }
-tauri-plugin-process           = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "feat/cef" }
-tauri-plugin-single-instance   = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "feat/cef" }
-tauri-plugin-updater           = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "feat/cef" }
-tauri-plugin-window-state      = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "feat/cef" }
 
 [workspace]
 members = [

@@ -121,7 +121,7 @@ pub async fn run() {
             .plugin(tauri_plugin_updater::Builder::new().build());
     }
 
-    tauri_builder
+    tauri_builder = tauri_builder
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -306,7 +306,12 @@ pub async fn run() {
             sync,
             // Common
             resolve_frontend_request,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        ]);
+
+    // Plugins may block on their own tokio runtime while initializing (e.g. zbus in single-instance).
+    tokio::task::block_in_place(|| {
+        tauri_builder
+            .run(tauri::generate_context!())
+            .expect("error while running tauri application")
+    });
 }
