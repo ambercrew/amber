@@ -99,6 +99,7 @@ impl CardReviewRepository for SqliteCardReviewRepository {
             JOIN meta m ON m.element_id = c.id
             LEFT JOIN card_reviews cr ON cr.card_id = c.id
             WHERE m.trashed_at IS NULL
+              AND m.suspended = 0
               AND (cr.card_id IS NULL OR cr.due <= datetime($1))"#,
             as_of
         )
@@ -154,6 +155,7 @@ mod tests {
             element_id: ElementId::Card(id),
             name: "test".into(),
             name_source: NameSource::Manual,
+            suspended: false,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),
@@ -311,5 +313,36 @@ mod tests {
         assert!(due.contains(&new_card_id));
         assert!(due.contains(&overdue_card_id));
         assert!(!due.contains(&future_card_id));
+    }
+
+    #[tokio::test]
+    async fn get_due_cards_suspended_card_is_excluded() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let repo = scope.resolve::<dyn CardReviewRepository>().await;
+
+        let card_id = Uuid::new_v4();
+        card_repo
+            .create(Card {
+                meta: Meta {
+                    suspended: true,
+                    ..make_card_meta(card_id)
+                },
+                front: String::new(),
+                back: String::new(),
+            })
+            .await
+            .unwrap();
+
+        // Act
+
+        let due = repo.get_due_cards(Utc::now()).await.unwrap();
+
+        // Assert
+
+        assert!(due.is_empty());
     }
 }

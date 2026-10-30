@@ -7,6 +7,7 @@ import {
 	NamePropertyIcon,
 	PriorityPropertyIcon,
 	StudyProfilePropertyIcon,
+	StatusPropertyIcon,
 	TagsPropertyIcon,
 } from "../../../config/icons";
 import { ElementFilterField } from "../../../api/savedSearches/dto/elementFilter";
@@ -67,6 +68,11 @@ export const filterFieldGroups: FilterFieldGroup[] = [
 				field: "priority",
 				label: "Priority",
 				icon: size => <PriorityPropertyIcon size={size} />,
+			},
+			{
+				field: "status",
+				label: "Status",
+				icon: size => <StatusPropertyIcon size={size} />,
 			},
 		],
 	},

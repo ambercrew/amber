@@ -102,6 +102,7 @@ mod tests {
                         element_id: ElementId::LearningAsset(element_id),
                         name: "test".into(),
                         name_source: NameSource::Manual,
+                        suspended: false,
                         parent: None,
                         position: FractionalIndex::default(),
                         priority: FractionalIndex::default(),

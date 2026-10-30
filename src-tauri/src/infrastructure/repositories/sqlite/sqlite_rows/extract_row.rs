@@ -21,6 +21,7 @@ pub struct ExtractRow {
     pub created_at: DateTime<Utc>,
     pub modified_at: DateTime<Utc>,
     pub name_source: String,
+    pub suspended: bool,
     pub content: String,
     pub interval_multiplier: f64,
 }
@@ -32,6 +33,7 @@ impl From<ExtractRow> for Extract {
                 element_id: ElementId::Extract(row.id.into_uuid()),
                 name: row.name,
                 name_source: row.name_source.parse().expect("Invalid name source"),
+                suspended: row.suspended,
                 parent: (row.parent_id.map(Hyphenated::into_uuid), row.parent_type)
                     .into_element_id(),
                 derived_from: (

@@ -22,9 +22,11 @@ use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::services::card_grading_service::CardGradingService;
 use crate::study::services::due_elements_service::DueElementsService;
+use crate::study::services::element_status_service::ElementStatusService;
 use crate::study::services::learning_asset_scheduling_service::{
     LearningAssetSchedulingError, LearningAssetSchedulingService,
 };
+use crate::study::value_objects::element_status::ElementStatus;
 use crate::study::value_objects::fuzz_factor_configuration::{
     FUZZ_FACTOR_CONFIGURATION_NAME, FuzzFactorConfiguration,
 };
@@ -210,41 +212,19 @@ pub async fn unfinish_learning_asset(
 }
 
 #[tauri::command]
-pub async fn finish_learning_assets_bulk(
+pub async fn set_elements_status(
     injector: State<'_, Arc<Injector>>,
     element_ids: Vec<ElementId>,
-) -> Result<(), ApiError> {
+    status: ElementStatus,
+) -> Result<usize, ApiError> {
     let scope = injector.start_scope();
-    let element_ids = element_ids
-        .into_iter()
-        .filter(|id| matches!(id, ElementId::LearningAsset(_) | ElementId::Extract(_)))
-        .collect();
-    scope
-        .resolve::<dyn LearningAssetSchedulingService>()
+    let applied = scope
+        .resolve::<dyn ElementStatusService>()
         .await
-        .finish_many(element_ids)
+        .set_status_many(element_ids, status)
         .await?;
     scope.save_changes().await?;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn unfinish_learning_assets_bulk(
-    injector: State<'_, Arc<Injector>>,
-    element_ids: Vec<ElementId>,
-) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
-    let element_ids = element_ids
-        .into_iter()
-        .filter(|id| matches!(id, ElementId::LearningAsset(_) | ElementId::Extract(_)))
-        .collect();
-    scope
-        .resolve::<dyn LearningAssetSchedulingService>()
-        .await
-        .unfinish_many(element_ids)
-        .await?;
-    scope.save_changes().await?;
-    Ok(())
+    Ok(applied)
 }
 
 #[tauri::command]

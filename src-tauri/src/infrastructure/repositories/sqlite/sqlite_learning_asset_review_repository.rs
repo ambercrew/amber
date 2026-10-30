@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::common::repository_error::RepositoryError;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::element_id_with_priority::ElementIdWithPriority;
+use crate::infrastructure::repositories::sqlite::ids_json::ids_json;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 use crate::study::entities::learning_asset_review::LearningAssetReview;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
@@ -29,6 +30,48 @@ fn element_id_from_type(id: Uuid, element_type: &str) -> ElementId {
 
 #[async_trait]
 impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
+    async fn finished_among(&self, element_ids: &[Uuid]) -> Result<Vec<Uuid>, RepositoryError> {
+        let ids = ids_json(element_ids.iter().copied());
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let rows = sqlx::query!(
+            r#"SELECT element_id as "element_id: uuid::fmt::Hyphenated"
+               FROM learning_asset_reviews
+               WHERE element_id IN (SELECT value FROM json_each($1)) AND finished_at IS NOT NULL"#,
+            ids
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| row.element_id.into_uuid())
+            .collect())
+    }
+
+    async fn unfinish_many(
+        &self,
+        element_ids: &[Uuid],
+        due: Option<DateTime<Utc>>,
+    ) -> Result<Vec<Uuid>, RepositoryError> {
+        let ids = ids_json(element_ids.iter().copied());
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let rows = sqlx::query!(
+            r#"UPDATE learning_asset_reviews
+               SET finished_at = NULL, due = COALESCE(datetime($2), due)
+               WHERE element_id IN (SELECT value FROM json_each($1)) AND finished_at IS NOT NULL
+               RETURNING element_id as "element_id: uuid::fmt::Hyphenated""#,
+            ids,
+            due
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| row.element_id.into_uuid())
+            .collect())
+    }
+
     async fn get_by_element_id(
         &self,
         element_id: Uuid,
@@ -101,6 +144,7 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
             LEFT JOIN learning_asset_reviews rr ON rr.element_id = m.element_id
             WHERE m.element_type IN ('learning_asset', 'extract')
               AND m.trashed_at IS NULL
+              AND m.suspended = 0
               AND (rr.element_id IS NULL OR (rr.finished_at IS NULL AND rr.due <= datetime($1)))"#,
             as_of
         )
@@ -167,6 +211,7 @@ mod tests {
             element_id: id,
             name: "test".into(),
             name_source: NameSource::Manual,
+            suspended: false,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),
@@ -302,5 +347,36 @@ mod tests {
         assert!(due.contains(&new_learning_asset_id));
         assert!(due.contains(&overdue_extract_id));
         assert!(!due.contains(&finished_learning_asset_id));
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_suspended_extract_is_excluded() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let extract_repo = scope.resolve::<dyn ExtractRepository>().await;
+        let repo = scope.resolve::<dyn LearningAssetReviewRepository>().await;
+
+        let extract_id = ElementId::Extract(Uuid::new_v4());
+        extract_repo
+            .create(Extract {
+                interval_multiplier: 1.2,
+                meta: Meta {
+                    suspended: true,
+                    ..make_meta(extract_id)
+                },
+                content: String::new(),
+            })
+            .await
+            .unwrap();
+
+        // Act
+
+        let due = repo.get_due_elements(Utc::now()).await.unwrap();
+
+        // Assert
+
+        assert!(due.is_empty());
     }
 }

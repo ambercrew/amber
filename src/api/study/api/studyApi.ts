@@ -1,3 +1,4 @@
+import { ElementStatus } from "../../../types/study/elementStatus";
 import { invoke } from "@tauri-apps/api/core";
 import { ElementId } from "../../../types/elements/elementId";
 import { Rating } from "../../../types/study/rating";
@@ -61,16 +62,11 @@ export function getLearningAssetReview(
 	return invoke("get_learning_asset_review", { elementId });
 }
 
-export function finishLearningAssetsBulk(
+export function setElementsStatus(
 	elementIds: ElementId[],
-): Promise<void> {
-	return invoke("finish_learning_assets_bulk", { elementIds });
-}
-
-export function unfinishLearningAssetsBulk(
-	elementIds: ElementId[],
-): Promise<void> {
-	return invoke("unfinish_learning_assets_bulk", { elementIds });
+	status: ElementStatus,
+): Promise<number> {
+	return invoke("set_elements_status", { elementIds, status });
 }
 
 export function resetRepetitionsBulk(elementIds: ElementId[]): Promise<void> {

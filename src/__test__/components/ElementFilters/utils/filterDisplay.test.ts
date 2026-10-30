@@ -7,6 +7,7 @@ import {
 	NameFilter,
 	PriorityFilter,
 	StudyProfileFilter,
+	StatusFilter,
 	TagsFilter,
 } from "../../../../api/savedSearches/dto/elementFilter";
 import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
@@ -466,6 +467,28 @@ describe("describeFilter", () => {
 			fieldLabel: "Not descendant of",
 			operatorLabel: "",
 			valueLabel: "Physics",
+		});
+	});
+
+	it("Should list the status labels when given a status filter", () => {
+		// Arrange
+
+		const filter: StatusFilter = {
+			id: "1",
+			field: "status",
+			operator: "isNoneOf",
+			statuses: ["suspended", "finished"],
+		};
+
+		// Act
+
+		const actual = describeFilter(filter, sources, profiles);
+
+		// Assert
+
+		expect(actual).toEqual({
+			operatorLabel: "is none of",
+			valueLabel: "Suspended, Finished",
 		});
 	});
 

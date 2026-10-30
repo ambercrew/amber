@@ -14,6 +14,7 @@ use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::services::profile_resolution_service::{ProfileResolutionService, ProfileSource};
 use crate::study::services::study_profile_service::StudyProfileService;
+use crate::study::value_objects::element_status::ElementStatus;
 
 #[derive(ScopeInjectable)]
 pub struct DefaultElementDetailsService {
@@ -96,6 +97,16 @@ impl ElementDetailsService for DefaultElementDetailsService {
             _ => Some(effective_profile.profile.name.clone()),
         };
 
+        let status = match element_id {
+            ElementId::Folder(_) => None,
+            _ => Some(ElementStatus::from_flags(
+                meta.suspended,
+                learning_asset_review
+                    .as_ref()
+                    .is_some_and(|review| review.finished_at.is_some()),
+            )),
+        };
+
         Ok(ElementDetails {
             bibliographical_source,
             derived_from_name,
@@ -105,6 +116,7 @@ impl ElementDetailsService for DefaultElementDetailsService {
             profiles,
             inherited_profile_name,
             priority,
+            status,
         })
     }
 }
@@ -207,6 +219,7 @@ mod tests {
             element_id: id,
             name: "test".into(),
             name_source: NameSource::Manual,
+            suspended: false,
             parent,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),

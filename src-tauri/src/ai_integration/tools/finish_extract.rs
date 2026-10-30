@@ -206,6 +206,7 @@ mod tests {
                     element_id: ElementId::Extract(id),
                     name: "Extract".into(),
                     name_source: NameSource::Manual,
+                    suspended: false,
                     parent: None,
                     position: FractionalIndex::default(),
                     priority: FractionalIndex::default(),

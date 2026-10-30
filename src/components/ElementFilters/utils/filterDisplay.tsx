@@ -2,11 +2,13 @@ import {
 	DateFilter,
 	DescendantFilterOperator,
 	ElementFilter,
+	SelectFilterOperator,
 } from "../../../api/savedSearches/dto/elementFilter";
 import { ElementNameState } from "../../../hooks/useElementName";
 import { BibliographicalSourceResponseDto } from "../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
 import { elementTypeOptions } from "../../../utils/elementTypeOptions";
+import { elementStatusOptions } from "../../../types/study/elementStatus";
 import { formatPriorityPercentileRange } from "../../../utils/formatPriorityPercentile";
 
 export interface FilterDisplay {
@@ -15,6 +17,11 @@ export interface FilterDisplay {
 	operatorLabel: string;
 	valueLabel: string;
 }
+
+export const selectOperatorLabels: Record<SelectFilterOperator, string> = {
+	isAnyOf: "is any of",
+	isNoneOf: "is none of",
+};
 
 export const descendantOperatorLabels: Record<
 	DescendantFilterOperator,
@@ -105,8 +112,7 @@ export function describeFilter(
 				.filter(source => filter.sourceIds.includes(source.id))
 				.map(source => source.title);
 			return {
-				operatorLabel:
-					filter.operator === "isAnyOf" ? "is any of" : "is none of",
+				operatorLabel: selectOperatorLabels[filter.operator],
 				valueLabel: joinNames(names),
 			};
 		}
@@ -115,8 +121,7 @@ export function describeFilter(
 				.filter(profile => filter.profileIds.includes(profile.id))
 				.map(profile => profile.name);
 			return {
-				operatorLabel:
-					filter.operator === "isAnyOf" ? "is any of" : "is none of",
+				operatorLabel: selectOperatorLabels[filter.operator],
 				valueLabel: joinNames(names),
 			};
 		}
@@ -125,8 +130,7 @@ export function describeFilter(
 				.filter(option => filter.types.includes(option.value))
 				.map(option => option.label);
 			return {
-				operatorLabel:
-					filter.operator === "isAnyOf" ? "is any of" : "is none of",
+				operatorLabel: selectOperatorLabels[filter.operator],
 				valueLabel: joinNames(names),
 			};
 		}
@@ -139,6 +143,15 @@ export function describeFilter(
 					ancestor,
 				),
 			};
+		case "status": {
+			const names = elementStatusOptions
+				.filter(option => filter.statuses.includes(option.value))
+				.map(option => option.label);
+			return {
+				operatorLabel: selectOperatorLabels[filter.operator],
+				valueLabel: joinNames(names),
+			};
+		}
 		case "priority":
 			return {
 				operatorLabel: "",

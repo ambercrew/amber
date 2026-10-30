@@ -9,6 +9,7 @@ import ElementTypeFilterEditor from "./editors/ElementTypeFilterEditor";
 import PriorityFilterEditor from "./editors/PriorityFilterEditor";
 import StudyProfileFilterEditor from "./editors/StudyProfileFilterEditor";
 import DescendantOfFilterEditor from "./editors/DescendantOfFilterEditor";
+import StatusFilterEditor from "./editors/StatusFilterEditor";
 
 export default function FilterEditor({
 	filter,
@@ -55,5 +56,7 @@ export default function FilterEditor({
 			return (
 				<DescendantOfFilterEditor filter={filter} onChange={onChange} />
 			);
+		case "status":
+			return <StatusFilterEditor filter={filter} onChange={onChange} />;
 	}
 }

@@ -8,10 +8,9 @@ import { ElementDetailsResponseDto } from "../../../../api/elements/dto/elementD
 import { ElementsState } from "../../../../stores/elements/elementsReducer";
 import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
 import {
-	finishLearningAsset,
 	setElementDue,
+	setElementsStatus,
 } from "../../../../api/study/api/studyApi";
-import { getElementDetails } from "../../../../api/elements/api/elementsApi";
 import { listBibliographicalSources } from "../../../../api/bibliographicalSources/api/bibliographicalSourcesApi";
 import {
 	fromDateInputValue,
@@ -103,6 +102,7 @@ function makeDetails(
 		effectiveProfile: { profile, source: "default", inheritedFrom: null },
 		profiles: [profile],
 		inheritedProfileName: null,
+		status: "active",
 		priority: { position: 1, total: 1, percentile: 0 },
 		...overrides,
 	};
@@ -138,7 +138,7 @@ describe("ElementInfoPanel", () => {
 		localStorage.setItem("element-info-panel.study.opened", "true");
 	});
 
-	it("Should show an editable due date and finished switch for a learning asset", async () => {
+	it("Should show an editable due date and every status when the element is a learning asset", async () => {
 		// Arrange, Act
 
 		renderPanel(learningAsset());
@@ -147,23 +147,29 @@ describe("ElementInfoPanel", () => {
 		// Assert
 
 		expect(screen.getByLabelText("Due")).toBeInTheDocument();
-		expect(screen.getByLabelText("Finished")).toBeInTheDocument();
+		expect(screen.getByRole("radio", { name: "Active" })).toBeChecked();
+		expect(
+			screen.getByRole("radio", { name: "Finished" }),
+		).toBeInTheDocument();
 	});
 
-	it("Should show neither a due editor nor a finished switch for a folder", async () => {
+	it("Should show neither a due editor nor a status when the element is a folder", async () => {
 		// Arrange, Act
 
 		renderPanel(folder(), {
 			...makeDetails(),
 			cardReview: null,
 			learningAssetReview: null,
+			status: null,
 		});
 		await act(async () => {});
 
 		// Assert
 
 		expect(screen.queryByLabelText("Due")).not.toBeInTheDocument();
-		expect(screen.queryByLabelText("Finished")).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("radio", { name: "Active" }),
+		).not.toBeInTheDocument();
 	});
 
 	it("Should persist a new due date when a date is picked", async () => {
@@ -197,33 +203,27 @@ describe("ElementInfoPanel", () => {
 		});
 	});
 
-	it("Should mark the learning asset finished when the finished switch is turned on", async () => {
+	it("Should set the learning asset's status when a status is picked", async () => {
 		// Arrange
 
 		const element = learningAsset();
-		vi.mocked(finishLearningAsset).mockResolvedValue({
-			elementId: element.data.meta.elementId,
-			due: "2026-01-01T00:00:00.000Z",
-			intervalDays: 1,
-			lastReviewed: null,
-			finishedAt: "2026-01-20T00:00:00.000Z",
-		});
-		vi.mocked(getElementDetails).mockResolvedValue(makeDetails());
+		vi.mocked(setElementsStatus).mockResolvedValue(1);
 		const user = userEvent.setup();
 		renderPanel(element);
 		await act(async () => {});
 
 		// Act
 
-		await user.click(screen.getByLabelText("Finished"));
+		await user.click(screen.getByRole("radio", { name: "Finished" }));
 
 		// Assert
 
 		await waitFor(() => {
-			expect(finishLearningAsset).toHaveBeenCalledWith(
-				element.data.meta.elementId,
-				null,
+			expect(setElementsStatus).toHaveBeenCalledWith(
+				[element.data.meta.elementId],
+				"finished",
 			);
 		});
+		expect(screen.getByRole("radio", { name: "Finished" })).toBeChecked();
 	});
 });

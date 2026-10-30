@@ -62,6 +62,7 @@ impl ExtractRepository for SqliteExtractRepository {
                 m.created_at as "created_at: _",
                 m.modified_at as "modified_at: _",
                 m.name_source,
+                m.suspended as "suspended: bool",
                 e.content,
                 e.interval_multiplier
             FROM extracts e
@@ -95,6 +96,7 @@ impl ExtractRepository for SqliteExtractRepository {
                 m.created_at as "created_at: _",
                 m.modified_at as "modified_at: _",
                 m.name_source,
+                m.suspended as "suspended: bool",
                 e.content,
                 e.interval_multiplier
             FROM extracts e
@@ -204,6 +206,7 @@ mod tests {
             element_id: id,
             name: "test".into(),
             name_source: NameSource::Manual,
+            suspended: false,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),

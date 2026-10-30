@@ -8,6 +8,7 @@ import {
 	CardsIcon,
 	ChatCircleTextIcon,
 	CheckSquareIcon,
+	CircleHalfIcon,
 	ClockCounterClockwiseIcon,
 	FileTextIcon,
 	FolderIcon,
@@ -20,6 +21,8 @@ import {
 	MagicWandIcon,
 	NotePencilIcon,
 	PaperclipIcon,
+	PauseIcon,
+	PlayIcon,
 	ScissorsIcon,
 	SparkleIcon,
 	StackIcon,
@@ -29,6 +32,7 @@ import {
 	TreeViewIcon,
 	TrendUpIcon,
 } from "@phosphor-icons/react";
+import { ElementStatus } from "../types/study/elementStatus";
 
 /** The app's icon vocabulary. A concept is named once here so it looks the
  * same in the sidebar, in page headings and anywhere else it appears. */
@@ -51,7 +55,15 @@ export const DescendantOfPropertyIcon = TreeViewIcon;
 export const StudyProfilePropertyIcon = GraduationCapIcon;
 export const DuePropertyIcon = CalendarIcon;
 export const PriorityPropertyIcon = TrendUpIcon;
+export const StatusPropertyIcon = CircleHalfIcon;
 export const BibliographicalSourcePropertyIcon = BookOpenIcon;
+
+/** Each status an element can be set to, wherever it's offered as a choice. */
+export const ELEMENT_STATUS_ICONS: Record<ElementStatus, Icon> = {
+	active: PlayIcon,
+	suspended: PauseIcon,
+	finished: CheckSquareIcon,
+};
 
 // Read point and marks in a learning asset's reading view.
 export const ReadPointIcon = BookmarkSimpleIcon;
@@ -73,5 +85,5 @@ export const AI_TOOL_ICONS: Record<string, Icon> = {
 	search_documents: AiDocumentIcon,
 	create_card: CardElementIcon,
 	create_cloze_card: TextboxIcon,
-	finish_extract: CheckSquareIcon,
+	finish_extract: ELEMENT_STATUS_ICONS.finished,
 };

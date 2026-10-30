@@ -10,6 +10,8 @@ pub struct Meta {
     pub element_id: ElementId,
     pub name: String,
     pub name_source: NameSource,
+    /// Keeps the element out of the review queue while set.
+    pub suspended: bool,
     pub parent: Option<ElementId>,
     pub position: FractionalIndex,
     /// Global ordering across all elements, independent of `position` (which

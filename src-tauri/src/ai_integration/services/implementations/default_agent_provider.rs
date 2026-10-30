@@ -475,6 +475,7 @@ pub mod tests {
             element_id: id,
             name: "My Learning Asset".into(),
             name_source: NameSource::Manual,
+            suspended: false,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),

@@ -6,6 +6,7 @@ import {
 } from "../../study/dto/studyProfileDto";
 import { BibliographicalSourceResponseDto } from "../../bibliographicalSources/dto/bibliographicalSourceDto";
 import { PriorityInfoDto } from "./priorityInfoDto";
+import { ElementStatus } from "../../../types/study/elementStatus";
 
 export interface ElementDetailsResponseDto {
 	bibliographicalSource: BibliographicalSourceResponseDto | null;
@@ -16,4 +17,5 @@ export interface ElementDetailsResponseDto {
 	profiles: StudyProfileDto[];
 	inheritedProfileName: string | null;
 	priority: PriorityInfoDto;
+	status: ElementStatus | null;
 }

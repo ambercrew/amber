@@ -39,5 +39,7 @@ export function createDefaultFilter(field: ElementFilterField): ElementFilter {
 			return { id, field, operator: "isAnyOf", profileIds: [] };
 		case "descendantOf":
 			return { id, field, operator: "is", ancestor: null };
+		case "status":
+			return { id, field, operator: "isAnyOf", statuses: [] };
 	}
 }

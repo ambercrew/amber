@@ -191,6 +191,7 @@ mod tests {
                 element_id,
                 name: "test".into(),
                 name_source: NameSource::Manual,
+                suspended: false,
                 parent,
                 position: FractionalIndex::default(),
                 priority: FractionalIndex::default(),

@@ -172,6 +172,11 @@ fn filtered_query(filters: &[ElementFilter]) -> QueryBuilder<Sqlite> {
     query_builder
 }
 
+/// An element's `ElementStatus` as text; folders have none, so the status filter excludes them.
+const STATUS_EXPR: &str = "CASE WHEN m.element_type = 'folder' THEN NULL \
+     WHEN lar.finished_at IS NOT NULL THEN 'finished' \
+     WHEN m.suspended = 1 THEN 'suspended' ELSE 'active' END";
+
 fn has_priority_filter(filters: &[ElementFilter]) -> bool {
     filters
         .iter()
@@ -395,6 +400,17 @@ fn push_filter_clause(query_builder: &mut QueryBuilder<Sqlite>, filter: &Element
                 " UNION SELECT c.element_id FROM meta c JOIN subtree s ON c.parent_id = s.element_id) SELECT element_id FROM subtree)",
             );
         }
+        ElementFilter::Status {
+            operator, statuses, ..
+        } => {
+            let status_strings: Vec<String> = statuses
+                .iter()
+                .map(|status| status.as_str().to_string())
+                .collect();
+            // Also keeps folders out when an empty list short-circuits to `1 = 1`.
+            query_builder.push("m.element_type != 'folder' AND ");
+            push_select_clause_str(query_builder, STATUS_EXPR, operator, &status_strings);
+        }
     }
 }
 
@@ -613,6 +629,7 @@ mod tests {
     use crate::study::repositories::study_profile_repository::StudyProfileRepository;
     use crate::study::utils::day_boundary::start_of_today_utc;
     use crate::study::value_objects::card_state::CardState;
+    use crate::study::value_objects::element_status::ElementStatus;
     use crate::test_utils::create_test_injector;
     use crate::trash::repositories::trash_repository::TrashRepository;
     use chrono::Duration;
@@ -662,6 +679,7 @@ mod tests {
                 element_id: ElementId::Folder(Uuid::new_v4()),
                 name: name.into(),
                 name_source: NameSource::Manual,
+                suspended: false,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority,
@@ -680,6 +698,7 @@ mod tests {
                 element_id: ElementId::Card(Uuid::new_v4()),
                 name: name.into(),
                 name_source: NameSource::Manual,
+                suspended: false,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority,
@@ -701,6 +720,7 @@ mod tests {
                 element_id: ElementId::LearningAsset(Uuid::new_v4()),
                 name: name.into(),
                 name_source: NameSource::Manual,
+                suspended: false,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority,
@@ -1420,6 +1440,174 @@ mod tests {
 
         assert_eq!(1, results.len());
         assert_eq!(matching_id, results[0].element_id);
+    }
+
+    #[tokio::test]
+    async fn search_status_filter_returns_only_elements_with_matching_status() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repository = scope.resolve::<dyn CardRepository>().await;
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let suspended = make_card("Suspended", FractionalIndex::default());
+        let active = make_card(
+            "Active",
+            FractionalIndex::new_after(&FractionalIndex::default()),
+        );
+        let suspended_id = suspended.meta.element_id;
+        let active_id = active.meta.element_id;
+        card_repository.create(suspended).await.unwrap();
+        card_repository.create(active).await.unwrap();
+        folder_repository
+            .create(make_folder("Folder", FractionalIndex::default()))
+            .await
+            .unwrap();
+        meta_repository
+            .set_suspended(suspended_id, true)
+            .await
+            .unwrap();
+
+        let filter = |operator| {
+            vec![ElementFilter::Status {
+                id: Uuid::new_v4(),
+                operator,
+                statuses: vec![ElementStatus::Suspended],
+            }]
+        };
+
+        // Act
+
+        let any_of = search_repository
+            .search(
+                &filter(SelectFilterOperator::IsAnyOf),
+                SearchSort::default(),
+                None,
+            )
+            .await
+            .unwrap();
+        let none_of = search_repository
+            .search(
+                &filter(SelectFilterOperator::IsNoneOf),
+                SearchSort::default(),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(
+            vec![suspended_id],
+            any_of.iter().map(|r| r.element_id).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec![active_id],
+            none_of.iter().map(|r| r.element_id).collect::<Vec<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn search_status_filter_none_of_nothing_excludes_folders() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repository = scope.resolve::<dyn CardRepository>().await;
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+        let card = make_card("Card", FractionalIndex::default());
+        let card_id = card.meta.element_id;
+        card_repository.create(card).await.unwrap();
+        folder_repository
+            .create(make_folder("Folder", FractionalIndex::default()))
+            .await
+            .unwrap();
+        let filters = vec![ElementFilter::Status {
+            id: Uuid::new_v4(),
+            operator: SelectFilterOperator::IsNoneOf,
+            statuses: vec![],
+        }];
+
+        // Act
+
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(
+            vec![card_id],
+            results.iter().map(|r| r.element_id).collect::<Vec<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn search_status_filter_finished_returns_finished_extract() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repository = scope.resolve::<dyn CardRepository>().await;
+        let learning_asset_repository = scope.resolve::<dyn LearningAssetRepository>().await;
+        let review_repository = scope.resolve::<dyn LearningAssetReviewRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        card_repository
+            .create(make_card("Card", FractionalIndex::default()))
+            .await
+            .unwrap();
+        let asset_id = ElementId::LearningAsset(Uuid::new_v4());
+        learning_asset_repository
+            .create(
+                LearningAsset {
+                    r#type: Default::default(),
+                    interval_multiplier: 1.2,
+                    meta: Meta {
+                        element_id: asset_id,
+                        ..make_card("Asset", FractionalIndex::default()).meta
+                    },
+                    read_point: ReadingPosition::default(),
+                },
+                LearningAssetContent::Extracted(Vec::new()),
+            )
+            .await
+            .unwrap();
+        review_repository
+            .upsert(&LearningAssetReview {
+                element_id: asset_id,
+                due: Utc::now(),
+                interval_days: 0.0,
+                last_reviewed: None,
+                finished_at: Some(Utc::now()),
+            })
+            .await
+            .unwrap();
+
+        let filters = vec![ElementFilter::Status {
+            id: Uuid::new_v4(),
+            operator: SelectFilterOperator::IsAnyOf,
+            statuses: vec![ElementStatus::Finished],
+        }];
+
+        // Act
+
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(
+            vec![asset_id],
+            results.iter().map(|r| r.element_id).collect::<Vec<_>>()
+        );
     }
 
     #[tokio::test]

@@ -18,10 +18,8 @@ export interface StudyCounts {
 export interface StudyState {
 	status: StudyStatus;
 	queue: DueElementDto[];
-	// Every element the session has queued — unlike queue.length, this never
-	// shrinks (it only grows when an element becomes due mid-session), so
-	// it's the stable denominator for a "done so far / total" progress
-	// display.
+	// Every element the session has queued — the denominator for "done so far /
+	// total"; it only shrinks when a pending element is suspended.
 	totalCount: number;
 	cardPhase: CardPhase;
 	shownAt: number | null;
@@ -117,6 +115,25 @@ const studySlice = createSlice({
 				state.queue.splice(anchor, 0, item);
 				state.totalCount += 1;
 			}
+		},
+		// Takes pending suspended elements out of the session and its total. The
+		// current one stays and counts as done, so `advanceSession` moves off it without a flash.
+		elementsDropped: (
+			state,
+			action: PayloadAction<{
+				elementIds: ElementId[];
+				currentElementId: ElementId | null;
+			}>,
+		) => {
+			const { elementIds, currentElementId } = action.payload;
+			const dropped = (item: DueElementDto) =>
+				elementIds.some(id => isSameElement(id, item.elementId)) &&
+				!(
+					currentElementId !== null &&
+					isSameElement(item.elementId, currentElementId)
+				);
+			state.totalCount -= state.queue.filter(dropped).length;
+			state.queue = state.queue.filter(item => !dropped(item));
 		},
 		learningAssetAdvanced: (
 			state,
@@ -225,6 +242,7 @@ export const {
 	cardGraded,
 	elementRequeued,
 	newlyDueElementsAdded,
+	elementsDropped,
 	learningAssetAdvanced,
 	learningAssetFinished,
 	learningAssetSkipped,

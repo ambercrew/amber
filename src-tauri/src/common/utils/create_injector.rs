@@ -135,9 +135,12 @@ use crate::study::services::implementations::default_profile_resolution_service:
 use crate::study::services::implementations::default_learning_asset_scheduling_service::DefaultLearningAssetSchedulingService;
 use crate::study::services::implementations::default_study_profile_service::DefaultStudyProfileService;
 use crate::study::services::implementations::single_default_profile_post_sync_task::SingleDefaultProfilePostSyncTask;
+use crate::study::services::implementations::exclusive_status_post_sync_task::ExclusiveStatusPostSyncTask;
 use crate::trash::services::implementations::trashed_subtree_post_sync_task::TrashedSubtreePostSyncTask;
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
+use crate::study::services::element_status_service::ElementStatusService;
+use crate::study::services::implementations::default_element_status_service::DefaultElementStatusService;
 use crate::study::services::study_profile_service::StudyProfileService;
 use crate::{
     backend::clients::amber_backend_client::AmberBackendClient,
@@ -349,6 +352,11 @@ pub async fn create_injector<R: tauri::Runtime>(
     );
     register_scope!(
         injector,
+        dyn ElementStatusService,
+        DefaultElementStatusService
+    );
+    register_scope!(
+        injector,
         dyn StudyProfileService,
         DefaultStudyProfileService
     );
@@ -481,12 +489,14 @@ pub async fn create_injector<R: tauri::Runtime>(
 fn register_post_sync_tasks(injector: &mut Injector) {
     register_scope!(injector, SingleDefaultProfilePostSyncTask);
     register_scope!(injector, TrashedSubtreePostSyncTask);
+    register_scope!(injector, ExclusiveStatusPostSyncTask);
 
     injector.register_scope_factory::<PostSyncTasks>(|scope| {
         Box::pin(async move {
             let tasks: Vec<Arc<dyn PostSyncTask>> = vec![
                 scope.resolve::<SingleDefaultProfilePostSyncTask>().await,
                 scope.resolve::<TrashedSubtreePostSyncTask>().await,
+                scope.resolve::<ExclusiveStatusPostSyncTask>().await,
             ];
             Arc::new(PostSyncTasks::new(tasks))
         })

@@ -51,6 +51,22 @@ pub trait MetaRepository: Send + Sync {
         study_profile_id: Option<Uuid>,
     ) -> Result<(), RepositoryError>;
 
+    /// Suspends or unsuspends the element, returning whether its flag changed.
+    async fn set_suspended(&self, id: ElementId, suspended: bool) -> Result<bool, RepositoryError>;
+
+    /// Bulk [`Self::set_suspended`] over live (untrashed) elements, returning the ids whose flag changed.
+    async fn set_suspended_many(
+        &self,
+        ids: &[ElementId],
+        suspended: bool,
+    ) -> Result<Vec<ElementId>, RepositoryError>;
+
+    /// The subset of `ids` that exist and aren't trashed.
+    async fn filter_live(&self, ids: &[ElementId]) -> Result<Vec<ElementId>, RepositoryError>;
+
+    /// Unsuspends every finished element, returning how many it changed (finished wins, see `ElementStatus`).
+    async fn unsuspend_finished(&self) -> Result<u64, RepositoryError>;
+
     /// Sets or clears (`None`) the bibliographical source of the element's registry entry.
     async fn set_bibliographical_source(
         &self,

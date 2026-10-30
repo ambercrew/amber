@@ -25,17 +25,13 @@ import { openPriorityModal } from "../../../stores/app/appReducer";
 import { commandIcon } from "../../../commands/commandIcon";
 import ElementProfileRow from "../../Study/components/ElementProfileRow";
 import DueDateInput from "../../Study/components/DueDateInput";
-import FinishedSwitch from "../../Study/components/FinishedSwitch";
+import ElementStatusControl from "../../Study/components/ElementStatusControl";
 import InfoField from "./InfoField";
 import ElementNameField from "./ElementNameField";
 import InfoGroup from "./InfoGroup";
 import ReviewDetails from "./ReviewDetails";
 import OriginSection from "./OriginSection";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
-
-function hasFinished(elementType: string): boolean {
-	return elementType === "learningAsset" || elementType === "extract";
-}
 
 function ElementInfoPanel() {
 	const currentElement = useAppSelector(selectCurrentElement);
@@ -65,7 +61,6 @@ function ElementInfoPanel() {
 	const elementType = storedMeta.elementId.type;
 	const dueIso = dueIsoFor(details);
 	const finishedAt = details?.learningAssetReview?.finishedAt ?? null;
-	const finished = Boolean(finishedAt);
 
 	return (
 		<Stack gap="lg">
@@ -131,11 +126,14 @@ function ElementInfoPanel() {
 						</AppTooltip>
 					</Group>
 				</InfoField>
-				{hasFinished(elementType) && (
-					<InfoField label="Finished">
-						<FinishedSwitch
+				{details?.status && (
+					<InfoField
+						label="Status"
+						tooltip="Suspended and finished elements stay out of the review queue.">
+						<ElementStatusControl
+							key={storedMeta.elementId.id}
 							elementId={storedMeta.elementId}
-							finished={finished}
+							status={details.status}
 						/>
 					</InfoField>
 				)}

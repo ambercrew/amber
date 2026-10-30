@@ -24,19 +24,13 @@ pub trait LearningAssetSchedulingService: Send + Sync {
         element_id: ElementId,
     ) -> Result<DateTime<Utc>, LearningAssetSchedulingError>;
 
-    /// Marks the element finished. Leaves `due` and `interval_days` untouched,
-    /// which is what makes undo trivial. `duration_ms` is logged as in `next`.
+    /// Marks the element finished and unsuspends it. Leaves `due` and `interval_days`
+    /// untouched, which is what makes undo trivial. `duration_ms` is logged as in `next`.
     async fn finish(
         &self,
         element_id: ElementId,
         duration_ms: Option<u32>,
     ) -> Result<LearningAssetReview, LearningAssetSchedulingError>;
-
-    /// Marks each of `element_ids` finished. See `finish`.
-    async fn finish_many(
-        &self,
-        element_ids: Vec<ElementId>,
-    ) -> Result<(), LearningAssetSchedulingError>;
 
     /// Clears `finished_at` and resets `due` to today so the element
     /// resurfaces immediately rather than being retroactively overdue.
@@ -44,15 +38,6 @@ pub trait LearningAssetSchedulingService: Send + Sync {
         &self,
         element_id: ElementId,
     ) -> Result<LearningAssetReview, LearningAssetSchedulingError>;
-
-    /// Unfinishes each of `element_ids`. See `unfinish`. Elements that were
-    /// never reviewed are silently skipped rather than failing the whole
-    /// batch, since "never reviewed" and "not finished" are equivalent from
-    /// the caller's point of view.
-    async fn unfinish_many(
-        &self,
-        element_ids: Vec<ElementId>,
-    ) -> Result<(), LearningAssetSchedulingError>;
 
     async fn set_due(
         &self,

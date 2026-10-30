@@ -19,6 +19,7 @@ import { loadCurrentElementAction } from "../elements/elementsActions";
 import {
 	cardGraded,
 	elementRequeued,
+	elementsDropped,
 	learningAssetAdvanced,
 	learningAssetFinished,
 	learningAssetSkipped,
@@ -135,6 +136,37 @@ export function applyScheduleChangeAction(navigate: NavigateFunction) {
 			after.elementId,
 			!needsRequeue,
 			after.index,
+		);
+	};
+}
+
+// Suspended elements leave the session for good; if the viewed one is among
+// them the session moves on as if it had been reviewed.
+export function dropSuspendedElementsAction(
+	elementIds: ElementId[],
+	navigate: NavigateFunction,
+) {
+	return async (dispatch: AppDispatch, getState: () => RootState) => {
+		const current = currentSessionElement(getState());
+		dispatch(
+			elementsDropped({
+				elementIds,
+				currentElementId: current?.elementId ?? null,
+			}),
+		);
+		if (
+			!current ||
+			!elementIds.some(id => isSameElement(id, current.elementId))
+		)
+			return;
+
+		await advanceSession(
+			dispatch,
+			getState,
+			navigate,
+			current.elementId,
+			true,
+			selectStudyIndex(getState()),
 		);
 	};
 }

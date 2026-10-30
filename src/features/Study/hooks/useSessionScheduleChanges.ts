@@ -1,17 +1,23 @@
 import { useNavigate } from "react-router";
 import { ELEMENT_DUE_CHANGED_EVENT } from "../../../api/study/events/elementDueChangedEvent";
+import {
+	ELEMENTS_SUSPENDED_EVENT,
+	ElementsSuspendedEventDto,
+} from "../../../api/study/events/elementsSuspendedEvent";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { useTauriEvent } from "../../../hooks/useTauriEvent";
 import {
 	addNewlyDueElementsAction,
 	applyScheduleChangeAction,
+	dropSuspendedElementsAction,
 } from "../../../stores/study/studyActions";
 
 // A running session owns its queue on the frontend, so it has to hear about
 // schedule changes made outside it (the aside's due date, finishing an
 // element, resetting its repetitions) — otherwise the session stays on an
 // element that is no longer due and the next review overwrites the new
-// schedule. Elements that become due meanwhile join the queue.
+// schedule. Elements that become due meanwhile join the queue, and suspended
+// ones leave it.
 export function useSessionScheduleChanges() {
 	const dispatch = useAppDispatch();
 	const navigate = useNavigate();
@@ -20,4 +26,11 @@ export function useSessionScheduleChanges() {
 		void dispatch(applyScheduleChangeAction(navigate));
 		void dispatch(addNewlyDueElementsAction());
 	});
+
+	useTauriEvent<ElementsSuspendedEventDto>(
+		ELEMENTS_SUSPENDED_EVENT,
+		({ elementIds }) => {
+			void dispatch(dropSuspendedElementsAction(elementIds, navigate));
+		},
+	);
 }

@@ -6,6 +6,7 @@ use crate::elements::services::element_details_service::ElementDetails;
 use crate::study::dto::card_review_response_dto::CardReviewResponseDto;
 use crate::study::dto::learning_asset_review_dto::LearningAssetReviewResponseDto;
 use crate::study::dto::study_profile_dto::{EffectiveProfileResponseDto, StudyProfileResponseDto};
+use crate::study::value_objects::element_status::ElementStatus;
 
 /// Everything the Aside details panel needs for the currently viewed
 /// element, gathered in one round trip instead of one call per section.
@@ -23,6 +24,8 @@ pub struct ElementDetailsResponseDto {
     /// direct, otherwise the effective profile's own name.
     pub inherited_profile_name: Option<String>,
     pub priority: PriorityInfoResponseDto,
+    /// `None` for folders.
+    pub status: Option<ElementStatus>,
 }
 
 impl From<ElementDetails> for ElementDetailsResponseDto {
@@ -36,6 +39,7 @@ impl From<ElementDetails> for ElementDetailsResponseDto {
             profiles: details.profiles.into_iter().map(Into::into).collect(),
             inherited_profile_name: details.inherited_profile_name,
             priority: details.priority.into(),
+            status: details.status,
         }
     }
 }

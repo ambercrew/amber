@@ -53,7 +53,8 @@ impl FolderRepository for SqliteFolderRepository {
                 m.bibliographical_source_id as "bibliographical_source_id: _",
                 m.created_at as "created_at: _",
                 m.modified_at as "modified_at: _",
-                m.name_source
+                m.name_source,
+                m.suspended as "suspended: bool"
             FROM folders f
             INNER JOIN meta m ON f.id = m.element_id
             WHERE m.trashed_at IS NULL
@@ -84,7 +85,8 @@ impl FolderRepository for SqliteFolderRepository {
                 m.bibliographical_source_id as "bibliographical_source_id: _",
                 m.created_at as "created_at: _",
                 m.modified_at as "modified_at: _",
-                m.name_source
+                m.name_source,
+                m.suspended as "suspended: bool"
             FROM folders f
             INNER JOIN meta m ON f.id = m.element_id
             WHERE f.id = $1"#,
@@ -150,6 +152,7 @@ mod tests {
             element_id: id,
             name: "test".into(),
             name_source: NameSource::Manual,
+            suspended: false,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),

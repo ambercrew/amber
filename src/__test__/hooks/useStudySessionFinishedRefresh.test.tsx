@@ -86,6 +86,7 @@ const DETAILS: ElementDetailsResponseDto = {
 	},
 	profiles: [],
 	inheritedProfileName: null,
+	status: "active",
 	priority: { position: 3, total: 5, percentile: 50 },
 };
 

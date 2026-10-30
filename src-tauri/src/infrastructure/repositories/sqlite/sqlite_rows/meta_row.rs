@@ -23,6 +23,7 @@ pub struct MetaRow {
     pub created_at: DateTime<Utc>,
     pub modified_at: DateTime<Utc>,
     pub name_source: String,
+    pub suspended: bool,
 }
 
 impl From<MetaRow> for Meta {
@@ -31,6 +32,7 @@ impl From<MetaRow> for Meta {
             element_id: (row.element_id.into_uuid(), row.element_type).into_element_id(),
             name: row.name,
             name_source: row.name_source.parse().expect("Invalid name source"),
+            suspended: row.suspended,
             parent: (row.parent_id.map(Hyphenated::into_uuid), row.parent_type).into_element_id(),
             derived_from: (
                 row.derived_from_id.map(Hyphenated::into_uuid),

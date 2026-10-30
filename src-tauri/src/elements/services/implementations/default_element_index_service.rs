@@ -96,6 +96,7 @@ mod tests {
                 element_id: ElementId::Folder(Uuid::new_v4()),
                 name: "test".into(),
                 name_source: NameSource::Manual,
+                suspended: false,
                 parent: None,
                 position,
                 priority: FractionalIndex::default(),
