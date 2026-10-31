@@ -18,6 +18,7 @@
 		"prepare": "husky",
 		"devtools": "react-devtools",
 		"update-npm": "ncu --upgrade --cooldown 14",
+		"appimage:build": "scripts/appimage/build.sh",
 		"tauri:windows:build": "set STORE_BUILD=1 && tauri-windows-bundle build",
 		"icon": "tauri icon --ios-color '#F5F3EE' ./icon-manifest.json"
 	},

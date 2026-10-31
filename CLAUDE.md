@@ -31,6 +31,7 @@ npm run tauri build       # Production build
 npm run build             # TypeScript check + Vite build only
 npm run android:dev       # Tauri Android dev build
 npm run android:build     # Tauri Android production build
+npm run appimage:build    # Production-like Linux AppImage in Docker (updater off) → build/appimage/
 
 # Linting & Formatting
 npm run lint               # ESLint
