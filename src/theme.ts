@@ -230,6 +230,8 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--pdf-viewport-bg": "#e8e5dc",
 		// Mantine's gray-0 hover (nav links, tabs) is the sidebar's own background, so it never shows there.
 		"--sidebar-hover-bg": "var(--mantine-color-gray-2)",
+		// A SegmentedControl's gray-1 track barely separates from the sidebar.
+		"--sidebar-control-bg": "var(--mantine-color-gray-2)",
 	},
 	dark: {
 		"--mantine-color-body": "var(--mantine-color-dark-7)",
@@ -238,6 +240,8 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--inset-surface-bg": "var(--sidebar-bg)",
 		"--pdf-viewport-bg": "var(--mantine-color-body)",
 		"--sidebar-hover-bg": "var(--mantine-color-dark-6)",
+		// A SegmentedControl's dark-8 track is the sidebar's own background.
+		"--sidebar-control-bg": "var(--mantine-color-dark-9)",
 
 		// Mantine's dark defaults for these come from shade 8 of a stock red/teal
 		// it never sees us replace, which reads ~2:1 on our body. Shade 4 is where

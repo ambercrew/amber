@@ -91,6 +91,24 @@ function ElementInfoPanel() {
 			<Divider />
 
 			<InfoGroup title="Study" storageKey="study">
+				{details?.status && (
+					<InfoField
+						label="Status"
+						tooltip="Suspended and finished elements stay out of the review queue.">
+						<ElementStatusControl
+							key={storedMeta.elementId.id}
+							elementId={storedMeta.elementId}
+							status={details.status}
+						/>
+					</InfoField>
+				)}
+				{finishedAt && (
+					<InfoField label="Finished at">
+						<Text size="sm">
+							{new Date(finishedAt).toLocaleString()}
+						</Text>
+					</InfoField>
+				)}
 				<InfoField label="Study profile">
 					<ElementProfileRow
 						elementId={storedMeta.elementId}
@@ -126,24 +144,6 @@ function ElementInfoPanel() {
 						</AppTooltip>
 					</Group>
 				</InfoField>
-				{details?.status && (
-					<InfoField
-						label="Status"
-						tooltip="Suspended and finished elements stay out of the review queue.">
-						<ElementStatusControl
-							key={storedMeta.elementId.id}
-							elementId={storedMeta.elementId}
-							status={details.status}
-						/>
-					</InfoField>
-				)}
-				{finishedAt && (
-					<InfoField label="Finished at">
-						<Text size="sm">
-							{new Date(finishedAt).toLocaleString()}
-						</Text>
-					</InfoField>
-				)}
 				{currentElement &&
 					(currentElement.type === "learningAsset" ||
 						currentElement.type === "extract") && (
