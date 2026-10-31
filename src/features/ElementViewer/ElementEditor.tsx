@@ -8,6 +8,7 @@ import {
 	FloatingMenuItem,
 	FloatingMenuPlugin,
 } from "../../components/Editor/plugins/FloatingMenuPlugin";
+import { stripCodeThemes } from "../../components/Editor/plugins/CodeHighlightPlugin/CodeHighlightExtension";
 import { HighlightCreatedPayload } from "../../components/Editor/plugins/HighlightPlugin/highlightCommands";
 import RootElementPlugin from "../../components/Editor/plugins/RootElementPlugin";
 import useApi from "../../hooks/useApi";
@@ -62,7 +63,9 @@ export default function ElementEditor({
 	// every editor update.
 	const handleChange = useCallback(
 		(editorState: EditorState) => {
-			onContentUpdate(() => JSON.stringify(editorState.toJSON()));
+			onContentUpdate(() =>
+				JSON.stringify(editorState.toJSON(), stripCodeThemes),
+			);
 		},
 		[onContentUpdate],
 	);
