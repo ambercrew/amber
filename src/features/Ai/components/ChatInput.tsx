@@ -67,6 +67,13 @@ function ChatInput({
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	useFocusOnRequest("aiChat", () => textareaRef.current?.focus());
 
+	// Autosize rounds the measured height, leaving a sub-pixel overflow that shows a scrollbar; only allow scrolling past maxRows.
+	const [overflowing, setOverflowing] = useState(false);
+	useLayoutEffect(() => {
+		const node = textareaRef.current;
+		if (node) setOverflowing(node.scrollHeight - node.clientHeight > 1);
+	}, [value]);
+
 	const {
 		prompts,
 		load: loadPrompts,
@@ -226,6 +233,11 @@ function ChatInput({
 						autosize
 						minRows={1}
 						maxRows={6}
+						styles={{
+							input: {
+								overflowY: overflowing ? "auto" : "hidden",
+							},
+						}}
 						value={value}
 						disabled={disabled}
 						onChange={e => {
