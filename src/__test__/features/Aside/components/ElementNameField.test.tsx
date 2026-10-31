@@ -31,17 +31,23 @@ describe("ElementNameField", () => {
 		expect(screen.getByLabelText("Name")).toHaveValue("Cell biology");
 	});
 
-	it("Should hide the name input when the name is automatic", () => {
+	it("Should show the name as a placeholder with an auto tag when the name is automatic", () => {
 		// Arrange, Act
 
 		renderField("automatic");
 
 		// Assert
 
-		expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+		const input = screen.getByLabelText("Name");
+		expect(input).toHaveValue("");
+		expect(input).toHaveAttribute("placeholder", "Cell biology");
+		expect(screen.getByText("Auto")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Reset to automatic name" }),
+		).not.toBeInTheDocument();
 	});
 
-	it("Should make the name automatic and hide the name input when automatic is chosen", async () => {
+	it("Should make the name automatic and clear the input when reset is clicked", async () => {
 		// Arrange
 
 		vi.mocked(setElementNameSource).mockResolvedValue(undefined);
@@ -50,9 +56,8 @@ describe("ElementNameField", () => {
 
 		// Act
 
-		await user.click(screen.getByRole("combobox", { name: "Name source" }));
 		await user.click(
-			await screen.findByRole("option", { name: "Automatic" }),
+			screen.getByRole("button", { name: "Reset to automatic name" }),
 		);
 
 		// Assert
@@ -63,6 +68,7 @@ describe("ElementNameField", () => {
 				"automatic",
 			),
 		);
-		expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+		expect(screen.getByLabelText("Name")).toHaveValue("");
+		expect(screen.getByText("Auto")).toBeInTheDocument();
 	});
 });
