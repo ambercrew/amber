@@ -222,7 +222,7 @@ function ChatInput({
 					<Textarea
 						ref={textareaRef}
 						style={{ flex: 1 }}
-						placeholder="Ask a question, or type / for a saved prompt…"
+						placeholder="Type / for a saved prompt…"
 						autosize
 						minRows={1}
 						maxRows={6}
