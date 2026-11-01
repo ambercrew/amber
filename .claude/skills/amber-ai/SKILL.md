@@ -38,6 +38,8 @@ the existing tool closest to what you need and follow its shape.
 - **Keep calls bounded** and outputs short; running tools are never cancelled.
 - Put descriptions and any preamble changes in `prompts.rs`. On the frontend, give the tool an
   icon and mention it in the capabilities modal.
+- Guidelines shared by several tools (e.g. card writing for `create_card` and `create_cloze_card`)
+  go in `PREAMBLE_BASE`; each tool's description keeps only what's specific to it.
 - Test the call, the approval text and when the tool is offered.
 
 ## Providers

@@ -25,24 +25,34 @@ one-line confirmation is enough.
 When the user is done with the extract they have open, offer to mark it as \
 finished with the `finish_extract` tool.
 Some tool calls wait for the user to approve or reject them in the chat and \
-only take effect once approved; their results tell you where each one stands.";
+only take effect once approved; their results tell you where each one stands.
 
-/// The `create_card` tool's description, including card-writing guidelines.
-pub(in crate::ai_integration) const CREATE_CARD_DESCRIPTION: &str = "\
-Creates a spaced-repetition card with a front (question) and a back (answer). \
-Use this when the user asks for cards, or when a card would help them retain \
-what they're learning. Prefer `create_cloze_card` whenever the idea can be tested by \
-hiding part of a passage; use this only when a question tests it better.
-
+**Writing cards** (both kinds):
 **Selection:** Understand the material first, then encode only what is \
 genuinely worth remembering. Prefer 3 excellent cards over 10 mediocre ones; \
 a short passage typically needs 3-6, a dense one 6-10. These are not quotas — \
 every card must earn its existence. Avoid near-duplicates.
 
-**Writing:** One retrieval target per card. Keep answers as short as the idea \
-permits. Fronts must stand alone at review time, without the source in view. \
-Preserve qualifications and attribution; never strengthen the source's claims, \
-and mark interpretation or disputed claims as such (e.g. \"according to X\").
+**Writing:** One retrieval target per card. Keep what the user recalls as \
+short as the idea permits. Each card must stand alone at review time, without \
+the source in view. Test the general concept, not the specific example it was \
+taught through: phrase the card so it holds beyond the source's example, and \
+include an example only when it illustrates the concept rather than replaces \
+it. Preserve qualifications and attribution; never strengthen the source's \
+claims, and mark interpretation or disputed claims as such (e.g. \"according \
+to X\").
+
+**Review:** Before creating cards, check that none tests the same thing as \
+another, that nothing the user recalls can be shortened, and that deleting any \
+card wouldn't improve the set.";
+
+/// The `create_card` tool's description; the preamble holds the guidelines shared with cloze cards.
+pub(in crate::ai_integration) const CREATE_CARD_DESCRIPTION: &str = "\
+Creates a spaced-repetition card with a front (question) and a back (answer). \
+Use this when the user asks for cards, or when a card would help them retain \
+what they're learning. Prefer `create_cloze_card` whenever the idea can be tested by \
+hiding part of a passage; use this only when a question tests it better. \
+Follow the card-writing guidelines in your instructions.
 
 **Card types** (a toolbox, not a quota — pick the one that best fits each idea, \
 and never put the type's name on the card):
@@ -56,16 +66,12 @@ cue. Use sparingly.
 - Misconception: contrasting a genuinely plausible wrong model with the correct \
 one, e.g. \"Was X built for A or B?\" or \"Under what condition is Y true?\". \
 Don't default to yes/no questions whose answer is always \"No\", and never \
-invent straw-man misconceptions.
+invent straw-man misconceptions.";
 
-Before creating cards, check that none tests the same thing as another, \
-that no answer can be shortened, and that deleting any card wouldn't improve \
-the set.";
-
-/// The `create_cloze_card` tool's description; `create_card`'s guidelines cover the rest.
+/// The `create_cloze_card` tool's description; the preamble holds the shared card guidelines.
 pub(in crate::ai_integration) const CREATE_CLOZE_CARD_DESCRIPTION: &str = "\
 Creates a cloze deletion card: a passage with one part hidden, which the user recalls from \
-the rest. Follow the same selection and writing guidelines as `create_card`.
+the rest. Follow the card-writing guidelines in your instructions.
 
 Prefer this over `create_card` whenever an idea can be tested by hiding part of a passage, \
 such as a key term, name, number, date or the key step of a process. Use `create_card` only \
