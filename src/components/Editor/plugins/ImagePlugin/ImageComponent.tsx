@@ -1,11 +1,4 @@
-import {
-	use,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-	useSyncExternalStore,
-} from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
@@ -14,12 +7,9 @@ import { Box, Image, Popover } from "@mantine/core";
 import { ArrowsOutIcon } from "@phosphor-icons/react";
 import {
 	$getNodeByKey,
-	$getSelection,
-	$isNodeSelection,
 	CLICK_COMMAND,
 	COMMAND_PRIORITY_LOW,
 	DRAGSTART_COMMAND,
-	LexicalEditor,
 	mergeRegister,
 } from "lexical";
 import { $isImageNode } from "./ImageNode";
@@ -65,26 +55,6 @@ const HANDLE_OFFSETS: Record<
 
 const MIN_SIZE = 50;
 
-// True only when the image is the whole selection, so a wider selection's own menu doesn't stack with this one.
-function useIsSoleSelection(editor: LexicalEditor, nodeKey: string) {
-	const subscribe = useCallback(
-		(onStoreChange: () => void) =>
-			editor.registerUpdateListener(onStoreChange),
-		[editor],
-	);
-	const getSnapshot = useCallback(
-		() =>
-			editor.getEditorState().read(() => {
-				const selection = $getSelection();
-				if (!$isNodeSelection(selection)) return false;
-				const nodes = selection.getNodes();
-				return nodes.length === 1 && nodes[0].getKey() === nodeKey;
-			}),
-		[editor, nodeKey],
-	);
-	return useSyncExternalStore(subscribe, getSnapshot);
-}
-
 export default function ImageComponent({
 	src,
 	altText,
@@ -102,7 +72,6 @@ export default function ImageComponent({
 	const [isResizing, setIsResizing] = useState(false);
 	const isEditable = useLexicalEditable();
 	const isEditorFocused = useIsEditorFocused();
-	const isSoleSelection = useIsSoleSelection(editor, nodeKey);
 	const imageRef = useRef<HTMLImageElement | null>(null);
 
 	const onClick = useCallback(
@@ -173,9 +142,7 @@ export default function ImageComponent({
 	return (
 		// Node selection survives blur, so also gate on focus to keep it from floating over modals.
 		<Popover
-			opened={
-				isSoleSelection && isEditable && isEditorFocused && !isResizing
-			}
+			opened={isSelected && isEditable && isEditorFocused && !isResizing}
 			position="bottom"
 			offset={8}
 			trapFocus={false}
