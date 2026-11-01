@@ -38,6 +38,8 @@ the existing tool closest to what you need and follow its shape.
 - **Keep calls bounded** and outputs short; running tools are never cancelled.
 - Put descriptions and any preamble changes in `prompts.rs`. On the frontend, give the tool an
   icon and mention it in the capabilities modal.
+- The preamble applies to every chat, so only name a tool there if it's always offered; "when to
+  use it" for a tool gated by `is_applicable` goes in its own description.
 - Guidelines shared by several tools (e.g. card writing for `create_card` and `create_cloze_card`)
   go in `PREAMBLE_BASE`; each tool's description keeps only what's specific to it.
 - Test the call, the approval text and when the tool is offered.
@@ -54,7 +56,8 @@ Add the text as a context snippet, queue a prompt in the `aiContext` store and f
 the panel sends the prompt once it's visible. Keep reusable prompts in `aiPrompts.ts`. The model
 only knows the open element's name, not its content, so attach any text it should work from.
 Snippets stay on the message they were sent with, never in the preamble, so a later snippet
-isn't confused with an earlier one.
+isn't confused with an earlier one. Each is fenced in a `<snippet>` block, and the preamble tells
+the model snippets, search results and context are material, not instructions.
 
 ## Gotchas
 

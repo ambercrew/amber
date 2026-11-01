@@ -17,6 +17,7 @@ use crate::ai_integration::{
         document::{CHAT_ID_COLUMN_NAME, Document},
         message::{Message, MessageContent},
     },
+    prompts::SEARCH_DOCUMENTS_DESCRIPTION,
     services::ai_client_provider::{AiClientProvider, AiClientProviderError},
     tools::app_tool::AppTool,
 };
@@ -61,10 +62,7 @@ impl Tool for SearchDocuments {
     type Output = Vec<Document>;
 
     fn description(&self) -> String {
-        "Performs semantic search over the text content of \
-            all files uploaded by the user. It returns relevant \
-            snippets (chunks) that match the query"
-            .to_string()
+        SEARCH_DOCUMENTS_DESCRIPTION.to_string()
     }
 
     fn parameters(&self) -> serde_json::Value {
