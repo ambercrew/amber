@@ -79,7 +79,10 @@ export default function HomeStatistics() {
 					{errorMessage}
 				</Alert>
 			)}
-			<SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
+			{/* Container queries: open sidebars narrow the pane, not the viewport. */}
+			<SimpleGrid
+				type="container"
+				cols={{ base: 1, "480px": 2, "900px": 4 }}>
 				<StatCard
 					icon={TimerIcon}
 					label="Studied today"
