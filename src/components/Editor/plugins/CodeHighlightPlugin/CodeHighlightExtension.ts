@@ -27,6 +27,7 @@ import {
 	configExtension,
 	defineExtension,
 	type ElementNode,
+	HISTORY_MERGE_TAG,
 	type LexicalEditor,
 	type LexicalNode,
 	mergeRegister,
@@ -248,14 +249,67 @@ function $splice(code: CodeNode, current: Leaf[], next: Leaf[]) {
 	}
 }
 
+// In-flight theme and language loads, shared by every editor: each Shiki load recompiles its grammar.
+const loads = new Map<string, Promise<unknown>>();
+
+interface Loading {
+	editor: LexicalEditor;
+	/** Code blocks waiting on each load, re-highlighted together by one update once it's done. */
+	waiting: Map<string, Set<NodeKey>>;
+}
+
+/** Queues `key` behind the load of `id`, started once by `start`; `false` when it's loaded or can't be. */
+function awaitLoad(
+	{ editor, waiting }: Loading,
+	id: string,
+	start: () => Promise<unknown> | undefined,
+	key: NodeKey,
+): boolean {
+	const queued = waiting.get(id);
+	if (queued) {
+		queued.add(key);
+		return true;
+	}
+	let loading = loads.get(id);
+	if (!loading) {
+		loading = start();
+		if (!loading) return false;
+		const settled = () => loads.delete(id);
+		loading.then(settled, settled);
+		loads.set(id, loading);
+	}
+	const keys = new Set([key]);
+	waiting.set(id, keys);
+	// A failed load leaves its blocks plain, as before.
+	loading.then(
+		() => {
+			waiting.delete(id);
+			editor.update(
+				() => {
+					for (const queuedKey of keys) {
+						const node = $getNodeByKey(queuedKey);
+						if ($isCodeNode(node)) node.markDirty();
+					}
+				},
+				{ tag: HISTORY_MERGE_TAG },
+			);
+		},
+		() => waiting.delete(id),
+	);
+	return true;
+}
+
 function $highlight(
-	editor: LexicalEditor,
+	loading: Loading,
 	theme: string,
 	highlighting: Set<NodeKey>,
 	code: CodeNode,
 ) {
 	const key = code.getKey();
+	// Once per block per update: every text node in it runs this transform, even while loading.
 	if (highlighting.has(key)) return;
+	if (highlighting.size === 0) $onUpdate(() => highlighting.clear());
+	highlighting.add(key);
 
 	const language = code.getLanguage() ?? DEFAULT_CODE_LANGUAGE;
 	if (code.getLanguage() !== language) code.setLanguage(language);
@@ -264,13 +318,20 @@ function $highlight(
 	if (code.getIsSyntaxHighlightSupported() !== supported) {
 		code.setIsSyntaxHighlightSupported(supported);
 	}
-	// Both loaders re-run this transform once done; unknown languages stay plain.
-	const loadingTheme = loadCodeTheme(theme, editor, key);
-	const loadingLanguage = loadCodeLanguage(language, editor, key);
+	// Unknown languages stay plain.
+	const loadingTheme = awaitLoad(
+		loading,
+		`theme:${theme}`,
+		() => loadCodeTheme(theme),
+		key,
+	);
+	const loadingLanguage = awaitLoad(
+		loading,
+		`language:${language}`,
+		() => loadCodeLanguage(language),
+		key,
+	);
 	if (loadingTheme || loadingLanguage || !supported) return;
-
-	if (highlighting.size === 0) $onUpdate(() => highlighting.clear());
-	highlighting.add(key);
 
 	const current = $collectLeaves(code);
 	$splice(
@@ -289,8 +350,9 @@ export const CodeHighlightExtension = defineExtension({
 	dependencies: [configExtension(CodeShikiExtension, { disabled: true })],
 	register: (editor, { theme }) => {
 		const highlighting = new Set<NodeKey>();
+		const loading: Loading = { editor, waiting: new Map() };
 		const $highlightCode = (code: CodeNode) =>
-			$highlight(editor, theme, highlighting, code);
+			$highlight(loading, theme, highlighting, code);
 		const $textTransform = (node: TextNode) => {
 			const code = $findMatchingParent(node, $isCodeNode);
 			if (code) $highlightCode(code);
