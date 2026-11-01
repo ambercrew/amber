@@ -35,13 +35,13 @@ const providers: Record<AiProvider, ProviderInfo> = {
 	},
 	openAI: {
 		label: "OpenAI",
-		modelPlaceholder: "e.g. gpt-6-luna",
+		modelPlaceholder: "e.g. gpt-6.1-terra",
 		embeddingsModelPlaceholder: "e.g. text-embedding-3-small",
 		requiresApiKey: true,
 	},
 	openRouter: {
 		label: "OpenRouter",
-		modelPlaceholder: "e.g. openai/gpt-6-luna",
+		modelPlaceholder: "e.g. openai/gpt-6.1-terra",
 		embeddingsModelPlaceholder: "e.g. openai/text-embedding-3-small",
 		requiresApiKey: true,
 	},
