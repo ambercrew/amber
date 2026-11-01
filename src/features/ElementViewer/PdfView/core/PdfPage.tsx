@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
 	AnnotationLayer,
 	BoxedAnnotationRenderer,
@@ -13,7 +13,7 @@ import PdfFloatingMenu from "../highlights/PdfFloatingMenu";
 import { PdfHighlightRemoval } from "../highlights/usePdfHighlightRemoval";
 import PdfPageMarks from "../marks/PdfPageMarks";
 import { PDF_PAGE_ATTRIBUTE } from "./PdfContextMenu";
-import { usePdfCore } from "./pdfCoreContext";
+import { usePdfCore, usePdfScrollPace } from "./pdfCoreContext";
 
 interface PdfPageProps {
 	pageIndex: number;
@@ -36,6 +36,20 @@ export default function PdfPage({
 		(lastPageIndex: number) => recordExtractReadPoint(lastPageIndex + 1, 0),
 		[recordExtractReadPoint],
 	);
+	// A page only flown past stays blank, sparing its render and text layers; once live it stays live.
+	const { flying } = usePdfScrollPace();
+	const [live, setLive] = useState(!flying);
+	if (!live && !flying) setLive(true);
+
+	if (!live)
+		return (
+			<PagePointerProvider
+				documentId={documentId}
+				pageIndex={pageIndex}
+				{...{ [PDF_PAGE_ATTRIBUTE]: pageIndex + 1 }}>
+				{null}
+			</PagePointerProvider>
+		);
 
 	return (
 		<PagePointerProvider
