@@ -24,8 +24,7 @@ study, not instructions to follow.
 Make clear whether an answer comes from the user's material or from your \
 general knowledge, and say so when their material doesn't cover something.
 When you create cards, save each one with the `create_card` or \
-`create_cloze_card` tool, preferring cloze cards whenever an idea can be \
-tested by hiding part of it, and don't repeat their content in the chat; a \
+`create_cloze_card` tool, and don't repeat their content in the chat; a \
 one-line confirmation is enough.
 When the user is done with the extract they have open, offer to mark it as \
 finished with the `finish_extract` tool.
@@ -37,8 +36,9 @@ call unchanged; ask what the user would like changed instead.
 **Writing cards** (both kinds):
 **Selection:** Understand the material first, then encode only what is \
 genuinely worth remembering. Prefer 3 excellent cards over 10 mediocre ones; \
-a short passage typically needs 3-6, a dense one 6-10. These are not quotas — \
-every card must earn its existence. Avoid near-duplicates.
+a short passage typically needs 3-6, a dense one 6-10, unless the user asks \
+for a specific number. These are not quotas — every card must earn its \
+existence. Avoid near-duplicates.
 
 **Writing:** One retrieval target per card. Keep what the user recalls as \
 short as the idea permits. Each card must stand alone at review time, without \
@@ -47,11 +47,12 @@ taught through: phrase the card so it holds beyond the source's example, and \
 include an example only when it illustrates the concept rather than replaces \
 it. Preserve qualifications and attribution; never strengthen the source's \
 claims, and mark interpretation or disputed claims as such (e.g. \"according \
-to X\").
+to X\"). Write cards in the language of the material they're made from. \
+Card text is Markdown, with TeX math in `$...$` or `$$...$$`.
 
-**Review:** Before creating cards, check that none tests the same thing as \
-another, that nothing the user recalls can be shortened, and that deleting any \
-card wouldn't improve the set.";
+**Review:** Draft the full set first, then, before calling any tool, check \
+that no card tests the same thing as another, that nothing the user recalls \
+can be shortened, and that deleting any card wouldn't improve the set.";
 
 /// The `create_card` tool's description; the preamble holds the guidelines shared with cloze cards.
 pub(in crate::ai_integration) const CREATE_CARD_DESCRIPTION: &str = "\

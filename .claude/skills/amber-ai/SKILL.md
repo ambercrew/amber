@@ -35,7 +35,11 @@ the existing tool closest to what you need and follow its shape.
 - **Return ids** for anything a tool creates or finds. The model can only link to elements whose ids
   it has seen, and links use `element_reference`.
 - **Use the app's wording** in names, descriptions and approval text (e.g. "finished", not "done").
-- **Keep calls bounded** and outputs short; running tools are never cancelled.
+- **Keep calls bounded** and outputs short; running tools are never cancelled. Clamp any size the
+  model picks in `call` (e.g. `search_documents`' `top_k` to `MAX_TOP_K`); a schema hint alone
+  isn't enforced.
+- Text a tool turns into element content (like card sides) goes through the Markdown-to-Lexical
+  bridge, so it's Markdown with TeX math; tell the model so in the guidelines.
 - Put descriptions and any preamble changes in `prompts.rs`. On the frontend, give the tool an
   icon and mention it in the capabilities modal.
 - The preamble applies to every chat, so only name a tool there if it's always offered; "when to
