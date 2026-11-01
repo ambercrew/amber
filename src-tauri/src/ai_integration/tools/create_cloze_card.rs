@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::ai_integration::prompts::CREATE_CLOZE_CARD_DESCRIPTION;
 use crate::ai_integration::tools::app_tool::AppTool;
 use crate::ai_integration::tools::create_card::{
-    CreateCardOutput, card_approval_markdown, card_approved_markdown, card_name,
+    CreateCardOutput, card_approval_markdown, card_approved_markdown,
 };
 use crate::common::services::lexical_json_converter::{
     LexicalJsonConverter, LexicalJsonConverterError,
@@ -141,7 +141,7 @@ impl Tool for CreateClozeCard {
         let dto = CreateCardDto {
             id: card_id,
             meta: CreateMetaDto {
-                name: card_name(&cloze.with(cloze.hidden)),
+                name: None,
                 parent: self.parent,
                 origin: Origin::Inherited,
             },
@@ -350,7 +350,6 @@ mod tests {
         let cards = card_repository.get_all().await.unwrap();
         assert_eq!(1, cards.len());
         assert_eq!(cards[0].meta.element_id.id(), actual.card_id);
-        assert_eq!("The capital of France is Paris.", cards[0].meta.name);
         assert_eq!(
             "The capital of France is <mark data-cloze-hidden=\"Paris\">[...]</mark>.",
             cards[0].front

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::elements::value_objects::element_id::ElementId;
+use crate::study::value_objects::element_status::ElementStatus;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SavedSearchFilter {
@@ -66,6 +67,11 @@ pub enum ElementFilter {
         operator: DescendantFilterOperator,
         ancestor: Option<ElementId>,
     },
+    Status {
+        id: Uuid,
+        operator: SelectFilterOperator,
+        statuses: Vec<ElementStatus>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -108,6 +114,7 @@ pub enum SelectFilterOperator {
 pub enum DescendantFilterOperator {
     Is,
     IsNot,
+    IsOrSelf,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

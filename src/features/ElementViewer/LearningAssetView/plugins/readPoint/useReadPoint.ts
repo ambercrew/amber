@@ -2,6 +2,7 @@ import { RefObject, useCallback, useEffect, useRef } from "react";
 import { useReadingCommand } from "../../../../../commands/readingCommands";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
 import { NO_READ_POINT } from "../../../readPoint/readingPosition";
+import { OnViewportChange } from "../../core/useViewportChange";
 import { useMainScrollElement } from "../../../../App/context/mainScrollContext";
 import { ReadPointSource } from "../../../readPoint/readPointPrecedence";
 import { useReadPointPlacement } from "../../../readPoint/useReadPointPlacement";
@@ -25,6 +26,8 @@ interface Props {
 	restoredRef: RefObject<boolean>;
 	/** Where a manual set lands, shared with marks. */
 	anchors: Pick<ReadingAnchors, "resolveVisibleAnchor">;
+	/** When to re-measure the read point at the viewport top. */
+	onViewportChange: OnViewportChange;
 	/** Called when a manual set/clear lands, to move the on-screen marker; scrolling and extracts never call it. */
 	onReadPointChange?: (readPoint: ReadingPosition) => void;
 }
@@ -56,6 +59,7 @@ export function useReadPoint({
 	lastSplitSeq,
 	restoredRef,
 	anchors,
+	onViewportChange,
 	onReadPointChange,
 }: Props): ReturnValue {
 	const { place, accepts } = useReadPointPlacement({
@@ -100,23 +104,10 @@ export function useReadPoint({
 		place,
 	]);
 
-	// One measurement per frame: scroll fires far more often than paints.
-	useEffect(() => {
-		if (!scrollElement) return;
-		let frame: number | null = null;
-		const handler = () => {
-			if (frame !== null) return;
-			frame = requestAnimationFrame(() => {
-				frame = null;
-				recordScrollReadPoint();
-			});
-		};
-		scrollElement.addEventListener("scroll", handler, { passive: true });
-		return () => {
-			scrollElement.removeEventListener("scroll", handler);
-			if (frame !== null) cancelAnimationFrame(frame);
-		};
-	}, [scrollElement, recordScrollReadPoint]);
+	useEffect(
+		() => onViewportChange(recordScrollReadPoint),
+		[onViewportChange, recordScrollReadPoint],
+	);
 
 	const recordExtractReadPoint = useCallback(
 		(seq: number, block: number) => {

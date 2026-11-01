@@ -32,3 +32,21 @@ export function safeAreaVerticalStyle(): CSSProperties | undefined {
 		? { ...safeAreaTopStyle(), ...safeAreaBottomStyle() }
 		: undefined;
 }
+
+let safeAreaTopProbe: HTMLElement | null = null;
+
+/** {@link SAFE_AREA_TOP} in px, for scroll math that can't use CSS. 0 on desktop. */
+export function safeAreaTopInPx(): number {
+	if (!isMobile()) return 0;
+	if (!safeAreaTopProbe) {
+		safeAreaTopProbe = document.createElement("div");
+		Object.assign(safeAreaTopProbe.style, {
+			position: "fixed",
+			visibility: "hidden",
+			pointerEvents: "none",
+			height: SAFE_AREA_TOP,
+		});
+		document.body.appendChild(safeAreaTopProbe);
+	}
+	return safeAreaTopProbe.offsetHeight;
+}

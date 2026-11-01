@@ -112,6 +112,8 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
                 m.bibliographical_source_id as "bibliographical_source_id: _",
                 m.created_at as "created_at: _",
                 m.modified_at as "modified_at: _",
+                m.name_source,
+                m.suspended as "suspended: bool",
                 r.readpoint_split,
                 r.readpoint_block,
                 r.interval_multiplier,
@@ -151,6 +153,8 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
                 m.bibliographical_source_id as "bibliographical_source_id: _",
                 m.created_at as "created_at: _",
                 m.modified_at as "modified_at: _",
+                m.name_source,
+                m.suspended as "suspended: bool",
                 r.readpoint_split,
                 r.readpoint_block,
                 r.interval_multiplier,
@@ -384,6 +388,7 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use chrono::Utc;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
@@ -432,6 +437,8 @@ mod tests {
         Meta {
             element_id: id,
             name: "test".into(),
+            name_source: NameSource::Manual,
+            suspended: false,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),

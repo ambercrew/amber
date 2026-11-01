@@ -17,9 +17,13 @@ use crate::ai_integration::{
         document::{CHAT_ID_COLUMN_NAME, Document},
         message::{Message, MessageContent},
     },
+    prompts::SEARCH_DOCUMENTS_DESCRIPTION,
     services::ai_client_provider::{AiClientProvider, AiClientProviderError},
     tools::app_tool::AppTool,
 };
+
+/// Caps the excerpts one search adds to the context, whatever the model asks for.
+const MAX_TOP_K: u64 = 10;
 
 #[derive(Deserialize, Debug, Clone, Serialize, schemars::JsonSchema)]
 pub struct SearchDocumentsArgs {
@@ -27,7 +31,9 @@ pub struct SearchDocumentsArgs {
         description = "The search query or question to find relevant information in the uploaded files."
     )]
     pub query: String,
-    #[schemars(description = "The maximum number of top matching results to return.")]
+    #[schemars(
+        description = "The maximum number of top matching results to return, usually 3-8; at most 10."
+    )]
     pub top_k: u64,
 }
 
@@ -61,10 +67,7 @@ impl Tool for SearchDocuments {
     type Output = Vec<Document>;
 
     fn description(&self) -> String {
-        "Performs semantic search over the text content of \
-            all files uploaded by the user. It returns relevant \
-            snippets (chunks) that match the query"
-            .to_string()
+        SEARCH_DOCUMENTS_DESCRIPTION.to_string()
     }
 
     fn parameters(&self) -> serde_json::Value {
@@ -93,7 +96,7 @@ impl Tool for SearchDocuments {
         );
 
         let req = VectorSearchRequest::builder()
-            .samples(args.top_k)
+            .samples(args.top_k.clamp(1, MAX_TOP_K))
             .query(args.query)
             .filter(filter)
             .build();
@@ -242,5 +245,60 @@ pub mod tests {
         assert_eq!(2, actual.len());
         assert_eq!("same-direction", actual[0].content);
         assert_eq!("close-direction", actual[1].content);
+    }
+
+    #[tokio::test]
+    pub async fn call_top_k_above_max_returned_at_most_max_documents() {
+        // Arrange
+
+        let chat_id = Uuid::new_v4();
+        let mock_client = MockClient {
+            embeddings_model: Some("mock-model".to_string()),
+            embeddings_model_dims: Some(DEFAULT_MOCK_EMBEDDINGS_DIMS),
+            embed_texts_fn: Arc::new(Some(Box::new(move |_| {
+                Ok(vec![
+                    create_embedding(chat_id, "query", 1f64, 1f64).1.remove(0),
+                ])
+            }))),
+            ..Default::default()
+        };
+
+        let injector = initialize_test_injector(mock_client).await;
+        let scope = injector.start_scope();
+        let ai_client_provider = scope.resolve::<dyn AiClientProvider>().await;
+
+        let client = ai_client_provider.get_client().await.unwrap();
+        let embed_model = ai_client_provider
+            .get_embeddings_model(&client)
+            .await
+            .unwrap();
+        let vector_store = ai_client_provider
+            .get_vector_store(&embed_model)
+            .await
+            .unwrap();
+
+        let embeddings: Vec<(Document, Vec<Embedding>)> = (0..MAX_TOP_K + 2)
+            .map(|i| create_embedding(chat_id, &format!("chunk-{i}"), 1f64, i as f64))
+            .collect();
+        vector_store.add_rows(embeddings).await.unwrap();
+
+        let tool = SearchDocuments::new(ai_client_provider, chat_id);
+
+        // Act
+
+        let actual = tool
+            .call(
+                &mut ToolContext::default(),
+                SearchDocumentsArgs {
+                    query: "request".to_string(),
+                    top_k: 50,
+                },
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(MAX_TOP_K as usize, actual.len());
     }
 }

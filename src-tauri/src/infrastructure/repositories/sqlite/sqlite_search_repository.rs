@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -11,6 +11,7 @@ use crate::common::repository_error::RepositoryError;
 use crate::elements::entities::tag::Tag;
 use crate::elements::extensions::into_element_id_ext::IntoElementIdExt;
 use crate::elements::services::priority_service::{PriorityError, PriorityInfo, PriorityService};
+use crate::elements::value_objects::element_id::ElementId;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::search_row::SearchRow;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::tag_row::TagRow;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
@@ -36,33 +37,14 @@ impl SearchRepository for SqliteSearchRepository {
         sort: SearchSort,
         limit: Option<u32>,
     ) -> Result<Vec<ElementSearchResult>, RepositoryError> {
-        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            r#"SELECT
-                m.element_id as "element_id",
-                m.element_type as "element_type",
-                m.name as "name",
-                COALESCE(cr.due, lar.due) as "due"
-            FROM meta m
-            LEFT JOIN card_reviews cr ON cr.card_id = m.element_id AND m.element_type = 'card'
-            LEFT JOIN learning_asset_reviews lar ON lar.element_id = m.element_id AND m.element_type IN ('learning_asset', 'extract')
-            WHERE m.trashed_at IS NULL"#,
-        );
-
-        for filter in filters {
-            query_builder.push(" AND (");
-            push_filter_clause(&mut query_builder, filter);
-            query_builder.push(")");
-        }
+        let mut query_builder = filtered_query(filters);
 
         query_builder.push(" ORDER BY ");
         query_builder.push(order_by_clause(sort));
 
         // The priority filter runs in memory below, so a SQL LIMIT would cut
         // rows before it; in that case the limit is applied after filtering.
-        let has_priority_filter = filters
-            .iter()
-            .any(|filter| matches!(filter, ElementFilter::Priority { .. }));
-        if let (Some(limit), false) = (limit, has_priority_filter) {
+        if let (Some(limit), false) = (limit, has_priority_filter(filters)) {
             query_builder.push(" LIMIT ");
             query_builder.push_bind(limit as i64);
         }
@@ -89,14 +71,7 @@ impl SearchRepository for SqliteSearchRepository {
             .iter()
             .map(|row| (row.element_id.into_uuid(), row.element_type.clone()).into_element_id())
             .collect();
-        let mut priority_by_element_id = self
-            .priority_service
-            .get_priority_info_batch(&element_ids)
-            .await
-            .map_err(|err| match err {
-                PriorityError::Repository(err) => err,
-                PriorityError::PriorityExhausted => RepositoryError::QueryFailed(Box::new(err)),
-            })?;
+        let mut priority_by_element_id = self.priority_info_batch(&element_ids).await?;
 
         let mut results = Vec::with_capacity(rows.len());
         for (row, element_id) in rows.into_iter().zip(element_ids) {
@@ -118,14 +93,7 @@ impl SearchRepository for SqliteSearchRepository {
             });
         }
 
-        for filter in filters {
-            if let ElementFilter::Priority { min, max, .. } = filter {
-                results.retain(|result| {
-                    let percentile = result.priority.percentile;
-                    percentile >= *min as f64 && percentile <= *max as f64
-                });
-            }
-        }
+        results.retain(|result| within_priority_filters(filters, result.priority.percentile));
 
         if let Some(limit) = limit {
             results.truncate(limit as usize);
@@ -133,6 +101,95 @@ impl SearchRepository for SqliteSearchRepository {
 
         Ok(results)
     }
+
+    async fn matching_ids(
+        &self,
+        filters: &[ElementFilter],
+    ) -> Result<HashSet<ElementId>, RepositoryError> {
+        let rows: Vec<SearchRow> = {
+            let mut tx = self.tx.lock().await;
+            filtered_query(filters)
+                .build_query_as::<SearchRow>()
+                .fetch_all(tx.as_mut())
+                .await?
+        };
+        let element_ids: Vec<ElementId> = rows
+            .into_iter()
+            .map(|row| (row.element_id.into_uuid(), row.element_type).into_element_id())
+            .collect();
+
+        if !has_priority_filter(filters) {
+            return Ok(element_ids.into_iter().collect());
+        }
+        let priority_by_element_id = self.priority_info_batch(&element_ids).await?;
+        Ok(element_ids
+            .into_iter()
+            .filter(|element_id| {
+                let percentile = priority_by_element_id
+                    .get(element_id)
+                    .map_or(0.0, |priority| priority.percentile);
+                within_priority_filters(filters, percentile)
+            })
+            .collect())
+    }
+}
+
+impl SqliteSearchRepository {
+    async fn priority_info_batch(
+        &self,
+        element_ids: &[ElementId],
+    ) -> Result<HashMap<ElementId, PriorityInfo>, RepositoryError> {
+        self.priority_service
+            .get_priority_info_batch(element_ids)
+            .await
+            .map_err(|err| match err {
+                PriorityError::Repository(err) => err,
+                PriorityError::PriorityExhausted => RepositoryError::QueryFailed(Box::new(err)),
+            })
+    }
+}
+
+/// Live elements matching every filter except priority, which needs computed percentiles.
+fn filtered_query(filters: &[ElementFilter]) -> QueryBuilder<Sqlite> {
+    let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+        r#"SELECT
+                m.element_id as "element_id",
+                m.element_type as "element_type",
+                m.name as "name",
+                COALESCE(cr.due, lar.due) as "due"
+            FROM meta m
+            LEFT JOIN card_reviews cr ON cr.card_id = m.element_id AND m.element_type = 'card'
+            LEFT JOIN learning_asset_reviews lar ON lar.element_id = m.element_id AND m.element_type IN ('learning_asset', 'extract')
+            WHERE m.trashed_at IS NULL"#,
+    );
+
+    for filter in filters {
+        query_builder.push(" AND (");
+        push_filter_clause(&mut query_builder, filter);
+        query_builder.push(")");
+    }
+
+    query_builder
+}
+
+/// An element's `ElementStatus` as text; folders have none, so the status filter excludes them.
+const STATUS_EXPR: &str = "CASE WHEN m.element_type = 'folder' THEN NULL \
+     WHEN lar.finished_at IS NOT NULL THEN 'finished' \
+     WHEN m.suspended = 1 THEN 'suspended' ELSE 'active' END";
+
+fn has_priority_filter(filters: &[ElementFilter]) -> bool {
+    filters
+        .iter()
+        .any(|filter| matches!(filter, ElementFilter::Priority { .. }))
+}
+
+fn within_priority_filters(filters: &[ElementFilter], percentile: f64) -> bool {
+    filters.iter().all(|filter| match filter {
+        ElementFilter::Priority { min, max, .. } => {
+            percentile >= *min as f64 && percentile <= *max as f64
+        }
+        _ => true,
+    })
 }
 
 fn order_by_clause(sort: SearchSort) -> String {
@@ -325,16 +382,34 @@ fn push_filter_clause(query_builder: &mut QueryBuilder<Sqlite>, filter: &Element
                 return;
             };
             query_builder.push(match operator {
-                DescendantFilterOperator::Is => "m.element_id IN (",
+                DescendantFilterOperator::Is | DescendantFilterOperator::IsOrSelf => {
+                    "m.element_id IN ("
+                }
                 DescendantFilterOperator::IsNot => "m.element_id NOT IN (",
             });
-            query_builder.push(
-                "WITH RECURSIVE subtree(element_id) AS (SELECT element_id FROM meta WHERE parent_id = ",
-            );
+            // The subtree starts at the ancestor itself or at its children.
+            let seed_column = match operator {
+                DescendantFilterOperator::IsOrSelf => "element_id",
+                DescendantFilterOperator::Is | DescendantFilterOperator::IsNot => "parent_id",
+            };
+            query_builder.push(format!(
+                "WITH RECURSIVE subtree(element_id) AS (SELECT element_id FROM meta WHERE {seed_column} = "
+            ));
             query_builder.push_bind(ancestor.id().hyphenated());
             query_builder.push(
                 " UNION SELECT c.element_id FROM meta c JOIN subtree s ON c.parent_id = s.element_id) SELECT element_id FROM subtree)",
             );
+        }
+        ElementFilter::Status {
+            operator, statuses, ..
+        } => {
+            let status_strings: Vec<String> = statuses
+                .iter()
+                .map(|status| status.as_str().to_string())
+                .collect();
+            // Also keeps folders out when an empty list short-circuits to `1 = 1`.
+            query_builder.push("m.element_type != 'folder' AND ");
+            push_select_clause_str(query_builder, STATUS_EXPR, operator, &status_strings);
         }
     }
 }
@@ -510,6 +585,7 @@ fn escape_like(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
     use chrono::Utc;
     use fractional_index::FractionalIndex;
@@ -553,6 +629,7 @@ mod tests {
     use crate::study::repositories::study_profile_repository::StudyProfileRepository;
     use crate::study::utils::day_boundary::start_of_today_utc;
     use crate::study::value_objects::card_state::CardState;
+    use crate::study::value_objects::element_status::ElementStatus;
     use crate::test_utils::create_test_injector;
     use crate::trash::repositories::trash_repository::TrashRepository;
     use chrono::Duration;
@@ -601,6 +678,8 @@ mod tests {
             meta: Meta {
                 element_id: ElementId::Folder(Uuid::new_v4()),
                 name: name.into(),
+                name_source: NameSource::Manual,
+                suspended: false,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority,
@@ -618,6 +697,8 @@ mod tests {
             meta: Meta {
                 element_id: ElementId::Card(Uuid::new_v4()),
                 name: name.into(),
+                name_source: NameSource::Manual,
+                suspended: false,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority,
@@ -638,6 +719,8 @@ mod tests {
             meta: Meta {
                 element_id: ElementId::LearningAsset(Uuid::new_v4()),
                 name: name.into(),
+                name_source: NameSource::Manual,
+                suspended: false,
                 parent: None,
                 position: FractionalIndex::default(),
                 priority,
@@ -1360,6 +1443,174 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn search_status_filter_returns_only_elements_with_matching_status() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repository = scope.resolve::<dyn CardRepository>().await;
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let suspended = make_card("Suspended", FractionalIndex::default());
+        let active = make_card(
+            "Active",
+            FractionalIndex::new_after(&FractionalIndex::default()),
+        );
+        let suspended_id = suspended.meta.element_id;
+        let active_id = active.meta.element_id;
+        card_repository.create(suspended).await.unwrap();
+        card_repository.create(active).await.unwrap();
+        folder_repository
+            .create(make_folder("Folder", FractionalIndex::default()))
+            .await
+            .unwrap();
+        meta_repository
+            .set_suspended(suspended_id, true)
+            .await
+            .unwrap();
+
+        let filter = |operator| {
+            vec![ElementFilter::Status {
+                id: Uuid::new_v4(),
+                operator,
+                statuses: vec![ElementStatus::Suspended],
+            }]
+        };
+
+        // Act
+
+        let any_of = search_repository
+            .search(
+                &filter(SelectFilterOperator::IsAnyOf),
+                SearchSort::default(),
+                None,
+            )
+            .await
+            .unwrap();
+        let none_of = search_repository
+            .search(
+                &filter(SelectFilterOperator::IsNoneOf),
+                SearchSort::default(),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(
+            vec![suspended_id],
+            any_of.iter().map(|r| r.element_id).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec![active_id],
+            none_of.iter().map(|r| r.element_id).collect::<Vec<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn search_status_filter_none_of_nothing_excludes_folders() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repository = scope.resolve::<dyn CardRepository>().await;
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+        let card = make_card("Card", FractionalIndex::default());
+        let card_id = card.meta.element_id;
+        card_repository.create(card).await.unwrap();
+        folder_repository
+            .create(make_folder("Folder", FractionalIndex::default()))
+            .await
+            .unwrap();
+        let filters = vec![ElementFilter::Status {
+            id: Uuid::new_v4(),
+            operator: SelectFilterOperator::IsNoneOf,
+            statuses: vec![],
+        }];
+
+        // Act
+
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(
+            vec![card_id],
+            results.iter().map(|r| r.element_id).collect::<Vec<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn search_status_filter_finished_returns_finished_extract() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repository = scope.resolve::<dyn CardRepository>().await;
+        let learning_asset_repository = scope.resolve::<dyn LearningAssetRepository>().await;
+        let review_repository = scope.resolve::<dyn LearningAssetReviewRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        card_repository
+            .create(make_card("Card", FractionalIndex::default()))
+            .await
+            .unwrap();
+        let asset_id = ElementId::LearningAsset(Uuid::new_v4());
+        learning_asset_repository
+            .create(
+                LearningAsset {
+                    r#type: Default::default(),
+                    interval_multiplier: 1.2,
+                    meta: Meta {
+                        element_id: asset_id,
+                        ..make_card("Asset", FractionalIndex::default()).meta
+                    },
+                    read_point: ReadingPosition::default(),
+                },
+                LearningAssetContent::Extracted(Vec::new()),
+            )
+            .await
+            .unwrap();
+        review_repository
+            .upsert(&LearningAssetReview {
+                element_id: asset_id,
+                due: Utc::now(),
+                interval_days: 0.0,
+                last_reviewed: None,
+                finished_at: Some(Utc::now()),
+            })
+            .await
+            .unwrap();
+
+        let filters = vec![ElementFilter::Status {
+            id: Uuid::new_v4(),
+            operator: SelectFilterOperator::IsAnyOf,
+            statuses: vec![ElementStatus::Finished],
+        }];
+
+        // Act
+
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(
+            vec![asset_id],
+            results.iter().map(|r| r.element_id).collect::<Vec<_>>()
+        );
+    }
+
+    #[tokio::test]
     async fn search_due_date_filter_today_returns_only_elements_due_today() {
         // Arrange
 
@@ -1868,6 +2119,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn search_descendant_of_filter_is_or_self_returns_ancestor_and_descendants() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let root = make_folder("Root", FractionalIndex::default());
+        let root_id = root.meta.element_id;
+        let child = make_child_folder(
+            "Child",
+            root_id,
+            FractionalIndex::new_after(&FractionalIndex::default()),
+        );
+        let child_id = child.meta.element_id;
+        let grandchild = make_child_folder(
+            "Grandchild",
+            child_id,
+            FractionalIndex::new_after(&child.meta.priority),
+        );
+        let grandchild_id = grandchild.meta.element_id;
+        let unrelated = make_folder(
+            "Unrelated",
+            FractionalIndex::new_after(&grandchild.meta.priority),
+        );
+        folder_repository.create(root).await.unwrap();
+        folder_repository.create(child).await.unwrap();
+        folder_repository.create(grandchild).await.unwrap();
+        folder_repository.create(unrelated).await.unwrap();
+
+        let filters = vec![ElementFilter::DescendantOf {
+            id: Uuid::new_v4(),
+            operator: DescendantFilterOperator::IsOrSelf,
+            ancestor: Some(root_id),
+        }];
+
+        // Act
+
+        let results = search_repository
+            .search(&filters, SearchSort::default(), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        let ids: Vec<ElementId> = results.iter().map(|r| r.element_id).collect();
+        assert_eq!(vec![child_id, grandchild_id, root_id], ids);
+    }
+
+    #[tokio::test]
     async fn search_descendant_of_filter_is_not_excludes_descendants() {
         // Arrange
 
@@ -2304,5 +2606,80 @@ mod tests {
         // Assert
 
         assert_eq!(vec!["Apple", "Zebra"], names(&results));
+    }
+
+    #[tokio::test]
+    async fn matching_ids_name_filter_returns_only_matching_ids() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let matching = make_folder("Philosophy Backlog", FractionalIndex::default());
+        let other = make_folder(
+            "Chemistry",
+            FractionalIndex::new_after(&FractionalIndex::default()),
+        );
+        let matching_id = matching.meta.element_id;
+        folder_repository.create(matching).await.unwrap();
+        folder_repository.create(other).await.unwrap();
+
+        let filters = vec![ElementFilter::Name {
+            id: Uuid::new_v4(),
+            operator: StringFilterOperator::Contains,
+            value: "philo".into(),
+        }];
+
+        // Act
+
+        let ids = search_repository.matching_ids(&filters).await.unwrap();
+
+        // Assert
+
+        assert_eq!(HashSet::from([matching_id]), ids);
+    }
+
+    #[tokio::test]
+    async fn matching_ids_priority_filter_excludes_out_of_range_elements() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let pos_a = FractionalIndex::default();
+        let pos_b = FractionalIndex::new_after(&pos_a);
+        let pos_c = FractionalIndex::new_after(&pos_b);
+        let second = make_folder("B", pos_b);
+        let second_id = second.meta.element_id;
+        folder_repository
+            .create(make_folder("A", pos_a))
+            .await
+            .unwrap();
+        folder_repository.create(second).await.unwrap();
+        folder_repository
+            .create(make_folder("C", pos_c))
+            .await
+            .unwrap();
+
+        // position 1 -> percentile 0%, position 2 -> percentile 50%, position 3 -> percentile 100%
+        let filters = vec![ElementFilter::Priority {
+            id: Uuid::new_v4(),
+            operator:
+                crate::saved_searches::entities::saved_search_filter::RangeFilterOperator::Between,
+            min: 50,
+            max: 80,
+        }];
+
+        // Act
+
+        let ids = search_repository.matching_ids(&filters).await.unwrap();
+
+        // Assert
+
+        assert_eq!(HashSet::from([second_id]), ids);
     }
 }

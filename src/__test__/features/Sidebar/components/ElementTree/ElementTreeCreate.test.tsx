@@ -132,7 +132,7 @@ describe("ElementTree create child", () => {
 		);
 	});
 
-	it("Should use a name containing the element label and a timestamp when creating", async () => {
+	it("Should leave the name for the backend to derive when creating", async () => {
 		// Arrange
 
 		vi.mocked(createFolderAction).mockReturnValue(() =>
@@ -156,15 +156,11 @@ describe("ElementTree create child", () => {
 		await waitFor(() => screen.getByText("Folder"), { timeout: 1000 });
 		await user.click(screen.getByText("Folder"));
 
-		// Assert — name is "Folder YYYY-MM-DD HH:MM:SS"
+		// Assert
 
 		expect(createFolderAction).toHaveBeenCalledWith(
 			expect.objectContaining({
-				meta: expect.objectContaining({
-					name: expect.stringMatching(
-						/^Folder \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
-					) as string,
-				}) as object,
+				meta: expect.objectContaining({ name: null }) as object,
 			}),
 		);
 	});

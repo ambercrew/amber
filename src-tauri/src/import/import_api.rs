@@ -6,11 +6,11 @@ use injector::injector::Injector;
 use pdf_oxide::converters::ConversionOptions;
 use pdf_oxide::document::PdfDocument;
 use pdf_oxide::extractors::xmp::XmpExtractor;
-use tauri::{Emitter, State};
-use tauri_plugin_http::reqwest::{
+use reqwest::{
     self,
     header::{CONTENT_TYPE, REFERER},
 };
+use tauri::{Emitter, State};
 
 use crate::assets::services::asset_service::AssetService;
 use crate::assets::utils::image_mime::sniff_image_mime;

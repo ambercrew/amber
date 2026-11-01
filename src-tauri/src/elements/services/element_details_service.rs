@@ -11,6 +11,7 @@ use crate::study::entities::study_profile::StudyProfile;
 use crate::study::services::profile_resolution_service::{
     EffectiveProfile, ProfileResolutionError,
 };
+use crate::study::value_objects::element_status::ElementStatus;
 
 /// Everything the Aside details panel needs for a given element, gathered in
 /// one round trip instead of one call per section.
@@ -23,6 +24,8 @@ pub struct ElementDetails {
     pub effective_profile: EffectiveProfile,
     pub profiles: Vec<StudyProfile>,
     pub priority: PriorityInfo,
+    /// `None` for folders.
+    pub status: Option<ElementStatus>,
     /// Name to show for the "inherit from parent" option: the parent's (or
     /// app-wide default's) profile name when this element's profile is
     /// direct, otherwise the effective profile's own name.

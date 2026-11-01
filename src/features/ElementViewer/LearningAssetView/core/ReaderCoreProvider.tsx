@@ -11,6 +11,7 @@ import { SplitStackContext, SplitStackWiring } from "./splitStackContext";
 import { useKeyedRefCallbacks } from "./useKeyedRefCallbacks";
 import { useReadingAnchors } from "./useReadingAnchors";
 import { useSplitNavigator } from "./useSplitNavigator";
+import { useViewportChange } from "./useViewportChange";
 
 function setOrDelete<K, V>(map: Map<K, V>, key: K, value: V | null) {
 	if (value) map.set(key, value);
@@ -38,8 +39,14 @@ export default function ReaderCoreProvider({
 }: ReaderCoreProviderProps) {
 	const [contentWidth, containerRef] = useContentWidth();
 	const scrollElement = useMainScrollElement();
-	const { mountedSeqs, primarySeq, registerSlot, lockTo, unlock } =
-		useSplitMountWindow({ splits, initialSeq: initialReadPoint.split });
+	const {
+		mountedSeqs,
+		primarySeq,
+		registerSlot,
+		lockTo,
+		unlock,
+		notifySplitReady: notifyWindowSplitReady,
+	} = useSplitMountWindow({ splits, initialSeq: initialReadPoint.split });
 	const { getHeight, observeSplit } = useSplitHeights(
 		learningAssetId,
 		contentWidth,
@@ -80,6 +87,18 @@ export default function ReaderCoreProvider({
 		lockTo,
 		unlock,
 	});
+	const { onViewportChange, notifyViewportChange } =
+		useViewportChange(scrollElement);
+	const notifyContentReady = useCallback(
+		(seq: number) => {
+			// Before the navigator, whose landing unlocks the window: opening isn't the reader scrolling.
+			const atTop = notifyWindowSplitReady(seq);
+			notifySplitReady(seq);
+			// The top split mounting after a fast scroll settles is first measurable now.
+			if (atTop) notifyViewportChange();
+		},
+		[notifySplitReady, notifyWindowSplitReady, notifyViewportChange],
+	);
 	const anchors = useReadingAnchors({
 		primarySeq,
 		getContentRoot,
@@ -100,6 +119,7 @@ export default function ReaderCoreProvider({
 			navigate,
 			restoredRef,
 			anchors,
+			onViewportChange,
 		}),
 		[
 			learningAssetId,
@@ -114,6 +134,7 @@ export default function ReaderCoreProvider({
 			navigate,
 			restoredRef,
 			anchors,
+			onViewportChange,
 		],
 	);
 	const wiring = useMemo<SplitStackWiring>(
@@ -124,7 +145,7 @@ export default function ReaderCoreProvider({
 			observeSplit,
 			contentRootRef,
 			splitBoxRef,
-			notifyContentReady: notifySplitReady,
+			notifyContentReady,
 			onHighlightCreated,
 		}),
 		[
@@ -134,7 +155,7 @@ export default function ReaderCoreProvider({
 			observeSplit,
 			contentRootRef,
 			splitBoxRef,
-			notifySplitReady,
+			notifyContentReady,
 			onHighlightCreated,
 		],
 	);

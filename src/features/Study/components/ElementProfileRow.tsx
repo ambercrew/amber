@@ -66,9 +66,6 @@ function ElementProfileRow({ elementId, details }: ElementProfileRowProps) {
 						overflow: "hidden",
 					},
 				}}
-				comboboxProps={{
-					floatingStrategy: "fixed",
-				}}
 				renderOption={({ option, checked }) => {
 					const profile = profiles.find(p => p.id === option.value);
 					return (

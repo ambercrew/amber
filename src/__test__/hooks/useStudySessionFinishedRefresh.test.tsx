@@ -33,6 +33,7 @@ const CARD_ELEMENT: AnyElementDto = {
 			tags: [],
 			createdAt: "2024-01-01T00:00:00Z",
 			modifiedAt: "2024-01-01T00:00:00Z",
+			nameSource: "manual",
 			bibliographicalSourceId: null,
 			derivedFrom: null,
 		},
@@ -85,6 +86,7 @@ const DETAILS: ElementDetailsResponseDto = {
 	},
 	profiles: [],
 	inheritedProfileName: null,
+	status: "active",
 	priority: { position: 3, total: 5, percentile: 50 },
 };
 

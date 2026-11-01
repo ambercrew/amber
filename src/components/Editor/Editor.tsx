@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalExtensionComposer } from "@lexical/react/LexicalExtensionComposer";
-import { defineExtension } from "lexical";
+import { configExtension, defineExtension } from "lexical";
 import {
 	Box,
 	Menu,
@@ -13,6 +13,7 @@ import {
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { SlashMenuPlugin } from "./plugins/SlashMenuPlugin";
 import { EquationExtension } from "./plugins/EquationPlugin/EquationExtension";
+import { CodeHighlightExtension } from "./plugins/CodeHighlightPlugin/CodeHighlightExtension";
 import {
 	HighlightCreatedListener,
 	HighlightPlugin,
@@ -40,19 +41,6 @@ import styles from "./Editor.module.css";
 import { useIsCoarsePointer } from "../../hooks/useIsCoarsePointer";
 import useAppSelector from "../../hooks/useAppSelector";
 import { selectIsVirtualKeyboardSuppressed } from "../../stores/app/appSelectors";
-
-// @lexical/code-shiki bakes the Shiki theme used at highlight time into
-// each CodeNode's serialized JSON, and only re-highlights with the
-// tokenizer's current `defaultTheme` when a node has none set. Without
-// this, code blocks saved under one color scheme would keep rendering
-// with that scheme's colors forever, even after switching themes.
-function stripCodeNodeThemes(json: string): string {
-	return JSON.stringify(
-		JSON.parse(json),
-		(key: string, value: unknown): unknown =>
-			key === "theme" ? undefined : value,
-	);
-}
 
 interface EditorProps {
 	initialContent?: string;
@@ -126,6 +114,12 @@ function EditorContent({
 				dependencies: [
 					...editorExtensionDependencies,
 					EquationExtension,
+					configExtension(CodeHighlightExtension, {
+						theme:
+							colorScheme === "dark"
+								? "gruvbox-dark-medium"
+								: "gruvbox-light-soft",
+					}),
 				],
 				theme: {
 					...editorTheme,
@@ -137,9 +131,8 @@ function EditorContent({
 				name: "editor",
 				namespace: "editor",
 				nodes: editorNodes,
-				$initialEditorState: !initialContent
-					? undefined
-					: stripCodeNodeThemes(initialContent),
+				$initialEditorState:
+					initialContent === "" ? undefined : initialContent,
 			}),
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- only apply initialContent once, at editor creation; colorScheme is the one prop allowed to rebuild the editor, so code blocks re-highlight with the matching Shiki theme
 		[colorScheme],

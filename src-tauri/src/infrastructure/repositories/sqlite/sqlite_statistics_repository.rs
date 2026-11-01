@@ -108,11 +108,11 @@ impl StatisticsRepository for SqliteStatisticsRepository {
             FROM (
                 SELECT cr.due FROM card_reviews cr
                 JOIN meta m ON m.element_id = cr.card_id
-                WHERE m.trashed_at IS NULL
+                WHERE m.trashed_at IS NULL AND m.suspended = 0
                 UNION ALL
                 SELECT lar.due FROM learning_asset_reviews lar
                 JOIN meta m ON m.element_id = lar.element_id
-                WHERE m.trashed_at IS NULL AND lar.finished_at IS NULL
+                WHERE m.trashed_at IS NULL AND m.suspended = 0 AND lar.finished_at IS NULL
             )
             WHERE datetime(due) >= datetime($1) AND datetime(due) < datetime($2)
             GROUP BY 1
@@ -135,6 +135,7 @@ impl StatisticsRepository for SqliteStatisticsRepository {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use chrono::{Duration, Local};
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
@@ -218,6 +219,8 @@ mod tests {
         Meta {
             element_id,
             name: "test".into(),
+            name_source: NameSource::Manual,
+            suspended: false,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),
@@ -500,5 +503,54 @@ mod tests {
             }],
             actual
         );
+    }
+
+    #[tokio::test]
+    async fn get_daily_forecast_suspended_card_excludes_it() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let review_repo = scope.resolve::<dyn CardReviewRepository>().await;
+        let repo = scope.resolve::<dyn StatisticsRepository>().await;
+        let now = Utc::now();
+        let card_id = Uuid::new_v4();
+        card_repo
+            .create(Card {
+                meta: Meta {
+                    suspended: true,
+                    ..meta(ElementId::Card(card_id))
+                },
+                ..card(card_id)
+            })
+            .await
+            .unwrap();
+        review_repo
+            .upsert(&CardReview {
+                card_id,
+                due: now + Duration::days(3),
+                stability: 1.0,
+                difficulty: 5.0,
+                reps: 1,
+                lapses: 0,
+                state: CardState::Review,
+                last_reviewed: Some(now),
+                scheduled_days: 3,
+                learning_steps: 0,
+            })
+            .await
+            .unwrap();
+
+        // Act
+
+        let actual = repo
+            .get_daily_forecast(now + Duration::days(1), now + Duration::days(10))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(actual.is_empty());
     }
 }

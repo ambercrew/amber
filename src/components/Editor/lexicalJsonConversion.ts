@@ -9,6 +9,7 @@ import {
 	editorNodes,
 	editorTheme,
 } from "./editorExtension";
+import { stripCodeThemes } from "./plugins/CodeHighlightPlugin/CodeHighlightExtension";
 
 // Stand-in for @lexical/clipboard's non-exported `BaseSerializedNode`.
 export interface SerializedLexicalNodeTree {
@@ -31,7 +32,10 @@ export function runHeadless(populate: (editor: LexicalEditor) => void): string {
 
 	editor.update(() => populate(editor), { discrete: true });
 
-	const json = JSON.stringify(editor.getEditorState().toJSON());
+	const json = JSON.stringify(
+		editor.getEditorState().toJSON(),
+		stripCodeThemes,
+	);
 	editor.dispose();
 	return json;
 }

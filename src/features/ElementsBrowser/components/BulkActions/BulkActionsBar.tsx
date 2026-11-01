@@ -1,14 +1,11 @@
 import { Button, Group, Menu, Text } from "@mantine/core";
 import {
 	ArrowCounterClockwiseIcon,
-	ArrowUUpLeftIcon,
 	BookOpenIcon,
 	CalendarBlankIcon,
 	CalendarIcon,
 	CardsIcon,
 	CaretDownIcon,
-	CheckCircleIcon,
-	FileTextIcon,
 	GraduationCapIcon,
 	MinusIcon,
 	PlusIcon,
@@ -17,10 +14,7 @@ import {
 } from "@phosphor-icons/react";
 import { Fragment, useEffect, useState } from "react";
 import { notifications } from "@mantine/notifications";
-import {
-	finishLearningAssetsBulk,
-	unfinishLearningAssetsBulk,
-} from "../../../../api/study/api/studyApi";
+import { setElementsStatus } from "../../../../api/study/api/studyApi";
 import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
 import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { SearchElementResultDto } from "../../../../api/search/dto/searchElementResultDto";
@@ -28,6 +22,14 @@ import { ElementId } from "../../../../types/elements/elementId";
 import useApi from "../../../../hooks/useApi";
 import useAppDispatch from "../../../../hooks/useAppDispatch";
 import { loadElementTree } from "../../../../stores/elements/elementsActions";
+import {
+	ElementStatus,
+	elementStatusOptions,
+} from "../../../../types/study/elementStatus";
+import {
+	ELEMENT_STATUS_ICONS,
+	StatusPropertyIcon,
+} from "../../../../config/icons";
 import { BulkCallApi } from "./bulkCallApi";
 import ResetRepetitionsConfirmModal from "./modals/ResetRepetitionsConfirmModal";
 import SetDueDateModal from "./modals/SetDueDateModal";
@@ -46,6 +48,22 @@ type OpenModal =
 	| "source"
 	| "delete"
 	| null;
+
+function statusMessage(
+	status: ElementStatus,
+	label: string,
+	applied: number,
+	total: number,
+): string {
+	const message = `Status set to ${label.toLowerCase()}`;
+	const skipped = total - applied;
+	if (skipped === 0) return message;
+	const reason =
+		status === "finished"
+			? "only learning assets and extracts can be finished"
+			: "folders have no status, and deleted elements are skipped";
+	return `${message} for ${applied} of ${total}; ${skipped} skipped (${reason})`;
+}
 
 function selectionLabel(selectedCount: number, resultCount: number): string {
 	if (selectedCount === 0) {
@@ -110,17 +128,12 @@ export default function BulkActionsBar({
 		onActionComplete();
 	}
 
-	function handleMarkAsFinished() {
+	function handleSetStatus(status: ElementStatus, label: string) {
 		void bulkCallApi(async () => {
-			await finishLearningAssetsBulk(selectedIds);
-			handleSuccess("Marked as finished");
-		});
-	}
-
-	function handleUnfinish() {
-		void bulkCallApi(async () => {
-			await unfinishLearningAssetsBulk(selectedIds);
-			handleSuccess("Marked as unfinished");
+			const applied = await setElementsStatus(selectedIds, status);
+			handleSuccess(
+				statusMessage(status, label, applied, selectedIds.length),
+			);
 		});
 	}
 
@@ -176,32 +189,6 @@ export default function BulkActionsBar({
 										</Menu.Item>
 									</Menu.Sub.Dropdown>
 								</Menu.Sub>
-								<Menu.Sub position="right-start" shadow="md">
-									<Menu.Sub.Target>
-										<Menu.Sub.Item
-											leftSection={
-												<FileTextIcon size={16} />
-											}>
-											Learning assets/extracts
-										</Menu.Sub.Item>
-									</Menu.Sub.Target>
-									<Menu.Sub.Dropdown>
-										<Menu.Item
-											leftSection={
-												<CheckCircleIcon size={16} />
-											}
-											onClick={handleMarkAsFinished}>
-											Mark as finished
-										</Menu.Item>
-										<Menu.Item
-											leftSection={
-												<ArrowUUpLeftIcon size={16} />
-											}
-											onClick={handleUnfinish}>
-											Unfinish
-										</Menu.Item>
-									</Menu.Sub.Dropdown>
-								</Menu.Sub>
 								<Menu.Item
 									leftSection={
 										<CalendarBlankIcon size={16} />
@@ -216,6 +203,37 @@ export default function BulkActionsBar({
 									onClick={() => openBulkModal("profile")}>
 									Set study profile
 								</Menu.Item>
+							</Menu.Sub.Dropdown>
+						</Menu.Sub>
+						<Menu.Sub position="right-start" shadow="md">
+							<Menu.Sub.Target>
+								<Menu.Sub.Item
+									leftSection={
+										<StatusPropertyIcon size={16} />
+									}>
+									Set status
+								</Menu.Sub.Item>
+							</Menu.Sub.Target>
+							<Menu.Sub.Dropdown>
+								{elementStatusOptions.map(option => {
+									const StatusIcon =
+										ELEMENT_STATUS_ICONS[option.value];
+									return (
+										<Menu.Item
+											key={option.value}
+											leftSection={
+												<StatusIcon size={16} />
+											}
+											onClick={() =>
+												handleSetStatus(
+													option.value,
+													option.label,
+												)
+											}>
+											{option.label}
+										</Menu.Item>
+									);
+								})}
 							</Menu.Sub.Dropdown>
 						</Menu.Sub>
 						<Menu.Sub position="right-start" shadow="md">

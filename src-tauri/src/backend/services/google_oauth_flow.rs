@@ -184,7 +184,7 @@ async fn exchange_code_for_id_token(
         id_token: String,
     }
 
-    let client = tauri_plugin_http::reqwest::Client::new();
+    let client = reqwest::Client::new();
     let response = client
         .post(GOOGLE_TOKEN_ENDPOINT)
         .form(&[

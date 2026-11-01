@@ -61,6 +61,7 @@ export default function TableOfContentsProvider({
 		primarySeq,
 		getContentRoot,
 		navigate,
+		onViewportChange,
 	} = useReaderCore();
 	const dispatch = useAppDispatch();
 
@@ -147,23 +148,11 @@ export default function TableOfContentsProvider({
 		activeIdRef.current = id;
 		dispatch(setActiveTableOfContentsEntry(id));
 	}, [headings, getContentRoot, primarySeq, scrollElement, dispatch]);
-	useEffect(() => {
-		highlightCurrent();
-		if (!scrollElement) return;
-		let frame: number | null = null;
-		const handler = () => {
-			if (frame !== null) return;
-			frame = requestAnimationFrame(() => {
-				frame = null;
-				highlightCurrent();
-			});
-		};
-		scrollElement.addEventListener("scroll", handler, { passive: true });
-		return () => {
-			scrollElement.removeEventListener("scroll", handler);
-			if (frame !== null) cancelAnimationFrame(frame);
-		};
-	}, [scrollElement, highlightCurrent]);
+	useEffect(() => highlightCurrent(), [highlightCurrent]);
+	useEffect(
+		() => onViewportChange(highlightCurrent),
+		[onViewportChange, highlightCurrent],
+	);
 
 	useReadingCommand(
 		"go-to-table-of-contents-entry",

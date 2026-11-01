@@ -7,9 +7,12 @@ use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::entities::tag::Tag;
+use crate::elements::extensions::into_element_id_ext::IntoElementIdExt;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::meta::Meta;
+use crate::elements::value_objects::name_source::NameSource;
+use crate::infrastructure::repositories::sqlite::ids_json::ids_json;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::meta_row::MetaRow;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::tag_row::TagRow;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
@@ -24,11 +27,12 @@ impl MetaRepository for SqliteMetaRepository {
     async fn create_meta(&self, meta: &Meta) -> Result<(), RepositoryError> {
         let uuid = meta.element_id.id().hyphenated();
         let element_type = meta.element_id.element_name();
+        let name_source = meta.name_source.as_str();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
-            "INSERT INTO meta (element_id, element_type, name, position, priority, parent_id, parent_type, derived_from_id, derived_from_type, study_profile_id, bibliographical_source_id, created_at, modified_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, datetime($12), datetime($13))",
+            "INSERT INTO meta (element_id, element_type, name, position, priority, parent_id, parent_type, derived_from_id, derived_from_type, study_profile_id, bibliographical_source_id, created_at, modified_at, name_source, suspended)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, datetime($12), datetime($13), $14, $15)",
             uuid,
             element_type,
             meta.name,
@@ -42,6 +46,8 @@ impl MetaRepository for SqliteMetaRepository {
             meta.bibliographical_source_id.map(|id| id.hyphenated()),
             meta.created_at,
             meta.modified_at,
+            name_source,
+            meta.suspended,
         )
         .execute(&mut *tx)
         .await?;
@@ -67,7 +73,9 @@ impl MetaRepository for SqliteMetaRepository {
                 study_profile_id as "study_profile_id: _",
                 bibliographical_source_id as "bibliographical_source_id: _",
                 created_at as "created_at: _",
-                modified_at as "modified_at: _"
+                modified_at as "modified_at: _",
+                name_source,
+                suspended as "suspended: bool"
             FROM meta
             WHERE element_id = $1"#,
             id.hyphenated()
@@ -188,16 +196,57 @@ impl MetaRepository for SqliteMetaRepository {
 
     async fn rename(&self, id: ElementId, new_name: String) -> Result<(), RepositoryError> {
         let uuid = id.id().hyphenated();
+        let manual = NameSource::Manual.as_str();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         sqlx::query!(
-            r#"UPDATE meta SET name = $1 WHERE element_id = $2"#,
+            r#"UPDATE meta SET name = $1, name_source = $2 WHERE element_id = $3"#,
             new_name,
+            manual,
             uuid
         )
         .execute(&mut *tx)
         .await?;
         Ok(())
+    }
+
+    async fn set_name_source(
+        &self,
+        id: ElementId,
+        name_source: NameSource,
+    ) -> Result<(), RepositoryError> {
+        let uuid = id.id().hyphenated();
+        let name_source = name_source.as_str();
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        sqlx::query!(
+            r#"UPDATE meta SET name_source = $1 WHERE element_id = $2"#,
+            name_source,
+            uuid
+        )
+        .execute(&mut *tx)
+        .await?;
+        Ok(())
+    }
+
+    async fn rename_automatically(
+        &self,
+        id: ElementId,
+        new_name: &str,
+    ) -> Result<bool, RepositoryError> {
+        let uuid = id.id().hyphenated();
+        let automatic = NameSource::Automatic.as_str();
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let result = sqlx::query!(
+            r#"UPDATE meta SET name = $1 WHERE element_id = $2 AND name_source = $3 AND name != $1"#,
+            new_name,
+            uuid,
+            automatic
+        )
+        .execute(&mut *tx)
+        .await?;
+        Ok(result.rows_affected() > 0)
     }
 
     async fn exists(&self, id: ElementId) -> Result<bool, RepositoryError> {
@@ -239,6 +288,76 @@ impl MetaRepository for SqliteMetaRepository {
         .execute(&mut *tx)
         .await?;
         Ok(())
+    }
+
+    async fn set_suspended(&self, id: ElementId, suspended: bool) -> Result<bool, RepositoryError> {
+        let uuid = id.id().hyphenated();
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let result = sqlx::query!(
+            r#"UPDATE meta SET suspended = $1 WHERE element_id = $2 AND suspended != $1"#,
+            suspended,
+            uuid
+        )
+        .execute(&mut *tx)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn set_suspended_many(
+        &self,
+        ids: &[ElementId],
+        suspended: bool,
+    ) -> Result<Vec<ElementId>, RepositoryError> {
+        let ids = ids_json(ids.iter().map(|id| id.id()));
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let rows = sqlx::query!(
+            r#"UPDATE meta SET suspended = $1
+               WHERE element_id IN (SELECT value FROM json_each($2))
+                 AND trashed_at IS NULL AND suspended != $1
+               RETURNING element_id as "element_id: uuid::fmt::Hyphenated", element_type"#,
+            suspended,
+            ids
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.element_id.into_uuid(), row.element_type).into_element_id())
+            .collect())
+    }
+
+    async fn filter_live(&self, ids: &[ElementId]) -> Result<Vec<ElementId>, RepositoryError> {
+        let ids = ids_json(ids.iter().map(|id| id.id()));
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let rows = sqlx::query!(
+            r#"SELECT element_id as "element_id: uuid::fmt::Hyphenated", element_type
+               FROM meta
+               WHERE element_id IN (SELECT value FROM json_each($1)) AND trashed_at IS NULL"#,
+            ids
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.element_id.into_uuid(), row.element_type).into_element_id())
+            .collect())
+    }
+
+    async fn unsuspend_finished(&self) -> Result<u64, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let result = sqlx::query!(
+            r#"UPDATE meta SET suspended = 0
+               WHERE suspended = 1 AND element_id IN (
+                   SELECT element_id FROM learning_asset_reviews WHERE finished_at IS NOT NULL
+               )"#
+        )
+        .execute(&mut *tx)
+        .await?;
+        Ok(result.rows_affected())
     }
 
     async fn set_bibliographical_source(
@@ -351,7 +470,9 @@ impl MetaRepository for SqliteMetaRepository {
                 study_profile_id as "study_profile_id: _",
                 bibliographical_source_id as "bibliographical_source_id: _",
                 created_at as "created_at: _",
-                modified_at as "modified_at: _"
+                modified_at as "modified_at: _",
+                name_source,
+                suspended as "suspended: bool"
             FROM meta
             WHERE parent_id IS $1 AND position < $2 AND trashed_at IS NULL
             ORDER BY position DESC
@@ -384,7 +505,9 @@ impl MetaRepository for SqliteMetaRepository {
                 study_profile_id as "study_profile_id: _",
                 bibliographical_source_id as "bibliographical_source_id: _",
                 created_at as "created_at: _",
-                modified_at as "modified_at: _"
+                modified_at as "modified_at: _",
+                name_source,
+                suspended as "suspended: bool"
             FROM meta
             WHERE parent_id IS $1 AND position > $2 AND trashed_at IS NULL
             ORDER BY position
@@ -420,7 +543,9 @@ impl MetaRepository for SqliteMetaRepository {
                 study_profile_id as "study_profile_id: _",
                 bibliographical_source_id as "bibliographical_source_id: _",
                 created_at as "created_at: _",
-                modified_at as "modified_at: _"
+                modified_at as "modified_at: _",
+                name_source,
+                suspended as "suspended: bool"
             FROM meta
             WHERE parent_id IS $1 AND trashed_at IS NULL
             ORDER BY position"#,
@@ -517,7 +642,9 @@ impl MetaRepository for SqliteMetaRepository {
                 study_profile_id as "study_profile_id: _",
                 bibliographical_source_id as "bibliographical_source_id: _",
                 created_at as "created_at: _",
-                modified_at as "modified_at: _"
+                modified_at as "modified_at: _",
+                name_source,
+                suspended as "suspended: bool"
             FROM meta
             WHERE trashed_at IS NULL
             ORDER BY priority"#
@@ -551,7 +678,9 @@ impl MetaRepository for SqliteMetaRepository {
                 study_profile_id as "study_profile_id: _",
                 bibliographical_source_id as "bibliographical_source_id: _",
                 created_at as "created_at: _",
-                modified_at as "modified_at: _"
+                modified_at as "modified_at: _",
+                name_source,
+                suspended as "suspended: bool"
             FROM meta
             WHERE (element_id != $1 OR $1 IS NULL) AND trashed_at IS NULL
             ORDER BY priority
@@ -610,6 +739,8 @@ mod tests {
         Meta {
             element_id: id,
             name: "test".into(),
+            name_source: NameSource::Manual,
+            suspended: false,
             parent: None,
             position: FractionalIndex::default(),
             priority: FractionalIndex::default(),
@@ -618,6 +749,13 @@ mod tests {
             derived_from: None,
             created_at: Utc::now(),
             modified_at: Utc::now(),
+        }
+    }
+
+    fn automatic_meta(id: ElementId) -> Meta {
+        Meta {
+            name_source: NameSource::Automatic,
+            ..make_meta(id)
         }
     }
 
@@ -668,6 +806,87 @@ mod tests {
 
         let meta = repo.get_by_id(id.id()).await.unwrap();
         assert_eq!(None, meta.derived_from);
+    }
+
+    #[tokio::test]
+    async fn rename_automatically_automatic_name_renames_it() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let id = ElementId::Extract(Uuid::new_v4());
+        repo.create_meta(&automatic_meta(id)).await.unwrap();
+
+        // Act
+
+        let renamed = repo.rename_automatically(id, "from content").await.unwrap();
+
+        // Assert
+
+        assert!(renamed);
+        assert_eq!("from content", repo.get_name(id).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn rename_automatically_same_name_returns_false() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let id = ElementId::Extract(Uuid::new_v4());
+        repo.create_meta(&automatic_meta(id)).await.unwrap();
+
+        // Act
+
+        let renamed = repo.rename_automatically(id, "test").await.unwrap();
+
+        // Assert
+
+        assert!(!renamed);
+    }
+
+    #[tokio::test]
+    async fn rename_automatically_after_user_rename_keeps_user_name() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let id = ElementId::Extract(Uuid::new_v4());
+        repo.create_meta(&automatic_meta(id)).await.unwrap();
+        repo.rename(id, "chosen".into()).await.unwrap();
+
+        // Act
+
+        let renamed = repo.rename_automatically(id, "from content").await.unwrap();
+
+        // Assert
+
+        assert!(!renamed);
+        let meta = repo.get_by_id(id.id()).await.unwrap();
+        assert_eq!("chosen", meta.name);
+        assert_eq!(NameSource::Manual, meta.name_source);
+    }
+
+    #[tokio::test]
+    async fn get_by_id_automatic_name_returns_its_name_source() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let id = ElementId::Card(Uuid::new_v4());
+        repo.create_meta(&automatic_meta(id)).await.unwrap();
+
+        // Act
+
+        let actual = repo.get_by_id(id.id()).await.unwrap();
+
+        // Assert
+
+        assert_eq!(NameSource::Automatic, actual.name_source);
     }
 
     #[tokio::test]

@@ -1,5 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { scrollBlockIntoView } from "../../../../../features/ElementViewer/LearningAssetView/core/scrollBlockIntoView";
+import { safeAreaTopInPx } from "../../../../../utils/safeArea";
+
+vi.mock(import("../../../../../utils/safeArea"));
 
 const HEADER_IN_PX = 56;
 
@@ -26,6 +29,10 @@ function makeScrollElement() {
 }
 
 describe("scrollBlockIntoView", () => {
+	beforeEach(() => {
+		vi.mocked(safeAreaTopInPx).mockReturnValue(0);
+	});
+
 	it("Should land the block flush with the top and hide the header when it's past the header's fixed zone", () => {
 		// Arrange
 
@@ -43,6 +50,25 @@ describe("scrollBlockIntoView", () => {
 			behavior: "instant",
 		});
 		expect(hidden).toHaveBeenCalledTimes(1);
+	});
+
+	it("Should land the block just below the status bar when the header is hidden on a phone", () => {
+		// Arrange
+
+		vi.mocked(safeAreaTopInPx).mockReturnValue(24);
+		const { scrollElement, scrollTo } = makeScrollElement();
+		const root = makeRoot([0, 800]);
+
+		// Act
+
+		scrollBlockIntoView(root, 1, scrollElement);
+
+		// Assert
+
+		expect(scrollTo).toHaveBeenCalledWith({
+			top: 800 - 24,
+			behavior: "instant",
+		});
 	});
 
 	it("Should land the block below the header and keep it shown when it's within the header's fixed zone", () => {

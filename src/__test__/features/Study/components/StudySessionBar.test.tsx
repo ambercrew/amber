@@ -32,6 +32,7 @@ const META_FIELDS = {
 	tags: [],
 	createdAt: "2024-01-01T00:00:00Z",
 	modifiedAt: "2024-01-01T00:00:00Z",
+	nameSource: "manual" as const,
 	bibliographicalSourceId: null,
 	derivedFrom: null,
 };
@@ -65,6 +66,7 @@ const BASE_STUDY_STATE = {
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
+	studyScope: null,
 };
 
 function elementsStateFor(currentElement: AnyElementDto) {

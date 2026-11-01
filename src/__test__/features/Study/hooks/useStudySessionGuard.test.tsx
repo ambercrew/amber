@@ -15,6 +15,7 @@ const BASE_STUDY_STATE = {
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
+	studyScope: null,
 };
 
 function HookWrapper() {

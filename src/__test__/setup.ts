@@ -39,6 +39,8 @@ vi.mock("@tauri-apps/api/event", () => ({
 const { getComputedStyle } = window;
 window.getComputedStyle = elt => getComputedStyle(elt);
 window.HTMLElement.prototype.scrollIntoView = () => {};
+// Lexical measures the caret's range to scroll it into view after an update.
+Range.prototype.getBoundingClientRect = () => new DOMRect();
 
 Object.defineProperty(window, "matchMedia", {
 	writable: true,

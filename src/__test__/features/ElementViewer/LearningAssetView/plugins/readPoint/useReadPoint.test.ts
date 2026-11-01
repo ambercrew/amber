@@ -3,6 +3,7 @@ import { runReadingCommand } from "../../../../../../commands/readingCommands";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReadingAnchors } from "../../../../../../features/ElementViewer/LearningAssetView/core/useReadingAnchors";
+import { useViewportChange } from "../../../../../../features/ElementViewer/LearningAssetView/core/useViewportChange";
 import { useReadPoint } from "../../../../../../features/ElementViewer/LearningAssetView/plugins/readPoint/useReadPoint";
 import { AUTO_SAVE_DELAY_IN_MILLISECONDS } from "../../../../../../config/constants";
 import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "../../../../../../features/ElementViewer/LearningAssetView/core/learningAssetViewConstants";
@@ -113,6 +114,7 @@ function renderReadPoint(overrides: {
 				getContentRoot,
 				scrollElement,
 			});
+			const { onViewportChange } = useViewportChange(scrollElement);
 			const readPoint = useReadPoint({
 				learningAssetId,
 				primarySeq,
@@ -121,6 +123,7 @@ function renderReadPoint(overrides: {
 				lastSplitSeq,
 				restoredRef,
 				anchors,
+				onViewportChange,
 				onReadPointChange,
 			});
 			return { ...anchors, ...readPoint };

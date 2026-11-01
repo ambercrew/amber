@@ -1,3 +1,4 @@
+pub mod ids_json;
 pub mod sqlite_ai_prompt_repository;
 pub mod sqlite_ai_repository;
 pub mod sqlite_asset_repository;

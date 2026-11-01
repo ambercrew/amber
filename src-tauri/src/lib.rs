@@ -121,7 +121,7 @@ pub async fn run() {
             .plugin(tauri_plugin_updater::Builder::new().build());
     }
 
-    tauri_builder
+    tauri_builder = tauri_builder
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -186,6 +186,7 @@ pub async fn run() {
             get_element_by_id,
             get_element_details,
             rename_element,
+            set_element_name_source,
             element_exists,
             get_element_name,
             move_element,
@@ -234,8 +235,7 @@ pub async fn run() {
             preview_next_learning_asset,
             finish_learning_asset,
             unfinish_learning_asset,
-            finish_learning_assets_bulk,
-            unfinish_learning_assets_bulk,
+            set_elements_status,
             set_element_due,
             set_element_due_bulk,
             reset_repetitions_bulk,
@@ -306,7 +306,12 @@ pub async fn run() {
             sync,
             // Common
             resolve_frontend_request,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        ]);
+
+    // Plugins may block on their own tokio runtime while initializing (e.g. zbus in single-instance).
+    tokio::task::block_in_place(|| {
+        tauri_builder
+            .run(tauri::generate_context!())
+            .expect("error while running tauri application")
+    });
 }

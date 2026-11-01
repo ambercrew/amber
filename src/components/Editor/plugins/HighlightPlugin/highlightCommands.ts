@@ -17,10 +17,6 @@ export interface HighlightCreatedPayload {
 	selectionNodes: SerializedLexicalNodeTree[];
 	/** Serialized nodes of the entire document, after wrapping the selection in the highlight. */
 	fullNodes: SerializedLexicalNodeTree[];
-	/** Plain text of just the selected range. */
-	selectionText: string;
-	/** Plain text of the entire document, after wrapping the selection in the highlight. */
-	fullText: string;
 	color: MantineColor;
 	/** Index, among the editor root's top-level children, of the block containing the end of the selection. */
 	endBlockIndex: number;

@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useDebouncedValue } from "@mantine/hooks";
-import { Alert, Container, Group, Paper, Stack } from "@mantine/core";
+import { Alert, Container, Paper, Stack } from "@mantine/core";
 import PageTitle from "../../../components/PageTitle/PageTitle";
 import { BrowserIcon } from "../../../config/icons";
-import {
-	ElementFilter,
-	ElementFilterField,
-} from "../../../api/savedSearches/dto/elementFilter";
+import { ElementFilter } from "../../../api/savedSearches/dto/elementFilter";
 import { ElementsBrowserLocationState } from "../../../types/elements/elementsBrowserLocationState";
 import { BibliographicalSourceResponseDto } from "../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { listBibliographicalSources } from "../../../api/bibliographicalSources/api/bibliographicalSourcesApi";
@@ -23,15 +20,13 @@ import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
 } from "../../../stores/sync/managers/syncEventManager";
-import { SEARCH_DEBOUNCE_MS } from "../config/constants";
-import { createDefaultFilter } from "../utils/createDefaultFilter";
+import { SEARCH_DEBOUNCE_MS } from "../../../components/ElementFilters/constants";
 import { elementKey } from "../../../utils/elementKey";
-import { DEFAULT_SEARCH_SORT } from "../utils/searchSort";
+import { DEFAULT_SEARCH_SORT } from "../../../utils/searchSort";
 import { SearchSortDto } from "../../../api/search/dto/searchSortDto";
-import FilterChip from "./Filter/FilterChip";
-import AddFilterMenu from "./Filter/AddFilterMenu";
+import ElementFilters from "../../../components/ElementFilters/ElementFilters";
 import SavedSearchSelector from "./SavedSearch/SavedSearchSelector";
-import SearchResultsTable from "./SearchResultsTable";
+import SearchResultsTable from "../../../components/SearchResultsTable/SearchResultsTable";
 import BulkActionsBar from "./BulkActions/BulkActionsBar";
 
 export default function ElementsBrowser() {
@@ -45,7 +40,6 @@ export default function ElementsBrowser() {
 	const [loadedSavedSearchId, setLoadedSavedSearchId] = useState<
 		string | null
 	>(locationState?.elementsBrowser?.loadedSavedSearchId ?? null);
-	const [justAddedId, setJustAddedId] = useState<string | null>(null);
 
 	const [sources, setSources] = useState<BibliographicalSourceResponseDto[]>(
 		[],
@@ -134,20 +128,6 @@ export default function ElementsBrowser() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [filters, loadedSavedSearchId, selectedIds, sort]);
 
-	function handleAddFilter(field: ElementFilterField) {
-		const filter = createDefaultFilter(field);
-		updateFilters([...filters, filter]);
-		setJustAddedId(filter.id);
-	}
-
-	function handleChangeFilter(updated: ElementFilter) {
-		updateFilters(filters.map(f => (f.id === updated.id ? updated : f)));
-	}
-
-	function handleRemoveFilter(id: string) {
-		updateFilters(filters.filter(f => f.id !== id));
-	}
-
 	const selectedKeys = new Set(selectedIds.map(elementKey));
 	const selectedResults = results.filter(r =>
 		selectedKeys.has(elementKey(r)),
@@ -172,20 +152,12 @@ export default function ElementsBrowser() {
 						savedSearches={savedSearches}
 						onSavedSearchesChange={setSavedSearches}
 					/>
-					<Group gap="xs" wrap="wrap">
-						{filters.map(filter => (
-							<FilterChip
-								key={filter.id}
-								filter={filter}
-								sources={sources}
-								profiles={profiles}
-								defaultOpened={filter.id === justAddedId}
-								onChange={handleChangeFilter}
-								onRemove={() => handleRemoveFilter(filter.id)}
-							/>
-						))}
-						<AddFilterMenu onSelect={handleAddFilter} />
-					</Group>
+					<ElementFilters
+						filters={filters}
+						onChange={updateFilters}
+						sources={sources}
+						profiles={profiles}
+					/>
 					{errorMessage && (
 						<Alert color="red" title="Search failed">
 							{errorMessage}
@@ -204,8 +176,10 @@ export default function ElementsBrowser() {
 						results={results}
 						sort={sort}
 						onSortChange={setSort}
-						selectedIds={selectedIds}
-						onSelectionChange={setSelectedIds}
+						selection={{
+							selectedIds,
+							onSelectionChange: setSelectedIds,
+						}}
 					/>
 				</Stack>
 			</Paper>

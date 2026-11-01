@@ -80,6 +80,7 @@ impl DefaultElementMoveService {
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::name_source::NameSource;
     use chrono::Utc;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
@@ -126,6 +127,8 @@ mod tests {
             meta: Meta {
                 element_id: ElementId::Folder(Uuid::new_v4()),
                 name: "test".into(),
+                name_source: NameSource::Manual,
+                suspended: false,
                 parent,
                 position,
                 priority: FractionalIndex::default(),

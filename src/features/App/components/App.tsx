@@ -27,6 +27,7 @@ import { useCurrentElementSync } from "../../../hooks/useCurrentElementSync";
 import { useElementSyncRefresh } from "../../../hooks/useElementSyncRefresh";
 import { useStudySessionFinishedRefresh } from "../../../hooks/useStudySessionFinishedRefresh";
 import { useElementDueChangedRefresh } from "../../../hooks/useElementDueChangedRefresh";
+import { useElementRenamedSync } from "../../../hooks/useElementRenamedSync";
 import { usePostSyncRefresh } from "../../../hooks/usePostSyncRefresh";
 import { useCloseSidebarOnSmallScreenNavigation } from "../../../hooks/useCloseSidebarOnSmallScreenNavigation";
 import { useSessionScheduleChanges } from "../../Study/hooks/useSessionScheduleChanges";
@@ -201,6 +202,7 @@ function App() {
 	useElementSyncRefresh();
 	useStudySessionFinishedRefresh();
 	useElementDueChangedRefresh();
+	useElementRenamedSync();
 	usePostSyncRefresh();
 	useStudySessionGuard();
 	useSessionScheduleChanges();

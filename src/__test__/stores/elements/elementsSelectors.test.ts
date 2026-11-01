@@ -23,6 +23,7 @@ const CURRENT_EXTRACT: AnyElementDto = {
 			tags: [],
 			createdAt: "",
 			modifiedAt: "",
+			nameSource: "manual",
 			bibliographicalSourceId: null,
 			derivedFrom: null,
 		},

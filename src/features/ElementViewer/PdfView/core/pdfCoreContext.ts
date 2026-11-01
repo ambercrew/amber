@@ -41,3 +41,19 @@ export function usePdfArrival(): PdfArrivalValue {
 		throw new Error("usePdfArrival must be used inside PdfCoreProvider");
 	return value;
 }
+
+/** Whether the reader is flying past pages; apart, so its flips only re-render the pages. */
+export interface PdfScrollPaceValue {
+	flying: boolean;
+}
+
+export const PdfScrollPaceContext = createContext<PdfScrollPaceValue | null>(
+	null,
+);
+
+export function usePdfScrollPace(): PdfScrollPaceValue {
+	const value = use(PdfScrollPaceContext);
+	if (!value)
+		throw new Error("usePdfScrollPace must be used inside PdfCoreProvider");
+	return value;
+}

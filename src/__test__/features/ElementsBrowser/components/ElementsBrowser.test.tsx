@@ -8,7 +8,7 @@ import { listStudyProfiles } from "../../../../api/study/api/studyProfileApi";
 import { listSavedSearches } from "../../../../api/savedSearches/api/savedSearchesApi";
 import { searchElements } from "../../../../api/search/api/searchApi";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { DEFAULT_SEARCH_SORT } from "../../../../features/ElementsBrowser/utils/searchSort";
+import { DEFAULT_SEARCH_SORT } from "../../../../utils/searchSort";
 
 vi.mock(
 	import("../../../../api/bibliographicalSources/api/bibliographicalSourcesApi"),

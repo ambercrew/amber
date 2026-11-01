@@ -9,7 +9,7 @@ import {
 } from "../../../stores/elements/elementsActions";
 import { AppDispatch } from "../../../stores/store";
 import { ElementId } from "../../../types/elements/elementId";
-import { defaultElementName, newCardDto } from "./ElementTree/elementTreeUtils";
+import { newCardDto } from "./ElementTree/elementTreeUtils";
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 
 function useCreateHandlers(
@@ -30,7 +30,7 @@ function useCreateHandlers(
 			run(
 				createFolderAction({
 					meta: {
-						name: defaultElementName("Folder"),
+						name: null,
 						parent: elementId,
 						origin: { type: "custom" },
 					},
@@ -41,7 +41,7 @@ function useCreateHandlers(
 				createLearningAssetAction({
 					id: crypto.randomUUID(),
 					meta: {
-						name: defaultElementName("Learning Asset"),
+						name: null,
 						parent: elementId,
 						origin: { type: "custom" },
 					},
@@ -56,7 +56,7 @@ function useCreateHandlers(
 				createExtractAction({
 					id: crypto.randomUUID(),
 					meta: {
-						name: defaultElementName("Extract"),
+						name: null,
 						parent: elementId,
 						origin: { type: "custom" },
 					},

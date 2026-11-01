@@ -61,11 +61,24 @@ export default function FolderView() {
 								trail.length === 0 ? (
 									"Home"
 								) : (
-									<Group gap="xs" wrap="nowrap">
+									<Group
+										gap="xs"
+										wrap="nowrap"
+										miw={0}
+										align="baseline">
 										<Text fz={PAGE_TITLE_FONT_SIZE}>/</Text>
+										{/* Mantine keeps each crumb on one line, so a long name would overflow. */}
 										<Breadcrumbs
 											fz={PAGE_TITLE_FONT_SIZE}
-											separator="/">
+											separator="/"
+											miw={0}
+											styles={{
+												breadcrumb: {
+													whiteSpace: "normal",
+													overflowWrap: "anywhere",
+													lineHeight: 1.3,
+												},
+											}}>
 											{crumbs}
 										</Breadcrumbs>
 									</Group>

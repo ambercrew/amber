@@ -10,6 +10,7 @@ use crate::elements::entities::learning_asset::LearningAsset;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::learning_asset_type::LearningAssetType;
 use crate::elements::value_objects::meta::Meta;
+use crate::elements::value_objects::name_source::NameSource;
 use crate::elements::value_objects::reading_position::ReadingPosition;
 
 #[derive(Serialize)]
@@ -17,6 +18,7 @@ use crate::elements::value_objects::reading_position::ReadingPosition;
 pub struct MetaResponseDto {
     pub element_id: ElementId,
     pub name: String,
+    pub name_source: NameSource,
     pub parent: Option<ElementId>,
     pub position: String,
     pub tags: Vec<TagResponseDto>,
@@ -31,6 +33,7 @@ impl From<Meta> for MetaResponseDto {
         MetaResponseDto {
             element_id: meta.element_id,
             name: meta.name,
+            name_source: meta.name_source,
             parent: meta.parent,
             position: meta.position.to_string(),
             tags: Vec::new(),

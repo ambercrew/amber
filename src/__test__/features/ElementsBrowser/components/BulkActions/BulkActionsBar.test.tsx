@@ -1,10 +1,8 @@
+import { notifications } from "@mantine/notifications";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BulkActionsBar from "../../../../../features/ElementsBrowser/components/BulkActions/BulkActionsBar";
-import {
-	finishLearningAssetsBulk,
-	unfinishLearningAssetsBulk,
-} from "../../../../../api/study/api/studyApi";
+import { setElementsStatus } from "../../../../../api/study/api/studyApi";
 import { StudyProfileDto } from "../../../../../api/study/dto/studyProfileDto";
 import { BibliographicalSourceResponseDto } from "../../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { SearchElementResultDto } from "../../../../../api/search/dto/searchElementResultDto";
@@ -93,8 +91,7 @@ async function openSubmenu(name: string) {
 
 describe("BulkActionsBar", () => {
 	beforeEach(() => {
-		vi.mocked(finishLearningAssetsBulk).mockResolvedValue(undefined);
-		vi.mocked(unfinishLearningAssetsBulk).mockResolvedValue(undefined);
+		vi.mocked(setElementsStatus).mockResolvedValue(1);
 	});
 
 	it("Should disable the Actions button when no elements are selected", () => {
@@ -282,49 +279,60 @@ describe("BulkActionsBar", () => {
 		).toBeInTheDocument();
 	});
 
-	it("Should mark elements as finished and clear the selection when Mark as finished is clicked", async () => {
+	it("Should say how many elements were skipped when Finished doesn't apply to all of them", async () => {
 		// Arrange
 
+		const cardId: ElementId = { type: "card", id: "card-1" };
+		const show = vi.spyOn(notifications, "show");
 		const user = userEvent.setup();
-		const { onClearSelection, onActionComplete } = render();
+		render({ selectedIds: [ELEMENT_ID, cardId] });
 
 		// Act
 
 		await openActionsMenu(user);
 		await openSubmenu("Reschedule");
-		await openSubmenu("Learning assets/extracts");
-		fireEvent.click(await screen.findByText("Mark as finished"));
+		await openSubmenu("Set status");
+		fireEvent.click(await screen.findByText("Finished"));
 
 		// Assert
 
 		await waitFor(() =>
-			expect(finishLearningAssetsBulk).toHaveBeenCalledWith([ELEMENT_ID]),
+			expect(show).toHaveBeenCalledWith({
+				message:
+					"Status set to finished for 1 of 2; 1 skipped (only learning assets and extracts can be finished)",
+			}),
 		);
-		await waitFor(() => expect(onClearSelection).toHaveBeenCalled());
-		expect(onActionComplete).toHaveBeenCalled();
 	});
 
-	it("Should unfinish elements and clear the selection when Unfinish is clicked", async () => {
-		// Arrange
+	it.each([
+		["Active", "active"],
+		["Suspended", "suspended"],
+		["Finished", "finished"],
+	])(
+		"Should set the status and clear the selection when %s is clicked",
+		async (label, status) => {
+			// Arrange
 
-		const user = userEvent.setup();
-		const { onClearSelection, onActionComplete } = render();
+			const user = userEvent.setup();
+			const { onClearSelection, onActionComplete } = render();
 
-		// Act
+			// Act
 
-		await openActionsMenu(user);
-		await openSubmenu("Reschedule");
-		await openSubmenu("Learning assets/extracts");
-		fireEvent.click(await screen.findByText("Unfinish"));
+			await openActionsMenu(user);
+			await openSubmenu("Reschedule");
+			await openSubmenu("Set status");
+			fireEvent.click(await screen.findByText(label));
 
-		// Assert
+			// Assert
 
-		await waitFor(() =>
-			expect(unfinishLearningAssetsBulk).toHaveBeenCalledWith([
-				ELEMENT_ID,
-			]),
-		);
-		await waitFor(() => expect(onClearSelection).toHaveBeenCalled());
-		expect(onActionComplete).toHaveBeenCalled();
-	});
+			await waitFor(() =>
+				expect(setElementsStatus).toHaveBeenCalledWith(
+					[ELEMENT_ID],
+					status,
+				),
+			);
+			await waitFor(() => expect(onClearSelection).toHaveBeenCalled());
+			expect(onActionComplete).toHaveBeenCalled();
+		},
+	);
 });

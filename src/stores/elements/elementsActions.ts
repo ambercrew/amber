@@ -20,9 +20,11 @@ import { ElementId } from "../../types/elements/elementId";
 import errorToString from "../../utils/errorToString";
 import { AppDispatch } from "../store";
 import { loadElementDetailsAction } from "../elementDetails/elementDetailsActions";
+import { resetStaleStudyScopeAction } from "../study/studyScopeActions";
 import {
 	setCurrentElement,
 	setCurrentElementMeta,
+	setElementNameSource,
 	setTree,
 	setTreeError,
 	setTreeLoading,
@@ -60,8 +62,13 @@ export function setDerivedFromAction(
 	};
 }
 
+// Renaming makes the name manual on the backend, so the open element follows.
 export function renameElementAction(elementId: ElementId, newName: string) {
-	return withTreeRefresh(() => renameElement(elementId, newName));
+	return (dispatch: AppDispatch) =>
+		withTreeRefresh(async () => {
+			await renameElement(elementId, newName);
+			dispatch(setElementNameSource({ elementId, nameSource: "manual" }));
+		})(dispatch);
 }
 
 // The backend emits an `elementCreated` event for every one of these, which
@@ -94,6 +101,7 @@ function withTreeRefresh(operation: () => Promise<void>) {
 			await operation();
 			const tree = await getElementTree();
 			dispatch(setTree(tree));
+			dispatch(resetStaleStudyScopeAction());
 		} catch (error) {
 			dispatch(setTreeError(errorToString(error)));
 		}

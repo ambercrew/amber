@@ -11,6 +11,7 @@ const BASE_STUDY_STATE = {
 	cardPhase: "question" as const,
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
+	studyScope: null,
 };
 
 function studyStateFor(

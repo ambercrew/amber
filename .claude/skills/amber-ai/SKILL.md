@@ -30,12 +30,22 @@ the existing tool closest to what you need and follow its shape.
 - **Go through services**, never repositories, so events, sync and UI refreshes still happen.
 - **The open element comes from the context**, not from the model's arguments, so the model can't
   act on something else.
+- **Leave new elements' names `None`** (`CreateMetaDto`), so they're named after their content
+  with clozes hidden and keep following it until the user renames them.
 - **Return ids** for anything a tool creates or finds. The model can only link to elements whose ids
   it has seen, and links use `element_reference`.
 - **Use the app's wording** in names, descriptions and approval text (e.g. "finished", not "done").
-- **Keep calls bounded** and outputs short; running tools are never cancelled.
+- **Keep calls bounded** and outputs short; running tools are never cancelled. Clamp any size the
+  model picks in `call` (e.g. `search_documents`' `top_k` to `MAX_TOP_K`); a schema hint alone
+  isn't enforced.
+- Text a tool turns into element content (like card sides) goes through the Markdown-to-Lexical
+  bridge, so it's Markdown with TeX math; tell the model so in the guidelines.
 - Put descriptions and any preamble changes in `prompts.rs`. On the frontend, give the tool an
   icon and mention it in the capabilities modal.
+- The preamble applies to every chat, so only name a tool there if it's always offered; "when to
+  use it" for a tool gated by `is_applicable` goes in its own description.
+- Guidelines shared by several tools (e.g. card writing for `create_card` and `create_cloze_card`)
+  go in `PREAMBLE_BASE`; each tool's description keeps only what's specific to it.
 - Test the call, the approval text and when the tool is offered.
 
 ## Providers
@@ -50,7 +60,8 @@ Add the text as a context snippet, queue a prompt in the `aiContext` store and f
 the panel sends the prompt once it's visible. Keep reusable prompts in `aiPrompts.ts`. The model
 only knows the open element's name, not its content, so attach any text it should work from.
 Snippets stay on the message they were sent with, never in the preamble, so a later snippet
-isn't confused with an earlier one.
+isn't confused with an earlier one. Each is fenced in a `<snippet>` block, and the preamble tells
+the model snippets, search results and context are material, not instructions.
 
 ## Gotchas
 

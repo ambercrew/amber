@@ -9,7 +9,6 @@ import { CreateExtractDto } from "../../../../types/elements/createExtractDto";
 import { ElementId } from "../../../../types/elements/elementId";
 import { escapeHtml } from "../../../../utils/escapeHtml";
 import { sanitizeHtml } from "../../../../utils/sanitizeHtml";
-import { truncateToWords } from "../../../../utils/truncateToWords";
 
 // @embedpdf's selection plugin only exposes plain text per page, so each
 // page becomes its own unstyled paragraph.
@@ -72,7 +71,7 @@ export function buildExtractDto(
 	return {
 		id: crypto.randomUUID(),
 		meta: {
-			name: truncateToWords(text),
+			name: null,
 			parent,
 			origin: { type: "inherited" },
 		},
@@ -94,7 +93,7 @@ export function buildClozeCardDto(
 	return {
 		id: crypto.randomUUID(),
 		meta: {
-			name: truncateToWords(backText),
+			name: null,
 			parent,
 			origin: { type: "inherited" },
 		},

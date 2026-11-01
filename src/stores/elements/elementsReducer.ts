@@ -4,6 +4,9 @@ import {
 	MetaResponseDto,
 } from "../../api/elements/dto/anyElementDto";
 import { NodeDto } from "../../api/elements/dto/nodeDto";
+import { findTreeNode } from "../../utils/elementTree";
+import { ElementId } from "../../types/elements/elementId";
+import { NameSource } from "../../types/elements/nameSource";
 
 export interface ElementsState {
 	tree: NodeDto[];
@@ -53,6 +56,28 @@ const elementsSlice = createSlice({
 		setZoomOwnedByCurrentView: (state, action: PayloadAction<boolean>) => {
 			state.zoomOwnedByCurrentView = action.payload;
 		},
+		setElementName: (
+			state,
+			action: PayloadAction<{ elementId: ElementId; name: string }>,
+		) => {
+			const { elementId, name } = action.payload;
+			const node = findTreeNode(state.tree, elementId.id);
+			if (node) node.meta.name = name;
+			const current = state.currentElement?.data.meta;
+			if (current?.elementId.id === elementId.id) current.name = name;
+		},
+		setElementNameSource: (
+			state,
+			action: PayloadAction<{
+				elementId: ElementId;
+				nameSource: NameSource;
+			}>,
+		) => {
+			const { elementId, nameSource } = action.payload;
+			const current = state.currentElement?.data.meta;
+			if (current?.elementId.id === elementId.id)
+				current.nameSource = nameSource;
+		},
 		setCurrentElementMeta: (
 			state,
 			action: PayloadAction<Partial<MetaResponseDto>>,
@@ -75,5 +100,7 @@ export const {
 	clearTreeError,
 	setCurrentElement,
 	setCurrentElementMeta,
+	setElementName,
+	setElementNameSource,
 	setZoomOwnedByCurrentView,
 } = elementsSlice.actions;

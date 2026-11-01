@@ -1,5 +1,6 @@
 import { ElementId } from "../../../types/elements/elementId";
 import { ElementNodeType } from "../../../types/elements/elementNodeType";
+import { ElementStatus } from "../../../types/study/elementStatus";
 
 export type SelectFilterOperator = "isAnyOf" | "isNoneOf";
 
@@ -11,7 +12,7 @@ export type StringFilterOperator =
 
 export type RangeFilterOperator = "between";
 
-export type DescendantFilterOperator = "is" | "isNot";
+export type DescendantFilterOperator = "is" | "isNot" | "isOrSelf";
 
 export interface NameFilter {
 	id: string;
@@ -72,6 +73,13 @@ export interface DescendantOfFilter {
 	ancestor: ElementId | null;
 }
 
+export interface StatusFilter {
+	id: string;
+	field: "status";
+	operator: SelectFilterOperator;
+	statuses: ElementStatus[];
+}
+
 export type ElementFilter =
 	| NameFilter
 	| TagsFilter
@@ -80,6 +88,7 @@ export type ElementFilter =
 	| ElementTypeFilter
 	| PriorityFilter
 	| StudyProfileFilter
-	| DescendantOfFilter;
+	| DescendantOfFilter
+	| StatusFilter;
 
 export type ElementFilterField = ElementFilter["field"];

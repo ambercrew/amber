@@ -37,7 +37,7 @@ describe("NavigatorPanel — new root folder button", () => {
 		);
 	});
 
-	it("Should use a name containing the element label and a timestamp when clicked", async () => {
+	it("Should leave the name for the backend to derive when clicked", async () => {
 		// Arrange
 
 		vi.mocked(createFolderAction).mockReturnValue(() =>
@@ -53,15 +53,11 @@ describe("NavigatorPanel — new root folder button", () => {
 		await user.click(screen.getByRole("button", { name: "New element" }));
 		await user.click(await screen.findByText("Folder"));
 
-		// Assert — name is "Folder YYYY-MM-DD HH:MM:SS"
+		// Assert
 
 		expect(createFolderAction).toHaveBeenCalledWith(
 			expect.objectContaining({
-				meta: expect.objectContaining({
-					name: expect.stringMatching(
-						/^Folder \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
-					) as string,
-				}) as object,
+				meta: expect.objectContaining({ name: null }) as object,
 			}),
 		);
 	});

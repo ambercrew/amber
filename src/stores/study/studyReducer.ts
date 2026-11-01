@@ -1,7 +1,9 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { DueElementDto } from "../../api/study/dto/dueElementDto";
+import { StudyScopeDto } from "../../api/study/dto/studyScopeDto";
 import { ElementId } from "../../types/elements/elementId";
 import { ElementNodeType } from "../../types/elements/elementNodeType";
+import { loadStudyScope } from "./studyScopeStorage";
 
 export type StudyStatus = "editing" | "studying";
 export type CardPhase = "question" | "answer";
@@ -16,15 +18,14 @@ export interface StudyCounts {
 export interface StudyState {
 	status: StudyStatus;
 	queue: DueElementDto[];
-	// The queue's length at session start — unlike queue.length, this never
-	// shrinks (elements are only ever removed from queue, never added), so
-	// it's the stable denominator for a "done so far / total" progress
-	// display.
+	// Every element the session has queued — the denominator for "done so far /
+	// total"; it only shrinks when a pending element is suspended.
 	totalCount: number;
 	cardPhase: CardPhase;
 	shownAt: number | null;
 	counts: StudyCounts;
 	summary: StudyCounts | null;
+	studyScope: StudyScopeDto | null;
 }
 
 // How far into the session (in queue slots) an Again-rated card is
@@ -39,6 +40,7 @@ const initialState: StudyState = {
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
+	studyScope: loadStudyScope(),
 };
 
 function isSameElement(a: ElementId, b: ElementId): boolean {
@@ -86,6 +88,52 @@ const studySlice = createSlice({
 			);
 			state.queue.splice(currentIndex, 1);
 			state.queue.splice(insertAt - 1, 0, current);
+		},
+		// Adds elements that became due mid-session (e.g. a due date set in the
+		// aside), keeping `due`'s priority order but never before the current one.
+		newlyDueElementsAdded: (
+			state,
+			action: PayloadAction<{
+				due: DueElementDto[];
+				currentIndex: number;
+			}>,
+		) => {
+			if (state.status !== "studying") return;
+			const { due, currentIndex } = action.payload;
+			// Walking backwards, each new element lands before the next queued one.
+			let anchor = state.queue.length;
+			for (let i = due.length - 1; i >= 0; i--) {
+				const item = due[i];
+				const index = state.queue.findIndex(queued =>
+					isSameElement(queued.elementId, item.elementId),
+				);
+				if (index !== -1) {
+					anchor = index;
+					continue;
+				}
+				anchor = Math.max(anchor, currentIndex + 1);
+				state.queue.splice(anchor, 0, item);
+				state.totalCount += 1;
+			}
+		},
+		// Takes pending suspended elements out of the session and its total. The
+		// current one stays and counts as done, so `advanceSession` moves off it without a flash.
+		elementsDropped: (
+			state,
+			action: PayloadAction<{
+				elementIds: ElementId[];
+				currentElementId: ElementId | null;
+			}>,
+		) => {
+			const { elementIds, currentElementId } = action.payload;
+			const dropped = (item: DueElementDto) =>
+				elementIds.some(id => isSameElement(id, item.elementId)) &&
+				!(
+					currentElementId !== null &&
+					isSameElement(item.elementId, currentElementId)
+				);
+			state.totalCount -= state.queue.filter(dropped).length;
+			state.queue = state.queue.filter(item => !dropped(item));
 		},
 		learningAssetAdvanced: (
 			state,
@@ -145,7 +193,13 @@ const studySlice = createSlice({
 				state.shownAt = Date.now();
 			}
 		},
-		sessionStopped: resetSession,
+		// Keeps the remaining queue (still due) so the sidebar preview doesn't
+		// blank out before its refresh replaces it.
+		sessionStopped: state => {
+			const { queue } = state;
+			resetSession(state);
+			state.queue = queue;
+		},
 		summaryDismissed: state => {
 			state.summary = null;
 		},
@@ -159,6 +213,12 @@ const studySlice = createSlice({
 		// out-of-order jump via the priority queue), so the footer timer
 		// and the review-duration measurement never carry over from a
 		// previously viewed element.
+		studyScopeChanged: (
+			state,
+			action: PayloadAction<StudyScopeDto | null>,
+		) => {
+			state.studyScope = action.payload;
+		},
 		elementShown: state => {
 			state.cardPhase = "question";
 			state.shownAt = Date.now();
@@ -181,6 +241,8 @@ export const {
 	answerShown,
 	cardGraded,
 	elementRequeued,
+	newlyDueElementsAdded,
+	elementsDropped,
 	learningAssetAdvanced,
 	learningAssetFinished,
 	learningAssetSkipped,
@@ -189,4 +251,5 @@ export const {
 	summaryDismissed,
 	queueLoaded,
 	elementShown,
+	studyScopeChanged,
 } = studySlice.actions;

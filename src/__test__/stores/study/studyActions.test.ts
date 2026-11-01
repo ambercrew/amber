@@ -5,6 +5,7 @@ import {
 	finishLearningAssetAction,
 	gradeCardAction,
 	applyScheduleChangeAction,
+	dropSuspendedElementsAction,
 	nextLearningAssetAction,
 	skipLearningAssetAction,
 	startStudySession,
@@ -44,6 +45,7 @@ const META_FIELDS = {
 	tags: [],
 	createdAt: "2024-01-01T00:00:00Z",
 	modifiedAt: "2024-01-01T00:00:00Z",
+	nameSource: "manual" as const,
 	bibliographicalSourceId: null,
 	derivedFrom: null,
 };
@@ -160,6 +162,7 @@ const BASE_STUDY_STATE: StudyState = {
 	shownAt: null,
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
+	studyScope: null,
 };
 
 function elementsStateFor(currentElement: AnyElementDto): ElementsState {
@@ -463,7 +466,7 @@ describe("gradeCardAction", () => {
 });
 
 describe("stopStudySessionAction", () => {
-	it("Should reset the session state and fire STUDY_SESSION_FINISHED", () => {
+	it("Should reset the session state, keep the queue and fire STUDY_SESSION_FINISHED", () => {
 		// Arrange
 
 		const store = setupStore({
@@ -482,7 +485,7 @@ describe("stopStudySessionAction", () => {
 		// Assert
 
 		expect(store.getState().study.status).toBe("editing");
-		expect(store.getState().study.queue).toEqual([]);
+		expect(store.getState().study.queue).toHaveLength(2);
 		expect(listener).toHaveBeenCalledTimes(1);
 		window.removeEventListener(STUDY_SESSION_FINISHED, listener);
 	});
@@ -1067,6 +1070,102 @@ describe("applyScheduleChangeAction", () => {
 		// Assert
 
 		expect(getCardReview).not.toHaveBeenCalled();
+		expect(navigate).not.toHaveBeenCalled();
+	});
+});
+
+describe("dropSuspendedElementsAction", () => {
+	it("Should drop the current element and move on when it was suspended", async () => {
+		// Arrange
+
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("1"), cardQueueItem("2")],
+				totalCount: 2,
+			},
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(
+			dropSuspendedElementsAction([{ type: "card", id: "1" }], navigate),
+		);
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.queue.map(item => item.elementId.id)).toEqual(["2"]);
+		expect(state.totalCount).toBe(2);
+		expect(navigate).toHaveBeenCalledWith(
+			"/card/2",
+			expect.objectContaining({ state: { studySessionNav: true } }),
+		);
+	});
+
+	it("Should remove queued elements without moving on when other elements were suspended", async () => {
+		// Arrange
+
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [
+					cardQueueItem("1"),
+					cardQueueItem("2"),
+					cardQueueItem("3"),
+				],
+				totalCount: 3,
+			},
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(
+			dropSuspendedElementsAction(
+				[
+					{ type: "card", id: "3" },
+					{ type: "card", id: "9" },
+				],
+				navigate,
+			),
+		);
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.queue.map(item => item.elementId.id)).toEqual(["1", "2"]);
+		expect(state.totalCount).toBe(2);
+		expect(navigate).not.toHaveBeenCalled();
+	});
+
+	it("Should remove suspended elements from the queue when the viewed element is outside the session", async () => {
+		// Arrange
+
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("1"), cardQueueItem("2")],
+				totalCount: 2,
+			},
+			elements: elementsStateFor(cardElement("9")),
+		});
+
+		// Act
+
+		await store.dispatch(
+			dropSuspendedElementsAction([{ type: "card", id: "2" }], navigate),
+		);
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.queue.map(item => item.elementId.id)).toEqual(["1"]);
+		expect(state.totalCount).toBe(1);
 		expect(navigate).not.toHaveBeenCalled();
 	});
 });

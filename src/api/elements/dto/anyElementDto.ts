@@ -1,3 +1,4 @@
+import { NameSource } from "../../../types/elements/nameSource";
 import { ElementId } from "../../../types/elements/elementId";
 import { ReadingPosition } from "../../../types/elements/readingPosition";
 import { Tag } from "../../../types/elements/tag";
@@ -5,6 +6,7 @@ import { Tag } from "../../../types/elements/tag";
 export interface MetaResponseDto {
 	elementId: ElementId;
 	name: string;
+	nameSource: NameSource;
 	parent: ElementId | null;
 	position: string;
 	tags: Tag[];

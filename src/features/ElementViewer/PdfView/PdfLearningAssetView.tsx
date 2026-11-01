@@ -21,7 +21,8 @@ import { base64ToArrayBuffer } from "../../../utils/base64ToArrayBuffer";
 import PdfStatus from "./core/PdfStatus";
 import PdfDocumentContent from "./PdfDocumentContent";
 
-const WASM_URL = "/pdfium/pdfium.wasm";
+// Absolute: the engine fetches it from a blob worker, where a root-relative path has no base.
+const WASM_URL = new URL("/pdfium/pdfium.wasm", window.location.href).href;
 
 interface PdfLearningAssetViewProps {
 	learningAssetId: string;
@@ -55,7 +56,6 @@ export default function PdfLearningAssetView({
 
 	const { engine, error: engineError } = usePdfiumEngine({
 		wasmUrl: WASM_URL,
-		worker: false,
 	});
 
 	const plugins = useMemo(

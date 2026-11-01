@@ -19,14 +19,16 @@ import { loadCurrentElementAction } from "../elements/elementsActions";
 import {
 	cardGraded,
 	elementRequeued,
+	elementsDropped,
 	learningAssetAdvanced,
 	learningAssetFinished,
 	learningAssetSkipped,
+	newlyDueElementsAdded,
 	sessionAdvanced,
 	sessionStarted,
 	sessionStopped,
 } from "./studyReducer";
-import { selectStudyIndex } from "./studySelectors";
+import { selectStudyIndex, selectStudyScope } from "./studySelectors";
 import { STUDY_SESSION_FINISHED } from "../../types/events/studySessionFinishedEvent";
 import errorToString from "../../utils/errorToString";
 
@@ -35,8 +37,11 @@ import errorToString from "../../utils/errorToString";
 const SESSION_HORIZON_MS = 2 * 60 * 1000;
 
 export function startStudySession(navigate: NavigateFunction) {
-	return async (dispatch: AppDispatch): Promise<boolean> => {
-		const queue = await getDueElements();
+	return async (
+		dispatch: AppDispatch,
+		getState: () => RootState,
+	): Promise<boolean> => {
+		const queue = await getDueElements(selectStudyScope(getState()));
 		if (queue.length === 0) return false;
 		dispatch(sessionStarted(queue));
 		await navigateToElement(queue[0]?.elementId, navigate, dispatch);
@@ -135,6 +140,37 @@ export function applyScheduleChangeAction(navigate: NavigateFunction) {
 	};
 }
 
+// Suspended elements leave the session for good; if the viewed one is among
+// them the session moves on as if it had been reviewed.
+export function dropSuspendedElementsAction(
+	elementIds: ElementId[],
+	navigate: NavigateFunction,
+) {
+	return async (dispatch: AppDispatch, getState: () => RootState) => {
+		const current = currentSessionElement(getState());
+		dispatch(
+			elementsDropped({
+				elementIds,
+				currentElementId: current?.elementId ?? null,
+			}),
+		);
+		if (
+			!current ||
+			!elementIds.some(id => isSameElement(id, current.elementId))
+		)
+			return;
+
+		await advanceSession(
+			dispatch,
+			getState,
+			navigate,
+			current.elementId,
+			true,
+			selectStudyIndex(getState()),
+		);
+	};
+}
+
 // Caps logged time so an element left open (or a clock change) can't record absurd study time.
 const MAX_LOGGED_DURATION_MS = 60 * 60 * 1000;
 
@@ -146,6 +182,31 @@ function elapsedSinceShown(state: RootState): number | null {
 }
 
 // The element the session is on, which is always the one being viewed.
+/** Pulls elements that became due mid-session (within the session's scope) into its queue. */
+export function addNewlyDueElementsAction() {
+	return async (dispatch: AppDispatch, getState: () => RootState) => {
+		if (getState().study.status !== "studying") return;
+
+		let due;
+		try {
+			due = await getDueElements(selectStudyScope(getState()));
+		} catch (e) {
+			// No component owns this listener, so it reports like applyScheduleChangeAction.
+			// eslint-disable-next-line no-console
+			console.error(e);
+			notifications.show({ message: errorToString(e), color: "red" });
+			return;
+		}
+
+		dispatch(
+			newlyDueElementsAdded({
+				due,
+				currentIndex: selectStudyIndex(getState()),
+			}),
+		);
+	};
+}
+
 function currentSessionElement(
 	state: RootState,
 ): { elementId: ElementId; index: number } | null {

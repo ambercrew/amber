@@ -1,5 +1,6 @@
 import { HEADROOM_FIXED_AT } from "../../../App/components/App";
 import { hideHeadroom } from "../../../../hooks/useElementHeadroom";
+import { safeAreaTopInPx } from "../../../../utils/safeArea";
 
 /** Scrolls the block at `block` (or the last one, if out of range) to the top, returning it. */
 export function scrollBlockIntoView(
@@ -18,12 +19,14 @@ export function scrollBlockIntoView(
 		target.getBoundingClientRect().top -
 		scrollElement.getBoundingClientRect().top +
 		scrollElement.scrollTop;
-	// Past `HEADROOM_FIXED_AT` the header is hidden, so the block goes flush with the top, as in the PDF view.
+	// Past `HEADROOM_FIXED_AT` the header is hidden, so the block goes flush with the top (below a phone's status bar).
 	const hidesHeader = flushTop > HEADROOM_FIXED_AT;
 	const scrollPaddingTop =
 		parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0;
 	scrollElement.scrollTo({
-		top: hidesHeader ? flushTop : Math.max(0, flushTop - scrollPaddingTop),
+		top: hidesHeader
+			? flushTop - safeAreaTopInPx()
+			: Math.max(0, flushTop - scrollPaddingTop),
 		behavior: "instant",
 	});
 	if (hidesHeader) hideHeadroom(scrollElement);

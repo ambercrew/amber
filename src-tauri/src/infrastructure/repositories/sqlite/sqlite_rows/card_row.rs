@@ -20,6 +20,8 @@ pub struct CardRow {
     pub bibliographical_source_id: Option<Hyphenated>,
     pub created_at: DateTime<Utc>,
     pub modified_at: DateTime<Utc>,
+    pub name_source: String,
+    pub suspended: bool,
     pub front: String,
     pub back: String,
 }
@@ -30,6 +32,8 @@ impl From<CardRow> for Card {
             meta: Meta {
                 element_id: ElementId::Card(row.id.into_uuid()),
                 name: row.name,
+                name_source: row.name_source.parse().expect("Invalid name source"),
+                suspended: row.suspended,
                 parent: (row.parent_id.map(Hyphenated::into_uuid), row.parent_type)
                     .into_element_id(),
                 derived_from: (

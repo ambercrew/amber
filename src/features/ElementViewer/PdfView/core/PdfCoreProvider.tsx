@@ -10,8 +10,13 @@ import {
 import { useDocumentState } from "@embedpdf/core/react";
 import { useScrollCapability } from "@embedpdf/plugin-scroll/react";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
-import { PdfArrivalContext, PdfCoreContext } from "./pdfCoreContext";
+import {
+	PdfArrivalContext,
+	PdfCoreContext,
+	PdfScrollPaceContext,
+} from "./pdfCoreContext";
 import { usePdfNavigator } from "./usePdfNavigator";
+import { usePdfScrollPace } from "./usePdfScrollPace";
 import { usePdfZoomPersistence } from "./usePdfZoomPersistence";
 
 interface PdfCoreProviderProps extends PropsWithChildren {
@@ -84,10 +89,16 @@ export default function PdfCoreProvider({
 		],
 	);
 	const arrival = useMemo(() => ({ hideRequests }), [hideRequests]);
+	const { flying } = usePdfScrollPace(documentId);
+	const scrollPace = useMemo(() => ({ flying }), [flying]);
 
 	return (
 		<PdfCoreContext value={value}>
-			<PdfArrivalContext value={arrival}>{children}</PdfArrivalContext>
+			<PdfArrivalContext value={arrival}>
+				<PdfScrollPaceContext value={scrollPace}>
+					{children}
+				</PdfScrollPaceContext>
+			</PdfArrivalContext>
 		</PdfCoreContext>
 	);
 }

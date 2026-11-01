@@ -236,7 +236,6 @@ function OriginSection({
 										label: "+ Create new source",
 									},
 								]}
-								comboboxProps={{ floatingStrategy: "fixed" }}
 								allowDeselect={false}
 								onChange={handleSourceChange}
 							/>
@@ -319,9 +318,6 @@ function OriginSection({
 									allowDeselect={false}
 									withAlignedLabels
 									data={SOURCE_TYPE_OPTIONS}
-									comboboxProps={{
-										floatingStrategy: "fixed",
-									}}
 									value={
 										selectedBibliographicalSource.sourceType
 									}

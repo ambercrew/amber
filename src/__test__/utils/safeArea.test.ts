@@ -1,5 +1,6 @@
 import {
 	safeAreaBottomStyle,
+	safeAreaTopInPx,
 	safeAreaTopStyle,
 	safeAreaVerticalStyle,
 	SAFE_AREA_BOTTOM,
@@ -99,5 +100,21 @@ describe("safeAreaVerticalStyle", () => {
 		// Assert
 
 		expect(actual).toBeUndefined();
+	});
+});
+
+describe("safeAreaTopInPx", () => {
+	it("Should be 0 when running on desktop", () => {
+		// Arrange
+
+		vi.mocked(isMobile).mockReturnValue(false);
+
+		// Act
+
+		const actual = safeAreaTopInPx();
+
+		// Assert
+
+		expect(actual).toBe(0);
 	});
 });

@@ -16,27 +16,19 @@ import {
 	createExtractAction,
 } from "../../../stores/elements/elementsActions";
 import { ElementId } from "../../../types/elements/elementId";
-import { truncateToWords } from "../../../utils/truncateToWords";
 import { CLOZE_COLOR } from "../highlightColors";
 
 export function useHighlightCreatedHandler(elementId: ElementId | undefined) {
 	const dispatch = useAppDispatch();
 
 	return useCallback(
-		({
-			id,
-			selectionNodes,
-			fullNodes,
-			selectionText,
-			fullText,
-			color,
-		}: HighlightCreatedPayload) => {
+		({ id, selectionNodes, fullNodes, color }: HighlightCreatedPayload) => {
 			if (color === CLOZE_COLOR) {
 				void dispatch(
 					createCardAction({
 						id,
 						meta: {
-							name: truncateToWords(fullText),
+							name: null,
 							parent: elementId!,
 							origin: { type: "inherited" },
 						},
@@ -56,7 +48,7 @@ export function useHighlightCreatedHandler(elementId: ElementId | undefined) {
 				createExtractAction({
 					id,
 					meta: {
-						name: truncateToWords(selectionText),
+						name: null,
 						parent: elementId!,
 						origin: { type: "inherited" },
 					},

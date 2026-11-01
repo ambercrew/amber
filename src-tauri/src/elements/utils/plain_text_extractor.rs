@@ -1,6 +1,8 @@
 use serde_json::Value;
 
 const BLOCK_NODE_TYPES: [&str; 4] = ["paragraph", "heading", "listitem", "quote"];
+/// Mirrors `ClozeHiddenNode.getType()` on the frontend.
+const CLOZE_HIDDEN_NODE_TYPE: &str = "cloze-hidden";
 
 /// Derives the plain-text content of a serialized Lexical editor state, for
 /// storage in a `content_text` column (e.g. for full-text search) without the
@@ -16,22 +18,40 @@ pub fn extract_plain_text(content: &str) -> String {
     node_plain_text(&root)
 }
 
-/// The plain text of one already-parsed Lexical node and its descendants.
-pub fn node_plain_text(node: &Value) -> String {
+/// Like [`extract_plain_text`], but each hidden cloze reads as `cloze_placeholder`.
+pub fn extract_plain_text_hiding_clozes(content: &str, cloze_placeholder: &str) -> String {
+    let Ok(root) = serde_json::from_str::<Value>(content) else {
+        return String::new();
+    };
+
     let mut out = String::new();
-    walk(node, &mut out);
+    walk(&root, &mut out, Some(cloze_placeholder));
     out.trim().to_string()
 }
 
-fn walk(node: &Value, out: &mut String) {
+/// The plain text of one already-parsed Lexical node and its descendants.
+pub fn node_plain_text(node: &Value) -> String {
+    let mut out = String::new();
+    walk(node, &mut out, None);
+    out.trim().to_string()
+}
+
+fn walk(node: &Value, out: &mut String, cloze_placeholder: Option<&str>) {
     match node {
         Value::Object(obj) => {
+            if let Some(placeholder) = cloze_placeholder
+                && obj.get("type").and_then(Value::as_str) == Some(CLOZE_HIDDEN_NODE_TYPE)
+            {
+                out.push_str(placeholder);
+                return;
+            }
+
             if let Some(text) = obj.get("text").and_then(Value::as_str) {
                 out.push_str(text);
             }
 
             for value in obj.values() {
-                walk(value, out);
+                walk(value, out, cloze_placeholder);
             }
 
             if let Some(node_type) = obj.get("type").and_then(Value::as_str)
@@ -42,7 +62,7 @@ fn walk(node: &Value, out: &mut String) {
         }
         Value::Array(items) => {
             for item in items {
-                walk(item, out);
+                walk(item, out, cloze_placeholder);
             }
         }
         _ => {}
@@ -117,6 +137,25 @@ mod tests {
         // Assert
 
         assert_eq!("", actual);
+    }
+
+    #[test]
+    fn extract_plain_text_hiding_clozes_hidden_cloze_returns_placeholder_in_its_place() {
+        // Arrange
+
+        let content = r#"{"root":{"children":[{"type":"paragraph","children":[
+            {"type":"text","text":"The capital is "},
+            {"type":"cloze-hidden","text":"[...]","hiddenText":"Paris"},
+            {"type":"text","text":"."}
+        ]}]}}"#;
+
+        // Act
+
+        let actual = extract_plain_text_hiding_clozes(content, "...");
+
+        // Assert
+
+        assert_eq!("The capital is ....", actual);
     }
 
     #[test]
