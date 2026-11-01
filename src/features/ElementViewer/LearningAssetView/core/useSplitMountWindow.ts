@@ -22,7 +22,7 @@ interface Props {
 }
 
 interface ReturnValue {
-	/** seqs that should currently render a live editor: only the window's centre while it lands, then its neighbours too. */
+	/** seqs that should currently render a live editor: the window's centre and its neighbours. */
 	mountedSeqs: Set<number>;
 	/** seq of the split currently at the top of the viewport. */
 	primarySeq: number;
@@ -36,21 +36,15 @@ interface ReturnValue {
 	lockTo: (seq: number) => void;
 	/** Resumes viewport-observer-driven tracking after a `lockTo`. */
 	unlock: () => void;
-	/** Called once a mounted split's editor has content; mounts the centre's neighbours after it paints. Returns whether it's the split at the viewport top, outside a landing jump. */
+	/** Called once a mounted split's editor has content. Returns whether it's the split at the viewport top, outside a landing jump. */
 	notifySplitReady: (seq: number) => boolean;
 }
 
-interface MountWindow {
-	centerSeq: number;
-	// Neighbours wait for the centre to paint, so opening, jumping or settling paints one split instead of three (slow with many equations).
-	neighborsMounted: boolean;
-}
-
-function mountedAround(
+function windowAround(
 	splits: LearningAssetSplitMetaDto[],
-	{ centerSeq, neighborsMounted }: MountWindow,
+	centerSeq: number,
 ): Set<number> {
-	const reach = neighborsMounted ? LEARNING_ASSET_SPLIT_MOUNT_NEIGHBORS : 0;
+	const reach = LEARNING_ASSET_SPLIT_MOUNT_NEIGHBORS;
 	const mounted = new Set<number>();
 	const centerIndex = splits.findIndex(split => split.seq === centerSeq);
 	const center = centerIndex === -1 ? 0 : centerIndex;
@@ -59,9 +53,6 @@ function mountedAround(
 	}
 	return mounted;
 }
-
-const withNeighbors = (current: MountWindow): MountWindow =>
-	current.neighborsMounted ? current : { ...current, neighborsMounted: true };
 
 /** Mounts a centre split plus fixed neighbours as live editors; the centre follows the viewport top, but only once a fast scroll settles. */
 export function useSplitMountWindow({
@@ -72,15 +63,11 @@ export function useSplitMountWindow({
 	const [primarySeq, setPrimarySeq] = useState(initialSeq);
 	// Read from timers and callbacks, which `primarySeq` would reach a render late.
 	const latestPrimaryRef = useRef(initialSeq);
-	const [mountWindow, setMountWindow] = useState<MountWindow>({
-		centerSeq: initialSeq,
-		neighborsMounted: false,
-	});
+	const [centerSeq, setCenterSeq] = useState(initialSeq);
 	const mountedSeqs = useMemo(
-		() => mountedAround(splits, mountWindow),
-		[splits, mountWindow],
+		() => windowAround(splits, centerSeq),
+		[splits, centerSeq],
 	);
-	// For reads only; writes go through `setMountWindow` updaters so they see uncommitted changes.
 	const mountedSeqsRef = useRef(mountedSeqs);
 	useLayoutEffect(() => {
 		mountedSeqsRef.current = mountedSeqs;
@@ -96,23 +83,6 @@ export function useSplitMountWindow({
 		[scroller, sampler],
 	);
 
-	const recenter = useCallback(
-		(seq: number) =>
-			setMountWindow(current =>
-				seq === current.centerSeq
-					? current
-					: {
-							centerSeq: seq,
-							// Within the mounted window the target is already live, so its neighbours can follow at once.
-							neighborsMounted: mountedAround(
-								splits,
-								current,
-							).has(seq),
-						},
-			),
-		[splits],
-	);
-
 	const cancelSettle = useCallback(() => {
 		if (settleTimeoutRef.current === null) return;
 		clearTimeout(settleTimeoutRef.current);
@@ -123,9 +93,9 @@ export function useSplitMountWindow({
 		cancelSettle();
 		settleTimeoutRef.current = window.setTimeout(() => {
 			settleTimeoutRef.current = null;
-			if (!lockedRef.current) recenter(latestPrimaryRef.current);
+			if (!lockedRef.current) setCenterSeq(latestPrimaryRef.current);
 		}, SCROLL_SETTLE_IN_MILLISECONDS);
-	}, [cancelSettle, recenter]);
+	}, [cancelSettle]);
 
 	const registerSlot = useTopVisibleSlot(scroller, seq => {
 		if (lockedRef.current) return;
@@ -134,7 +104,7 @@ export function useSplitMountWindow({
 		// A pending settle recenters on the latest primary itself.
 		if (settleTimeoutRef.current !== null) return;
 		if (mountedSeqsRef.current.has(seq) && !isScrollingFast())
-			recenter(seq);
+			setCenterSeq(seq);
 		else scheduleSettle();
 	});
 
@@ -161,28 +131,19 @@ export function useSplitMountWindow({
 			sampler.clear();
 			latestPrimaryRef.current = seq;
 			setPrimarySeq(seq);
-			setMountWindow({ centerSeq: seq, neighborsMounted: false });
+			setCenterSeq(seq);
 		},
 		[cancelSettle, sampler],
 	);
 
 	const unlock = useCallback(() => {
 		lockedRef.current = false;
-		setMountWindow(withNeighbors);
 	}, []);
 
-	const notifySplitReady = useCallback((seq: number) => {
-		// While locked, `unlock` mounts them once the jump has landed.
-		if (lockedRef.current) return false;
-		requestAnimationFrame(() => {
-			if (lockedRef.current) return;
-			// Only the centre that's still waiting; a recenter since then waits for its own centre.
-			setMountWindow(current =>
-				current.centerSeq === seq ? withNeighbors(current) : current,
-			);
-		});
-		return seq === latestPrimaryRef.current;
-	}, []);
+	const notifySplitReady = useCallback(
+		(seq: number) => !lockedRef.current && seq === latestPrimaryRef.current,
+		[],
+	);
 
 	return {
 		mountedSeqs,

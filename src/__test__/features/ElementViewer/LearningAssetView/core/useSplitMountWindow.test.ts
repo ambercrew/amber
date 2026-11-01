@@ -37,7 +37,7 @@ function sorted(seqs: Set<number>): number[] {
 }
 
 describe("useSplitMountWindow", () => {
-	it("Should mount only the initial split when it opens", () => {
+	it("Should mount the initial split and its neighbours when it opens", () => {
 		// Arrange
 
 		const splits = makeSplits(10);
@@ -45,40 +45,20 @@ describe("useSplitMountWindow", () => {
 		// Act
 
 		const { result } = renderSplitMountWindow({ splits, initialSeq: 5 });
-
-		// Assert
-
-		expect(sorted(result.current.mountedSeqs)).toEqual([5]);
-	});
-
-	it("Should mount the neighbours around the initial split when unlocked", () => {
-		// Arrange
-
-		const splits = makeSplits(10);
-		const { result } = renderSplitMountWindow({ splits, initialSeq: 5 });
-
-		// Act
-
-		act(() => {
-			result.current.unlock();
-		});
 
 		// Assert
 
 		expect(sorted(result.current.mountedSeqs)).toEqual([4, 5, 6]);
 	});
 
-	it("Should mount only the neighbour below when unlocked on the first split", () => {
+	it("Should mount only the neighbour below when it opens on the first split", () => {
 		// Arrange
 
 		const splits = makeSplits(10);
-		const { result } = renderSplitMountWindow({ splits, initialSeq: 0 });
 
 		// Act
 
-		act(() => {
-			result.current.unlock();
-		});
+		const { result } = renderSplitMountWindow({ splits, initialSeq: 0 });
 
 		// Assert
 
@@ -142,7 +122,7 @@ describe("useSplitMountWindow lock/unlock gating", () => {
 		// Assert
 
 		expect(result.current.primarySeq).toBe(5);
-		expect(sorted(result.current.mountedSeqs)).toEqual([5]);
+		expect(sorted(result.current.mountedSeqs)).toEqual([4, 5, 6]);
 	});
 
 	function makeScroller(clientHeight: number) {
@@ -215,17 +195,6 @@ describe("useSplitMountWindow lock/unlock gating", () => {
 			vi.advanceTimersByTime(SCROLL_SETTLE_IN_MILLISECONDS);
 		});
 
-		// Assert: only the split it stopped on mounts first.
-
-		expect(sorted(result.current.mountedSeqs)).toEqual([0]);
-
-		// Act
-
-		act(() => {
-			result.current.notifySplitReady(0);
-			vi.advanceTimersByTime(16);
-		});
-
 		// Assert
 
 		expect(sorted(result.current.mountedSeqs)).toEqual([0, 1]);
@@ -264,7 +233,7 @@ describe("useSplitMountWindow lock/unlock gating", () => {
 
 		// Assert
 
-		expect(sorted(result.current.mountedSeqs)).toEqual([7]);
+		expect(sorted(result.current.mountedSeqs)).toEqual([6, 7, 8]);
 	});
 
 	it("Should follow the viewport when a fast scroll slows to reading", () => {
@@ -337,7 +306,7 @@ describe("useSplitMountWindow lock/unlock gating", () => {
 		// Assert: locking in takes effect immediately, mounting just the target until it lands.
 
 		expect(result.current.primarySeq).toBe(5);
-		expect(sorted(result.current.mountedSeqs)).toEqual([5]);
+		expect(sorted(result.current.mountedSeqs)).toEqual([4, 5, 6]);
 
 		// Act: the real viewport hasn't caught up yet, so the observer still
 		// reports the old top split as intersecting — this must not override
