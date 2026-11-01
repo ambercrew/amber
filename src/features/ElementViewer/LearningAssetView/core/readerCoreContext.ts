@@ -3,6 +3,7 @@ import { LearningAssetSplitMetaDto } from "../../../../types/elements/learningAs
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { ReadingAnchors } from "./useReadingAnchors";
 import { Navigate } from "./useSplitNavigator";
+import { OnViewportChange } from "./useViewportChange";
 
 /** What every learning asset plugin can build on: the split stack, its geometry, and navigation. */
 export interface ReaderCore {
@@ -28,6 +29,8 @@ export interface ReaderCore {
 	restoredRef: RefObject<boolean>;
 	/** Where the reader is: the caret, the right-clicked block and the top visible block, for "set here" actions. */
 	anchors: ReadingAnchors;
+	/** Calls back at most once a frame when what's at the viewport top may have changed: a scroll, or a split mounting after one settles. */
+	onViewportChange: OnViewportChange;
 }
 
 export const ReaderCoreContext = createContext<ReaderCore | null>(null);

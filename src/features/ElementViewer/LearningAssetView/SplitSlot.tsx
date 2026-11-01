@@ -78,9 +78,11 @@ export default function SplitSlot({
 		};
 	}, [mounted, learningAssetId, seq, content]);
 
+	// Once per mount, not on every edit.
+	const ready = mounted && content !== null;
 	useEffect(() => {
-		if (mounted && content !== null) notifyContentReady(seq);
-	}, [mounted, content, seq, notifyContentReady]);
+		if (ready) notifyContentReady(seq);
+	}, [ready, seq, notifyContentReady]);
 
 	const { trackCursor, setMenuAnchor } = anchors;
 	const handleCursorMove = useCallback(

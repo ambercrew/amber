@@ -47,6 +47,11 @@ split; seq from `useSplit()`), `ContextMenuItems` (a menu section; the host adds
   (`hideHeadroom`); measure "the top" with `viewportTop`, never a fixed header height.
 - While a jump (including the read point restore on open) lands, only its split is mounted; its
   neighbours mount once it has landed, so a neighbour's content root may not exist yet right after.
+- A fast scroll or a long scrollbar drag doesn't mount the splits it flies past: the mount window
+  follows `primarySeq` only while reading, and otherwise waits for the scroll to settle. So a split can
+  mount after scrolling stops, and `primarySeq`'s content root may briefly not exist. Measure "on scroll"
+  through `onViewportChange(listener)` (once a frame; also fires when the top split mounts after a fast scroll settles),
+  never a raw scroll listener — as `readPoint` and `tableOfContents` do.
 - `getContentRoot(seq)` is `undefined` for unmounted splits — handle it; don't query the DOM.
 - For "here" actions use `anchors.resolveVisibleAnchor()`.
 - Per-split ref callbacks must be stable: use `useKeyedRefCallbacks`.

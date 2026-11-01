@@ -18,6 +18,7 @@ export default function ReadPointProvider({ children }: PropsWithChildren) {
 		restoredRef,
 		anchors,
 		navigate,
+		onViewportChange,
 	} = useReaderCore();
 	const [displayed, setDisplayed] = useState(initial);
 
@@ -29,6 +30,7 @@ export default function ReadPointProvider({ children }: PropsWithChildren) {
 		lastSplitSeq: splits[splits.length - 1]?.seq,
 		restoredRef,
 		anchors,
+		onViewportChange,
 		onReadPointChange: setDisplayed,
 	});
 
