@@ -6,6 +6,8 @@ import { Viewport } from "@embedpdf/plugin-viewport/react";
 import { Scroller } from "@embedpdf/plugin-scroll/react";
 import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
 import { useChromeInsets } from "../../App/context/chromeInsetsContext";
+import { SAFE_AREA_TOP } from "../../../utils/safeArea";
+import { isMobile } from "../../../utils/tauriUtils";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { setZoomOwnedByCurrentView } from "../../../stores/elements/elementsReducer";
 import { ReadingPosition } from "../../../types/elements/readingPosition";
@@ -150,7 +152,11 @@ function PdfReader() {
 					<PdfHeadroomBridge onPinnedChange={setPinned} />
 					<ZoomGestureWrapper
 						documentId={documentId}
-						style={{ width: "100%", height: "100%" }}>
+						style={{
+							width: "100%",
+							height: "100%",
+							marginTop: isMobile() ? SAFE_AREA_TOP : undefined,
+						}}>
 						<Scroller
 							documentId={documentId}
 							renderPage={({ pageIndex }) => (
