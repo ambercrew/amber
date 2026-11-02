@@ -2,6 +2,7 @@ import MessageDto, {
 	ApprovalStatus,
 	MessageContentDto,
 } from "../../../api/aiIntegration/dto/messageDto";
+import { ElementId } from "../../../types/elements/elementId";
 
 export interface DisplayMessage {
 	id: string;
@@ -12,6 +13,8 @@ export interface DisplayMessage {
 	isStreaming?: boolean;
 	/** Text snippets the user selected as additional context, for `human` messages. */
 	contextSnippets?: string[];
+	/** Where a `toolCall`'s change lands, e.g. the parent a card goes in. */
+	toolLocation?: ElementId;
 	/** Set on calls awaiting approval; `messageId` is the persisted message to resolve. */
 	approval?: {
 		messageId: string;
@@ -41,6 +44,8 @@ export interface StreamingToolMessage {
 	content: MessageContentDto;
 	/** The persisted message id of a streaming `toolCall`. */
 	messageId?: string;
+	/** Where a streaming `toolCall`'s change lands. */
+	toolLocation?: ElementId;
 	/** What a streaming `toolCall` awaiting approval asks the user. */
 	approvalMarkdown?: string;
 }
@@ -118,6 +123,9 @@ export function buildDisplayMessages(
 				id: message.id,
 				content: message.content,
 				...(toolName !== undefined && { toolName }),
+				...(message.toolLocation && {
+					toolLocation: message.toolLocation,
+				}),
 				...(approval && { approval }),
 				...(message.contextSnippets.length > 0 && {
 					contextSnippets: message.contextSnippets,
@@ -167,6 +175,9 @@ export function buildDisplayMessages(
 			id: message.id,
 			content: message.content,
 			...(toolName !== undefined && { toolName }),
+			...(message.toolLocation && {
+				toolLocation: message.toolLocation,
+			}),
 			...(approval && { approval }),
 		});
 	}

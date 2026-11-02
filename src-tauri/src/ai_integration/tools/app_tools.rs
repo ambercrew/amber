@@ -8,12 +8,14 @@ use serde_json::Value;
 use crate::ai_integration::approval_hook::ApprovalHook;
 use crate::ai_integration::entities::message::Message;
 use crate::ai_integration::tools::app_tool::AppTool;
+use crate::elements::value_objects::element_id::ElementId;
 
 /// An `AppTool` with its type erased, so the tools can go to an agent or a `ToolSet`.
 trait ErasedTool: Send + Sync {
     fn name(&self) -> &'static str;
     fn requires_approval(&self) -> bool;
     fn is_applicable(&self, messages: &[Message]) -> bool;
+    fn location(&self, arguments: &Value) -> Option<ElementId>;
     fn approval_markdown(&self, arguments: &Value) -> Option<String>;
     fn approved_markdown(&self, arguments: &Value, output: &str) -> Option<String>;
     fn add_to_server(self: Box<Self>, server: ToolServer) -> ToolServer;
@@ -31,6 +33,11 @@ impl<T: AppTool> ErasedTool for T {
 
     fn is_applicable(&self, messages: &[Message]) -> bool {
         AppTool::is_applicable(self, messages)
+    }
+
+    fn location(&self, arguments: &Value) -> Option<ElementId> {
+        let args = serde_json::from_value::<T::Args>(arguments.clone()).ok()?;
+        AppTool::location(self, &args)
     }
 
     fn approval_markdown(&self, arguments: &Value) -> Option<String> {
@@ -65,6 +72,15 @@ pub struct ApprovalMarkdown {
     pub result: Option<String>,
 }
 
+/// How a call is shown, written by its tool.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ToolCallDescription {
+    /// Where the call's change lands, for any tool.
+    pub location: Option<ElementId>,
+    /// Only for tools that run once the user approves.
+    pub approval: Option<ApprovalMarkdown>,
+}
+
 /// Every tool there is; the agent is only given the ones applicable to its chat.
 #[derive(Default)]
 pub struct AppTools {
@@ -77,24 +93,26 @@ impl AppTools {
         self
     }
 
-    /// The approval card's markdown for a call, or `None` when its tool runs without approval.
+    /// How a call is shown, or the default when no tool has its name.
     /// `output` is what the call returned, once it was approved and ran.
-    pub fn approval_markdown(
+    pub fn describe(
         &self,
         tool_name: &str,
         arguments: &Value,
         output: Option<&str>,
-    ) -> Option<ApprovalMarkdown> {
-        let tool = self
-            .tools
-            .iter()
-            .find(|tool| tool.name() == tool_name && tool.requires_approval())?;
-        Some(ApprovalMarkdown {
-            request: tool
-                .approval_markdown(arguments)
-                .unwrap_or_else(|| raw_arguments_markdown(arguments)),
-            result: output.and_then(|output| tool.approved_markdown(arguments, output)),
-        })
+    ) -> ToolCallDescription {
+        let Some(tool) = self.tools.iter().find(|tool| tool.name() == tool_name) else {
+            return ToolCallDescription::default();
+        };
+        ToolCallDescription {
+            location: tool.location(arguments),
+            approval: tool.requires_approval().then(|| ApprovalMarkdown {
+                request: tool
+                    .approval_markdown(arguments)
+                    .unwrap_or_else(|| raw_arguments_markdown(arguments)),
+                result: output.and_then(|output| tool.approved_markdown(arguments, output)),
+            }),
+        }
     }
 
     /// Starts the tools applicable to the chat, returning the hook that holds back calls needing approval.
@@ -179,6 +197,10 @@ mod tests {
             self.applicable
         }
 
+        fn location(&self, _args: &Self::Args) -> Option<ElementId> {
+            Some(ElementId::Folder(uuid::Uuid::nil()))
+        }
+
         fn approval_markdown(&self, args: &Self::Args) -> Option<String> {
             self.has_markdown.then(|| format!("Say **{}**?", args.text))
         }
@@ -190,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn approval_markdown_tool_with_markdown_returned_tools_markdown() {
+    fn describe_tool_with_markdown_returned_tools_markdown() {
         // Arrange
 
         let tools = AppTools::default().tool(TestTool {
@@ -200,7 +222,7 @@ mod tests {
 
         // Act
 
-        let actual = tools.approval_markdown("test_tool", &json!({ "text": "hi" }), None);
+        let actual = tools.describe("test_tool", &json!({ "text": "hi" }), None);
 
         // Assert
 
@@ -209,12 +231,12 @@ mod tests {
                 request: "Say **hi**?".to_string(),
                 result: None,
             }),
-            actual
+            actual.approval
         );
     }
 
     #[test]
-    fn approval_markdown_tool_without_markdown_returned_raw_arguments() {
+    fn describe_tool_without_markdown_returned_raw_arguments() {
         // Arrange
 
         let tools = AppTools::default().tool(TestTool {
@@ -224,18 +246,18 @@ mod tests {
 
         // Act
 
-        let actual = tools.approval_markdown("test_tool", &json!({ "text": "hi" }), None);
+        let actual = tools.describe("test_tool", &json!({ "text": "hi" }), None);
 
         // Assert
 
         assert_eq!(
             Some("```json\n{\n  \"text\": \"hi\"\n}\n```".to_string()),
-            actual.map(|markdown| markdown.request)
+            actual.approval.map(|markdown| markdown.request)
         );
     }
 
     #[test]
-    fn approval_markdown_invalid_arguments_returned_raw_arguments() {
+    fn describe_invalid_arguments_returned_raw_arguments() {
         // Arrange
 
         let tools = AppTools::default().tool(TestTool {
@@ -245,18 +267,18 @@ mod tests {
 
         // Act
 
-        let actual = tools.approval_markdown("test_tool", &json!({ "other": 1 }), None);
+        let actual = tools.describe("test_tool", &json!({ "other": 1 }), None);
 
         // Assert
 
         assert_eq!(
             Some("```json\n{\n  \"other\": 1\n}\n```".to_string()),
-            actual.map(|markdown| markdown.request)
+            actual.approval.map(|markdown| markdown.request)
         );
     }
 
     #[test]
-    fn approval_markdown_tool_not_requiring_approval_returned_none() {
+    fn describe_unknown_tool_returned_default() {
         // Arrange
 
         let tools = AppTools::default().tool(TestTool {
@@ -266,15 +288,15 @@ mod tests {
 
         // Act
 
-        let actual = tools.approval_markdown("other_tool", &json!({}), None);
+        let actual = tools.describe("other_tool", &json!({}), None);
 
         // Assert
 
-        assert_eq!(None, actual);
+        assert_eq!(ToolCallDescription::default(), actual);
     }
 
     #[test]
-    fn approval_markdown_call_that_ran_added_tools_approved_markdown_from_its_output() {
+    fn describe_call_that_ran_added_tools_approved_markdown_from_its_output() {
         // Arrange
 
         let tools = AppTools::default().tool(TestTool {
@@ -284,14 +306,32 @@ mod tests {
 
         // Act
 
-        let actual = tools.approval_markdown("test_tool", &json!({ "text": "hi" }), Some("hello"));
+        let actual = tools.describe("test_tool", &json!({ "text": "hi" }), Some("hello"));
 
         // Assert
 
         assert_eq!(
             Some("Said hi and got hello".to_string()),
-            actual.and_then(|markdown| markdown.result)
+            actual.approval.and_then(|markdown| markdown.result)
         );
+    }
+
+    #[test]
+    fn describe_tool_with_location_returned_its_location() {
+        // Arrange
+
+        let tools = AppTools::default().tool(TestTool {
+            has_markdown: true,
+            applicable: true,
+        });
+
+        // Act
+
+        let actual = tools.describe("test_tool", &json!({ "text": "hi" }), None);
+
+        // Assert
+
+        assert_eq!(Some(ElementId::Folder(uuid::Uuid::nil())), actual.location);
     }
 
     #[tokio::test]

@@ -18,6 +18,7 @@ use crate::{
     },
     common::repository_error::RepositoryError,
     database::transaction_manager::TransactionManagerError,
+    elements::value_objects::element_id::ElementId,
 };
 
 #[derive(Clone, Serialize)]
@@ -38,6 +39,9 @@ pub enum StreamLlmResponseEvent {
         tool_call: ToolCallContent,
         /// Already persisted, so a call awaiting approval can be resolved mid-stream.
         message_id: Uuid,
+        /// Where the call's change lands; never stored.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        tool_location: Option<ElementId>,
         /// Written by the tool for a call awaiting approval; never stored.
         #[serde(skip_serializing_if = "Option::is_none")]
         approval_markdown: Option<String>,

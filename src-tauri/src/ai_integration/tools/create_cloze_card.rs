@@ -162,7 +162,6 @@ impl AppTool for CreateClozeCard {
     fn approval_markdown(&self, args: &Self::Args) -> Option<String> {
         let cloze = Cloze::parse(&args.text)?;
         Some(card_approval_markdown(
-            self.parent,
             &cloze.with(&format!("**{CLOZE_PLACEHOLDER}**")),
             cloze.hidden,
         ))
@@ -171,6 +170,10 @@ impl AppTool for CreateClozeCard {
     fn approved_markdown(&self, _args: &Self::Args, output: &Self::Output) -> Option<String> {
         Some(card_approved_markdown(output.card_id))
     }
+
+    fn location(&self, _args: &Self::Args) -> Option<ElementId> {
+        self.parent
+    }
 }
 
 #[cfg(test)]
@@ -178,7 +181,6 @@ mod tests {
     use crate::ai_integration::tools::create_card::tests::{
         EchoLexicalJsonConverter, initialize_test_injector,
     };
-    use crate::ai_integration::tools::element_reference::element_reference;
     use crate::elements::repositories::card_repository::CardRepository;
 
     use super::*;
@@ -286,7 +288,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn approval_markdown_with_parent_showed_placeholder_front_and_hidden_back() {
+    async fn approval_markdown_valid_text_showed_placeholder_front_and_hidden_back() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let tool = create_tool(&scope, Some(ElementId::Folder(Uuid::new_v4()))).await;
+
+        // Act
+
+        let actual = tool.approval_markdown(&args("The capital of France is {{Paris}}."));
+
+        // Assert
+
+        assert_eq!(
+            Some(
+                "**Front**\n\nThe capital of France is **[...]**.\n\n---\n\n**Back**\n\nParis"
+                    .to_string()
+            ),
+            actual
+        );
+    }
+
+    #[tokio::test]
+    async fn location_with_parent_returned_parent() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -296,17 +321,11 @@ mod tests {
 
         // Act
 
-        let actual = tool.approval_markdown(&args("The capital of France is {{Paris}}."));
+        let actual = tool.location(&args("The capital of France is {{Paris}}."));
 
         // Assert
 
-        assert_eq!(
-            Some(format!(
-                "In {}\n\n**Front**\n\nThe capital of France is **[...]**.\n\n---\n\n**Back**\n\nParis",
-                element_reference(parent)
-            )),
-            actual
-        );
+        assert_eq!(Some(parent), actual);
     }
 
     #[tokio::test]

@@ -3,7 +3,8 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::ai_integration::entities::message::{Message, MessageContent};
-use crate::ai_integration::tools::app_tools::ApprovalMarkdown;
+use crate::ai_integration::tools::app_tools::{ApprovalMarkdown, ToolCallDescription};
+use crate::elements::value_objects::element_id::ElementId;
 
 /// A `Message` combined with the context snippets it was sent with, fetched
 /// separately since they live in their own table. Only assembled where the
@@ -17,6 +18,9 @@ pub struct MessageResponseDto {
     chat_id: Uuid,
     content: MessageContent,
     context_snippets: Vec<String>,
+    /// Where a tool call's change lands; never stored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_location: Option<ElementId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     approval_markdown: Option<String>,
     /// Added by the tool once an approved call ran; never stored.
@@ -28,9 +32,9 @@ impl MessageResponseDto {
     pub fn new(
         message: Message,
         context_snippets: Vec<String>,
-        approval_markdown: Option<ApprovalMarkdown>,
+        description: ToolCallDescription,
     ) -> Self {
-        let (approval_markdown, approval_result_markdown) = match approval_markdown {
+        let (approval_markdown, approval_result_markdown) = match description.approval {
             Some(ApprovalMarkdown { request, result }) => (Some(request), result),
             None => (None, None),
         };
@@ -40,6 +44,7 @@ impl MessageResponseDto {
             chat_id: message.chat_id(),
             content: message.content().clone(),
             context_snippets,
+            tool_location: description.location,
             approval_markdown,
             approval_result_markdown,
         }

@@ -110,8 +110,12 @@ impl Tool for CreateCard {
 impl AppTool for CreateCard {
     const REQUIRES_APPROVAL: bool = true;
 
+    fn location(&self, _args: &Self::Args) -> Option<ElementId> {
+        self.parent
+    }
+
     fn approval_markdown(&self, args: &Self::Args) -> Option<String> {
-        Some(card_approval_markdown(self.parent, &args.front, &args.back))
+        Some(card_approval_markdown(&args.front, &args.back))
     }
 
     fn approved_markdown(&self, _args: &Self::Args, output: &Self::Output) -> Option<String> {
@@ -119,13 +123,9 @@ impl AppTool for CreateCard {
     }
 }
 
-/// The approval card for a new card: where it goes, then its two sides.
-pub(super) fn card_approval_markdown(parent: Option<ElementId>, front: &str, back: &str) -> String {
-    let sides = format!("**Front**\n\n{front}\n\n---\n\n**Back**\n\n{back}");
-    match parent {
-        Some(parent) => format!("In {}\n\n{sides}", element_reference(parent)),
-        None => sides,
-    }
+/// The approval card for a new card: its two sides.
+pub(super) fn card_approval_markdown(front: &str, back: &str) -> String {
+    format!("**Front**\n\n{front}\n\n---\n\n**Back**\n\n{back}")
 }
 
 pub(super) fn card_approved_markdown(card_id: Uuid) -> String {
@@ -282,7 +282,7 @@ pub(super) mod tests {
     }
 
     #[tokio::test]
-    async fn approval_markdown_with_parent_referenced_parent_before_sides() {
+    async fn location_with_parent_returned_parent() {
         // Arrange
 
         let injector = initialize_test_injector().await;
@@ -297,20 +297,14 @@ pub(super) mod tests {
 
         // Act
 
-        let actual = tool.approval_markdown(&CreateCardArgs {
+        let actual = tool.location(&CreateCardArgs {
             front: "Q".to_string(),
             back: "A".to_string(),
         });
 
         // Assert
 
-        assert_eq!(
-            Some(format!(
-                "In {}\n\n**Front**\n\nQ\n\n---\n\n**Back**\n\nA",
-                element_reference(parent)
-            )),
-            actual
-        );
+        assert_eq!(Some(parent), actual);
     }
 
     #[tokio::test]
