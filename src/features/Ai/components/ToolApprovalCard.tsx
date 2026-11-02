@@ -132,11 +132,13 @@ function ToolCallResult({ markdown }: { markdown: string }) {
 	const element = useMemo(() => firstElementReference(markdown), [markdown]);
 	return (
 		<Group gap={4} wrap="nowrap" miw={0} c="dimmed">
-			{element ? (
-				<ElementNodeIcon type={element.type} size={14} />
-			) : (
-				<CheckIcon size={14} />
-			)}
+			<Box display="flex" style={{ flexShrink: 0 }}>
+				{element ? (
+					<ElementNodeIcon type={element.type} size={14} />
+				) : (
+					<CheckIcon size={14} />
+				)}
+			</Box>
 			<Box fz="xs" miw={0}>
 				<AiMarkdown markdown={markdown} />
 			</Box>
