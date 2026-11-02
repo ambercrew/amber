@@ -5,7 +5,7 @@ describe("chromeInsets", () => {
 	it("Should stay clear of the header and footer when both are shown", () => {
 		// Act
 
-		const actual = chromeInsets(true, true, "8px");
+		const actual = chromeInsets(true, true, "4px", "8px");
 
 		// Assert
 
@@ -18,18 +18,18 @@ describe("chromeInsets", () => {
 	it("Should reach the screen's edges, keeping only the safe area, when the header and footer are hidden", () => {
 		// Act
 
-		const actual = chromeInsets(false, false, "8px");
+		const actual = chromeInsets(false, false, "4px", "8px");
 
 		// Assert
 
-		expect(actual.top).toBe("0px");
+		expect(actual.top).toBe("4px");
 		expect(actual.bottom).toBe("calc(0px + 8px)");
 	});
 
 	it("Should animate both edges with the app shell's own transition", () => {
 		// Act
 
-		const actual = chromeInsets(true, false, "0px");
+		const actual = chromeInsets(true, false, "0px", "0px");
 
 		// Assert
 

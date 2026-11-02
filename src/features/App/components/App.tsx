@@ -140,7 +140,13 @@ function App() {
 
 	// What the chrome covers right now, unlike the fixed spaces above; scrollbars and their ticks follow it.
 	const insets = useMemo(
-		() => chromeInsets(pinned, !footerCollapsed, SAFE_AREA_BOTTOM),
+		() =>
+			chromeInsets(
+				pinned,
+				!footerCollapsed,
+				SAFE_AREA_TOP,
+				SAFE_AREA_BOTTOM,
+			),
 		[pinned, footerCollapsed],
 	);
 
