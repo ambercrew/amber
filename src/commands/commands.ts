@@ -399,6 +399,7 @@ export const commandsById: Record<CommandId, Command> = {
 		group: "AI",
 		label: "Ask AI",
 		shortcut: FOCUS_AI_CHAT_SHORTCUT,
+		searchOnly: true,
 		icon: createElement(AskAiIcon),
 		enabled: state => selectSettings(state)?.enableAi ?? false,
 		execute: () => requestFocus("aiChat"),
@@ -407,6 +408,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "open-ai-prompt-library",
 		group: "AI",
 		label: "Open prompt library",
+		searchOnly: true,
 		icon: createElement(AiPromptLibraryIcon),
 		enabled: state => selectSettings(state)?.enableAi ?? false,
 		execute: dispatch => dispatch(openAiPromptLibraryModal()),
@@ -415,6 +417,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "new-ai-prompt",
 		group: "AI",
 		label: "New AI prompt",
+		searchOnly: true,
 		icon: createElement(NewAiPromptIcon),
 		enabled: state => selectSettings(state)?.enableAi ?? false,
 		execute: dispatch =>
