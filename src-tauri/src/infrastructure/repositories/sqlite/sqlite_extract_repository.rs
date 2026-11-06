@@ -42,6 +42,7 @@ impl ExtractRepository for SqliteExtractRepository {
         Ok(())
     }
 
+    #[cfg(test)]
     async fn get_all(&self) -> Result<Vec<Extract>, RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();

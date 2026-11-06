@@ -1,13 +1,20 @@
 import { TreeNodeData } from "@mantine/core";
 import { NodeDto } from "../../../../api/elements/dto/nodeDto";
 import { ElementNodeType } from "../../../../types/elements/elementNodeType";
+import { comparePositions } from "../../../../utils/elementTree";
 import { ElementNodeProps } from "./elementNodeProps";
+
+// A patched store tree shares every untouched subtree with the previous one, so those convert for free.
+const converted = new WeakMap<NodeDto, TreeNodeData>();
 
 export function dtosToTreeData(nodes: NodeDto[]): TreeNodeData[] {
 	return nodes.map(f => nodeToTreeNode(f));
 }
 
 function nodeToTreeNode(node: NodeDto): TreeNodeData {
+	const known = converted.get(node);
+	if (known) return known;
+
 	const children = [
 		...node.children.folders.map(nodeToTreeNode),
 		...node.children.learningAssets.map(nodeToTreeNode),
@@ -15,11 +22,12 @@ function nodeToTreeNode(node: NodeDto): TreeNodeData {
 		...node.children.cards.map(nodeToTreeNode),
 	];
 	children.sort((a, b) => {
-		return (a.nodeProps as ElementNodeProps).position.localeCompare(
+		return comparePositions(
+			(a.nodeProps as ElementNodeProps).position,
 			(b.nodeProps as ElementNodeProps).position,
 		);
 	});
-	return {
+	const treeNode: TreeNodeData = {
 		label: node.meta.name,
 		value: node.meta.elementId.id,
 		nodeProps: {
@@ -32,6 +40,8 @@ function nodeToTreeNode(node: NodeDto): TreeNodeData {
 		// childless elements must opt in explicitly.
 		hasChildren: true,
 	};
+	converted.set(node, treeNode);
+	return treeNode;
 }
 
 export function findNodeType(

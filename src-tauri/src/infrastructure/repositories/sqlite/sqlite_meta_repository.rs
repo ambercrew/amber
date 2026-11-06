@@ -12,9 +12,11 @@ use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::meta::Meta;
 use crate::elements::value_objects::name_source::NameSource;
+use crate::elements::value_objects::tree_entry::TreeEntry;
 use crate::infrastructure::repositories::sqlite::ids_json::ids_json;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::meta_row::MetaRow;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::tag_row::TagRow;
+use crate::infrastructure::repositories::sqlite::sqlite_rows::tree_entry_row::TreeEntryRow;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 
 #[derive(ScopeInjectable)]
@@ -519,6 +521,26 @@ impl MetaRepository for SqliteMetaRepository {
         .await?;
 
         Ok(row.map(|r| r.into()))
+    }
+
+    async fn get_tree_entries(&self) -> Result<Vec<TreeEntry>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let rows = sqlx::query_as!(
+            TreeEntryRow,
+            r#"SELECT
+                element_id as "element_id: _",
+                element_type,
+                name,
+                position as "position: _",
+                parent_id as "parent_id: _",
+                parent_type
+            FROM meta
+            WHERE trashed_at IS NULL"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     async fn get_children_ordered(

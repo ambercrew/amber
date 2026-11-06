@@ -5,6 +5,7 @@ import { CreateExtractDto } from "../../../types/elements/createExtractDto";
 import { CreateFolderDto } from "../../../types/elements/createFolderDto";
 import { CreateLearningAssetDto } from "../../../types/elements/createLearningAssetDto";
 import { ElementId } from "../../../types/elements/elementId";
+import { MoveElementResponseDto } from "../dto/moveElementResponseDto";
 import { UpdateCardDto } from "../../../types/elements/updateCardDto";
 import { UpdateExtractDto } from "../../../types/elements/updateExtractDto";
 import { UpdateLearningAssetDto } from "../../../types/elements/updateLearningAssetDto";
@@ -166,7 +167,9 @@ export interface MoveElementDto {
 	position: DropPosition;
 }
 
-export function moveElement(dto: MoveElementDto): Promise<void> {
+export function moveElement(
+	dto: MoveElementDto,
+): Promise<MoveElementResponseDto> {
 	return invoke("move_element", { dto });
 }
 

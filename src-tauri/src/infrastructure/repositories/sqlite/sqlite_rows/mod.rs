@@ -17,3 +17,4 @@ pub mod saved_search_row;
 pub mod search_row;
 pub mod study_profile_row;
 pub mod tag_row;
+pub mod tree_entry_row;

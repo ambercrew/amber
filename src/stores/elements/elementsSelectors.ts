@@ -1,3 +1,4 @@
+import { createSelector } from "@reduxjs/toolkit";
 import { RootState } from "../store";
 import { existsInTree } from "./elementsActions";
 
@@ -19,11 +20,11 @@ export const selectCanZoomAppWide = (state: RootState) =>
 /** A live element always appears in the tree; trashing removes it (and its
  * whole subtree) from the tree query while leaving the row in place, so
  * "loaded but absent from the tree" is what being trashed looks like. */
-export const selectCurrentElementIsTrashed = (state: RootState) => {
-	const currentElement = state.elements.currentElement;
-	if (!currentElement) return false;
-	return !existsInTree(
-		state.elements.tree,
-		currentElement.data.meta.elementId,
-	);
-};
+export const selectCurrentElementIsTrashed = createSelector(
+	[
+		selectElementTree,
+		(state: RootState) =>
+			state.elements.currentElement?.data.meta.elementId,
+	],
+	(tree, elementId) => !!elementId && !existsInTree(tree, elementId),
+);

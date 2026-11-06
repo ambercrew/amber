@@ -67,6 +67,7 @@
 		"@mdi/react": "1.6.1",
 		"@phosphor-icons/react": "^2.1.10",
 		"@reduxjs/toolkit": "2.12.0",
+		"@tanstack/react-virtual": "^3.14.26",
 		"@tauri-apps/api": "3.0.0-alpha.3",
 		"@tauri-apps/plugin-clipboard-manager": "^3.0.0-alpha.3",
 		"@tauri-apps/plugin-dialog": "3.0.0-alpha.4",

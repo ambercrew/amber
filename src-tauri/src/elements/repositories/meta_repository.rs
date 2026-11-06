@@ -9,6 +9,7 @@ use crate::elements::entities::tag::Tag;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::meta::Meta;
 use crate::elements::value_objects::name_source::NameSource;
+use crate::elements::value_objects::tree_entry::TreeEntry;
 
 #[async_trait]
 #[cfg_attr(test, automock)]
@@ -89,6 +90,9 @@ pub trait MetaRepository: Send + Sync {
         id: ElementId,
         derived_from: Option<ElementId>,
     ) -> Result<(), RepositoryError>;
+
+    /// Every element outside the trash, as the tree shows it.
+    async fn get_tree_entries(&self) -> Result<Vec<TreeEntry>, RepositoryError>;
 
     /// Changes the parent and position of the given element.
     async fn move_to(

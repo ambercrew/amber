@@ -8,7 +8,11 @@ import {
 } from "../../../api/trash/api/trashApi";
 import { TrashedElementDto } from "../../../api/trash/dto/trashedElementDto";
 import { clearSplitHeights } from "../../../features/ElementViewer/LearningAssetView/core/heights/splitHeightsStorage";
-import { setTree } from "../../../stores/elements/elementsReducer";
+import {
+	removeTreeNode,
+	setTree,
+} from "../../../stores/elements/elementsReducer";
+import { RootState } from "../../../stores/store";
 import {
 	deleteElementPermanentlyAction,
 	emptyTrashAction,
@@ -34,13 +38,16 @@ const TRASHED_LEARNING_ASSET: TrashedElementDto = {
 	descendantCount: 0,
 };
 
+const STATE = { elements: { tree: [] } } as unknown as RootState;
+const getState = () => STATE;
+
 describe("trashActions", () => {
 	beforeEach(() => {
 		vi.mocked(getElementTree).mockResolvedValue([]);
 		vi.mocked(getTrash).mockResolvedValue([TRASHED_LEARNING_ASSET]);
 	});
 
-	it("Should reload both the tree and the trash when an element is trashed", async () => {
+	it("Should remove the element from the tree without reloading it when it is trashed", async () => {
 		// Arrange
 
 		const dispatch = vi.fn();
@@ -54,10 +61,28 @@ describe("trashActions", () => {
 
 		expect(trashElement).toHaveBeenCalledWith(elementId);
 		expect(dispatch).toHaveBeenNthCalledWith(1, setTrashLoading());
-		expect(dispatch).toHaveBeenCalledWith(setTree([]));
+		expect(dispatch).toHaveBeenCalledWith(removeTreeNode("folder-1"));
+		expect(getElementTree).not.toHaveBeenCalled();
 		expect(dispatch).toHaveBeenCalledWith(
 			setTrash([TRASHED_LEARNING_ASSET]),
 		);
+	});
+
+	it("Should still remove the element from the tree when fetching the trash fails", async () => {
+		// Arrange
+
+		const dispatch = vi.fn();
+		const elementId = { type: "folder", id: "folder-1" } as const;
+		vi.mocked(getTrash).mockRejectedValue(new Error("Unavailable"));
+
+		// Act
+
+		await trashElementAction(elementId)(dispatch);
+
+		// Assert
+
+		expect(dispatch).toHaveBeenCalledWith(removeTreeNode("folder-1"));
+		expect(dispatch).toHaveBeenCalledWith(setTrashError("Unavailable"));
 	});
 
 	it("Should reload both the tree and the trash when an element is restored", async () => {
@@ -68,7 +93,7 @@ describe("trashActions", () => {
 
 		// Act
 
-		await restoreElementAction(elementId)(dispatch);
+		await restoreElementAction(elementId)(dispatch, getState);
 
 		// Assert
 
@@ -88,6 +113,7 @@ describe("trashActions", () => {
 
 		await deleteElementPermanentlyAction(TRASHED_LEARNING_ASSET.elementId)(
 			dispatch,
+			getState,
 		);
 
 		// Assert
@@ -113,7 +139,7 @@ describe("trashActions", () => {
 				trashedAt: "2026-07-01T00:00:00Z",
 				descendantCount: 0,
 			},
-		])(dispatch);
+		])(dispatch, getState);
 
 		// Assert
 

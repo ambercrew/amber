@@ -180,6 +180,12 @@ Some backend work (e.g. producing Lexical JSON) can only be done on the frontend
 
 Event name/DTO live together under `src/api/<module>/events/` as usual (e.g. `CONVERT_MARKDOWN_TO_LEXICAL_EVENT` in `convertMarkdownToLexicalEvent.ts`) and must match the Rust `request()` call's `&str` by hand — no compile-time link. Reference implementation: `src/features/Ai/hooks/useLexicalConversionBridge.ts` + `common/services/implementations/tauri_lexical_json_converter.rs`.
 
+### Element Tree
+
+`elements.tree` holds the whole tree without content. It's fetched at startup and after syncs, restores and bulk operations; everything else patches it in place so the sidebar never waits on a reload: rename (`setElementName`), move (`moveTreeNode`, from `move_element`'s response), trash (`removeTreeNode`) and creation (`addTreeNodes`, from `elementCreated` events batched in `useElementTreeState`). Reducers find nodes with `findTreePath` on the original state, because walking the Immer draft proxies every node it passes. Keep unchanged subtrees the same objects: `dtosToTreeData` reuses their conversion.
+
+The sidebar renders it with `VirtualElementTree`: `flattenTreeData` + Mantine's `FlatTreeNode` + `@tanstack/react-virtual`, with drag and drop in `useTreeDragDrop` (`FlatTreeNode` has none). Only rows near the scroll position are mounted, so don't query the DOM for a row that may be off screen; a row being renamed, dragged or focused stays mounted. Components using `useVirtualizer` need `"use no memo"`, as the React Compiler would cache its results. Tests get every row through the mock in `src/__test__/setup.ts`, as jsdom has no layout.
+
 ### Rich Text (Lexical)
 
 The editor uses **Lexical**, built via its extension system (`@lexical/extension`'s `defineExtension`/`buildEditorFromExtensions`), not the older plugin-array API. `src/components/Editor/editorExtension.ts` exports the shared `editorNodes`, `editorExtensionDependencies`, and static `editorTheme` used by **both**:

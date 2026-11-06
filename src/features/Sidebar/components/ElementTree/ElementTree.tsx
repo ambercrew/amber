@@ -1,12 +1,12 @@
 import {
+	flattenTreeData,
 	Menu,
 	RenderTreeNodePayload,
 	Stack,
 	TextInput,
-	Tree,
 } from "@mantine/core";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { MoveElementDto } from "../../../../api/elements/api/elementsApi";
 import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
@@ -17,9 +17,9 @@ import { ElementNodeProps, findNodeType } from "../../utils/elementTreeUtils";
 import TrashElementModal from "../TrashElementModal";
 import ElementTreeMenuItems from "./ElementTreeMenuItems";
 import ElementTreeNode from "./ElementTreeNode";
+import VirtualElementTree from "./VirtualElementTree";
 import useAppDispatch from "../../../../hooks/useAppDispatch";
 import { moveElementAction } from "../../../../stores/elements/elementsActions";
-import { useFocusOnRequest } from "../../../../hooks/useFocusRequest";
 import { matchesShortcut } from "../../../../commands/useAppHotkeys";
 import {
 	GO_BACK_SHORTCUT,
@@ -65,19 +65,12 @@ function ElementTree({ state }: ElementTreeProps) {
 		handleSearchChange,
 	} = state;
 
+	const rows = useMemo(
+		() => flattenTreeData(filteredData, treeController.expandedState),
+		[filteredData, treeController.expandedState],
+	);
+
 	const containerRef = useRef<HTMLDivElement>(null);
-	useFocusOnRequest("tree", () => {
-		const items =
-			containerRef.current?.querySelectorAll<HTMLElement>(
-				"[role=treeitem]",
-			);
-		const target =
-			Array.from(items ?? []).find(
-				item => item.dataset.value === selected?.id,
-			) ?? items?.[0];
-		target?.setAttribute("data-focus-ring", "true");
-		target?.focus();
-	});
 
 	// Hand app shortcuts on tree items to the app's hotkeys, before Mantine's nodes swallow them.
 	useEffect(() => {
@@ -131,17 +124,19 @@ function ElementTree({ state }: ElementTreeProps) {
 					setRenamingTarget({ type, id: node.value })
 				}
 				onRenameClose={() => setRenamingTarget(null)}
+				onTrashClick={() => setTrashTarget({ type, id: node.value })}
 				onAfterCreate={() => treeController.expand(node.value)}
 			/>
 		);
 	}
 
 	const treeElement = (
-		<Tree
-			data={filteredData}
+		<VirtualElementTree
+			rows={rows}
 			tree={treeController}
+			selectedValue={selected?.id ?? null}
+			renamingValue={renamingTarget?.id ?? null}
 			renderNode={renderNode}
-			withLines
 			onKeyDown={event => {
 				// Mantine's tree moves focus with the arrows; this opens the focused element.
 				const target = event.target as HTMLElement;
@@ -156,7 +151,7 @@ function ElementTree({ state }: ElementTreeProps) {
 				event.preventDefault();
 				if (target.dataset.value) openNode(target.dataset.value);
 			}}
-			onDragDrop={({ draggedNode, targetNode, position }) => {
+			onMove={({ draggedNode, targetNode, position }) => {
 				const draggedType = findNodeType(data, draggedNode);
 				const targetType = findNodeType(data, targetNode);
 				if (!draggedType) return;

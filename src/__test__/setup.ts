@@ -35,6 +35,27 @@ vi.mock("@tauri-apps/api/event", () => ({
 	}),
 }));
 
+// jsdom has no layout, so nothing would ever be in view: every row renders instead.
+vi.mock("@tanstack/react-virtual", async importOriginal => ({
+	...(await importOriginal<typeof import("@tanstack/react-virtual")>()),
+	useVirtualizer: ({
+		count,
+		getItemKey,
+	}: {
+		count: number;
+		getItemKey: (index: number) => string;
+	}) => ({
+		getVirtualItems: () =>
+			Array.from({ length: count }, (_, index) => ({
+				index,
+				key: getItemKey(index),
+				start: 0,
+			})),
+		getTotalSize: () => 0,
+		measureElement: () => undefined,
+	}),
+}));
+
 // eslint-disable-next-line @typescript-eslint/unbound-method
 const { getComputedStyle } = window;
 window.getComputedStyle = elt => getComputedStyle(elt);

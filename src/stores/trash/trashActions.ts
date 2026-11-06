@@ -1,4 +1,3 @@
-import { getElementTree } from "../../api/elements/api/elementsApi";
 import {
 	deleteElementPermanently,
 	emptyTrash,
@@ -10,17 +9,35 @@ import { TrashedElementDto } from "../../api/trash/dto/trashedElementDto";
 import { clearSplitHeights } from "../../features/ElementViewer/LearningAssetView/core/heights/splitHeightsStorage";
 import { ElementId } from "../../types/elements/elementId";
 import errorToString from "../../utils/errorToString";
-import { setTree } from "../elements/elementsReducer";
-import { AppDispatch } from "../store";
+import { fetchLatestTree } from "../elements/elementsActions";
+import { removeTreeNode, setTree } from "../elements/elementsReducer";
+import { AppDispatch, RootState } from "../store";
 import { setTrash, setTrashError, setTrashLoading } from "./trashReducer";
 import { resetStaleStudyScopeAction } from "../study/studyScopeActions";
 
 export function loadTrash() {
-	return withTrashRefresh(() => Promise.resolve());
+	return async (dispatch: AppDispatch) => {
+		dispatch(setTrashLoading());
+		try {
+			dispatch(setTrash(await getTrash()));
+		} catch (error) {
+			dispatch(setTrashError(errorToString(error)));
+		}
+	};
 }
 
 export function trashElementAction(elementId: ElementId) {
-	return withTrashRefresh(() => trashElement(elementId));
+	return async (dispatch: AppDispatch) => {
+		dispatch(setTrashLoading());
+		try {
+			await trashElement(elementId);
+			dispatch(removeTreeNode(elementId.id));
+			dispatch(resetStaleStudyScopeAction());
+			dispatch(setTrash(await getTrash()));
+		} catch (error) {
+			dispatch(setTrashError(errorToString(error)));
+		}
+	};
 }
 
 export function restoreElementAction(elementId: ElementId) {
@@ -49,15 +66,15 @@ function forgetSplitHeights(elementIds: ElementId[]) {
 	}
 }
 
-/** Every trash operation also changes what the element tree shows, so both are
+/** Restoring and deleting can change what the element tree shows, so both are
  * reloaded together. */
 function withTrashRefresh(operation: () => Promise<void>) {
-	return async (dispatch: AppDispatch) => {
+	return async (dispatch: AppDispatch, getState: () => RootState) => {
 		dispatch(setTrashLoading());
 		try {
 			await operation();
 			const [tree, trash] = await Promise.all([
-				getElementTree(),
+				fetchLatestTree(getState),
 				getTrash(),
 			]);
 			dispatch(setTree(tree));

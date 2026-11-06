@@ -4,7 +4,9 @@ use async_trait::async_trait;
 use fractional_index::FractionalIndex;
 use injector_derive::ScopeInjectable;
 
-use crate::elements::dto::move_element_dto::{DropPosition, MoveElementRequestDto};
+use crate::elements::dto::move_element_dto::{
+    DropPosition, MoveElementRequestDto, MoveElementResponseDto,
+};
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::services::element_index_service::ElementIndexService;
 use crate::elements::services::element_move_error::ElementMoveError;
@@ -19,13 +21,20 @@ pub struct DefaultElementMoveService {
 
 #[async_trait]
 impl ElementMoveService for DefaultElementMoveService {
-    async fn move_element(&self, dto: MoveElementRequestDto) -> Result<(), ElementMoveError> {
+    async fn move_element(
+        &self,
+        dto: MoveElementRequestDto,
+    ) -> Result<MoveElementResponseDto, ElementMoveError> {
         match self.try_move_element(dto).await {
             Err(ElementMoveError::PositionExhausted) => {
                 let target_id = dto.target_id.unwrap();
                 let target = self.meta_repository.get_by_id(target_id.id()).await?;
                 self.rebalance_children(target.parent).await?;
-                self.try_move_element(dto).await
+                let moved = self.try_move_element(dto).await?;
+                Ok(MoveElementResponseDto {
+                    rebalanced: true,
+                    ..moved
+                })
             }
             other => other,
         }
@@ -33,7 +42,10 @@ impl ElementMoveService for DefaultElementMoveService {
 }
 
 impl DefaultElementMoveService {
-    async fn try_move_element(&self, dto: MoveElementRequestDto) -> Result<(), ElementMoveError> {
+    async fn try_move_element(
+        &self,
+        dto: MoveElementRequestDto,
+    ) -> Result<MoveElementResponseDto, ElementMoveError> {
         let new_position = match dto.position {
             DropPosition::Inside => self.index_service.get_new_last_index(dto.target_id).await?,
             DropPosition::Before => {
@@ -59,10 +71,15 @@ impl DefaultElementMoveService {
             }
         };
 
+        let position = new_position.to_string();
         self.meta_repository
             .move_to(dto.dragged_id, parent_id, new_position)
             .await?;
-        Ok(())
+        Ok(MoveElementResponseDto {
+            parent: parent_id,
+            position,
+            rebalanced: false,
+        })
     }
 
     async fn rebalance_children(&self, parent: Option<ElementId>) -> Result<(), ElementMoveError> {
@@ -139,6 +156,119 @@ mod tests {
                 modified_at: Utc::now(),
             },
         }
+    }
+
+    /// Reports no room between siblings once, then finds some, as after a rebalance.
+    #[derive(Default)]
+    struct ExhaustedOnceIndexService {
+        exhausted: std::sync::atomic::AtomicBool,
+    }
+
+    #[async_trait]
+    impl ElementIndexService for ExhaustedOnceIndexService {
+        async fn get_new_last_index(
+            &self,
+            _parent: Option<ElementId>,
+        ) -> Result<FractionalIndex, ElementMoveError> {
+            Ok(FractionalIndex::default())
+        }
+
+        async fn get_new_before_index(
+            &self,
+            _id: Uuid,
+        ) -> Result<FractionalIndex, ElementMoveError> {
+            if self
+                .exhausted
+                .swap(true, std::sync::atomic::Ordering::SeqCst)
+            {
+                Ok(FractionalIndex::default())
+            } else {
+                Err(ElementMoveError::PositionExhausted)
+            }
+        }
+
+        async fn get_new_after_index(
+            &self,
+            _id: Uuid,
+        ) -> Result<FractionalIndex, ElementMoveError> {
+            Ok(FractionalIndex::default())
+        }
+    }
+
+    #[tokio::test]
+    async fn move_element_positions_exhausted_reports_rebalanced() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let dragged = make_folder(None, FractionalIndex::default());
+        let target = make_folder(
+            None,
+            FractionalIndex::new_after(&FractionalIndex::default()),
+        );
+        let dragged_id = dragged.meta.element_id;
+        let target_id = target.meta.element_id;
+        folder_repo.create(dragged).await.unwrap();
+        folder_repo.create(target).await.unwrap();
+        let service = DefaultElementMoveService {
+            meta_repository: scope.resolve::<dyn MetaRepository>().await,
+            index_service: Arc::new(ExhaustedOnceIndexService::default()),
+        };
+
+        // Act
+
+        let actual = service
+            .move_element(MoveElementRequestDto {
+                dragged_id,
+                target_id: Some(target_id),
+                position: DropPosition::Before,
+            })
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert!(actual.rebalanced);
+    }
+
+    #[tokio::test]
+    async fn move_element_inside_returns_where_the_element_landed() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let meta_repo = scope.resolve::<dyn MetaRepository>().await;
+        let service = scope.resolve::<dyn ElementMoveService>().await;
+
+        let parent = make_folder(None, FractionalIndex::default());
+        let child = make_folder(
+            None,
+            FractionalIndex::new_after(&FractionalIndex::default()),
+        );
+        let parent_id = parent.meta.element_id;
+        let child_id = child.meta.element_id;
+        folder_repo.create(parent).await.unwrap();
+        folder_repo.create(child).await.unwrap();
+
+        // Act
+
+        let actual = service
+            .move_element(MoveElementRequestDto {
+                dragged_id: child_id,
+                target_id: Some(parent_id),
+                position: DropPosition::Inside,
+            })
+            .await
+            .unwrap();
+
+        // Assert
+
+        let stored = meta_repo.get_by_id(child_id.id()).await.unwrap();
+        assert_eq!(Some(parent_id), actual.parent);
+        assert_eq!(stored.position.to_string(), actual.position);
+        assert!(!actual.rebalanced);
     }
 
     #[tokio::test]

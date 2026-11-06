@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router";
 import { NodeDto } from "../../../api/elements/dto/nodeDto";
 import {
@@ -15,7 +15,7 @@ import useAppSelector from "../../../hooks/useAppSelector";
 import { useElementParams } from "../../../hooks/useElementParams";
 import { useTauriEvent } from "../../../hooks/useTauriEvent";
 import { paths } from "../../../paths";
-import { loadElementTree } from "../../../stores/elements/elementsActions";
+import { addCreatedElementsAction } from "../../../stores/elements/elementsActions";
 import { selectStudyStatus } from "../../../stores/study/studySelectors";
 import {
 	dtosToTreeData,
@@ -23,6 +23,9 @@ import {
 	getAdjacentNodeValue,
 } from "../utils/elementTreeUtils";
 import { useElementTreeExpansion } from "./useElementTreeExpansion";
+
+/** A big import creates elements by the thousand; this groups them into few tree updates. */
+const CREATED_BATCH_DELAY_MS = 50;
 
 /**
  * The element tree's data and expansion. Kept above the sidebar's tabs, whose
@@ -39,7 +42,7 @@ export function useElementTreeState(tree: NodeDto[]) {
 		selected?.id ?? null,
 		isStudying,
 	);
-	const { treeController, filteredData } = expansion;
+	const { treeController, filteredData, expandNodes } = expansion;
 
 	function openNode(value: string) {
 		const type = findNodeType(data, value);
@@ -61,10 +64,41 @@ export function useElementTreeState(tree: NodeDto[]) {
 		[PREVIOUS_TREE_ELEMENT_SHORTCUT, () => openAdjacent(-1)],
 	]);
 
+	const createdBatch = useRef<ElementCreatedEventDto[]>([]);
+	const batchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+	function takeCreatedBatch() {
+		const created = createdBatch.current;
+		createdBatch.current = [];
+		clearTimeout(batchTimeout.current);
+		batchTimeout.current = undefined;
+		return created;
+	}
+
+	function addCreatedBatch() {
+		const created = takeCreatedBatch();
+		void dispatch(addCreatedElementsAction(created));
+		expandNodes(created.flatMap(c => c.parentId ?? []));
+	}
+
 	useTauriEvent<ElementCreatedEventDto>(ELEMENT_CREATED_EVENT, payload => {
-		void dispatch(loadElementTree());
-		if (payload.parentId) treeController.expand(payload.parentId);
+		createdBatch.current.push(payload);
+		batchTimeout.current ??= setTimeout(
+			addCreatedBatch,
+			CREATED_BATCH_DELAY_MS,
+		);
 	});
+
+	// Doesn't expand the parents, as this closure holds the first render's expanded state.
+	useEffect(
+		() => () => {
+			const created = takeCreatedBatch();
+			if (created.length > 0)
+				void dispatch(addCreatedElementsAction(created));
+		},
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- Only reads refs and the stable dispatch.
+		[],
+	);
 
 	return { ...expansion, data, selected, openNode };
 }

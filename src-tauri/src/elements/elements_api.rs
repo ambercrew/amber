@@ -18,7 +18,7 @@ use crate::elements::dto::learning_asset_mark_dto::{
 use crate::elements::dto::learning_asset_split_id_dto::LearningAssetSplitIdDto;
 use crate::elements::dto::learning_asset_split_meta_dto::LearningAssetSplitMetaDto;
 use crate::elements::dto::learning_asset_split_text_dto::LearningAssetSplitTextDto;
-use crate::elements::dto::move_element_dto::MoveElementRequestDto;
+use crate::elements::dto::move_element_dto::{MoveElementRequestDto, MoveElementResponseDto};
 use crate::elements::dto::new_element_priority_dto::NewElementPriorityResponseDto;
 use crate::elements::dto::pdf_bytes_dto::PdfBytesDto;
 use crate::elements::dto::pdf_highlights_dto::{PdfHighlightsDto, UpdatePdfHighlightsDto};
@@ -503,15 +503,15 @@ pub async fn set_derived_from(
 pub async fn move_element(
     injector: State<'_, Arc<Injector>>,
     dto: MoveElementRequestDto,
-) -> Result<(), ApiError> {
+) -> Result<MoveElementResponseDto, ApiError> {
     let scope = injector.start_scope();
-    scope
+    let moved = scope
         .resolve::<dyn ElementMoveService>()
         .await
         .move_element(dto)
         .await?;
     scope.save_changes().await?;
-    Ok(())
+    Ok(moved)
 }
 
 #[tauri::command]

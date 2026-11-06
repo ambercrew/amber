@@ -4,7 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { listen } from "@tauri-apps/api/event";
 import { NodeDto } from "../../../../../api/elements/dto/nodeDto";
 import ElementTreeHarness from "../../../../test-utils/ElementTreeHarness";
+import { setTree } from "../../../../../stores/elements/elementsReducer";
 import { ElementId } from "../../../../../types/elements/elementId";
+import { findTreeNode } from "../../../../../utils/elementTree";
 import {
 	LOCATION_DISPLAY_TEST_ID,
 	renderWithProviders,
@@ -232,7 +234,7 @@ describe("ElementTree search", () => {
 		});
 	});
 
-	it("Should expand a folder when an element is created under it", () => {
+	it("Should expand a folder when an element is created under it", async () => {
 		// Arrange
 
 		render();
@@ -249,13 +251,54 @@ describe("ElementTree search", () => {
 			handler({
 				event: "elementCreated",
 				id: 0,
-				payload: { parentId: "folder-science" },
+				payload: {
+					parentId: "folder-science",
+					element: {
+						elementId: { type: "card", id: "card-new" },
+						name: "New",
+						position: "9",
+					},
+				},
 			});
 		});
 
 		// Assert — Science is expanded, revealing its child
 
-		expect(screen.getByLabelText("Biology Basics")).toBeInTheDocument();
+		expect(
+			await screen.findByLabelText("Biology Basics"),
+		).toBeInTheDocument();
+	});
+
+	it("Should still add a queued element to the tree when the sidebar unmounts", () => {
+		// Arrange
+
+		const { store, unmount } = render();
+		store.dispatch(setTree(TREE));
+		const handler = vi.mocked(listen).mock.calls[0][1];
+		act(() => {
+			handler({
+				event: "elementCreated",
+				id: 0,
+				payload: {
+					parentId: "folder-science",
+					element: {
+						elementId: { type: "card", id: "card-queued" },
+						name: "Queued",
+						position: "9",
+					},
+				},
+			});
+		});
+
+		// Act
+
+		unmount();
+
+		// Assert
+
+		expect(
+			findTreeNode(store.getState().elements.tree, "card-queued"),
+		).toBeDefined();
 	});
 
 	it("Should show correct child count on a folder label", () => {

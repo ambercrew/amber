@@ -14,11 +14,13 @@ use crate::elements::dto::create_card_dto::CreateCardDto;
 use crate::elements::dto::create_extract_dto::CreateExtractDto;
 use crate::elements::dto::create_folder_dto::CreateFolderDto;
 use crate::elements::dto::create_learning_asset_dto::CreateLearningAssetDto;
+use crate::elements::dto::tree_dto::MetaNodeDto;
 use crate::elements::entities::card::Card;
 use crate::elements::entities::extract::Extract;
 use crate::elements::entities::folder::Folder;
 use crate::elements::entities::learning_asset::LearningAsset;
 use crate::elements::entities::learning_asset_split::LearningAssetSplit;
+use crate::elements::entities::traits::Element;
 use crate::elements::events::element_created_event::{
     ELEMENT_CREATED_EVENT, ElementCreatedEventDto,
 };
@@ -98,9 +100,10 @@ impl ElementCreationService for DefaultElementCreationService {
                 modified_at: now,
             },
         };
+        let element = MetaNodeDto::from(folder.meta());
         self.folder_repository.create(folder).await?;
         self.copy_parent_tags(parent, element_id).await?;
-        self.emit_element_created(parent).await;
+        self.emit_element_created(parent, element).await;
         Ok(())
     }
 
@@ -176,13 +179,14 @@ impl ElementCreationService for DefaultElementCreationService {
                 LearningAssetContent::Extracted(splits)
             }
         };
+        let element = MetaNodeDto::from(learning_asset.meta());
         self.learning_asset_repository
             .create(learning_asset, content)
             .await?;
         self.ensure_learning_asset_review(element_id, profile)
             .await?;
         self.copy_parent_tags(parent, element_id).await?;
-        self.emit_element_created(parent).await;
+        self.emit_element_created(parent, element).await;
         Ok(())
     }
 
@@ -221,12 +225,13 @@ impl ElementCreationService for DefaultElementCreationService {
             content: self.asset_service.ingest_content(dto.content).await?,
             interval_multiplier: profile.initial_interval_multiplier,
         };
+        let element = MetaNodeDto::from(extract.meta());
         self.extract_repository.create(extract).await?;
         // Extracts are reviewed like learning_assets.
         self.ensure_learning_asset_review(element_id, profile)
             .await?;
         self.copy_parent_tags(parent, element_id).await?;
-        self.emit_element_created(parent).await;
+        self.emit_element_created(parent, element).await;
         Ok(())
     }
 
@@ -265,10 +270,11 @@ impl ElementCreationService for DefaultElementCreationService {
             front: self.asset_service.ingest_content(dto.front).await?,
             back: self.asset_service.ingest_content(dto.back).await?,
         };
+        let element = MetaNodeDto::from(card.meta());
         self.card_repository.create(card).await?;
         self.ensure_card_review(dto.id, element_id).await?;
         self.copy_parent_tags(parent, element_id).await?;
-        self.emit_element_created(parent).await;
+        self.emit_element_created(parent, element).await;
         Ok(())
     }
 }
@@ -286,9 +292,10 @@ fn resolve_name(
 }
 
 impl DefaultElementCreationService {
-    async fn emit_element_created(&self, parent: Option<ElementId>) {
+    async fn emit_element_created(&self, parent: Option<ElementId>, element: MetaNodeDto) {
         let body = serde_json::to_value(ElementCreatedEventDto {
             parent_id: parent.map(|parent_id| parent_id.id()),
+            element,
         })
         .expect("ElementCreatedEventDto always serializes");
         self.event_manager.push(ELEMENT_CREATED_EVENT, body).await;
@@ -1047,6 +1054,43 @@ mod tests {
             .unwrap();
         let tag_names: Vec<String> = tags.into_iter().map(|tag| tag.name).collect();
         assert_eq!(vec!["a".to_string(), "b".to_string()], tag_names);
+    }
+
+    #[tokio::test]
+    async fn create_folder_any_folder_pushes_created_event_with_its_node() {
+        // Arrange
+
+        let pushed = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let recorded = pushed.clone();
+        let mut event_manager = MockEventManager::new();
+        event_manager.expect_push().returning(move |name, body| {
+            recorded.lock().unwrap().push((name.to_string(), body));
+            Box::pin(async {})
+        });
+        let mut injector = initialize_test_injector().await;
+        injector.register_singleton::<dyn EventManager>(Arc::new(event_manager));
+        let scope = injector.start_scope();
+        let service = create_service(&scope).await;
+        let id = Uuid::new_v4();
+        let dto = CreateFolderDto {
+            id,
+            meta: crate::elements::dto::create_meta_dto::CreateMetaDto {
+                name: Some("Science".to_string()),
+                ..dto_meta(None)
+            },
+        };
+
+        // Act
+
+        service.create_folder(dto).await.unwrap();
+
+        // Assert
+
+        let pushed = pushed.lock().unwrap();
+        let (name, body) = &pushed[0];
+        assert_eq!(ELEMENT_CREATED_EVENT, name);
+        assert_eq!(id.to_string(), body["element"]["elementId"]["id"]);
+        assert_eq!("Science", body["element"]["name"]);
     }
 
     #[tokio::test]

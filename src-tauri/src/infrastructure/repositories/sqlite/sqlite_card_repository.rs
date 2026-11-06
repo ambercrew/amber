@@ -44,6 +44,7 @@ impl CardRepository for SqliteCardRepository {
         Ok(())
     }
 
+    #[cfg(test)]
     async fn get_all(&self) -> Result<Vec<Card>, RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();

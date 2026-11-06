@@ -13,6 +13,7 @@ use crate::elements::value_objects::reading_position::ReadingPosition;
 
 #[async_trait]
 pub trait LearningAssetRepository: Send + Sync {
+    #[cfg(test)]
     async fn get_all(&self) -> Result<Vec<LearningAsset>, RepositoryError>;
     async fn get_by_id(&self, id: Uuid) -> Result<LearningAsset, RepositoryError>;
     async fn create(

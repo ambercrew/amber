@@ -9,9 +9,7 @@ import { DotsThreeVerticalIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import ElementNodeIcon from "../../../../components/ElementNodeIcon/ElementNodeIcon";
 import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
-import { ElementId } from "../../../../types/elements/elementId";
 import { ElementNodeProps } from "../../utils/elementTreeUtils";
-import TrashElementModal from "../TrashElementModal";
 import ElementTreeMenuItems from "./ElementTreeMenuItems";
 import RenameElementForm from "./RenameElementForm";
 import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
@@ -29,6 +27,7 @@ interface ElementTreeNodeProps {
 	onContextMenu: () => void;
 	onRenameClick: () => void;
 	onRenameClose: () => void;
+	onTrashClick: () => void;
 	onAfterCreate: () => void;
 }
 
@@ -42,6 +41,7 @@ function ElementTreeNode({
 	onContextMenu,
 	onRenameClick,
 	onRenameClose,
+	onTrashClick,
 	onAfterCreate,
 }: ElementTreeNodeProps) {
 	const { node, expanded, elementProps } = payload;
@@ -53,7 +53,6 @@ function ElementTreeNode({
 	const coarsePointer = useIsCoarsePointer();
 	// Only controls the menu with three dots.
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
-	const [trashTarget, setTrashTarget] = useState<ElementId | null>(null);
 
 	const { onClick: toggleExpanded, ...restElementProps } = elementProps;
 
@@ -63,105 +62,93 @@ function ElementTreeNode({
 	}
 
 	return (
-		<>
-			<Group
-				gap={6}
-				py={2}
-				{...restElementProps}
-				onClick={onSelect}
-				onDoubleClick={onRenameClick}
-				onContextMenu={onContextMenu}
-				onMouseEnter={() => setIsHovered(true)}
-				onMouseLeave={() => setIsHovered(false)}
-				bg={
-					isSelected
-						? "var(--mantine-primary-color-light)"
-						: isMenuOpen || isContextMenuOpen || isHovered
-							? "var(--mantine-color-gray-light-hover)"
-							: undefined
-				}
-				c={
-					isSelected
-						? "var(--mantine-primary-color-light-color)"
+		<Group
+			gap={6}
+			py={2}
+			{...restElementProps}
+			draggable
+			onClick={onSelect}
+			onDoubleClick={onRenameClick}
+			onContextMenu={onContextMenu}
+			onMouseEnter={() => setIsHovered(true)}
+			onMouseLeave={() => setIsHovered(false)}
+			bg={
+				isSelected
+					? "var(--mantine-primary-color-light)"
+					: isMenuOpen || isContextMenuOpen || isHovered
+						? "var(--mantine-color-gray-light-hover)"
 						: undefined
-				}
-				style={{ borderRadius: "var(--mantine-radius-default)" }}>
-				<ActionIcon
-					variant="transparent"
-					size="xs"
-					c="inherit"
-					aria-label={expanded ? "Collapse" : "Expand"}
-					onClick={handleCaretClick}>
-					<DisclosureCaret opened={expanded} size={ICON_SIZE} />
-				</ActionIcon>
-				<ElementNodeIcon
-					type={type}
-					expanded={expanded}
-					size={ICON_SIZE}
+			}
+			c={
+				isSelected
+					? "var(--mantine-primary-color-light-color)"
+					: undefined
+			}
+			style={{ borderRadius: "var(--mantine-radius-default)" }}>
+			<ActionIcon
+				variant="transparent"
+				size="xs"
+				c="inherit"
+				aria-label={expanded ? "Collapse" : "Expand"}
+				onClick={handleCaretClick}>
+				<DisclosureCaret opened={expanded} size={ICON_SIZE} />
+			</ActionIcon>
+			<ElementNodeIcon type={type} expanded={expanded} size={ICON_SIZE} />
+			{isRenaming ? (
+				<RenameElementForm
+					elementId={{ type, id }}
+					initialName={label}
+					onClose={onRenameClose}
 				/>
-				{isRenaming ? (
-					<RenameElementForm
-						elementId={{ type, id }}
-						initialName={label}
-						onClose={onRenameClose}
-					/>
-				) : (
-					<AppTooltip label={labelWithCount}>
-						<Highlight
-							highlight={search}
-							flex={1}
-							truncate="end"
-							aria-label={label}>
-							{labelWithCount}
-						</Highlight>
-					</AppTooltip>
-				)}
-				<Menu
-					withinPortal
-					position="bottom-start"
-					onOpen={() => setIsMenuOpen(true)}
-					onClose={() => setIsMenuOpen(false)}
-					shadow="lg">
-					<Menu.Target>
-						<ActionIcon
-							variant="subtle"
-							aria-label="Open actions menu"
-							style={{
-								// There is no hover with a coarse (touch)
-								// pointer, so the menu has to stay visible.
-								visibility:
-									coarsePointer ||
-									isHovered ||
-									isMenuOpen ||
-									isContextMenuOpen
-										? "visible"
-										: "hidden",
-							}}
-							onClick={e => e.stopPropagation()}>
-							<DotsThreeVerticalIcon
-								size={ICON_SIZE}
-								weight="bold"
-							/>
-						</ActionIcon>
-					</Menu.Target>
-					{/* React events bubble out of the portal into the row, so
+			) : (
+				<AppTooltip label={labelWithCount}>
+					<Highlight
+						highlight={search}
+						flex={1}
+						truncate="end"
+						aria-label={label}>
+						{labelWithCount}
+					</Highlight>
+				</AppTooltip>
+			)}
+			<Menu
+				withinPortal
+				position="bottom-start"
+				onOpen={() => setIsMenuOpen(true)}
+				onClose={() => setIsMenuOpen(false)}
+				shadow="lg">
+				<Menu.Target>
+					<ActionIcon
+						variant="subtle"
+						aria-label="Open actions menu"
+						style={{
+							// There is no hover with a coarse (touch)
+							// pointer, so the menu has to stay visible.
+							visibility:
+								coarsePointer ||
+								isHovered ||
+								isMenuOpen ||
+								isContextMenuOpen
+									? "visible"
+									: "hidden",
+						}}
+						onClick={e => e.stopPropagation()}>
+						<DotsThreeVerticalIcon size={ICON_SIZE} weight="bold" />
+					</ActionIcon>
+				</Menu.Target>
+				{/* React events bubble out of the portal into the row, so
 					    without this every menu click would also select the
 					    element — and selecting closes the sidebar on mobile. */}
-					<Menu.Dropdown onClick={e => e.stopPropagation()}>
-						<ElementTreeMenuItems
-							elementId={{ type, id }}
-							onRenameClick={onRenameClick}
-							onTrashClick={() => setTrashTarget({ type, id })}
-							onAfterCreate={onAfterCreate}
-						/>
-					</Menu.Dropdown>
-				</Menu>
-			</Group>
-			<TrashElementModal
-				elementId={trashTarget}
-				onClose={() => setTrashTarget(null)}
-			/>
-		</>
+				<Menu.Dropdown onClick={e => e.stopPropagation()}>
+					<ElementTreeMenuItems
+						elementId={{ type, id }}
+						onRenameClick={onRenameClick}
+						onTrashClick={onTrashClick}
+						onAfterCreate={onAfterCreate}
+					/>
+				</Menu.Dropdown>
+			</Menu>
+		</Group>
 	);
 }
 
