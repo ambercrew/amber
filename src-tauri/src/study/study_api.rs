@@ -6,7 +6,6 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
 use crate::common::api_error::ApiError;
-use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::local_configurations::repositories::local_configuration_repository::{
@@ -72,17 +71,7 @@ pub async fn get_due_elements(
         .await
         .get_due_elements(study_scope.map(Into::into))
         .await?;
-    let meta_repository = scope.resolve::<dyn MetaRepository>().await;
-
-    let mut result = Vec::with_capacity(due_elements.len());
-    for element_id in due_elements {
-        let meta = meta_repository.get_by_id(element_id.id()).await?;
-        result.push(DueElementDto {
-            element_id,
-            title: meta.name,
-        });
-    }
-    Ok(result)
+    Ok(due_elements.into_iter().map(Into::into).collect())
 }
 
 /// Persists a review the frontend scheduled with ts-fsrs. Scheduling itself

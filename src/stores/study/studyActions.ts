@@ -20,6 +20,7 @@ import {
 	cardGraded,
 	elementRequeued,
 	elementsDropped,
+	indexOfElement,
 	learningAssetAdvanced,
 	learningAssetFinished,
 	learningAssetSkipped,
@@ -30,6 +31,7 @@ import {
 } from "./studyReducer";
 import { selectStudyIndex, selectStudyScope } from "./studySelectors";
 import { STUDY_SESSION_FINISHED } from "../../types/events/studySessionFinishedEvent";
+import { isSameElement } from "../../utils/elementKey";
 import errorToString from "../../utils/errorToString";
 
 // A same-day relearning card is re-queued rather than dropped until "later
@@ -355,15 +357,9 @@ function removeElement(
 	queue: DueElementDto[],
 	elementId: ElementId,
 ): DueElementDto[] {
-	const index = queue.findIndex(item =>
-		isSameElement(item.elementId, elementId),
-	);
+	const index = indexOfElement(queue, elementId);
 	if (index === -1) return queue;
 	return [...queue.slice(0, index), ...queue.slice(index + 1)];
-}
-
-function isSameElement(a: ElementId, b: ElementId): boolean {
-	return a.type === b.type && a.id === b.id;
 }
 
 export function stopStudySessionAction() {

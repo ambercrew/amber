@@ -186,6 +186,10 @@ Event name/DTO live together under `src/api/<module>/events/` as usual (e.g. `CO
 
 The sidebar renders it with `VirtualElementTree`: `flattenTreeData` + Mantine's `FlatTreeNode` + `@tanstack/react-virtual`, with drag and drop in `useTreeDragDrop` (`FlatTreeNode` has none). Only rows near the scroll position are mounted, so don't query the DOM for a row that may be off screen; a row being renamed, dragged or focused stays mounted. Components using `useVirtualizer` need `"use no memo"`, as the React Compiler would cache its results. Tests get every row through the mock in `src/__test__/setup.ts`, as jsdom has no layout.
 
+### Study Queue
+
+`study.queue` can hold every due element, so its reducers work on `plainQueue(state)` and assign a new array: array methods on an Immer draft proxy each item they touch, which costs seconds on a long queue. `PriorityQueueList` virtualizes it like the tree, sharing `useSidebarScroll`; its rows are measured because a title can take two lines, and `getItemKey` runs per row on every remeasure, so keep it allocation-free. `get_due_elements` returns names from the same query; don't look elements up one by one.
+
 ### Rich Text (Lexical)
 
 The editor uses **Lexical**, built via its extension system (`@lexical/extension`'s `defineExtension`/`buildEditorFromExtensions`), not the older plugin-array API. `src/components/Editor/editorExtension.ts` exports the shared `editorNodes`, `editorExtensionDependencies`, and static `editorTheme` used by **both**:

@@ -3,8 +3,8 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
-use crate::elements::value_objects::element_id_with_priority::ElementIdWithPriority;
 use crate::study::entities::card_review::CardReview;
+use crate::study::value_objects::due_element::DueElement;
 
 #[async_trait]
 pub trait CardReviewRepository: Send + Sync {
@@ -14,9 +14,7 @@ pub trait CardReviewRepository: Send + Sync {
     async fn upsert(&self, review: &CardReview) -> Result<(), RepositoryError>;
 
     /// Cards due on or before `as_of`, including cards that have never been reviewed,
-    /// paired with their priority so callers don't need a separate lookup.
-    async fn get_due_cards(
-        &self,
-        as_of: DateTime<Utc>,
-    ) -> Result<Vec<ElementIdWithPriority>, RepositoryError>;
+    /// with their name and priority so callers don't need a separate lookup.
+    async fn get_due_cards(&self, as_of: DateTime<Utc>)
+    -> Result<Vec<DueElement>, RepositoryError>;
 }

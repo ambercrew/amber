@@ -243,6 +243,7 @@ pub async fn run() {
             set_fuzz_factor,
             // Statistics
             get_home_statistics,
+            get_reviewed_today_count,
             // Study profiles
             list_study_profiles,
             create_study_profile,

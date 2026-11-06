@@ -1,8 +1,9 @@
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { createSlice, original, PayloadAction } from "@reduxjs/toolkit";
 import { DueElementDto } from "../../api/study/dto/dueElementDto";
 import { StudyScopeDto } from "../../api/study/dto/studyScopeDto";
 import { ElementId } from "../../types/elements/elementId";
 import { ElementNodeType } from "../../types/elements/elementNodeType";
+import { elementKey, isSameElement } from "../../utils/elementKey";
 import { loadStudyScope } from "./studyScopeStorage";
 
 export type StudyStatus = "editing" | "studying";
@@ -43,8 +44,13 @@ const initialState: StudyState = {
 	studyScope: loadStudyScope(),
 };
 
-function isSameElement(a: ElementId, b: ElementId): boolean {
-	return a.type === b.type && a.id === b.id;
+/** The queue before this reducer ran: array methods on a draft proxy each item they touch, too slow for a long queue. */
+function plainQueue(state: StudyState) {
+	return original(state)?.queue ?? state.queue;
+}
+
+export function indexOfElement(queue: DueElementDto[], elementId: ElementId) {
+	return queue.findIndex(item => isSameElement(item.elementId, elementId));
 }
 
 const studySlice = createSlice({
@@ -77,17 +83,20 @@ const studySlice = createSlice({
 			state,
 			action: PayloadAction<{ elementId: ElementId }>,
 		) => {
-			const currentIndex = state.queue.findIndex(item =>
-				isSameElement(item.elementId, action.payload.elementId),
+			const queue = [...plainQueue(state)];
+			const currentIndex = indexOfElement(
+				queue,
+				action.payload.elementId,
 			);
 			if (currentIndex === -1) return;
-			const current = state.queue[currentIndex];
+			const current = queue[currentIndex];
 			const insertAt = Math.min(
 				currentIndex + SESSION_REQUEUE_OFFSET,
-				state.queue.length,
+				queue.length,
 			);
-			state.queue.splice(currentIndex, 1);
-			state.queue.splice(insertAt - 1, 0, current);
+			queue.splice(currentIndex, 1);
+			queue.splice(insertAt - 1, 0, current);
+			state.queue = queue;
 		},
 		// Adds elements that became due mid-session (e.g. a due date set in the
 		// aside), keeping `due`'s priority order but never before the current one.
@@ -100,21 +109,28 @@ const studySlice = createSlice({
 		) => {
 			if (state.status !== "studying") return;
 			const { due, currentIndex } = action.payload;
+			const queued = new Set(
+				plainQueue(state).map(item => elementKey(item.elementId)),
+			);
+			const queue = [...plainQueue(state)];
 			// Walking backwards, each new element lands before the next queued one.
-			let anchor = state.queue.length;
+			let anchor = queue.length;
+			// Only found once a new element needs it, as nearly all of `due` is already queued.
+			let nextQueued: ElementId | null = null;
 			for (let i = due.length - 1; i >= 0; i--) {
 				const item = due[i];
-				const index = state.queue.findIndex(queued =>
-					isSameElement(queued.elementId, item.elementId),
-				);
-				if (index !== -1) {
-					anchor = index;
+				if (queued.has(elementKey(item.elementId))) {
+					nextQueued = item.elementId;
 					continue;
 				}
+				if (nextQueued) anchor = indexOfElement(queue, nextQueued);
+				nextQueued = null;
 				anchor = Math.max(anchor, currentIndex + 1);
-				state.queue.splice(anchor, 0, item);
+				queue.splice(anchor, 0, item);
+				queued.add(elementKey(item.elementId));
 				state.totalCount += 1;
 			}
+			if (queue.length !== plainQueue(state).length) state.queue = queue;
 		},
 		// Takes pending suspended elements out of the session and its total. The
 		// current one stays and counts as done, so `advanceSession` moves off it without a flash.
@@ -126,14 +142,14 @@ const studySlice = createSlice({
 			}>,
 		) => {
 			const { elementIds, currentElementId } = action.payload;
-			const dropped = (item: DueElementDto) =>
-				elementIds.some(id => isSameElement(id, item.elementId)) &&
-				!(
-					currentElementId !== null &&
-					isSameElement(item.elementId, currentElementId)
-				);
-			state.totalCount -= state.queue.filter(dropped).length;
-			state.queue = state.queue.filter(item => !dropped(item));
+			const dropped = new Set(elementIds.map(elementKey));
+			if (currentElementId) dropped.delete(elementKey(currentElementId));
+			const queue = plainQueue(state);
+			const remaining = queue.filter(
+				item => !dropped.has(elementKey(item.elementId)),
+			);
+			state.totalCount -= queue.length - remaining.length;
+			state.queue = remaining;
 		},
 		learningAssetAdvanced: (
 			state,
@@ -151,12 +167,15 @@ const studySlice = createSlice({
 			state,
 			action: PayloadAction<{ elementId: ElementId }>,
 		) => {
-			const currentIndex = state.queue.findIndex(item =>
-				isSameElement(item.elementId, action.payload.elementId),
+			const queue = [...plainQueue(state)];
+			const currentIndex = indexOfElement(
+				queue,
+				action.payload.elementId,
 			);
 			if (currentIndex === -1) return;
-			const [current] = state.queue.splice(currentIndex, 1);
-			state.queue.push(current);
+			const [current] = queue.splice(currentIndex, 1);
+			queue.push(current);
+			state.queue = queue;
 		},
 		learningAssetFinished: (
 			state,
@@ -179,10 +198,13 @@ const studySlice = createSlice({
 		) => {
 			const { completedElementId } = action.payload;
 			if (completedElementId) {
-				const index = state.queue.findIndex(item =>
-					isSameElement(item.elementId, completedElementId),
-				);
-				if (index !== -1) state.queue.splice(index, 1);
+				const queue = plainQueue(state);
+				const index = indexOfElement(queue, completedElementId);
+				if (index !== -1)
+					state.queue = [
+						...queue.slice(0, index),
+						...queue.slice(index + 1),
+					];
 			}
 
 			if (state.queue.length === 0) {

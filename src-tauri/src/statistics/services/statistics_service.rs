@@ -7,4 +7,7 @@ use crate::statistics::value_objects::home_statistics::HomeStatistics;
 pub trait StatisticsService: Send + Sync {
     /// Elements reviewed today, today's study time, this year's daily activity and its remaining due reviews.
     async fn get_home_statistics(&self) -> Result<HomeStatistics, RepositoryError>;
+
+    /// Elements reviewed today, all the study queue's progress needs.
+    async fn count_reviewed_today(&self) -> Result<i64, RepositoryError>;
 }

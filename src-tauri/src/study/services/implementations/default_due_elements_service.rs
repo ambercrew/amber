@@ -9,8 +9,6 @@ use rand::Rng;
 use rand::seq::SliceRandom;
 
 use crate::common::repository_error::RepositoryError;
-use crate::elements::value_objects::element_id::ElementId;
-use crate::elements::value_objects::element_id_with_priority::ElementIdWithPriority;
 use crate::local_configurations::repositories::local_configuration_repository::{
     LocalConfigurationRepository, LocalConfigurationRepositoryExt,
 };
@@ -20,6 +18,7 @@ use crate::search::repositories::search_repository::SearchRepository;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::services::due_elements_service::DueElementsService;
+use crate::study::value_objects::due_element::DueElement;
 use crate::study::value_objects::fuzz_factor_configuration::{
     FUZZ_FACTOR_CONFIGURATION_NAME, FuzzFactorConfiguration,
 };
@@ -35,7 +34,7 @@ pub struct DefaultDueElementsService {
 }
 
 impl DefaultDueElementsService {
-    async fn all_due(&self) -> Result<Vec<ElementIdWithPriority>, RepositoryError> {
+    async fn all_due(&self) -> Result<Vec<DueElement>, RepositoryError> {
         let as_of = Utc::now();
 
         let mut due = self.card_review_repository.get_due_cards(as_of).await?;
@@ -66,7 +65,7 @@ impl DefaultDueElementsService {
     /// Keeps the entries matching the scope; a scope without filters matches all.
     async fn retain_matching(
         &self,
-        due: &mut Vec<ElementIdWithPriority>,
+        due: &mut Vec<DueElement>,
         scope: StudyScope,
     ) -> Result<(), RepositoryError> {
         let filters = self.scope_filters(scope).await?;
@@ -85,7 +84,7 @@ impl DueElementsService for DefaultDueElementsService {
     async fn get_due_elements(
         &self,
         scope: Option<StudyScope>,
-    ) -> Result<Vec<ElementId>, RepositoryError> {
+    ) -> Result<Vec<DueElement>, RepositoryError> {
         let mut due = self.all_due().await?;
 
         if let Some(scope) = scope {
@@ -117,10 +116,10 @@ impl DueElementsService for DefaultDueElementsService {
 /// whole queue: 0 keeps the exact priority order, 100 shuffles the entire
 /// queue.
 fn order_by_priority_with_fuzz(
-    mut entries: Vec<ElementIdWithPriority>,
+    mut entries: Vec<DueElement>,
     fuzz_factor: u8,
     rng: &mut impl Rng,
-) -> Vec<ElementId> {
+) -> Vec<DueElement> {
     entries.sort_by(|a, b| a.priority.cmp(&b.priority));
 
     let bracket_size = ((entries.len() as f64) * (fuzz_factor.min(100) as f64 / 100.0))
@@ -131,11 +130,12 @@ fn order_by_priority_with_fuzz(
         bracket.shuffle(rng);
     }
 
-    entries.into_iter().map(|entry| entry.element_id).collect()
+    entries
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::elements::value_objects::element_id::ElementId;
     use crate::elements::value_objects::name_source::NameSource;
     use chrono::{Duration, Utc};
     use fractional_index::FractionalIndex;
@@ -154,10 +154,7 @@ mod tests {
                 learning_asset_repository::LearningAssetRepository,
                 meta_repository::MetaRepository,
             },
-            value_objects::{
-                element_id_with_priority::ElementIdWithPriority,
-                learning_asset_content::LearningAssetContent, meta::Meta,
-            },
+            value_objects::{learning_asset_content::LearningAssetContent, meta::Meta},
         },
         infrastructure::repositories::sqlite::{
             sqlite_card_repository::SqliteCardRepository,
@@ -304,12 +301,31 @@ mod tests {
 
         // Act
 
-        let due = service.get_due_elements(None).await.unwrap();
+        let due = ids(service.get_due_elements(None).await.unwrap());
 
         // Assert
 
         assert!(due.contains(&card_id));
         assert!(!due.contains(&learning_asset_id));
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_due_card_returns_its_name() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        create_new_card(&card_repo, "Capital of Spain").await;
+
+        // Act
+
+        let actual = service.get_due_elements(None).await.unwrap();
+
+        // Assert
+
+        assert_eq!("Capital of Spain", actual[0].name);
     }
 
     async fn create_saved_search(
@@ -357,10 +373,10 @@ mod tests {
 
         // Act
 
-        let due = service
+        let due = ids(service
             .get_due_elements(Some(StudyScope::SavedSearch(saved_search_id)))
             .await
-            .unwrap();
+            .unwrap());
 
         // Assert
 
@@ -382,7 +398,7 @@ mod tests {
 
         // Act
 
-        let due = service.get_due_elements(None).await.unwrap();
+        let due = ids(service.get_due_elements(None).await.unwrap());
 
         // Assert
 
@@ -403,10 +419,10 @@ mod tests {
 
         // Act
 
-        let due = service
+        let due = ids(service
             .get_due_elements(Some(StudyScope::SavedSearch(Uuid::new_v4())))
             .await
-            .unwrap();
+            .unwrap());
 
         // Assert
 
@@ -427,10 +443,10 @@ mod tests {
 
         // Act
 
-        let due = service
+        let due = ids(service
             .get_due_elements(Some(StudyScope::Custom(vec![name_contains("Rust")])))
             .await
-            .unwrap();
+            .unwrap());
 
         // Assert
 
@@ -438,17 +454,23 @@ mod tests {
         assert!(!due.contains(&other));
     }
 
-    fn ordered_entries(count: usize) -> Vec<ElementIdWithPriority> {
+    fn ids(due: Vec<DueElement>) -> Vec<ElementId> {
+        due.into_iter().map(|entry| entry.element_id).collect()
+    }
+
+    fn ordered_entries(count: usize) -> Vec<DueElement> {
         let mut priority = FractionalIndex::default();
         let mut entries = Vec::with_capacity(count);
-        entries.push(ElementIdWithPriority {
+        entries.push(DueElement {
             element_id: ElementId::Card(Uuid::new_v4()),
+            name: String::new(),
             priority: priority.clone(),
         });
         for _ in 1..count {
             priority = FractionalIndex::new_after(&priority);
-            entries.push(ElementIdWithPriority {
+            entries.push(DueElement {
                 element_id: ElementId::Card(Uuid::new_v4()),
+                name: String::new(),
                 priority: priority.clone(),
             });
         }
@@ -465,7 +487,7 @@ mod tests {
 
         // Act
 
-        let actual = order_by_priority_with_fuzz(entries, 0, &mut rng);
+        let actual = ids(order_by_priority_with_fuzz(entries, 0, &mut rng));
 
         // Assert
 
@@ -482,7 +504,7 @@ mod tests {
 
         // Act
 
-        let mut actual = order_by_priority_with_fuzz(entries, 100, &mut rng);
+        let mut actual = ids(order_by_priority_with_fuzz(entries, 100, &mut rng));
 
         // Assert
 
@@ -501,7 +523,7 @@ mod tests {
 
         // Act
 
-        let actual = order_by_priority_with_fuzz(entries, 25, &mut rng);
+        let actual = ids(order_by_priority_with_fuzz(entries, 25, &mut rng));
 
         // Assert
 

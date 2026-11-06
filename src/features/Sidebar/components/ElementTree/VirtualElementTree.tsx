@@ -10,12 +10,12 @@ import {
 	KeyboardEvent,
 	useCallback,
 	useEffect,
-	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { useFocusOnRequest } from "../../../../hooks/useFocusRequest";
+import { useSidebarScroll } from "../../../../hooks/useSidebarScroll";
 import { useTreeDragDrop } from "./useTreeDragDrop";
 
 /** Only a first guess: rows are measured once mounted. */
@@ -45,9 +45,8 @@ function VirtualElementTree({
 	// The virtualizer changes in place, so the compiler would keep showing its first rows.
 	"use no memo";
 
-	const rootRef = useRef<HTMLDivElement>(null);
-	const [viewport, setViewport] = useState<HTMLElement | null>(null);
-	const [scrollMargin, setScrollMargin] = useState(0);
+	const [root, setRoot] = useState<HTMLDivElement | null>(null);
+	const { viewport, scrollMargin } = useSidebarScroll(root);
 	const [focused, setFocused] = useState<string | null>(null);
 	const pendingFocus = useRef<string | null>(null);
 
@@ -56,26 +55,6 @@ function VirtualElementTree({
 		[rows],
 	);
 	const { dragged, handlers } = useTreeDragDrop(rows, rowIndexes, onMove);
-
-	// The sidebar scrolls the links above the tree too, so the tree starts partway down.
-	useLayoutEffect(() => {
-		const root = rootRef.current;
-		const scroller = root?.closest<HTMLElement>(
-			"[data-scrollarea-viewport]",
-		);
-		if (!root || !scroller) return;
-		const measure = () =>
-			setScrollMargin(
-				root.getBoundingClientRect().top -
-					scroller.getBoundingClientRect().top +
-					scroller.scrollTop,
-			);
-		setViewport(scroller);
-		measure();
-		const observer = new ResizeObserver(measure);
-		observer.observe(scroller.firstElementChild ?? scroller);
-		return () => observer.disconnect();
-	}, []);
 
 	const getItemKey = useCallback(
 		(index: number) => rows[index].node.value,
@@ -109,7 +88,7 @@ function VirtualElementTree({
 	// Its row may only mount with this render, as it's kept once `focused` names it.
 	useEffect(() => {
 		if (pendingFocus.current === null) return;
-		const row = rootRef.current?.querySelector<HTMLElement>(
+		const row = root?.querySelector<HTMLElement>(
 			`[role=treeitem][data-value="${CSS.escape(pendingFocus.current)}"]`,
 		);
 		pendingFocus.current = null;
@@ -146,7 +125,7 @@ function VirtualElementTree({
 		<div
 			{...rootProps}
 			{...handlers}
-			ref={rootRef}
+			ref={setRoot}
 			role="tree"
 			data-tree-root
 			data-with-lines

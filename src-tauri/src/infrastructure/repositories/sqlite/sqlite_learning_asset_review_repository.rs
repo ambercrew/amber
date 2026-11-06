@@ -10,11 +10,11 @@ use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::value_objects::element_id::ElementId;
-use crate::elements::value_objects::element_id_with_priority::ElementIdWithPriority;
 use crate::infrastructure::repositories::sqlite::ids_json::ids_json;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 use crate::study::entities::learning_asset_review::LearningAssetReview;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
+use crate::study::value_objects::due_element::DueElement;
 
 #[derive(ScopeInjectable)]
 pub struct SqliteLearningAssetReviewRepository {
@@ -134,12 +134,12 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
     async fn get_due_elements(
         &self,
         as_of: DateTime<Utc>,
-    ) -> Result<Vec<ElementIdWithPriority>, RepositoryError> {
+    ) -> Result<Vec<DueElement>, RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
         let rows = sqlx::query!(
-            r#"SELECT m.element_id as "element_id: uuid::fmt::Hyphenated", m.element_type, m.priority
+            r#"SELECT m.element_id as "element_id: uuid::fmt::Hyphenated", m.element_type, m.name, m.priority
             FROM meta m
             LEFT JOIN learning_asset_reviews rr ON rr.element_id = m.element_id
             WHERE m.element_type IN ('learning_asset', 'extract')
@@ -153,8 +153,9 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
 
         Ok(rows
             .into_iter()
-            .map(|row| ElementIdWithPriority {
+            .map(|row| DueElement {
                 element_id: element_id_from_type(row.element_id.into_uuid(), &row.element_type),
+                name: row.name,
                 priority: FractionalIndex::from_bytes(row.priority)
                     .expect("Invalid fractional index"),
             })
