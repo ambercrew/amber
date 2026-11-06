@@ -99,12 +99,10 @@ describe("FILE_FORMATS_ACCEPT", () => {
 
 		// Assert
 
-		expect(actual).toContain("application/pdf");
-		expect(actual).toContain("text/markdown");
-		expect(actual.filter(type => type.startsWith("."))).toEqual([
-			".apkg",
-			".colpkg",
-		]);
+		expect(actual["application/pdf"]).toEqual([]);
+		expect(actual["text/markdown"]).toEqual([]);
+		expect(actual["application/x-apkg"]).toEqual([".apkg", ".colpkg"]);
+		expect(Object.keys(actual).every(key => key.includes("/"))).toBe(true);
 	});
 });
 

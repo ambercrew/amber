@@ -32,10 +32,13 @@ export function detectFileFormat(
 }
 
 // MIME types where the OS knows them: Linux pickers list bare extensions as unlabeled filters like "*.pdf ()".
-export const FILE_FORMATS_ACCEPT: string[] = FILE_FORMATS.flatMap(format =>
-	format.acceptByExtension
-		? [...format.mimeTypes, ...format.extensions.map(ext => `.${ext}`)]
-		: format.mimeTypes,
+export const FILE_FORMATS_ACCEPT: Record<string, string[]> = Object.fromEntries(
+	FILE_FORMATS.flatMap(format => {
+		const extensions = format.acceptByExtension
+			? format.extensions.map(ext => `.${ext}`)
+			: [];
+		return format.mimeTypes.map(mimeType => [mimeType, extensions]);
+	}),
 );
 
 const labels = FILE_FORMATS.map(format => format.label);
