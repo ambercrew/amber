@@ -1,10 +1,8 @@
 import {
-	Anchor,
-	Badge,
-	Box,
 	Checkbox,
 	Group,
 	Table,
+	TableThProps,
 	Text,
 	UnstyledButton,
 } from "@mantine/core";
@@ -14,45 +12,42 @@ import {
 	CaretUpDownIcon,
 	CaretUpIcon,
 } from "@phosphor-icons/react";
-import { Link } from "react-router";
 import { SearchElementResultDto } from "../../api/search/dto/searchElementResultDto";
 import { ElementId } from "../../types/elements/elementId";
-import { paths } from "../../paths";
-import { formatPriorityPercentile } from "../../utils/formatPriorityPercentile";
-import ElementNodeIcon from "../../components/ElementNodeIcon/ElementNodeIcon";
-import { elementTypeOptions } from "../../utils/elementTypeOptions";
 import { elementKey } from "../../utils/elementKey";
 import { nextSearchSort } from "../../utils/searchSort";
 import {
 	SearchSortColumn,
 	SearchSortDto,
 } from "../../api/search/dto/searchSortDto";
+import SearchResultRows from "./SearchResultRows";
 
-function elementTypeLabel(type: SearchElementResultDto["type"]): string {
-	return (
-		elementTypeOptions.find(option => option.value === type)?.label ?? type
-	);
-}
-
-function formatDateTime(value: string | null): string {
-	return value ? new Date(value).toLocaleString() : "—";
-}
-
-const SORTABLE_COLUMNS: [SearchSortColumn, string][] = [
+// Fixed widths: with automatic ones, columns would shift as rows mount during scrolling.
+// Name takes what's left; the others fit their header and a full date on one line.
+const SORTABLE_COLUMNS: [SearchSortColumn, string, number?][] = [
 	["name", "Name"],
-	["type", "Type"],
-	["priority", "Priority"],
-	["due", "Due"],
+	["type", "Type", 120],
+	["priority", "Priority", 100],
+	["due", "Due", 190],
 ];
+const TAGS_COLUMN_WIDTH = 140;
+const CHECKBOX_COLUMN_WIDTH = 40;
+const TABLE_MIN_WIDTH = 720;
 
-interface SortableThProps {
+interface SortableThProps extends TableThProps {
 	column: SearchSortColumn;
 	sort: SearchSortDto;
 	onSortChange: (sort: SearchSortDto) => void;
 	children: ReactNode;
 }
 
-function SortableTh({ column, sort, onSortChange, children }: SortableThProps) {
+function SortableTh({
+	column,
+	sort,
+	onSortChange,
+	children,
+	...props
+}: SortableThProps) {
 	const sorted = sort.column === column;
 	const Icon = !sorted
 		? CaretUpDownIcon
@@ -62,6 +57,7 @@ function SortableTh({ column, sort, onSortChange, children }: SortableThProps) {
 
 	return (
 		<Table.Th
+			{...props}
 			aria-sort={
 				sorted
 					? sort.direction === "asc"
@@ -107,7 +103,6 @@ export default function SearchResultsTable({
 	selection,
 }: SearchResultsTableProps) {
 	const selectedIds = selection?.selectedIds ?? NO_SELECTION;
-	const shiftKeyRef = useRef(false);
 	const lastClickedIndexRef = useRef<number | null>(null);
 
 	if (results.length === 0) {
@@ -134,11 +129,15 @@ export default function SearchResultsTable({
 		}
 	}
 
-	function toggleOne(result: SearchElementResultDto, index: number) {
+	function toggleOne(
+		result: SearchElementResultDto,
+		index: number,
+		shiftKey: boolean,
+	) {
 		const key = elementKey(result);
 		const isSelected = selectedKeys.has(key);
 
-		if (shiftKeyRef.current && lastClickedIndexRef.current !== null) {
+		if (shiftKey && lastClickedIndexRef.current !== null) {
 			const [start, end] = [lastClickedIndexRef.current, index].sort(
 				(a, b) => a - b,
 			);
@@ -169,12 +168,17 @@ export default function SearchResultsTable({
 	}
 
 	return (
-		<Table.ScrollContainer minWidth={550}>
-			<Table striped highlightOnHover verticalSpacing="xs">
+		<Table.ScrollContainer minWidth={TABLE_MIN_WIDTH} type="native">
+			<Table
+				striped
+				highlightOnHover
+				verticalSpacing="xs"
+				layout="fixed"
+				aria-rowcount={results.length + 1}>
 				<Table.Thead>
 					<Table.Tr>
 						{selection && (
-							<Table.Th>
+							<Table.Th w={CHECKBOX_COLUMN_WIDTH}>
 								<Checkbox
 									aria-label="Select all results"
 									checked={allSelected}
@@ -183,80 +187,25 @@ export default function SearchResultsTable({
 								/>
 							</Table.Th>
 						)}
-						{SORTABLE_COLUMNS.map(([column, label]) => (
+						{SORTABLE_COLUMNS.map(([column, label, width]) => (
 							<SortableTh
 								key={column}
 								column={column}
 								sort={sort}
-								onSortChange={onSortChange}>
+								onSortChange={onSortChange}
+								w={width}>
 								{label}
 							</SortableTh>
 						))}
-						<Table.Th>Tags</Table.Th>
+						<Table.Th w={TAGS_COLUMN_WIDTH}>Tags</Table.Th>
 					</Table.Tr>
 				</Table.Thead>
-				<Table.Tbody>
-					{results.map((result, index) => (
-						<Table.Tr key={elementKey(result)}>
-							{selection && (
-								<Table.Td>
-									<Checkbox
-										aria-label={`Select ${result.name}`}
-										checked={selectedKeys.has(
-											elementKey(result),
-										)}
-										onClick={e => {
-											shiftKeyRef.current = e.shiftKey;
-										}}
-										onChange={() =>
-											toggleOne(result, index)
-										}
-									/>
-								</Table.Td>
-							)}
-							<Table.Td>
-								<Group gap="xs" wrap="nowrap">
-									<Box flex="0 0 auto" display="flex">
-										<ElementNodeIcon
-											type={result.type}
-											size={16}
-										/>
-									</Box>
-									<Anchor
-										component={Link}
-										to={paths.element(
-											result.type,
-											result.id,
-										)}
-										size="sm"
-										c="inherit"
-										underline="hover">
-										{result.name}
-									</Anchor>
-								</Group>
-							</Table.Td>
-							<Table.Td>{elementTypeLabel(result.type)}</Table.Td>
-							<Table.Td>
-								{formatPriorityPercentile(
-									result.priority.percentile,
-								)}
-							</Table.Td>
-							<Table.Td>{formatDateTime(result.due)}</Table.Td>
-							<Table.Td>
-								<Group gap={4} wrap="wrap">
-									{result.tags.map(tag => (
-										<Badge
-											key={tag.name}
-											variant="light"
-											size="sm">
-											{tag.name}
-										</Badge>
-									))}
-								</Group>
-							</Table.Td>
-						</Table.Tr>
-					))}
-				</Table.Tbody>
+				<SearchResultRows
+					results={results}
+					selectedKeys={selectedKeys}
+					selectable={!!selection}
+					onToggle={toggleOne}
+				/>
 			</Table>
 		</Table.ScrollContainer>
 	);

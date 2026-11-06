@@ -676,6 +676,23 @@ impl MetaRepository for SqliteMetaRepository {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
+    async fn get_ids_ordered_by_priority(&self) -> Result<Vec<ElementId>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let rows = sqlx::query!(
+            r#"SELECT element_id as "element_id: uuid::fmt::Hyphenated", element_type
+               FROM meta
+               WHERE trashed_at IS NULL
+               ORDER BY priority"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.element_id.into_uuid(), row.element_type).into_element_id())
+            .collect())
+    }
+
     async fn get_at_priority_offset(
         &self,
         excluding: Option<ElementId>,
@@ -779,6 +796,39 @@ mod tests {
             name_source: NameSource::Automatic,
             ..make_meta(id)
         }
+    }
+
+    #[tokio::test]
+    async fn get_ids_ordered_by_priority_elements_out_of_order_returns_them_by_priority() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let first = ElementId::Card(Uuid::new_v4());
+        let second = ElementId::Folder(Uuid::new_v4());
+        let first_priority = FractionalIndex::default();
+        let next_priority = FractionalIndex::new_after(&first_priority);
+        repo.create_meta(&Meta {
+            priority: next_priority,
+            ..make_meta(second)
+        })
+        .await
+        .unwrap();
+        repo.create_meta(&Meta {
+            priority: first_priority,
+            ..make_meta(first)
+        })
+        .await
+        .unwrap();
+
+        // Act
+
+        let ids = repo.get_ids_ordered_by_priority().await.unwrap();
+
+        // Assert
+
+        assert_eq!(vec![first, second], ids);
     }
 
     #[tokio::test]

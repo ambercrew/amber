@@ -50,6 +50,7 @@ vi.mock("@tanstack/react-virtual", async importOriginal => ({
 				index,
 				key: getItemKey(index),
 				start: 0,
+				end: 0,
 			})),
 		getTotalSize: () => 0,
 		measureElement: () => undefined,

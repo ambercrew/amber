@@ -11,11 +11,6 @@ vi.mock(import("../../../../../../api/elements/api/elementsApi"));
 
 const ELEMENT_IDS: ElementId[] = [{ type: "learningAsset", id: "asset-1" }];
 
-const TAG_TIMESTAMPS = {
-	createdAt: "2026-01-01T00:00:00.000Z",
-	modifiedAt: "2026-01-01T00:00:00.000Z",
-};
-
 const SELECTED_RESULTS: SearchElementResultDto[] = [
 	{
 		type: "learningAsset",
@@ -23,10 +18,7 @@ const SELECTED_RESULTS: SearchElementResultDto[] = [
 		name: "Asset one",
 		priority: { position: 1, total: 2, percentile: 100 },
 		due: null,
-		tags: [
-			{ name: "math", ...TAG_TIMESTAMPS },
-			{ name: "science", ...TAG_TIMESTAMPS },
-		],
+		tags: ["math", "science"],
 	},
 	{
 		type: "learningAsset",
@@ -34,7 +26,7 @@ const SELECTED_RESULTS: SearchElementResultDto[] = [
 		name: "Asset two",
 		priority: { position: 2, total: 2, percentile: 50 },
 		due: null,
-		tags: [{ name: "math", ...TAG_TIMESTAMPS }],
+		tags: ["math"],
 	},
 ];
 

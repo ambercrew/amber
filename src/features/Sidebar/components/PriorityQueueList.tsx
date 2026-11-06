@@ -5,7 +5,7 @@ import { useNavigate } from "react-router";
 import { DueElementDto } from "../../../api/study/dto/dueElementDto";
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import { useElementParams } from "../../../hooks/useElementParams";
-import { useSidebarScroll } from "../../../hooks/useSidebarScroll";
+import { useVirtualListScroll } from "../../../hooks/useVirtualListScroll";
 import { paths } from "../../../paths";
 import { StudySessionLocationState } from "../../../types/study/studySessionLocationState";
 
@@ -26,7 +26,7 @@ function PriorityQueueList({ queue }: PriorityQueueListProps) {
 	const navigate = useNavigate();
 	const selected = useElementParams();
 	const [root, setRoot] = useState<HTMLDivElement | null>(null);
-	const { viewport, scrollMargin } = useSidebarScroll(root);
+	const { viewport, scrollMargin } = useVirtualListScroll(root);
 
 	const getItemKey = useCallback(
 		(index: number) => queue[index].elementId.id,

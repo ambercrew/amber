@@ -15,7 +15,7 @@ import {
 	useState,
 } from "react";
 import { useFocusOnRequest } from "../../../../hooks/useFocusRequest";
-import { useSidebarScroll } from "../../../../hooks/useSidebarScroll";
+import { useVirtualListScroll } from "../../../../hooks/useVirtualListScroll";
 import { useTreeDragDrop } from "./useTreeDragDrop";
 
 /** Only a first guess: rows are measured once mounted. */
@@ -46,7 +46,7 @@ function VirtualElementTree({
 	"use no memo";
 
 	const [root, setRoot] = useState<HTMLDivElement | null>(null);
-	const { viewport, scrollMargin } = useSidebarScroll(root);
+	const { viewport, scrollMargin } = useVirtualListScroll(root);
 	const [focused, setFocused] = useState<string | null>(null);
 	const pendingFocus = useRef<string | null>(null);
 

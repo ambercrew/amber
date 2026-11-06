@@ -14,13 +14,7 @@ const CARD_RESULT: SearchElementResultDto = {
 	name: "Card one",
 	priority: { position: 1, total: 10, percentile: 50 },
 	due: "2026-01-01T00:00:00.000Z",
-	tags: [
-		{
-			name: "math",
-			createdAt: "2026-01-01T00:00:00.000Z",
-			modifiedAt: "2026-01-01T00:00:00.000Z",
-		},
-	],
+	tags: ["math"],
 };
 
 const EXTRACT_RESULT: SearchElementResultDto = {

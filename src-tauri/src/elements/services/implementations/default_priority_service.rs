@@ -57,16 +57,19 @@ impl PriorityService for DefaultPriorityService {
         &self,
         ids: &[ElementId],
     ) -> Result<HashMap<ElementId, PriorityInfo>, PriorityError> {
-        let ordered = self.meta_repository.get_all_ordered_by_priority().await?;
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let ordered = self.meta_repository.get_ids_ordered_by_priority().await?;
         let total = ordered.len() as i64;
         let wanted: HashSet<ElementId> = ids.iter().copied().collect();
 
         let mut result = HashMap::with_capacity(wanted.len());
-        for (index, meta) in ordered.iter().enumerate() {
-            if !wanted.contains(&meta.element_id) {
+        for (index, element_id) in ordered.into_iter().enumerate() {
+            if !wanted.contains(&element_id) {
                 continue;
             }
-            result.insert(meta.element_id, priority_info(index as i64 + 1, total));
+            result.insert(element_id, priority_info(index as i64 + 1, total));
         }
         Ok(result)
     }

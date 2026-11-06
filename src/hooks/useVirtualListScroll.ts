@@ -1,10 +1,10 @@
 import { useLayoutEffect, useState } from "react";
 
 /**
- * The sidebar's scroll area around `root`, and how far down it `root` starts, as
- * a virtualized list there needs: the panel can scroll content above the list too.
+ * The scroll area around `root`, and how far down it `root` starts, as a
+ * virtualized list there needs: the area can scroll content above the list too.
  */
-export function useSidebarScroll(root: HTMLElement | null) {
+export function useVirtualListScroll(root: HTMLElement | null) {
 	const viewport =
 		root?.closest<HTMLElement>("[data-scrollarea-viewport]") ?? null;
 	const [scrollMargin, setScrollMargin] = useState(0);

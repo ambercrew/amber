@@ -8,12 +8,11 @@ use uuid::Uuid;
 use uuid::fmt::Hyphenated;
 
 use crate::common::repository_error::RepositoryError;
-use crate::elements::entities::tag::Tag;
 use crate::elements::extensions::into_element_id_ext::IntoElementIdExt;
 use crate::elements::services::priority_service::{PriorityError, PriorityInfo, PriorityService};
 use crate::elements::value_objects::element_id::ElementId;
+use crate::infrastructure::repositories::sqlite::ids_json::ids_json;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::search_row::SearchRow;
-use crate::infrastructure::repositories::sqlite::sqlite_rows::tag_row::TagRow;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 use crate::saved_searches::entities::saved_search_filter::{
     DateFilterOperator, DescendantFilterOperator, ElementFilter, ElementNodeType,
@@ -62,7 +61,7 @@ impl SearchRepository for SqliteSearchRepository {
 
             let element_ids: Vec<Uuid> =
                 rows.iter().map(|row| row.element_id.into_uuid()).collect();
-            let tags_by_element_id = fetch_tags(conn, &element_ids).await?;
+            let tags_by_element_id = fetch_tag_names(conn, &element_ids).await?;
 
             (rows, tags_by_element_id)
         };
@@ -212,54 +211,29 @@ fn order_by_clause(sort: SearchSort) -> String {
     }
 }
 
-async fn fetch_tags(
+async fn fetch_tag_names(
     conn: &mut sqlx::SqliteConnection,
     element_ids: &[Uuid],
-) -> Result<HashMap<Uuid, Vec<Tag>>, RepositoryError> {
-    if element_ids.is_empty() {
-        return Ok(HashMap::new());
-    }
+) -> Result<HashMap<Uuid, Vec<String>>, RepositoryError> {
+    let ids = ids_json(element_ids.iter().copied());
+    let rows = sqlx::query!(
+        r#"SELECT element_id as "element_id: Hyphenated", tag_id
+           FROM element_tags
+           WHERE element_id IN (SELECT value FROM json_each($1))
+           ORDER BY element_id, sort_index"#,
+        ids
+    )
+    .fetch_all(conn)
+    .await?;
 
-    let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-        r#"SELECT
-            et.element_id as "element_id",
-            t.name as "name",
-            t.created_at as "created_at",
-            t.modified_at as "modified_at"
-        FROM element_tags et
-        JOIN tags t ON t.name = et.tag_id
-        WHERE et.element_id IN ("#,
-    );
-    let hyphenated_element_ids: Vec<Hyphenated> =
-        element_ids.iter().map(|id| id.hyphenated()).collect();
-    push_in_list(&mut query_builder, &hyphenated_element_ids);
-    query_builder.push(") ORDER BY et.element_id, et.sort_index");
-
-    let rows: Vec<TaggedRow> = query_builder
-        .build_query_as::<TaggedRow>()
-        .fetch_all(conn)
-        .await?;
-
-    let mut tags_by_element_id: HashMap<Uuid, Vec<Tag>> = HashMap::new();
+    let mut tags_by_element_id: HashMap<Uuid, Vec<String>> = HashMap::new();
     for row in rows {
         tags_by_element_id
             .entry(row.element_id.into_uuid())
             .or_default()
-            .push(Tag::from(TagRow {
-                name: row.name,
-                created_at: row.created_at,
-                modified_at: row.modified_at,
-            }));
+            .push(row.tag_id);
     }
     Ok(tags_by_element_id)
-}
-
-#[derive(Debug, Clone, sqlx::FromRow)]
-struct TaggedRow {
-    element_id: Hyphenated,
-    name: String,
-    created_at: chrono::DateTime<chrono::Utc>,
-    modified_at: chrono::DateTime<chrono::Utc>,
 }
 
 fn push_filter_clause(query_builder: &mut QueryBuilder<Sqlite>, filter: &ElementFilter) {
@@ -813,6 +787,84 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn search_element_with_several_tags_returns_them_in_their_saved_order() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+        let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+
+        let folder = make_folder("Folder", FractionalIndex::default());
+        let folder_id = folder.meta.element_id;
+        folder_repository.create(folder).await.unwrap();
+        meta_repository
+            .update_tags(folder_id, vec!["zebra".into(), "apple".into()])
+            .await
+            .unwrap();
+
+        // Act
+
+        let results = search_repository
+            .search(&[], SearchSort::default(), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(vec!["zebra", "apple"], results[0].tags);
+    }
+
+    #[tokio::test]
+    async fn search_more_results_than_sqlite_variable_limit_returns_their_tags() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+        let search_repository = scope.resolve::<dyn SearchRepository>().await;
+        let count = 33_000;
+        {
+            let tx = scope.resolve::<DbTransaction>().await;
+            let mut tx = tx.lock().await;
+            sqlx::query(
+                "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < $1)
+                 INSERT INTO meta (element_id, element_type, name, position, priority)
+                 SELECT printf('00000000-0000-4000-8000-%012d', i), 'folder', 'Folder',
+                     CAST(i AS BLOB), CAST(i AS BLOB)
+                 FROM n",
+            )
+            .bind(count)
+            .execute(tx.as_mut())
+            .await
+            .unwrap();
+        }
+        let tagged_id =
+            ElementId::Folder(Uuid::parse_str("00000000-0000-4000-8000-000000000001").unwrap());
+        meta_repository
+            .update_tags(tagged_id, vec!["math".into()])
+            .await
+            .unwrap();
+
+        // Act
+
+        let results = search_repository
+            .search(&[], SearchSort::default(), None)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(count as usize, results.len());
+        let tagged = results
+            .iter()
+            .find(|result| result.element_id == tagged_id)
+            .unwrap();
+        assert_eq!(vec!["math"], tagged.tags);
+    }
+
+    #[tokio::test]
     async fn search_tags_filter_is_any_of_returns_only_tagged_elements() {
         // Arrange
 
@@ -853,7 +905,7 @@ mod tests {
         assert_eq!(1, results.len());
         assert_eq!(tagged_id, results[0].element_id);
         assert_eq!(1, results[0].tags.len());
-        assert_eq!("philosophy", results[0].tags[0].name);
+        assert_eq!("philosophy", results[0].tags[0]);
     }
 
     #[tokio::test]

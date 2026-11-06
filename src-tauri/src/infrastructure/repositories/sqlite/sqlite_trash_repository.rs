@@ -23,6 +23,7 @@ impl TrashRepository for SqliteTrashRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
+        // The `+` keeps SQLite off the trashed_at index, which would visit every live element.
         sqlx::query!(
             r#"WITH RECURSIVE subtree(element_id) AS (
                 SELECT element_id FROM meta WHERE element_id = $1
@@ -33,7 +34,7 @@ impl TrashRepository for SqliteTrashRepository {
             SET trashed_at = datetime($2),
                 trashed_root = CASE WHEN element_id = $1 THEN 1 ELSE 0 END
             WHERE element_id IN (SELECT element_id FROM subtree)
-              AND (element_id = $1 OR trashed_at IS NULL)"#,
+              AND (element_id = $1 OR +trashed_at IS NULL)"#,
             uuid,
             trashed_at
         )

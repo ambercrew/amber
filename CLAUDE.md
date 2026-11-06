@@ -188,7 +188,11 @@ The sidebar renders it with `VirtualElementTree`: `flattenTreeData` + Mantine's 
 
 ### Study Queue
 
-`study.queue` can hold every due element, so its reducers work on `plainQueue(state)` and assign a new array: array methods on an Immer draft proxy each item they touch, which costs seconds on a long queue. `PriorityQueueList` virtualizes it like the tree, sharing `useSidebarScroll`; its rows are measured because a title can take two lines, and `getItemKey` runs per row on every remeasure, so keep it allocation-free. `get_due_elements` returns names from the same query; don't look elements up one by one.
+`study.queue` can hold every due element, so its reducers work on `plainQueue(state)` and assign a new array: array methods on an Immer draft proxy each item they touch, which costs seconds on a long queue. `PriorityQueueList` virtualizes it like the tree, sharing `useVirtualListScroll`; its rows are measured because a title can take two lines, and `getItemKey` runs per row on every remeasure, so keep it allocation-free. `get_due_elements` returns names from the same query; don't look elements up one by one.
+
+### Search Results
+
+`SearchResultsTable` (the Browser and the study query modal) can list every element, so `SearchResultRows` virtualizes it with spacer rows, keeping it a real table. Columns need fixed widths, or they'd shift as rows mount; `Table.ScrollContainer` is `type="native"` so `useVirtualListScroll` finds the outer scroll area. Pass id lists to SQLite through `ids_json`: a bind per id fails past 32,766 ids. `search_elements` sends tag names only, and `get_priority_info_batch` reads ids only, as both run on every search.
 
 ### Rich Text (Lexical)
 
