@@ -9,6 +9,7 @@ import { markdownFormat } from "../../../features/Import/markdown/format";
 import { htmlFormat } from "../../../features/Import/html/format";
 import { textFormat } from "../../../features/Import/text/format";
 import { docxFormat } from "../../../features/Import/docx/format";
+import { ankiFormat } from "../../../features/Import/anki/format";
 
 const ZIP_HEADER = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
 
@@ -24,6 +25,8 @@ describe("detectFileFormat", () => {
 		["notes.txt", "", textFormat],
 		["notes.markdown", "", markdownFormat],
 		["report.docx", "", docxFormat],
+		["spanish.apkg", "", ankiFormat],
+		["collection.colpkg", "", ankiFormat],
 	])(
 		"Should detect the format by extension when given %s",
 		(name, type, expected) => {
@@ -89,7 +92,7 @@ describe("detectFileFormat", () => {
 });
 
 describe("FILE_FORMATS_ACCEPT", () => {
-	it("Should list only mime types when built", () => {
+	it("Should list extensions only for formats the OS doesn't know when built", () => {
 		// Arrange & Act
 
 		const actual = FILE_FORMATS_ACCEPT;
@@ -98,7 +101,10 @@ describe("FILE_FORMATS_ACCEPT", () => {
 
 		expect(actual).toContain("application/pdf");
 		expect(actual).toContain("text/markdown");
-		expect(actual.some(type => type.startsWith("."))).toBe(false);
+		expect(actual.filter(type => type.startsWith("."))).toEqual([
+			".apkg",
+			".colpkg",
+		]);
 	});
 });
 
@@ -110,6 +116,6 @@ describe("SUPPORTED_FORMATS_ALL", () => {
 
 		// Assert
 
-		expect(actual).toBe("PDF, EPUB, DOCX, Markdown, HTML, and text");
+		expect(actual).toBe("PDF, EPUB, DOCX, Anki, Markdown, HTML, and text");
 	});
 });

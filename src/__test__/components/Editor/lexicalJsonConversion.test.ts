@@ -3,6 +3,7 @@ import {
 	markdownToLexicalJson,
 	SerializedLexicalNodeTree,
 } from "../../../components/Editor/lexicalJsonConversion";
+import { sanitizeHtml } from "../../../utils/sanitizeHtml";
 import { createEquationElement } from "../../../components/Editor/plugins/EquationPlugin/equationElement";
 
 function equationsIn(json: string) {
@@ -27,7 +28,42 @@ function clozesIn(json: string) {
 	return found;
 }
 
+// Lexical's TextNode format bits.
+const IS_SUBSCRIPT = 1 << 5;
+const IS_SUPERSCRIPT = 1 << 6;
+
+function textFormatsIn(json: string) {
+	const found: { text: unknown; format: unknown }[] = [];
+	const visit = (node: SerializedLexicalNodeTree) => {
+		if (node.type === "text")
+			found.push({ text: node.text, format: node.format });
+		node.children?.forEach(visit);
+	};
+	visit((JSON.parse(json) as { root: SerializedLexicalNodeTree }).root);
+	return found;
+}
+
 describe("lexicalJsonConversion", () => {
+	it("Should format text as superscript and subscript when given sup and sub elements", () => {
+		// Arrange
+
+		const html = sanitizeHtml("<p>x<sup>2</sup> H<sub>2</sub>O</p>");
+
+		// Act
+
+		const actual = htmlToLexicalJson(html);
+
+		// Assert
+
+		expect(textFormatsIn(actual)).toEqual([
+			{ text: "x", format: 0 },
+			{ text: "2", format: IS_SUPERSCRIPT },
+			{ text: " H", format: 0 },
+			{ text: "2", format: IS_SUBSCRIPT },
+			{ text: "O", format: 0 },
+		]);
+	});
+
 	it("Should create a display equation node when given a display equation element", () => {
 		// Arrange
 

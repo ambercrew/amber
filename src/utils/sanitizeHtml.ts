@@ -25,6 +25,8 @@ const ALLOWED_TAGS = [
 	"i",
 	"u",
 	"s",
+	"sup",
+	"sub",
 	"img",
 	"hr",
 	"br",

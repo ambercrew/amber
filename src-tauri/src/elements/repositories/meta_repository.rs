@@ -1,5 +1,7 @@
 use async_trait::async_trait;
 use fractional_index::FractionalIndex;
+#[cfg(test)]
+use mockall::automock;
 use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
@@ -9,6 +11,7 @@ use crate::elements::value_objects::meta::Meta;
 use crate::elements::value_objects::name_source::NameSource;
 
 #[async_trait]
+#[cfg_attr(test, automock)]
 pub trait MetaRepository: Send + Sync {
     async fn create_meta(&self, meta: &Meta) -> Result<(), RepositoryError>;
 

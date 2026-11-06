@@ -284,6 +284,7 @@ pub async fn run() {
             extract_epub,
             get_pdf_page_count,
             get_pdf_page_html,
+            import_anki,
             // App Info
             is_store_installed,
             set_system_chrome_theme,

@@ -8,6 +8,8 @@ export interface NormalizeOptions {
 	/** Used to resolve relative image URLs and as the Referer header when
 	 * fetching them. Absolute image URLs work regardless. */
 	baseUrl: string | null;
+	/** Replaces `localizeImages`, e.g. to share downloads across fragments. */
+	localizeImages?: typeof localizeImages;
 }
 
 /** Converts math to equations and inline SVGs to images, sanitizes HTML, and localizes its images. The result is stored directly as
@@ -47,7 +49,8 @@ export async function normalize(
 		uniqueUrls.add(absolute);
 	}
 
-	const localizedByUrl = await localizeImages([...uniqueUrls], opts.baseUrl);
+	const localize = opts.localizeImages ?? localizeImages;
+	const localizedByUrl = await localize([...uniqueUrls], opts.baseUrl);
 
 	for (const img of images) {
 		const src = img.getAttribute("src");

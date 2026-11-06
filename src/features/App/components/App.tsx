@@ -72,6 +72,7 @@ import useBackButtonPress from "../../../hooks/useBackButtonPress.ts";
 import { BackButtonPriority } from "../../../managers/backButtonManager.ts";
 import { useLexicalConversionBridge } from "../hooks/useLexicalConversionBridge.ts";
 import { useOcclusionCardContentsBridge } from "../../ImageOcclusion/hooks/useOcclusionCardContentsBridge";
+import { useImportedHtmlConversionBridge } from "../../Import/hooks/useImportedHtmlConversionBridge";
 import { MainScrollContext } from "../context/mainScrollContext.ts";
 import { HeadroomOverrideContext } from "../context/headroomOverrideContext.ts";
 import {
@@ -215,6 +216,7 @@ function App() {
 	useStudySessionSummaryToast();
 	useLexicalConversionBridge();
 	useOcclusionCardContentsBridge();
+	useImportedHtmlConversionBridge();
 	useWheelZoom();
 
 	useEffect(() => {

@@ -1,4 +1,6 @@
 use async_trait::async_trait;
+#[cfg(test)]
+use mockall::automock;
 use uuid::Uuid;
 
 use crate::assets::value_objects::asset_id::AssetId;
@@ -7,6 +9,7 @@ use crate::image_occlusion::entities::image_occlusion::ImageOcclusion;
 use crate::image_occlusion::entities::image_occlusion_card_link::ImageOcclusionCardLink;
 
 #[async_trait]
+#[cfg_attr(test, automock)]
 pub trait ImageOcclusionRepository: Send + Sync {
     async fn create(&self, occlusion: &ImageOcclusion) -> Result<(), RepositoryError>;
 

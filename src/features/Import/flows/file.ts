@@ -9,6 +9,7 @@ import { createBibliographicalSourceAction } from "../../../stores/bibliographic
 import { ImportContext } from "../importContext";
 import errorToString from "../../../utils/errorToString";
 import { bytesToBase64 } from "../../../utils/bytesToBase64";
+import { ElementId } from "../../../types/elements/elementId";
 
 export type FileImportError =
 	| { kind: "unsupported-file" }
@@ -17,7 +18,7 @@ export type FileImportError =
 	| { kind: "extraction-failed"; message: string };
 
 const TITLE_SUFFIX_PATTERN =
-	/\.(docx?|pdf|pptx?|xlsx?|epub|md|markdown|x?html?|txt)$/i;
+	/\.(docx?|pdf|pptx?|xlsx?|epub|md|markdown|x?html?|txt|apkg|colpkg)$/i;
 
 /** Imports every file, then opens only the last one that was created. */
 export async function runFileImport(
@@ -27,17 +28,18 @@ export async function runFileImport(
 	onProgress?: (progress: PdfProgress) => void,
 	location?: string | null,
 ): Promise<FileImportError | null> {
-	let lastCreatedId: string | null = null;
+	let lastCreated: ElementId | null = null;
 	const error = await importFiles(
 		files,
 		ctx,
 		extractPdfContent,
-		id => (lastCreatedId = id),
+		id => (lastCreated = id),
 		onProgress,
 		location,
 	);
-	if (lastCreatedId !== null) {
-		await ctx.navigate(paths.element("learningAsset", lastCreatedId));
+	if (lastCreated !== null) {
+		const { type, id } = lastCreated;
+		await ctx.navigate(paths.element(type, id));
 	}
 	return error;
 }
@@ -46,7 +48,7 @@ async function importFiles(
 	files: File[],
 	ctx: ImportContext,
 	extractPdfContent: boolean,
-	onCreated: (id: string) => void,
+	onCreated: (id: ElementId) => void,
 	onProgress?: (progress: PdfProgress) => void,
 	location?: string | null,
 ): Promise<FileImportError | null> {
@@ -57,7 +59,29 @@ async function importFiles(
 
 		const title = file.name.replace(TITLE_SUFFIX_PATTERN, "");
 
+		const learningAssetCreated = (id: string) =>
+			onCreated({ type: "learningAsset", id });
+
 		try {
+			if ("importElements" in format) {
+				const bibliographicalSource = await ctx.dispatch(
+					createBibliographicalSourceAction({
+						title: file.name,
+						authors: null,
+						publicationDate: null,
+						sourceType: "File",
+						location: location ?? file.name,
+					}),
+				);
+				const opened = await format.importElements(
+					bytes,
+					ctx,
+					bibliographicalSource.id,
+				);
+				if (opened !== null) onCreated(opened);
+				continue;
+			}
+
 			if (format === pdfFormat && !extractPdfContent) {
 				const pageCount = await getPdfPageCount(bytes);
 				const bibliographicalSource = await ctx.dispatch(
@@ -69,7 +93,7 @@ async function importFiles(
 						location: location ?? file.name,
 					}),
 				);
-				onCreated(
+				learningAssetCreated(
 					await createImportedPdfLearningAsset(
 						ctx,
 						title,
@@ -98,7 +122,7 @@ async function importFiles(
 				}),
 			);
 
-			onCreated(
+			learningAssetCreated(
 				await createImportedLearningAsset(
 					ctx,
 					resolvedTitle,

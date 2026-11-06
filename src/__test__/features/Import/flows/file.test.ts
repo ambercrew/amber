@@ -8,6 +8,7 @@ import { extractMarkdown } from "../../../../features/Import/markdown/extract";
 import { extractHtml } from "../../../../features/Import/html/extract";
 import { extractText } from "../../../../features/Import/text/extract";
 import { normalize } from "../../../../features/Import/normalize";
+import { importAnki } from "../../../../features/Import/anki/importAnki";
 import { createImportedLearningAsset } from "../../../../features/Import/createImportedLearningAsset";
 import { createImportedPdfLearningAsset } from "../../../../features/Import/createImportedPdfLearningAsset";
 import { createBibliographicalSource } from "../../../../api/bibliographicalSources/api/bibliographicalSourcesApi";
@@ -23,6 +24,7 @@ vi.mock(import("../../../../features/Import/markdown/extract"));
 vi.mock(import("../../../../features/Import/html/extract"));
 vi.mock(import("../../../../features/Import/text/extract"));
 vi.mock(import("../../../../features/Import/normalize"));
+vi.mock(import("../../../../features/Import/anki/importAnki"));
 vi.mock(import("../../../../features/Import/createImportedLearningAsset"));
 vi.mock(import("../../../../features/Import/createImportedPdfLearningAsset"));
 vi.mock(
@@ -68,6 +70,10 @@ function pdfFile(name = "document.pdf"): File {
 function epubFile(name = "book.epub"): File {
 	const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
 	return new File([bytes], name, { type: "application/epub+zip" });
+}
+
+function ankiFile(name = "spanish.apkg"): File {
+	return new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04])], name);
 }
 
 function markdownFile(name = "notes.md"): File {
@@ -335,6 +341,51 @@ describe("runFileImport", () => {
 			"<p>normalized</p>",
 			"source-1",
 		);
+	});
+
+	it("Should import the decks and open the returned folder when given an Anki package", async () => {
+		// Arrange
+
+		vi.mocked(createBibliographicalSource).mockResolvedValue(
+			makeSource({ id: "source-1" }),
+		);
+		vi.mocked(importAnki).mockResolvedValue({
+			type: "folder",
+			id: "deck-id",
+		});
+		const ctx = makeCtx();
+
+		// Act
+
+		const actual = await runFileImport([ankiFile()], ctx, true);
+
+		// Assert
+
+		expect(actual).toBeNull();
+		expect(importAnki).toHaveBeenCalledWith(
+			expect.any(ArrayBuffer),
+			ctx,
+			"source-1",
+		);
+		expect(createImportedLearningAsset).not.toHaveBeenCalled();
+		expect(ctx.navigate).toHaveBeenCalledWith("/folder/deck-id");
+	});
+
+	it("Should return no-content when an Anki package has no cards", async () => {
+		// Arrange
+
+		vi.mocked(createBibliographicalSource).mockResolvedValue(makeSource());
+		vi.mocked(importAnki).mockRejectedValue("no-content");
+		const ctx = makeCtx();
+
+		// Act
+
+		const actual = await runFileImport([ankiFile()], ctx, true);
+
+		// Assert
+
+		expect(actual).toEqual({ kind: "no-content" });
+		expect(ctx.navigate).not.toHaveBeenCalled();
 	});
 
 	it("Should return no-content when epub extraction rejects with that specific error", async () => {

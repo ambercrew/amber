@@ -1,4 +1,6 @@
 use async_trait::async_trait;
+#[cfg(test)]
+use mockall::automock;
 
 use crate::assets::entities::asset::Asset;
 use crate::assets::value_objects::asset_document::AssetDocument;
@@ -10,6 +12,7 @@ use crate::common::repository_error::RepositoryError;
 pub const ASSET_GC_GRACE_DAYS: u32 = 14;
 
 #[async_trait]
+#[cfg_attr(test, automock)]
 pub trait AssetService: Send + Sync {
     /// Stores the asset unless it already exists (see `AssetRepository::insert_if_missing`).
     async fn store(&self, asset: &Asset) -> Result<(), RepositoryError>;

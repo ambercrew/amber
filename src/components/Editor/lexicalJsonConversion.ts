@@ -1,5 +1,9 @@
 import { $generateNodesFromSerializedNodes } from "@lexical/clipboard";
-import { buildEditorFromExtensions, defineExtension } from "@lexical/extension";
+import {
+	buildEditorFromExtensions,
+	configExtension,
+	defineExtension,
+} from "@lexical/extension";
 import { $generateNodesFromDOM } from "@lexical/html";
 import { $insertNodes, $setSelection, type LexicalEditor } from "lexical";
 import { markdownToHtml } from "../../utils/markdownToHtml";
@@ -9,7 +13,10 @@ import {
 	editorNodes,
 	editorTheme,
 } from "./editorExtension";
-import { stripCodeThemes } from "./plugins/CodeHighlightPlugin/CodeHighlightExtension";
+import {
+	CodeHighlightExtension,
+	stripCodeThemes,
+} from "./plugins/CodeHighlightPlugin/CodeHighlightExtension";
 
 // Stand-in for @lexical/clipboard's non-exported `BaseSerializedNode`.
 export interface SerializedLexicalNodeTree {
@@ -25,7 +32,11 @@ export function runHeadless(populate: (editor: LexicalEditor) => void): string {
 			name: "headless-lexical-json",
 			namespace: "headless",
 			nodes: editorNodes,
-			dependencies: editorExtensionDependencies,
+			dependencies: [
+				...editorExtensionDependencies,
+				// Highlighting each code block with Shiki made converting code-heavy imports many times slower.
+				configExtension(CodeHighlightExtension, { disabled: true }),
+			],
 			theme: editorTheme,
 		}),
 	);

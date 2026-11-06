@@ -79,7 +79,7 @@ impl ElementCreationService for DefaultElementCreationService {
             .resolve_priority(derived_from, parent, &profile)
             .await?;
 
-        let element_id = ElementId::Folder(Uuid::new_v4());
+        let element_id = ElementId::Folder(dto.id);
         let (name, name_source) = resolve_name(dto.meta.name, &[], now);
 
         let folder = Folder {
@@ -925,6 +925,7 @@ mod tests {
         let parent_id = create_tagged_parent_folder(&scope, vec!["a".into(), "b".into()]).await;
         let service = create_service(&scope).await;
         let dto = CreateFolderDto {
+            id: Uuid::new_v4(),
             meta: dto_meta(Some(parent_id)),
         };
 
@@ -1056,6 +1057,7 @@ mod tests {
         let scope = injector.start_scope();
         let service = create_service(&scope).await;
         let dto = CreateFolderDto {
+            id: Uuid::new_v4(),
             meta: dto_meta(None),
         };
 
@@ -1181,6 +1183,7 @@ mod tests {
         }
         let service = create_service(&scope).await;
         let dto = CreateFolderDto {
+            id: Uuid::new_v4(),
             meta: dto_meta(None),
         };
 

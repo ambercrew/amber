@@ -50,6 +50,10 @@ use crate::elements::repositories::learning_asset_mark_repository::LearningAsset
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::services::element_content_service::ElementContentService;
 use crate::elements::services::element_creation_service::ElementCreationService;
+use crate::import::services::anki_import_service::AnkiImportService;
+use crate::import::services::implementations::default_anki_import_service::DefaultAnkiImportService;
+use crate::import::services::implementations::tauri_imported_html_converter::TauriImportedHtmlConverter;
+use crate::import::services::imported_html_converter::ImportedHtmlConverter;
 use crate::elements::services::element_naming_service::ElementNamingService;
 use crate::elements::services::element_details_service::ElementDetailsService;
 use crate::elements::services::element_index_service::ElementIndexService;
@@ -186,6 +190,11 @@ pub async fn create_injector<R: tauri::Runtime>(
         injector,
         dyn OcclusionCardContentBuilder,
         TauriOcclusionCardContentBuilder<R>
+    );
+    register_scope!(
+        injector,
+        dyn ImportedHtmlConverter,
+        TauriImportedHtmlConverter<R>
     );
 
     #[cfg(not(test))]
@@ -370,6 +379,7 @@ pub async fn create_injector<R: tauri::Runtime>(
         dyn ElementCreationService,
         DefaultElementCreationService
     );
+    register_scope!(injector, dyn AnkiImportService, DefaultAnkiImportService);
     register_scope!(
         injector,
         dyn ElementContentService,

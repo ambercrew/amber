@@ -1,4 +1,6 @@
 use async_trait::async_trait;
+#[cfg(test)]
+use mockall::automock;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -14,6 +16,7 @@ use crate::trash::services::trash_service::TrashServiceError;
 
 /// Owns an occlusion and keeps one card per target (mask or group) in sync with its shapes.
 #[async_trait]
+#[cfg_attr(test, automock)]
 pub trait ImageOcclusionService: Send + Sync {
     /// None when the occlusion isn't on this device (e.g. not synced yet).
     async fn find(&self, id: Uuid) -> Result<Option<ImageOcclusion>, ImageOcclusionError>;

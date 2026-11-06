@@ -18,9 +18,12 @@ use crate::common::api_error::ApiError;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 
 use super::dto::{
-    EpubExtractionDto, FetchedImageDto, FetchedPageDto, PdfExtractionDto, PdfImportProgressEvent,
+    EpubExtractionDto, FetchedImageDto, FetchedPageDto, ImportAnkiRequestDto, PdfExtractionDto,
+    PdfImportProgressEvent,
 };
 use super::epub::extract_epub_html;
+use super::services::anki_import_service::AnkiImportService;
+use crate::elements::value_objects::element_id::ElementId;
 
 const MAX_PAGE_BYTES: usize = 20 * 1024 * 1024;
 const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024;
@@ -262,6 +265,23 @@ pub async fn extract_epub(
     }
     scope.save_changes().await?;
     Ok(extraction.dto)
+}
+
+#[tauri::command]
+pub async fn import_anki(
+    injector: State<'_, Arc<Injector>>,
+    dto: ImportAnkiRequestDto,
+) -> Result<Option<ElementId>, ApiError> {
+    let bytes = general_purpose::STANDARD.decode(&dto.bytes_base64)?;
+
+    let scope = injector.start_scope();
+    let root = scope
+        .resolve::<dyn AnkiImportService>()
+        .await
+        .import_package(bytes, dto.parent, dto.bibliographical_source_id)
+        .await?;
+    scope.save_changes().await?;
+    Ok(root)
 }
 
 fn build_client(timeout: Duration) -> Result<reqwest::Client, ApiError> {

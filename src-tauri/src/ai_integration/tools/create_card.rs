@@ -408,6 +408,7 @@ pub(super) mod tests {
             .unwrap();
         element_creation_service
             .create_folder(crate::elements::dto::create_folder_dto::CreateFolderDto {
+                id: uuid::Uuid::new_v4(),
                 meta: CreateMetaDto {
                     name: Some("Parent folder".to_string()),
                     parent: None,
