@@ -5,6 +5,7 @@ import { useNavigate } from "react-router";
 import { DueElementDto } from "../../../api/study/dto/dueElementDto";
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import { useElementParams } from "../../../hooks/useElementParams";
+import { useFocusedRow } from "../../../hooks/useFocusedRow";
 import { useVirtualListScroll } from "../../../hooks/useVirtualListScroll";
 import { paths } from "../../../paths";
 import { StudySessionLocationState } from "../../../types/study/studySessionLocationState";
@@ -13,6 +14,10 @@ const ICON_SIZE = 18;
 /** Only a first guess: rows are measured once mounted, and a title may take two lines. */
 const ESTIMATED_ROW_HEIGHT = 58;
 const OVERSCAN_ROWS = 10;
+
+function dueElementId(element: DueElementDto) {
+	return element.elementId.id;
+}
 
 interface PriorityQueueListProps {
 	queue: DueElementDto[];
@@ -27,6 +32,7 @@ function PriorityQueueList({ queue }: PriorityQueueListProps) {
 	const selected = useElementParams();
 	const [root, setRoot] = useState<HTMLDivElement | null>(null);
 	const { viewport, scrollMargin } = useVirtualListScroll(root);
+	const { focusProps, rangeExtractor } = useFocusedRow(queue, dueElementId);
 
 	const getItemKey = useCallback(
 		(index: number) => queue[index].elementId.id,
@@ -40,10 +46,12 @@ function PriorityQueueList({ queue }: PriorityQueueListProps) {
 		overscan: OVERSCAN_ROWS,
 		scrollMargin,
 		getItemKey,
+		rangeExtractor,
 	});
 
 	return (
 		<div
+			{...focusProps}
 			ref={setRoot}
 			style={{
 				height: virtualizer.getTotalSize(),

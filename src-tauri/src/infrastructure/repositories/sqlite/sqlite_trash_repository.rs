@@ -76,6 +76,7 @@ impl TrashRepository for SqliteTrashRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
+        // One grouped pass: a count per root would rescan every subtree for each root.
         let rows = sqlx::query!(
             r#"WITH RECURSIVE subtrees(root_id, element_id) AS (
                 SELECT element_id, element_id FROM meta
@@ -89,9 +90,10 @@ impl TrashRepository for SqliteTrashRepository {
                 m.element_type,
                 m.name,
                 m.trashed_at as "trashed_at!: DateTime<Utc>",
-                (SELECT COUNT(*) - 1 FROM subtrees s WHERE s.root_id = m.element_id) as "descendant_count!: i64"
-            FROM meta m
-            WHERE m.trashed_root = 1 AND m.trashed_at IS NOT NULL
+                COUNT(*) - 1 as "descendant_count!: i64"
+            FROM subtrees s
+            JOIN meta m ON m.element_id = s.root_id
+            GROUP BY s.root_id
             ORDER BY m.trashed_at DESC, m.name"#
         )
         .fetch_all(&mut *tx)

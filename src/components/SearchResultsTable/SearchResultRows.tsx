@@ -1,7 +1,8 @@
 import { Table } from "@mantine/core";
-import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
-import { FocusEvent, ReactNode, useCallback, useMemo, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { ReactNode, useCallback, useState } from "react";
 import { SearchElementResultDto } from "../../api/search/dto/searchElementResultDto";
+import { useFocusedRow } from "../../hooks/useFocusedRow";
 import { useVirtualListScroll } from "../../hooks/useVirtualListScroll";
 import { elementKey } from "../../utils/elementKey";
 import SearchResultRow from "./SearchResultRow";
@@ -9,6 +10,10 @@ import SearchResultRow from "./SearchResultRow";
 /** Only a first guess: rows are measured once mounted, and names and tags can wrap. */
 const ESTIMATED_ROW_HEIGHT = 43;
 const OVERSCAN_ROWS = 10;
+
+function resultId(result: SearchElementResultDto) {
+	return result.id;
+}
 
 interface SpacerRowProps {
 	height: number;
@@ -46,12 +51,8 @@ export default function SearchResultRows({
 
 	const [root, setRoot] = useState<HTMLTableSectionElement | null>(null);
 	const { viewport, scrollMargin } = useVirtualListScroll(root);
-	const [focusedId, setFocusedId] = useState<string | null>(null);
+	const { focusProps, rangeExtractor } = useFocusedRow(results, resultId);
 
-	const focusedIndex = useMemo(
-		() => results.findIndex(result => result.id === focusedId),
-		[results, focusedId],
-	);
 	const getItemKey = useCallback(
 		(index: number) => results[index].id,
 		[results],
@@ -64,23 +65,8 @@ export default function SearchResultRows({
 		overscan: OVERSCAN_ROWS,
 		scrollMargin,
 		getItemKey,
-		// Unmounting the focused row would drop keyboard focus to the page.
-		rangeExtractor: range =>
-			[...new Set([...defaultRangeExtractor(range), focusedIndex])]
-				.filter(index => index >= 0)
-				.sort((a, b) => a - b),
+		rangeExtractor,
 	});
-
-	function trackFocus(event: FocusEvent<HTMLTableSectionElement>) {
-		const row = event.target.closest("tr");
-		setFocusedId(results[Number(row?.dataset.index)]?.id ?? null);
-	}
-
-	function clearFocus(event: FocusEvent<HTMLTableSectionElement>) {
-		if (!event.currentTarget.contains(event.relatedTarget)) {
-			setFocusedId(null);
-		}
-	}
 
 	const columnCount = selectable ? 6 : 5;
 	const rows: ReactNode[] = [];
@@ -125,9 +111,8 @@ export default function SearchResultRows({
 	return (
 		// In-flow rows would have the browser's scroll anchoring fight the virtualizer's.
 		<Table.Tbody
+			{...focusProps}
 			ref={setRoot}
-			onFocus={trackFocus}
-			onBlur={clearFocus}
 			style={{ overflowAnchor: "none" }}>
 			{rows}
 			{rows.length > 0 && heightBelow > 0 && (

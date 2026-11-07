@@ -192,7 +192,7 @@ The sidebar renders it with `VirtualElementTree`: `flattenTreeData` + Mantine's 
 
 ### Search Results
 
-`SearchResultsTable` (the Browser and the study query modal) can list every element, so `SearchResultRows` virtualizes it with spacer rows, keeping it a real table. Columns need fixed widths, or they'd shift as rows mount; `Table.ScrollContainer` is `type="native"` so `useVirtualListScroll` finds the outer scroll area. Pass id lists to SQLite through `ids_json`: a bind per id fails past 32,766 ids. `search_elements` sends tag names only, and `get_priority_info_batch` reads ids only, as both run on every search.
+`SearchResultsTable` (the Browser and the study query modal) can list every element, so `SearchResultRows` virtualizes it with spacer rows, keeping it a real table. `useFocusedRow` keeps its focused row mounted, as it does in `TrashList`, which virtualizes the trash like the queue. Columns need fixed widths, or they'd shift as rows mount; `Table.ScrollContainer` is `type="native"` so `useVirtualListScroll` finds the outer scroll area. Pass id lists to SQLite through `ids_json`: a bind per id fails past 32,766 ids. `search_elements` sends tag names only, and `get_priority_info_batch` reads ids only, as both run on every search.
 
 ### Rich Text (Lexical)
 

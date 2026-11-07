@@ -1,39 +1,23 @@
-import {
-	ActionIcon,
-	Alert,
-	Box,
-	Group,
-	NavLink,
-	Stack,
-	Text,
-} from "@mantine/core";
-import { ArrowCounterClockwiseIcon, TrashIcon } from "@phosphor-icons/react";
-import { MouseEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { Alert, Box, Stack, Text } from "@mantine/core";
+import { TrashIcon } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
 import { TrashedElementDto } from "../../../api/trash/dto/trashedElementDto";
 import ConfirmModal from "../../../components/AppModal/ConfirmModal";
-import { useElementParams } from "../../../hooks/useElementParams";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
-import { paths } from "../../../paths";
 import { selectSettings } from "../../../stores/settings/settingsSelector";
 import {
 	deleteElementPermanentlyAction,
 	emptyTrashAction,
 	loadTrash,
-	restoreElementAction,
 } from "../../../stores/trash/trashActions";
 import { clearTrashError } from "../../../stores/trash/trashReducer";
 import {
 	selectTrash,
 	selectTrashError,
 } from "../../../stores/trash/trashSelectors";
-import { formatTrashCountdown } from "../../../utils/formatTrashCountdown";
-import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import PanelHeader from "./PanelHeader";
-import AppTooltip from "../../../components/AppTooltip/AppTooltip";
-
-const ICON_SIZE = 18;
+import TrashList from "./TrashList";
 
 /** The permanent deletion awaiting confirmation: the whole trash, or one of its
  * elements. */
@@ -47,8 +31,6 @@ function describeDescendants(count: number): string {
 
 function TrashPanel() {
 	const dispatch = useAppDispatch();
-	const navigate = useNavigate();
-	const selected = useElementParams();
 	const items = useAppSelector(selectTrash);
 	const error = useAppSelector(selectTrashError);
 	const settings = useAppSelector(selectSettings);
@@ -142,78 +124,13 @@ function TrashPanel() {
 				{header}
 			</Box>
 			{confirmModal}
-			{items.map(item => {
-				const { elementId } = item;
-				const isSelected =
-					selected?.type === elementId.type &&
-					selected?.id === elementId.id;
-
-				// The row itself opens the element, so the buttons on it have to
-				// keep their clicks to themselves.
-				function withoutOpening(action: () => void) {
-					return (event: MouseEvent) => {
-						event.stopPropagation();
-						action();
-					};
+			<TrashList
+				items={items}
+				retentionDays={retentionDays}
+				onDelete={element =>
+					setPendingDeletion({ scope: "element", element })
 				}
-
-				return (
-					<NavLink
-						key={`${elementId.type}:${elementId.id}`}
-						label={item.name}
-						description={
-							retentionDays > 0
-								? formatTrashCountdown(
-										item.trashedAt,
-										retentionDays,
-									)
-								: undefined
-						}
-						active={isSelected}
-						leftSection={
-							<ElementNodeIcon
-								type={elementId.type}
-								size={ICON_SIZE}
-							/>
-						}
-						rightSection={
-							<Group gap={2} wrap="nowrap">
-								<AppTooltip label="Restore">
-									<ActionIcon
-										variant="subtle"
-										aria-label="Restore"
-										onClick={withoutOpening(() => {
-											void dispatch(
-												restoreElementAction(elementId),
-											);
-										})}>
-										<ArrowCounterClockwiseIcon size={16} />
-									</ActionIcon>
-								</AppTooltip>
-								<AppTooltip label="Delete permanently">
-									<ActionIcon
-										variant="subtle"
-										color="red"
-										aria-label="Delete permanently"
-										onClick={withoutOpening(() =>
-											setPendingDeletion({
-												scope: "element",
-												element: item,
-											}),
-										)}>
-										<TrashIcon size={16} />
-									</ActionIcon>
-								</AppTooltip>
-							</Group>
-						}
-						onClick={() =>
-							void navigate(
-								paths.element(elementId.type, elementId.id),
-							)
-						}
-					/>
-				);
-			})}
+			/>
 		</Stack>
 	);
 }
