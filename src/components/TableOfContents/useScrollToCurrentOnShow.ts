@@ -1,26 +1,8 @@
 import { RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
-function scrollParentOf(element: HTMLElement): HTMLElement | null {
-	for (
-		let parent = element.parentElement;
-		parent;
-		parent = parent.parentElement
-	) {
-		const { overflowY } = getComputedStyle(parent);
-		if (overflowY === "auto" || overflowY === "scroll") return parent;
-	}
-	return null;
-}
-
-/** Scrolls the current row, or the deepest shown heading above it while it's collapsed, to the top of its scroller. */
-export function scrollCurrentRowToTop(container: HTMLElement) {
-	const row =
-		container.querySelector<HTMLElement>("[aria-current=location]") ??
-		[...container.querySelectorAll<HTMLElement>("[data-active]")].pop();
-	const scroller = row && scrollParentOf(row);
-	if (!row || !scroller) return;
-	scroller.scrollTop +=
-		row.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+export interface ScrollTarget {
+	/** Scrolls the current row, or the deepest shown heading above it, to the top of its scroller. */
+	scrollToCurrent: () => void;
 }
 
 /**
@@ -29,6 +11,7 @@ export function scrollCurrentRowToTop(container: HTMLElement) {
  */
 export function useScrollToCurrentOnShow(
 	containerRef: RefObject<HTMLElement | null>,
+	targetRef: RefObject<ScrollTarget | null>,
 	activeEntryId: string | null | undefined,
 ) {
 	const pendingRef = useRef(true);
@@ -36,7 +19,7 @@ export function useScrollToCurrentOnShow(
 	const hasActiveRef = useRef(false);
 
 	const frameRef = useRef<number | null>(null);
-	// A frame later, once the rows show the current entry's highlight.
+	// A frame later, as on mount the virtual tree hasn't found its scroll area yet.
 	const scrollIfPendingRef = useRef(() => {
 		if (!pendingRef.current || !visibleRef.current || !hasActiveRef.current)
 			return;
@@ -44,8 +27,7 @@ export function useScrollToCurrentOnShow(
 		if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
 		frameRef.current = requestAnimationFrame(() => {
 			frameRef.current = null;
-			if (containerRef.current)
-				scrollCurrentRowToTop(containerRef.current);
+			targetRef.current?.scrollToCurrent();
 		});
 	});
 

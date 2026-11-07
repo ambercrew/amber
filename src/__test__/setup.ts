@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom";
 import type { TestingLibraryMatchers } from "@testing-library/jest-dom/matchers";
 import { beforeEach, vi } from "vitest";
+import { virtualizerScrollToIndex } from "./test-utils/virtualizerScrollToIndex";
 
 // Vitest 5 no longer merges `jest.Matchers`, and jest-dom's own `vitest` types target the old `Assertion<T>`.
 declare module "vitest" {
@@ -54,6 +55,7 @@ vi.mock("@tanstack/react-virtual", async importOriginal => ({
 			})),
 		getTotalSize: () => 0,
 		measureElement: () => undefined,
+		scrollToIndex: virtualizerScrollToIndex,
 	}),
 }));
 
