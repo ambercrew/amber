@@ -6,6 +6,7 @@ mod models;
 mod pending_buffer;
 mod push_pull;
 pub(crate) mod register;
+pub(crate) mod schema_gate;
 mod sqlite_sync_store;
 #[cfg(test)]
 mod tests;

@@ -362,6 +362,20 @@ impl MetaRepository for SqliteMetaRepository {
         Ok(result.rows_affected())
     }
 
+    async fn find_ids_without_content(&self) -> Result<Vec<String>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let ids = sqlx::query_scalar(
+            "SELECT element_id FROM meta
+             WHERE (element_type = 'folder' AND element_id NOT IN (SELECT id FROM folders))
+                OR (element_type = 'learning_asset' AND element_id NOT IN (SELECT id FROM learning_assets))
+                OR (element_type = 'extract' AND element_id NOT IN (SELECT id FROM extracts))
+                OR (element_type = 'card' AND element_id NOT IN (SELECT id FROM cards))",
+        )
+        .fetch_all(tx.as_mut())
+        .await?;
+        Ok(ids)
+    }
+
     async fn set_bibliographical_source(
         &self,
         id: ElementId,
@@ -772,6 +786,41 @@ mod tests {
         let mut injector = create_test_injector().await;
         register_scope!(injector, dyn MetaRepository, SqliteMetaRepository);
         injector
+    }
+
+    #[tokio::test]
+    async fn find_ids_without_content_extract_row_missing_returns_only_that_element() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        let repository = scope.resolve::<dyn MetaRepository>().await;
+        {
+            let mut guard = tx.lock().await;
+            for id in ["with-content", "without-content"] {
+                sqlx::query(
+                    "INSERT INTO meta(element_id, element_type, name, position, priority)
+                     VALUES (?1, 'extract', 'name', x'80', x'80')",
+                )
+                .bind(id)
+                .execute(guard.as_mut())
+                .await
+                .unwrap();
+            }
+            sqlx::query("INSERT INTO extracts(id, content) VALUES ('with-content', '{}')")
+                .execute(guard.as_mut())
+                .await
+                .unwrap();
+        }
+
+        // Act
+
+        let actual = repository.find_ids_without_content().await.unwrap();
+
+        // Assert
+
+        assert_eq!(vec!["without-content".to_string()], actual);
     }
 
     fn make_meta(id: ElementId) -> Meta {

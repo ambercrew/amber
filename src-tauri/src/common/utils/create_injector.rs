@@ -140,6 +140,7 @@ use crate::study::services::implementations::default_learning_asset_scheduling_s
 use crate::study::services::implementations::default_study_profile_service::DefaultStudyProfileService;
 use crate::study::services::implementations::single_default_profile_post_sync_task::SingleDefaultProfilePostSyncTask;
 use crate::study::services::implementations::exclusive_status_post_sync_task::ExclusiveStatusPostSyncTask;
+use crate::elements::services::implementations::missing_content_post_sync_task::MissingContentPostSyncTask;
 use crate::trash::services::implementations::trashed_subtree_post_sync_task::TrashedSubtreePostSyncTask;
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
@@ -500,6 +501,7 @@ fn register_post_sync_tasks(injector: &mut Injector) {
     register_scope!(injector, SingleDefaultProfilePostSyncTask);
     register_scope!(injector, TrashedSubtreePostSyncTask);
     register_scope!(injector, ExclusiveStatusPostSyncTask);
+    register_scope!(injector, MissingContentPostSyncTask);
 
     injector.register_scope_factory::<PostSyncTasks>(|scope| {
         Box::pin(async move {
@@ -507,6 +509,7 @@ fn register_post_sync_tasks(injector: &mut Injector) {
                 scope.resolve::<SingleDefaultProfilePostSyncTask>().await,
                 scope.resolve::<TrashedSubtreePostSyncTask>().await,
                 scope.resolve::<ExclusiveStatusPostSyncTask>().await,
+                scope.resolve::<MissingContentPostSyncTask>().await,
             ];
             Arc::new(PostSyncTasks::new(tasks))
         })

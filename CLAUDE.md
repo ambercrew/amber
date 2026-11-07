@@ -116,6 +116,10 @@ The `SyncEngine` (`sync/engine.rs`, impl: `sync/implementations/default_sync_eng
 
 **`sync/` stays generic** — table names and domain rules live only in `sync/bootstrap.rs`'s `table_configs()` (granularity, FK policies, delete guards); the engine, store and merge logic never reference a specific table.
 
+**Schema versions:** each device publishes its latest migration in the synced `device_schema_versions` table, and `apply_remote` refuses a page from a newer one (`SyncError::AppUpdateRequired`), since an older app can't apply it safely. So any migration stops older devices syncing until they update; their local changes wait.
+
+**FK repair only discards a row whose parent has a tombstone** (`sync/implementations/sqlite_sync_store/fk_repair.rs`). A discard is pushed to every device, so a parent that's merely absent must never trigger one: the row waits and holds the pull cursor back until the parent arrives.
+
 **Refusing a remote delete:** a `TableSyncConfig::delete_guard` (SQL, primary key bound as `?1`…) makes `apply_remote` keep a row whose incoming tombstone it matches and re-stage the row's cells, resurrecting it everywhere. `assets` uses it so a device still referencing or recently claiming an image undoes another device's sweep.
 
 **Invariants spanning rows** (only one default study profile, say) survive cell-level LWW as a `PostSyncTask` (`sync/post_sync_task.rs`) implemented in the owning module and registered in `create_injector.rs`'s `register_post_sync_tasks`; the engine runs them between applying remote cells and pushing. Each must be deterministic — decide from `created_at`/`id`, never local time or `modified_at`.

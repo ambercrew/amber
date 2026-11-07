@@ -6,3 +6,4 @@ pub mod default_element_move_service;
 pub mod default_element_naming_service;
 pub mod default_element_tree_service;
 pub mod default_priority_service;
+pub mod missing_content_post_sync_task;

@@ -71,6 +71,9 @@ pub trait MetaRepository: Send + Sync {
     /// Unsuspends every finished element, returning how many it changed (finished wins, see `ElementStatus`).
     async fn unsuspend_finished(&self) -> Result<u64, RepositoryError>;
 
+    /// Ids of the elements with a `meta` row but no row in their element table.
+    async fn find_ids_without_content(&self) -> Result<Vec<String>, RepositoryError>;
+
     /// Sets or clears (`None`) the bibliographical source of the element's registry entry.
     async fn set_bibliographical_source(
         &self,

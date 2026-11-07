@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
 
 use super::pending_buffer::PendingBuffer;
+use super::schema_gate;
 use super::{apply, fk_repair, push_pull, register};
 use crate::generated_code::ChangeBatch;
 use crate::infrastructure::value_objects::db_pool::DbPool;
@@ -85,6 +86,11 @@ impl SyncStore for SqliteSyncStore {
     async fn has_unresolved_foreign_keys(&self) -> Result<bool, SyncError> {
         let mut guard = self.tx.lock().await;
         fk_repair::has_unresolved_foreign_keys(guard.as_mut()).await
+    }
+
+    async fn record_local_schema_version(&self) -> Result<(), SyncError> {
+        let mut guard = self.tx.lock().await;
+        schema_gate::record_local_schema_version(guard.as_mut()).await
     }
 
     async fn is_row_deleted(&self, table: &str, primary_key: &str) -> Result<bool, SyncError> {

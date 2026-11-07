@@ -2642,6 +2642,20 @@ async fn child_parent_id(tx: &DbTransaction, table: &str, id: &str) -> Option<Op
         .map(|row| row.try_get("parent_id").unwrap())
 }
 
+/// Marks `id` in `parents` as deleted, which FK repair requires before discarding its children.
+async fn insert_parent_tombstone(tx: &DbTransaction, id: &str) {
+    let mut guard = tx.lock().await;
+    sqlx::query(
+        "INSERT INTO sync_cells(tbl, row_id, col, value, hlc, device_id)
+         VALUES ('parents', json_array(?1), ?2, NULL, hlc_now(), device_id())",
+    )
+    .bind(id)
+    .bind(merge::DELETED_COL)
+    .execute(guard.as_mut())
+    .await
+    .unwrap();
+}
+
 async fn child_exists(tx: &DbTransaction, table: &str, id: &str) -> bool {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
@@ -2906,6 +2920,7 @@ async fn apply_remote_last_page_missing_parent_discard_policy_deletes_row() {
         )
         .await
         .unwrap();
+    insert_parent_tombstone(&tx, "missing-parent").await;
     let ms = far_future_ms();
 
     // Act
@@ -2929,6 +2944,213 @@ async fn apply_remote_last_page_missing_parent_discard_policy_deletes_row() {
     // Assert
 
     assert!(!child_exists(&tx, "children", "c1").await);
+}
+
+#[tokio::test]
+async fn apply_remote_last_page_absent_parent_without_tombstone_keeps_row() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_parents_table(&tx).await;
+    create_children_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table(
+            "children",
+            Granularity::Row,
+            &[FkConstraint::new(
+                "parent_id",
+                "parents",
+                "id",
+                FkPolicy::DiscardRow,
+            )],
+        )
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![row_cell(
+                    "children",
+                    "c1",
+                    serde_json::json!({"id": "c1", "parent_id": "not-arrived-yet"}),
+                    ms,
+                    0,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert!(child_exists(&tx, "children", "c1").await);
+    assert!(
+        get_cell(&tx, "children", "c1", merge::DELETED_COL)
+            .await
+            .is_none()
+    );
+    assert!(engine.has_unresolved_foreign_keys().await.unwrap());
+}
+
+fn schema_version_cell(version: i64, ms: u64) -> CellChange {
+    let mut cell = row_cell(
+        "device_schema_versions",
+        "other-device",
+        serde_json::json!({"device_id": "other-device", "version": version}),
+        ms,
+        0,
+    );
+    cell.device_id = "other-device".to_string();
+    cell
+}
+
+async fn latest_migration(tx: &DbTransaction) -> i64 {
+    let mut guard = tx.lock().await;
+    sqlx::query_scalar("SELECT MAX(version) FROM _sqlx_migrations")
+        .fetch_one(guard.as_mut())
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn apply_remote_newer_schema_version_refuses_whole_page() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_children_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("device_schema_versions", Granularity::Row, &[])
+        .await
+        .unwrap();
+    engine
+        .register_table("children", Granularity::Row, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    let newer = latest_migration(&tx).await + 1;
+
+    // Act
+
+    let actual = engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![
+                    row_cell(
+                        "children",
+                        "c1",
+                        serde_json::json!({"id": "c1", "parent_id": null}),
+                        ms,
+                        1,
+                    ),
+                    schema_version_cell(newer, ms),
+                ],
+            },
+            true,
+        )
+        .await;
+
+    // Assert
+
+    assert!(matches!(actual, Err(SyncError::AppUpdateRequired { .. })));
+    assert!(!child_exists(&tx, "children", "c1").await);
+}
+
+#[tokio::test]
+async fn apply_remote_unreadable_schema_version_refuses_page() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("device_schema_versions", Granularity::Row, &[])
+        .await
+        .unwrap();
+    let mut cell = schema_version_cell(1, far_future_ms());
+    cell.value = Some(br#"{"device_id":"other-device","version":"unknown"}"#.to_vec());
+
+    // Act
+
+    let actual = engine
+        .apply_remote(ChangeBatch { cells: vec![cell] }, true)
+        .await;
+
+    // Assert
+
+    assert!(matches!(actual, Err(SyncError::AppUpdateRequired { .. })));
+}
+
+#[tokio::test]
+async fn apply_remote_same_schema_version_applies_page() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("device_schema_versions", Granularity::Row, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    let same = latest_migration(&tx).await;
+
+    // Act
+
+    let actual = engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![schema_version_cell(same, ms)],
+            },
+            true,
+        )
+        .await;
+
+    // Assert
+
+    assert!(actual.is_ok());
+}
+
+#[tokio::test]
+async fn record_local_schema_version_called_twice_stages_one_unchanged_cell() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("device_schema_versions", Granularity::Row, &[])
+        .await
+        .unwrap();
+    engine.record_local_schema_version().await.unwrap();
+    let staged = engine.changes_since_last_push().await.unwrap().cells;
+
+    // Act
+
+    engine.record_local_schema_version().await.unwrap();
+
+    // Assert
+
+    let actual = engine.changes_since_last_push().await.unwrap().cells;
+    assert_eq!(1, actual.len());
+    assert_eq!(staged[0].hlc, actual[0].hlc);
+    let row: serde_json::Value = serde_json::from_slice(actual[0].value.as_ref().unwrap()).unwrap();
+    assert_eq!(
+        latest_migration(&tx).await,
+        row["version"].as_i64().unwrap()
+    );
 }
 
 #[tokio::test]
@@ -3016,6 +3238,7 @@ async fn apply_remote_last_page_unconfigured_declared_fk_violation_discards_row(
         .register_table("children_fk", Granularity::Row, &[])
         .await
         .unwrap();
+    insert_parent_tombstone(&tx, "missing-parent").await;
     let ms = far_future_ms();
 
     // Act
@@ -3078,6 +3301,7 @@ async fn apply_remote_last_page_discarded_parent_cascades_repair_to_grandchild()
         )
         .await
         .unwrap();
+    insert_parent_tombstone(&tx, "missing-parent").await;
     let ms = far_future_ms();
 
     // Act
@@ -3136,6 +3360,7 @@ async fn apply_remote_last_page_repair_records_local_tombstone_in_sync_cells() {
         )
         .await
         .unwrap();
+    insert_parent_tombstone(&tx, "missing-parent").await;
     let ms = far_future_ms();
 
     // Act

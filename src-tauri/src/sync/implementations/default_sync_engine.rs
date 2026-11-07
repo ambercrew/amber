@@ -167,6 +167,7 @@ mod tests {
 
     use crate::backend::clients::amber_backend_client::MockAmberBackendClient;
     use crate::generated_code::{CellChange, PullResponse};
+    use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
     use crate::infrastructure::value_objects::db_transaction::DbTransaction;
     use crate::sync::hlc::DeviceId;
     use crate::sync::post_sync_task::MockPostSyncTask;
@@ -566,6 +567,17 @@ mod tests {
         let tx = scope.resolve::<DbTransaction>().await;
         create_parents_table(&tx).await;
         create_children_table(&tx).await;
+        {
+            let mut guard = tx.lock().await;
+            sqlx::query(
+                "INSERT INTO sync_cells(tbl, row_id, col, value, hlc, device_id)
+                 VALUES ('parents', json_array('missing-parent'), ?1, NULL, hlc_now(), device_id())",
+            )
+            .bind(merge::DELETED_COL)
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+        }
         let store = scope.resolve::<dyn SyncStore>().await;
         store
             .register_table(
@@ -597,6 +609,316 @@ mod tests {
                 .any(|cell| cell.tbl == "children" && cell.col == merge::DELETED_COL),
             "{pushed:?}"
         );
+    }
+
+    fn column_cell(tbl: &str, id: &str, col: &str, value: &[u8], counter: u32) -> CellChange {
+        let hlc = Hlc::new(1_000_000, counter, DeviceId::from_name("remote-device"));
+        CellChange {
+            tbl: tbl.to_string(),
+            row_id: single_row_id(id),
+            col: col.to_string(),
+            value: Some(value.to_vec()),
+            hlc: hlc.format(),
+            device_id: "remote-device".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn sync_parent_with_column_unknown_locally_keeps_child_across_cycles() {
+        // Arrange
+
+        let mut backend_client = MockAmberBackendClient::new();
+        backend_client.expect_pull_changes().returning(|_| {
+            Ok(PullResponse {
+                cells: vec![
+                    column_cell("parents", "p1", "name", b"Parent", 0),
+                    column_cell("parents", "p1", "added_by_newer_version", b"1", 1),
+                    row_cell(
+                        "children",
+                        "c1",
+                        serde_json::json!({"id": "c1", "parent_id": "p1"}),
+                        1_000_000,
+                        2,
+                    ),
+                ],
+                next_server_seq: 1,
+                has_more: false,
+            })
+        });
+        let pushed: Arc<Mutex<Vec<CellChange>>> = Arc::new(Mutex::new(Vec::new()));
+        let pushed_clone = pushed.clone();
+        backend_client
+            .expect_push_changes()
+            .returning(move |batch| {
+                pushed_clone.lock().unwrap().extend(batch.cells);
+                Ok(())
+            });
+
+        let injector = initialize_test_injector(backend_client).await;
+        let setup_scope = injector.start_scope();
+        let setup_tx = setup_scope.resolve::<DbTransaction>().await;
+        create_parents_table(&setup_tx).await;
+        create_children_table(&setup_tx).await;
+        let store = setup_scope.resolve::<dyn SyncStore>().await;
+        store
+            .register_table("parents", Granularity::Column, &[])
+            .await
+            .unwrap();
+        store
+            .register_table(
+                "children",
+                Granularity::Row,
+                &[FkConstraint::new(
+                    "parent_id",
+                    "parents",
+                    "id",
+                    FkPolicy::DiscardRow,
+                )],
+            )
+            .await
+            .unwrap();
+        setup_scope.save_changes().await.unwrap();
+
+        // Act
+
+        for _ in 0..2 {
+            let scope = injector.start_scope();
+            let engine = scope.resolve::<DefaultSyncEngine>().await;
+            engine.sync().await.unwrap();
+            scope.save_changes().await.unwrap();
+        }
+
+        // Assert
+
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        assert!(child_exists(&tx, "c1").await);
+        let pushed = pushed.lock().unwrap();
+        assert!(
+            !pushed.iter().any(|cell| cell.col == merge::DELETED_COL),
+            "{pushed:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn sync_parent_missing_required_column_keeps_child_until_column_arrives() {
+        // Arrange
+
+        let pull_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut backend_client = MockAmberBackendClient::new();
+        backend_client.expect_pull_changes().returning({
+            let pull_count = pull_count.clone();
+            move |_| {
+                let pull = pull_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let mut cells = vec![
+                    column_cell("required_parents", "p1", "name", b"Parent", 0),
+                    row_cell(
+                        "children",
+                        "c1",
+                        serde_json::json!({"id": "c1", "parent_id": "p1"}),
+                        1_000_000,
+                        1,
+                    ),
+                ];
+                if pull == 2 {
+                    cells.push(column_cell("required_parents", "p1", "kind", b"Kind", 2));
+                }
+                Ok(PullResponse {
+                    cells,
+                    next_server_seq: 1,
+                    has_more: false,
+                })
+            }
+        });
+        backend_client.expect_push_changes().returning(|_| Ok(()));
+
+        let injector = initialize_test_injector(backend_client).await;
+        let setup_scope = injector.start_scope();
+        let setup_tx = setup_scope.resolve::<DbTransaction>().await;
+        {
+            let mut guard = setup_tx.lock().await;
+            sqlx::query(
+                "CREATE TABLE required_parents (id TEXT PRIMARY KEY, name TEXT, kind TEXT NOT NULL)",
+            )
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+        }
+        create_children_table(&setup_tx).await;
+        let store = setup_scope.resolve::<dyn SyncStore>().await;
+        store
+            .register_table("required_parents", Granularity::Column, &[])
+            .await
+            .unwrap();
+        store
+            .register_table(
+                "children",
+                Granularity::Row,
+                &[FkConstraint::new(
+                    "parent_id",
+                    "required_parents",
+                    "id",
+                    FkPolicy::DiscardRow,
+                )],
+            )
+            .await
+            .unwrap();
+        setup_scope.save_changes().await.unwrap();
+
+        // Act
+
+        for _ in 0..3 {
+            let scope = injector.start_scope();
+            let engine = scope.resolve::<DefaultSyncEngine>().await;
+            engine.sync().await.unwrap();
+            scope.save_changes().await.unwrap();
+        }
+
+        // Assert
+
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        assert!(child_exists(&tx, "c1").await);
+        let mut guard = tx.lock().await;
+        let kind: Option<String> =
+            sqlx::query_scalar("SELECT kind FROM required_parents WHERE id = 'p1'")
+                .fetch_optional(guard.as_mut())
+                .await
+                .unwrap();
+        assert_eq!(Some("Kind".to_string()), kind);
+    }
+
+    #[tokio::test]
+    async fn sync_declared_fk_child_of_absent_parent_waits_without_pushing_delete() {
+        // Arrange
+
+        let pull_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut backend_client = MockAmberBackendClient::new();
+        backend_client.expect_pull_changes().returning({
+            let pull_count = pull_count.clone();
+            move |_| {
+                let pull = pull_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let mut cells = vec![row_cell(
+                    "reviews",
+                    "r1",
+                    serde_json::json!({"id": "r1", "parent_id": "p1"}),
+                    1_000_000,
+                    0,
+                )];
+                if pull == 2 {
+                    cells.push(row_cell(
+                        "parents",
+                        "p1",
+                        serde_json::json!({"id": "p1", "name": "Parent"}),
+                        1_000_000,
+                        1,
+                    ));
+                }
+                Ok(PullResponse {
+                    cells,
+                    next_server_seq: 1,
+                    has_more: false,
+                })
+            }
+        });
+        backend_client.expect_push_changes().never();
+
+        let injector = initialize_test_injector(backend_client).await;
+        let setup_scope = injector.start_scope();
+        let setup_tx = setup_scope.resolve::<DbTransaction>().await;
+        create_parents_table(&setup_tx).await;
+        {
+            let mut guard = setup_tx.lock().await;
+            sqlx::query(
+                "CREATE TABLE reviews (id TEXT PRIMARY KEY, parent_id TEXT, \
+                 FOREIGN KEY (parent_id) REFERENCES parents(id) ON DELETE CASCADE)",
+            )
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+        }
+        let store = setup_scope.resolve::<dyn SyncStore>().await;
+        store
+            .register_table("parents", Granularity::Row, &[])
+            .await
+            .unwrap();
+        store
+            .register_table(
+                "reviews",
+                Granularity::Row,
+                &[FkConstraint::new(
+                    "parent_id",
+                    "parents",
+                    "id",
+                    FkPolicy::DiscardRow,
+                )],
+            )
+            .await
+            .unwrap();
+        setup_scope.save_changes().await.unwrap();
+
+        // Act
+
+        let mut cursors = Vec::new();
+        for _ in 0..3 {
+            let scope = injector.start_scope();
+            let engine = scope.resolve::<DefaultSyncEngine>().await;
+            engine.sync().await.unwrap();
+            scope.save_changes().await.unwrap();
+            let store = scope.resolve::<dyn SyncStore>().await;
+            cursors.push(store.get_last_pulled_server_seq().await.unwrap());
+        }
+
+        // Assert
+
+        assert_eq!(vec![None, None, Some(1)], cursors);
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        let mut guard = tx.lock().await;
+        let reviews: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM reviews")
+            .fetch_one(guard.as_mut())
+            .await
+            .unwrap();
+        assert_eq!(1, reviews);
+    }
+
+    #[tokio::test]
+    async fn sync_device_on_newer_schema_fails_without_pushing_or_keeping_changes() {
+        // Arrange
+
+        let mut backend_client = MockAmberBackendClient::new();
+        backend_client.expect_pull_changes().returning(|_| {
+            Ok(PullResponse {
+                cells: vec![row_cell(
+                    "device_schema_versions",
+                    "other-device",
+                    serde_json::json!({"device_id": "other-device", "version": i64::MAX}),
+                    1_000_000,
+                    0,
+                )],
+                next_server_seq: 1,
+                has_more: false,
+            })
+        });
+        backend_client.expect_push_changes().never();
+
+        let injector = initialize_test_injector(backend_client).await;
+        let scope = injector.start_scope();
+        let store = scope.resolve::<dyn SyncStore>().await;
+        store
+            .register_table("device_schema_versions", Granularity::Row, &[])
+            .await
+            .unwrap();
+        let engine = scope.resolve::<DefaultSyncEngine>().await;
+
+        // Act
+
+        let actual = engine.sync().await;
+
+        // Assert
+
+        assert!(matches!(actual, Err(SyncError::AppUpdateRequired { .. })));
+        assert_eq!(None, store.get_last_pulled_server_seq().await.unwrap());
     }
 
     #[tokio::test]

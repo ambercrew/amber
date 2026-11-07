@@ -14,6 +14,7 @@ use super::column_info::{column_affinity, primary_key_columns, read_table_info};
 use super::fk_repair;
 use super::models::{ColumnInfo, PendingCell, RowKey};
 use super::pending_buffer::PendingBuffer;
+use super::schema_gate;
 use super::trigger_sql::{parse_row_id, quote_ident};
 
 /// Applies one page of a remote change batch. Column-mode `SetColumn` cells are
@@ -260,6 +261,8 @@ async fn apply_remote_inner(
     pending: &PendingBuffer,
     clock: &HlcClock,
 ) -> Result<(), SyncError> {
+    schema_gate::ensure_schema_supported(tx, batch).await?;
+
     let registry = load_registry(tx).await?;
     let delete_guards = load_delete_guards(tx).await?;
     let mut column_cache: HashMap<String, Vec<ColumnInfo>> = HashMap::new();
@@ -291,7 +294,7 @@ async fn apply_remote_inner(
 
         clock.observe(&incoming_hlc);
 
-        if !won {
+        if !won && !is_unmaterialized_cell(tx, cell, granularity, &mut column_cache).await? {
             continue;
         }
 
@@ -360,6 +363,37 @@ async fn apply_remote_inner(
     try_flush_pending(tx, pending).await?;
 
     Ok(())
+}
+
+/// Whether `cell` was stored by an earlier cycle that couldn't materialize its row.
+/// Skipping it would leave `pending` empty, and FK repair would discard the row's children.
+async fn is_unmaterialized_cell(
+    tx: &mut SqliteConnection,
+    cell: &CellChange,
+    granularity: Granularity,
+    column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
+) -> Result<bool, SyncError> {
+    if !matches!(granularity, Granularity::Column) || cell.col == merge::DELETED_COL {
+        return Ok(false);
+    }
+
+    let stored_hlc: Option<String> = sqlx::query_scalar(
+        "SELECT hlc FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 AND col = ?3",
+    )
+    .bind(&cell.tbl)
+    .bind(&cell.row_id)
+    .bind(&cell.col)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if stored_hlc.as_deref() != Some(cell.hlc.as_str()) {
+        return Ok(false);
+    }
+
+    let columns = get_or_load_columns(tx, &cell.tbl, column_cache).await?;
+    let pk_columns = primary_key_columns(&cell.tbl, &columns)?;
+    let pk_values = parse_row_id(&cell.tbl, &cell.row_id, pk_columns.len())?;
+
+    Ok(!row_exists(tx, &cell.tbl, &pk_columns, &pk_values).await?)
 }
 
 async fn delete_row(
@@ -613,6 +647,9 @@ async fn apply_row_upsert_columns(
     let columns = get_or_load_columns(tx, table, column_cache).await?;
     let pk_columns = primary_key_columns(table, &columns)?;
     let pk_values = parse_row_id(table, &key.row_id, pk_columns.len())?;
+
+    // A newer app version may sync columns this one lacks; row mode ignores them too.
+    values.retain(|col, _| columns.iter().any(|c| &c.name == col));
 
     backfill_missing_columns_from_cell_log(tx, key, &pk_columns, &pk_values, &columns, &mut values)
         .await?;

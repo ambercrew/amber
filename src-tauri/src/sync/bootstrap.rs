@@ -6,6 +6,9 @@ use sqlx::SqlitePool;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::sync::errors::SyncError;
 use crate::sync::implementations::sqlite_sync_store::register::{register_table, set_delete_guard};
+use crate::sync::implementations::sqlite_sync_store::schema_gate::{
+    SCHEMA_VERSIONS_TABLE, record_local_schema_version,
+};
 use crate::sync::store::SyncStore;
 use crate::sync::value_objects::fk_constraint::FkConstraint;
 use crate::sync::value_objects::fk_policy::FkPolicy;
@@ -29,6 +32,12 @@ const ASSETS_DELETE_GUARD: &str = "EXISTS (SELECT 1 FROM element_assets WHERE as
 /// an explicit policy for.
 fn table_configs() -> Vec<TableSyncConfig> {
     vec![
+        TableSyncConfig {
+            name: SCHEMA_VERSIONS_TABLE,
+            granularity: Granularity::Row,
+            fk_constraints: vec![],
+            delete_guard: None,
+        },
         TableSyncConfig {
             name: "meta",
             granularity: Granularity::Column,
@@ -320,6 +329,7 @@ pub async fn register_sync_tables(injector: &Arc<Injector>) -> Result<(), SyncEr
             .set_delete_guard(config.name, config.delete_guard)
             .await?;
     }
+    store.record_local_schema_version().await?;
 
     scope.save_changes().await?;
 
@@ -342,6 +352,7 @@ pub async fn register_sync_tables_on_pool(pool: &SqlitePool) -> Result<(), SyncE
         .await?;
         set_delete_guard(&mut tx, config.name, config.delete_guard).await?;
     }
+    record_local_schema_version(&mut tx).await?;
 
     tx.commit().await?;
 
@@ -361,6 +372,38 @@ mod tests {
     use crate::test_utils::create_test_injector;
 
     use super::*;
+
+    #[tokio::test]
+    async fn register_sync_tables_migrated_database_stages_latest_schema_version() {
+        // Arrange
+
+        let injector = Arc::new(crate::test_utils::create_file_backed_test_injector().await);
+
+        // Act
+
+        register_sync_tables(&injector).await.unwrap();
+
+        // Assert
+
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        let mut guard = tx.lock().await;
+        let (stored, latest): (i64, i64) = sqlx::query_as(
+            "SELECT version, (SELECT MAX(version) FROM _sqlx_migrations)
+             FROM device_schema_versions WHERE device_id = device_id()",
+        )
+        .fetch_one(guard.as_mut())
+        .await
+        .unwrap();
+        assert_eq!(latest, stored);
+        let staged: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM sync_cells WHERE tbl = 'device_schema_versions')",
+        )
+        .fetch_one(guard.as_mut())
+        .await
+        .unwrap();
+        assert!(staged);
+    }
 
     async fn insert_asset(tx: &DbTransaction, id: &str, referenced: bool) {
         let mut tx = tx.lock().await;

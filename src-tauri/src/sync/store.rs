@@ -62,6 +62,9 @@ pub trait SyncStore: Send + Sync {
     /// this with `has_pending_changes` before committing.
     async fn has_unresolved_foreign_keys(&self) -> Result<bool, SyncError>;
 
+    /// Publishes this device's latest migration, so a device behind it stops syncing.
+    async fn record_local_schema_version(&self) -> Result<(), SyncError>;
+
     /// Whether the `table` row with this primary key was deleted, here or on another device.
     async fn is_row_deleted(&self, table: &str, primary_key: &str) -> Result<bool, SyncError>;
 }
