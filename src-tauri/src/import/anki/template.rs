@@ -4,6 +4,7 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
+use crate::common::utils::html::escape_html_attribute;
 use crate::import::epub::html_unescape;
 
 /// Mark a cloze's answers on the back, so a divider cutting the back above them can keep them.
@@ -325,12 +326,15 @@ fn render_question_parts(parts: &[ClozePart], ord: u32) -> String {
                 let placeholder = hint
                     .as_deref()
                     .map(|hint| {
-                        format!("[{}]", escape_html(&html_unescape(strip_html(hint).trim())))
+                        format!(
+                            "[{}]",
+                            escape_html_attribute(&html_unescape(strip_html(hint).trim()))
+                        )
                     })
                     .unwrap_or_else(|| CLOZE_PLACEHOLDER.to_string());
                 out.push_str(&format!(
                     "<mark data-cloze-hidden=\"{}\">{placeholder}</mark>",
-                    escape_html(&hidden)
+                    escape_html_attribute(&hidden)
                 ));
             }
             ClozePart::Cloze { children, .. } => {
@@ -378,14 +382,6 @@ fn collect_answers(parts: &[ClozePart], ord: u32, answers: &mut Vec<String>) {
 
 fn marked(answers: String) -> String {
     format!("{ANSWERS_START}{answers}{ANSWERS_END}")
-}
-
-fn escape_html(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('"', "&quot;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
 }
 
 #[cfg(test)]

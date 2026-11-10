@@ -1,4 +1,5 @@
 import { removeHiddenElements } from "../../../../features/Import/anki/removeHiddenElements";
+import { editHtml } from "./editHtml";
 
 describe("removeHiddenElements", () => {
 	it("Should drop hidden data, images, repeated text, controls and scripts when a card has them", () => {
@@ -11,7 +12,7 @@ describe("removeHiddenElements", () => {
 
 		// Act
 
-		const actual = removeHiddenElements(html);
+		const actual = editHtml(html, removeHiddenElements);
 
 		// Assert
 
@@ -28,7 +29,7 @@ describe("removeHiddenElements", () => {
 
 		// Act
 
-		const actual = removeHiddenElements(html);
+		const actual = editHtml(html, removeHiddenElements);
 
 		// Assert
 
@@ -46,7 +47,7 @@ describe("removeHiddenElements", () => {
 
 		// Act
 
-		const actual = removeHiddenElements(html);
+		const actual = editHtml(html, removeHiddenElements);
 
 		// Assert
 
@@ -64,7 +65,7 @@ describe("removeHiddenElements", () => {
 
 		// Act
 
-		const actual = removeHiddenElements(html);
+		const actual = editHtml(html, removeHiddenElements);
 
 		// Assert
 

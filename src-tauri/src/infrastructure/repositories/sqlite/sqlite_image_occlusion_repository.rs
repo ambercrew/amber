@@ -173,6 +173,24 @@ impl ImageOcclusionRepository for SqliteImageOcclusionRepository {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
+    async fn get_all_links(&self) -> Result<Vec<ImageOcclusionCardLink>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query_as!(
+            ImageOcclusionCardLinkRow,
+            r#"SELECT
+                card_id as "card_id: _",
+                occlusion_id as "occlusion_id: _",
+                target_key
+            FROM image_occlusion_cards"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
     async fn get_live_linked_card_ids(
         &self,
         occlusion_id: Uuid,

@@ -21,7 +21,7 @@ import { LearningAssetSplitIdDto } from "../../../types/elements/learningAssetSp
 import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAssetSplitMetaDto";
 import { LearningAssetHeadingDto } from "../../../types/elements/learningAssetHeadingDto";
 import { LearningAssetSplitTextDto } from "../../../types/elements/learningAssetSplitTextDto";
-import { AnyElementDto } from "../dto/anyElementDto";
+import { AnyElementDto, MetaResponseDto } from "../dto/anyElementDto";
 import { ElementDetailsResponseDto } from "../dto/elementDetailsDto";
 import { NodeDto } from "../dto/nodeDto";
 import { NewElementPriorityDto } from "../dto/newElementPriorityDto";
@@ -151,6 +151,12 @@ export function getElementName(elementId: ElementId): Promise<string> {
 
 export function getElementById(elementId: ElementId): Promise<AnyElementDto> {
 	return invoke("get_element_by_id", { elementId });
+}
+
+export function getElementMeta(
+	elementId: ElementId,
+): Promise<MetaResponseDto | null> {
+	return invoke("get_element_meta", { elementId });
 }
 
 export function getElementDetails(

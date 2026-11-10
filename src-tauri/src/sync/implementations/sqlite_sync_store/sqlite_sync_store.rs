@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -96,5 +97,14 @@ impl SyncStore for SqliteSyncStore {
     async fn is_row_deleted(&self, table: &str, primary_key: &str) -> Result<bool, SyncError> {
         let mut guard = self.tx.lock().await;
         apply::is_row_deleted(guard.as_mut(), table, primary_key).await
+    }
+
+    async fn deleted_rows(
+        &self,
+        table: &str,
+        primary_keys: &[String],
+    ) -> Result<HashSet<String>, SyncError> {
+        let mut guard = self.tx.lock().await;
+        apply::deleted_rows(guard.as_mut(), table, primary_keys).await
     }
 }

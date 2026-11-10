@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -46,6 +47,51 @@ impl CardReviewRepository for SqliteCardReviewRepository {
         .await?;
 
         Ok(row.map(|value| value.into()))
+    }
+
+    async fn get_all(&self) -> Result<Vec<CardReview>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query_as!(
+            CardReviewRow,
+            r#"SELECT
+                card_id as "card_id: _",
+                due as "due: _",
+                stability,
+                difficulty,
+                reps,
+                lapses,
+                state,
+                last_reviewed as "last_reviewed: _",
+                scheduled_days,
+                learning_steps
+            FROM card_reviews"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
+    async fn get_due_moved_times(&self) -> Result<HashMap<Uuid, DateTime<Utc>>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query!(
+            r#"SELECT
+                card_id as "card_id: uuid::fmt::Hyphenated",
+                due_moved_at as "due_moved_at!: DateTime<Utc>"
+            FROM card_reviews
+            WHERE due_moved_at IS NOT NULL"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.card_id.into_uuid(), row.due_moved_at))
+            .collect())
     }
 
     async fn upsert(&self, review: &CardReview) -> Result<(), RepositoryError> {

@@ -6,8 +6,7 @@ const BLOCK_SELECTOR = `${CONTAINER_SELECTOR}, p, ul, ol, li, table, pre, blockq
 const INLINE_ONLY_SELECTOR = "p, li, td, th, h1, h2, h3, h4, h5, h6, pre";
 
 /** Keeps a card's lines apart: Anki's editor and most templates lay a card out in `<div>`s. */
-export function divsToParagraphs(html: string): string {
-	const doc = new DOMParser().parseFromString(html, "text/html");
+export function divsToParagraphs(doc: Document): void {
 	// Innermost first, so a container knows whether its children are still blocks.
 	const containers = Array.from(
 		doc.body.querySelectorAll(CONTAINER_SELECTOR),
@@ -27,7 +26,6 @@ export function divsToParagraphs(html: string): string {
 		}
 	}
 	removeBlankRuns(doc.body);
-	return doc.body.innerHTML;
 }
 
 /** Drops line breaks and emptied wrappers left between blocks, which would become blank paragraphs. */

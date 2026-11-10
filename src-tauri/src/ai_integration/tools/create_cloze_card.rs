@@ -15,6 +15,7 @@ use crate::ai_integration::tools::create_card::{
 use crate::common::services::lexical_json_converter::{
     LexicalJsonConverter, LexicalJsonConverterError,
 };
+use crate::common::utils::html::escape_html_attribute;
 use crate::elements::dto::create_card_dto::CreateCardDto;
 use crate::elements::dto::create_meta_dto::CreateMetaDto;
 use crate::elements::services::element_creation_service::{
@@ -78,14 +79,6 @@ impl<'a> Cloze<'a> {
             escape_html_attribute(self.hidden)
         ))
     }
-}
-
-fn escape_html_attribute(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('"', "&quot;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
 }
 
 pub struct CreateClozeCard {

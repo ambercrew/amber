@@ -34,7 +34,9 @@ use crate::backend::services::{
 use crate::common::event_manager::EventManager;
 use crate::common::request_bridge::RequestBridge;
 use crate::common::services::implementations::tauri_event_manager::TauriEventManager;
+use crate::common::services::implementations::tauri_lexical_html_converter::TauriLexicalHtmlConverter;
 use crate::common::services::implementations::tauri_lexical_json_converter::TauriLexicalJsonConverter;
+use crate::common::services::lexical_html_converter::LexicalHtmlConverter;
 use crate::common::services::lexical_json_converter::LexicalJsonConverter;
 #[cfg(test)]
 use crate::common::utils::create_sqlite_pool::create_sqlite_pool;
@@ -50,6 +52,14 @@ use crate::elements::repositories::learning_asset_mark_repository::LearningAsset
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::services::element_content_service::ElementContentService;
 use crate::elements::services::element_creation_service::ElementCreationService;
+use crate::anki_sync::anki_connect::AnkiConnectClient;
+use crate::anki_sync::repositories::anki_sync_repository::AnkiSyncRepository;
+use crate::anki_sync::services::anki_sync_service::AnkiSyncService;
+use crate::anki_sync::services::implementations::default_anki_sync_service::DefaultAnkiSyncService;
+use crate::anki_sync::services::implementations::http_anki_connect_client::HttpAnkiConnectClient;
+use crate::anki_sync::services::implementations::tauri_sync_frontend::TauriSyncFrontend;
+use crate::anki_sync::services::sync_frontend::SyncFrontend;
+use crate::import::repositories::anki_card_link_repository::AnkiCardLinkRepository;
 use crate::import::services::anki_import_service::AnkiImportService;
 use crate::import::services::implementations::default_anki_import_service::DefaultAnkiImportService;
 use crate::import::services::implementations::tauri_imported_html_converter::TauriImportedHtmlConverter;
@@ -89,6 +99,8 @@ use crate::infrastructure::repositories::sqlite::sqlite_ai_prompt_repository::Sq
 use crate::infrastructure::repositories::sqlite::sqlite_ai_repository::SqliteAiRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_bibliographical_source_repository::SqliteBibliographicalSourceRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_saved_search_repository::SqliteSavedSearchRepository;
+use crate::infrastructure::repositories::sqlite::sqlite_anki_card_link_repository::SqliteAnkiCardLinkRepository;
+use crate::infrastructure::repositories::sqlite::sqlite_anki_sync_repository::SqliteAnkiSyncRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_image_occlusion_repository::SqliteImageOcclusionRepository;
 use crate::image_occlusion::repositories::image_occlusion_repository::ImageOcclusionRepository;
 use crate::image_occlusion::services::image_occlusion_service::ImageOcclusionService;
@@ -186,6 +198,11 @@ pub async fn create_injector<R: tauri::Runtime>(
         dyn LexicalJsonConverter,
         TauriLexicalJsonConverter<R>
     );
+    register_scope!(
+        injector,
+        dyn LexicalHtmlConverter,
+        TauriLexicalHtmlConverter<R>
+    );
     register_scope!(injector, dyn EventManager, TauriEventManager<R>);
     register_scope!(
         injector,
@@ -197,6 +214,7 @@ pub async fn create_injector<R: tauri::Runtime>(
         dyn ImportedHtmlConverter,
         TauriImportedHtmlConverter<R>
     );
+    register_scope!(injector, dyn SyncFrontend, TauriSyncFrontend<R>);
 
     #[cfg(not(test))]
     let settings = DiskSettingsRepository::get_or_create_settings(
@@ -270,6 +288,9 @@ pub async fn create_injector<R: tauri::Runtime>(
         crate::sync::implementations::sqlite_sync_store::SqliteSyncStore
     );
     injector.register_singleton(Arc::new(crate::sync::sync_lock::SyncLock::default()));
+    injector.register_singleton(Arc::new(
+        crate::anki_sync::anki_sync_lock::AnkiSyncLock::default(),
+    ));
     injector.register_singleton(Arc::new(
         crate::sync::sync_completion::SyncCompletion::default(),
     ));
@@ -381,6 +402,14 @@ pub async fn create_injector<R: tauri::Runtime>(
         DefaultElementCreationService
     );
     register_scope!(injector, dyn AnkiImportService, DefaultAnkiImportService);
+    register_scope!(injector, dyn AnkiConnectClient, HttpAnkiConnectClient);
+    register_scope!(injector, dyn AnkiSyncService, DefaultAnkiSyncService);
+    register_scope!(injector, dyn AnkiSyncRepository, SqliteAnkiSyncRepository);
+    register_scope!(
+        injector,
+        dyn AnkiCardLinkRepository,
+        SqliteAnkiCardLinkRepository
+    );
     register_scope!(
         injector,
         dyn ElementContentService,

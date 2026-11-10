@@ -52,7 +52,7 @@ tauri-plugin-process = "3.0.0-alpha.3"
 thiserror = "2.0.21"
 tokio = { version = "1.53.1", features = ["full"] }
 tokio-stream = "0.1.19"
-uuid = { version = "1.26.1", features = [ "v4", "serde" ] }
+uuid = { version = "1.26.1", features = [ "v4", "v5", "serde" ] }
 fractional_index = "2.0.2"
 fsrs = "6.6.2"
 rig = { version = "=0.42.0", default-features = false, features = ["pdf", "derive", "native-tls", "sqlite", "agent"] }

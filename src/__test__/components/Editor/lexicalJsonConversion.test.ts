@@ -1,5 +1,6 @@
 import {
 	htmlToLexicalJson,
+	lexicalJsonsToHtml,
 	markdownToLexicalJson,
 	SerializedLexicalNodeTree,
 } from "../../../components/Editor/lexicalJsonConversion";
@@ -183,5 +184,90 @@ describe("lexicalJsonConversion", () => {
 		expect(clozesIn(actual)).toEqual([
 			{ hiddenText: 'Paris & "Lutetia"', text: "[...]" },
 		]);
+	});
+
+	it("Should render equations as MathJax delimiters when converting Lexical JSON to HTML", () => {
+		// Arrange
+
+		const json = markdownToLexicalJson(
+			"Energy $E=mc^2$ and\n\n$$a^2+b^2$$",
+		);
+
+		// Act
+
+		const [actual] = lexicalJsonsToHtml([json]);
+
+		// Assert
+
+		expect(actual).toContain("<span>\\(E=mc^2\\)</span>");
+		expect(actual).toContain("\\[a^2+b^2\\]");
+		expect(actual).not.toContain("katex");
+	});
+
+	it("Should keep asset image sources when converting Lexical JSON to HTML", () => {
+		// Arrange
+
+		const src = `amber-asset:${"a".repeat(64)}`;
+		const json = htmlToLexicalJson(
+			sanitizeHtml(`<p><img src="${src}"></p>`),
+		);
+
+		// Act
+
+		const [actual] = lexicalJsonsToHtml([json]);
+
+		// Assert
+
+		expect(actual).toContain(`src="${src}"`);
+	});
+
+	it("Should return no HTML when the Lexical JSON is empty", () => {
+		// Arrange
+
+		const json = "";
+
+		// Act
+
+		const [actual] = lexicalJsonsToHtml([json]);
+
+		// Assert
+
+		expect(actual).toBe("");
+	});
+
+	it("Should render each document on its own when converting several", () => {
+		// Arrange
+
+		const jsons = ["First", "", "Second"].map(text =>
+			text ? markdownToLexicalJson(text) : text,
+		);
+
+		// Act
+
+		const [first, empty, second] = lexicalJsonsToHtml(jsons);
+
+		// Assert
+
+		expect(first).toContain("First");
+		expect(first).not.toContain("Second");
+		expect(empty).toBe("");
+		expect(second).toContain("Second");
+		expect(second).not.toContain("First");
+	});
+
+	it("Should leave code unhighlighted when converting Lexical JSON to HTML", () => {
+		// Arrange
+
+		const json = markdownToLexicalJson("```js\nconst a = 1;\n```");
+
+		// Act
+
+		const [first] = lexicalJsonsToHtml([json]);
+		const [second] = lexicalJsonsToHtml([json]);
+
+		// Assert
+
+		expect(first).toContain("const a = 1;");
+		expect(second).toBe(first);
 	});
 });

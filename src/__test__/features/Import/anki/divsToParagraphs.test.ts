@@ -1,4 +1,5 @@
 import { divsToParagraphs } from "../../../../features/Import/anki/divsToParagraphs";
+import { editHtml } from "./editHtml";
 
 describe("divsToParagraphs", () => {
 	it("Should turn lines laid out in divs into paragraphs when they hold inline content", () => {
@@ -9,7 +10,7 @@ describe("divsToParagraphs", () => {
 
 		// Act
 
-		const actual = divsToParagraphs(html);
+		const actual = editHtml(html, divsToParagraphs);
 
 		// Assert
 
@@ -26,7 +27,7 @@ describe("divsToParagraphs", () => {
 
 		// Act
 
-		const actual = divsToParagraphs(html);
+		const actual = editHtml(html, divsToParagraphs);
 
 		// Assert
 
@@ -40,7 +41,7 @@ describe("divsToParagraphs", () => {
 
 		// Act
 
-		const actual = divsToParagraphs(html);
+		const actual = editHtml(html, divsToParagraphs);
 
 		// Assert
 
@@ -55,7 +56,7 @@ describe("divsToParagraphs", () => {
 
 		// Act
 
-		const actual = divsToParagraphs(html);
+		const actual = editHtml(html, divsToParagraphs);
 
 		// Assert
 
@@ -70,7 +71,7 @@ describe("divsToParagraphs", () => {
 
 		// Act
 
-		const actual = divsToParagraphs(html);
+		const actual = editHtml(html, divsToParagraphs);
 
 		// Assert
 

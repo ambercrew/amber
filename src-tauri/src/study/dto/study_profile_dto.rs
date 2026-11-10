@@ -10,7 +10,7 @@ use crate::study::services::study_profile_service::StudyProfileFields;
 use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
 use crate::study::value_objects::step_unit::StepUnit;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct StudyProfileResponseDto {
     pub id: Uuid,

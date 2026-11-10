@@ -28,6 +28,32 @@ static VIDEO_POSTER: LazyLock<Regex> = LazyLock::new(|| {
 static SOUND: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\[sound:[^\]]*\]").expect("valid sound regex"));
 
+/// Each image src in `html`, in order.
+pub fn image_srcs(html: &str) -> Vec<&str> {
+    IMAGE_SRC
+        .captures_iter(html)
+        .map(|caps| src_of(&caps))
+        .collect()
+}
+
+/// `html` with each image src `resolve` answers swapped for its answer, and sounds dropped.
+pub fn replace_image_srcs(html: &str, mut resolve: impl FnMut(&str) -> Option<String>) -> String {
+    let html = SOUND.replace_all(html, "");
+    IMAGE_SRC
+        .replace_all(&html, |caps: &Captures| match resolve(src_of(caps)) {
+            Some(resolved) => format!("{}\"{resolved}\"", &caps[1]),
+            None => caps[0].to_string(),
+        })
+        .into_owned()
+}
+
+fn src_of<'h>(caps: &Captures<'h>) -> &'h str {
+    caps.get(2)
+        .or_else(|| caps.get(3))
+        .or_else(|| caps.get(4))
+        .map_or("", |m| m.as_str())
+}
+
 /// Only the field read here; prost skips the rest of Anki's `MediaEntry`.
 #[derive(Clone, PartialEq, Message)]
 struct MediaEntry {
@@ -76,27 +102,14 @@ impl<'a> MediaLocalizer<'a> {
 
     /// Images become asset srcs and sounds are dropped, having nothing to play them.
     pub fn localize(&mut self, html: &str) -> String {
-        let html = SOUND.replace_all(html, "");
-        let html = VIDEO_POSTER.replace_all(&html, |caps: &Captures| {
+        let html = VIDEO_POSTER.replace_all(html, |caps: &Captures| {
             let poster = caps
                 .get(1)
                 .or_else(|| caps.get(2))
                 .map_or("", |m| m.as_str());
             format!("<img src=\"{poster}\">{}", &caps[0])
         });
-        IMAGE_SRC
-            .replace_all(&html, |caps: &Captures| {
-                let src = caps
-                    .get(2)
-                    .or_else(|| caps.get(3))
-                    .or_else(|| caps.get(4))
-                    .map_or("", |m| m.as_str());
-                match self.resolve(src) {
-                    Some(resolved) => format!("{}\"{resolved}\"", &caps[1]),
-                    None => caps[0].to_string(),
-                }
-            })
-            .into_owned()
+        replace_image_srcs(&html, |src| self.resolve(src))
     }
 
     /// The first image in `html` that's stored as an asset, with its pixel size.
@@ -172,11 +185,7 @@ impl<'a> MediaLocalizer<'a> {
 }
 
 fn first_src(html: &str) -> Option<&str> {
-    let caps = IMAGE_SRC.captures(html)?;
-    caps.get(2)
-        .or_else(|| caps.get(3))
-        .or_else(|| caps.get(4))
-        .map(|src| src.as_str())
+    IMAGE_SRC.captures(html).map(|caps| src_of(&caps))
 }
 
 /// The legacy format maps entry to filename as JSON; the current one lists filenames in entry order.

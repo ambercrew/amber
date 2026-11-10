@@ -3,6 +3,7 @@ use crate::elements::value_objects::reading_position::ReadingPosition;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
 use uuid::fmt::Hyphenated;
@@ -44,7 +45,6 @@ impl CardRepository for SqliteCardRepository {
         Ok(())
     }
 
-    #[cfg(test)]
     async fn get_all(&self) -> Result<Vec<Card>, RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
@@ -136,6 +136,20 @@ impl CardRepository for SqliteCardRepository {
         Ok(())
     }
 
+    async fn get_content_modified_at(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<DateTime<Utc>>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let modified = sqlx::query_scalar!(
+            r#"SELECT content_modified_at as "modified: DateTime<Utc>" FROM cards WHERE id = $1"#,
+            id.hyphenated()
+        )
+        .fetch_one(tx.as_mut())
+        .await?;
+        Ok(modified)
+    }
+
     async fn find_ids_with_embedded_images(&self) -> Result<Vec<Uuid>, RepositoryError> {
         let mut tx = self.tx.lock().await;
         let ids = sqlx::query_scalar!(
@@ -219,6 +233,67 @@ mod tests {
     }
     fn card_meta() -> Meta {
         make_meta(ElementId::Card(Uuid::new_v4()))
+    }
+
+    async fn created_card(scope: &injector::injector_scope::InjectorScope<'_>) -> Uuid {
+        let card = Card {
+            meta: card_meta(),
+            front: String::new(),
+            back: String::new(),
+        };
+        let id = card.meta.element_id.id();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        card_repo.create(card).await.unwrap();
+        id
+    }
+
+    #[tokio::test]
+    async fn update_content_changed_front_records_when_it_was_saved() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let id = created_card(&scope).await;
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let before = Utc::now() - chrono::Duration::seconds(1);
+
+        // Act
+
+        card_repo
+            .update_content(id, "front".into(), String::new())
+            .await
+            .unwrap();
+
+        // Assert
+
+        let saved = card_repo.get_content_modified_at(id).await.unwrap();
+        assert!(saved.is_some_and(|saved| saved >= before));
+    }
+
+    #[tokio::test]
+    async fn update_content_while_cloud_sync_applies_leaves_saved_time_alone() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let id = created_card(&scope).await;
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let tx = scope.resolve::<DbTransaction>().await;
+        sqlx::query("INSERT INTO sync_applying(x) VALUES (1)")
+            .execute(tx.lock().await.as_mut())
+            .await
+            .unwrap();
+
+        // Act
+
+        card_repo
+            .update_content(id, "front".into(), String::new())
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(None, card_repo.get_content_modified_at(id).await.unwrap());
     }
 
     #[tokio::test]

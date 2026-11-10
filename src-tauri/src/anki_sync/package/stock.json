@@ -1,0 +1,240 @@
+{
+  "basic": {
+    "name": "Basic",
+    "type": 0,
+    "sortf": 0,
+    "tmpls": [
+      {
+        "name": "Card 1",
+        "ord": 0,
+        "qfmt": "{{Front}}",
+        "afmt": "{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}",
+        "bqfmt": "",
+        "bafmt": "",
+        "did": null,
+        "bfont": "",
+        "bsize": 0
+      }
+    ],
+    "flds": [
+      {
+        "name": "Front",
+        "ord": 0,
+        "sticky": false,
+        "rtl": false,
+        "font": "Arial",
+        "size": 20,
+        "description": "",
+        "plainText": false,
+        "collapsed": false,
+        "excludeFromSearch": false,
+        "tag": null,
+        "preventDeletion": false
+      },
+      {
+        "name": "Back",
+        "ord": 1,
+        "sticky": false,
+        "rtl": false,
+        "font": "Arial",
+        "size": 20,
+        "description": "",
+        "plainText": false,
+        "collapsed": false,
+        "excludeFromSearch": false,
+        "tag": null,
+        "preventDeletion": false
+      }
+    ],
+    "css": ".card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+    "latexPre": "\\documentclass[12pt]{article}\n\\special{papersize=3in,5in}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amssymb,amsmath}\n\\pagestyle{empty}\n\\setlength{\\parindent}{0in}\n\\begin{document}\n",
+    "latexPost": "\\end{document}",
+    "latexsvg": false,
+    "req": [
+      [
+        0,
+        "any",
+        [
+          0
+        ]
+      ]
+    ],
+    "originalStockKind": 1
+  },
+  "imageOcclusion": {
+    "name": "Image Occlusion",
+    "type": 1,
+    "sortf": 0,
+    "tmpls": [
+      {
+        "name": "Image Occlusion",
+        "ord": 0,
+        "qfmt": "{{#Header}}<div>{{Header}}</div>{{/Header}}\n<div style=\"display: none\">{{cloze:Occlusion}}</div>\n<div id=\"err\"></div>\n<div id=\"image-occlusion-container\">\n    {{Image}}\n    <canvas id=\"image-occlusion-canvas\"></canvas>\n</div>\n<script>\ntry {\n    anki.imageOcclusion.setup();\n} catch (exc) {\n    document.getElementById(\"err\").innerHTML = `Error loading image occlusion. Is your Anki version up to date?<br><br>${exc}`;\n}\n</script>\n",
+        "afmt": "{{#Header}}<div>{{Header}}</div>{{/Header}}\n<div style=\"display: none\">{{cloze:Occlusion}}</div>\n<div id=\"err\"></div>\n<div id=\"image-occlusion-container\">\n    {{Image}}\n    <canvas id=\"image-occlusion-canvas\"></canvas>\n</div>\n<script>\ntry {\n    anki.imageOcclusion.setup();\n} catch (exc) {\n    document.getElementById(\"err\").innerHTML = `Error loading image occlusion. Is your Anki version up to date?<br><br>${exc}`;\n}\n</script>\n\n<div><button id=\"toggle\">Toggle Masks</button></div>\n{{#Back Extra}}<div>{{Back Extra}}</div>{{/Back Extra}}\n",
+        "bqfmt": "",
+        "bafmt": "",
+        "did": null,
+        "bfont": "",
+        "bsize": 0
+      }
+    ],
+    "flds": [
+      {
+        "name": "Occlusion",
+        "ord": 0,
+        "sticky": false,
+        "rtl": false,
+        "font": "Arial",
+        "size": 20,
+        "description": "",
+        "plainText": false,
+        "collapsed": false,
+        "excludeFromSearch": false,
+        "tag": 0,
+        "preventDeletion": true
+      },
+      {
+        "name": "Image",
+        "ord": 1,
+        "sticky": false,
+        "rtl": false,
+        "font": "Arial",
+        "size": 20,
+        "description": "",
+        "plainText": false,
+        "collapsed": false,
+        "excludeFromSearch": false,
+        "tag": 1,
+        "preventDeletion": true
+      },
+      {
+        "name": "Header",
+        "ord": 2,
+        "sticky": false,
+        "rtl": false,
+        "font": "Arial",
+        "size": 20,
+        "description": "",
+        "plainText": false,
+        "collapsed": false,
+        "excludeFromSearch": false,
+        "tag": 2,
+        "preventDeletion": true
+      },
+      {
+        "name": "Back Extra",
+        "ord": 3,
+        "sticky": false,
+        "rtl": false,
+        "font": "Arial",
+        "size": 20,
+        "description": "",
+        "plainText": false,
+        "collapsed": false,
+        "excludeFromSearch": false,
+        "tag": 3,
+        "preventDeletion": true
+      },
+      {
+        "name": "Comments",
+        "ord": 4,
+        "sticky": false,
+        "rtl": false,
+        "font": "Arial",
+        "size": 20,
+        "description": "",
+        "plainText": false,
+        "collapsed": false,
+        "excludeFromSearch": false,
+        "tag": 4,
+        "preventDeletion": false
+      }
+    ],
+    "css": "#image-occlusion-canvas {\n    --inactive-shape-color: #ffeba2;\n    --active-shape-color: #ff8e8e;\n    --inactive-shape-border: 1px #212121;\n    --active-shape-border: 1px #212121;\n    --highlight-shape-color: #ff8e8e00;\n    --highlight-shape-border: 1px #ff8e8e;\n}\n\n.card {\n    font-family: arial;\n    font-size: 20px;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n",
+    "latexPre": "\\documentclass[12pt]{article}\n\\special{papersize=3in,5in}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amssymb,amsmath}\n\\pagestyle{empty}\n\\setlength{\\parindent}{0in}\n\\begin{document}\n",
+    "latexPost": "\\end{document}",
+    "latexsvg": false,
+    "req": [
+      [
+        0,
+        "any",
+        [
+          0,
+          1,
+          2
+        ]
+      ]
+    ],
+    "originalStockKind": 6
+  },
+  "deckConfig": {
+    "id": 1,
+    "name": "Default",
+    "maxTaken": 60,
+    "autoplay": true,
+    "timer": 0,
+    "replayq": true,
+    "new": {
+      "bury": false,
+      "delays": [
+        1.0,
+        10.0
+      ],
+      "initialFactor": 2500,
+      "ints": [
+        1,
+        4,
+        0
+      ],
+      "order": 1,
+      "perDay": 20
+    },
+    "rev": {
+      "bury": false,
+      "ease4": 1.3,
+      "ivlFct": 1.0,
+      "maxIvl": 36500,
+      "perDay": 200,
+      "hardFactor": 1.2
+    },
+    "lapse": {
+      "delays": [
+        10.0
+      ],
+      "leechAction": 1,
+      "leechFails": 8,
+      "minInt": 1,
+      "mult": 0.0
+    },
+    "dyn": false,
+    "newMix": 0,
+    "newPerDayMinimum": 0,
+    "interdayLearningMix": 0,
+    "reviewOrder": 0,
+    "newSortOrder": 0,
+    "newGatherPriority": 0,
+    "buryInterdayLearning": false,
+    "fsrsWeights": [],
+    "fsrsParams5": [],
+    "fsrsParams6": [],
+    "desiredRetention": 0.9,
+    "ignoreRevlogsBeforeDate": "",
+    "easyDaysPercentages": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "stopTimerOnAnswer": false,
+    "secondsToShowQuestion": 0.0,
+    "secondsToShowAnswer": 0.0,
+    "questionAction": 0,
+    "answerAction": 0,
+    "waitForAudio": true,
+    "sm2Retention": 0.9,
+    "weightSearch": ""
+  }
+}

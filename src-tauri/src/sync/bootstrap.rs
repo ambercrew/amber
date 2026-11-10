@@ -214,6 +214,18 @@ fn table_configs() -> Vec<TableSyncConfig> {
             delete_guard: None,
         },
         TableSyncConfig {
+            name: "anki_card_links",
+            granularity: Granularity::Row,
+            fk_constraints: vec![],
+            delete_guard: None,
+        },
+        TableSyncConfig {
+            name: "anki_answered_reviews",
+            granularity: Granularity::Row,
+            fk_constraints: vec![],
+            delete_guard: None,
+        },
+        TableSyncConfig {
             name: "image_occlusion_cards",
             granularity: Granularity::Row,
             fk_constraints: vec![
@@ -398,6 +410,34 @@ mod tests {
         assert_eq!(latest, stored);
         let staged: bool = sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM sync_cells WHERE tbl = 'device_schema_versions')",
+        )
+        .fetch_one(guard.as_mut())
+        .await
+        .unwrap();
+        assert!(staged);
+    }
+
+    #[tokio::test]
+    async fn table_configs_anki_answered_review_saved_is_staged_for_other_devices() {
+        // Arrange
+
+        let injector = Arc::new(crate::test_utils::create_file_backed_test_injector().await);
+        register_sync_tables(&injector).await.unwrap();
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        let mut guard = tx.lock().await;
+
+        // Act
+
+        sqlx::query("INSERT INTO anki_answered_reviews VALUES ('1800000000123', 1799999000)")
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+
+        // Assert
+
+        let staged: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM sync_cells WHERE tbl = 'anki_answered_reviews')",
         )
         .fetch_one(guard.as_mut())
         .await

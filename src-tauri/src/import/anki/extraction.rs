@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Cursor;
 
 use zip::ZipArchive;
@@ -10,12 +10,14 @@ use super::collection::read_collection;
 use super::entities::anki_card::AnkiCard;
 use super::entities::anki_deck::AnkiDeck;
 use super::entities::anki_occlusion::AnkiOcclusion;
+use super::entities::card_row::CardRow;
 use super::entities::collection::Collection;
 use super::math::convert_math;
 use super::media::MediaLocalizer;
 use super::occlusions::{card_target_key, convert_occlusion, note_occlusion_key, occlusion_format};
 use super::package::read_collection_bytes;
 use super::template::{CardContext, is_blank, render_card};
+use super::value_objects::anki_card_id::AnkiCardId;
 
 const DEFAULT_DECK: &str = "Default";
 
@@ -37,6 +39,21 @@ pub enum AnkiExtractionError {
 
 /// Reads an `.apkg` deck export or `.colpkg` collection backup, in either the legacy or the current format.
 pub fn extract_anki(bytes: Vec<u8>) -> Result<AnkiExtraction, AnkiExtractionError> {
+    extract(bytes, None)
+}
+
+/// Like `extract_anki`, keeping only `wanted` Anki cards and an occlusion only when all its cards are wanted.
+pub fn extract_anki_cards(
+    bytes: Vec<u8>,
+    wanted: &HashSet<AnkiCardId>,
+) -> Result<AnkiExtraction, AnkiExtractionError> {
+    extract(bytes, Some(wanted))
+}
+
+fn extract(
+    bytes: Vec<u8>,
+    wanted: Option<&HashSet<AnkiCardId>>,
+) -> Result<AnkiExtraction, AnkiExtractionError> {
     let mut archive =
         ZipArchive::new(Cursor::new(bytes)).map_err(|_| AnkiExtractionError::InvalidPackage)?;
     let collection_bytes =
@@ -45,7 +62,7 @@ pub fn extract_anki(bytes: Vec<u8>) -> Result<AnkiExtraction, AnkiExtractionErro
         read_collection(collection_bytes).map_err(|_| AnkiExtractionError::InvalidPackage)?;
     let mut localizer = MediaLocalizer::new(&mut archive);
 
-    let decks = render_decks(&collection, &mut localizer);
+    let decks = render_decks(&collection, &mut localizer, wanted);
     if decks.is_empty() {
         return Err(AnkiExtractionError::NoContent);
     }
@@ -62,8 +79,15 @@ struct DeckContent {
 }
 
 /// One deck per path, sorted so parents precede their subdecks; decks without cards are left out.
-fn render_decks(collection: &Collection, localizer: &mut MediaLocalizer) -> Vec<AnkiDeck> {
+fn render_decks(
+    collection: &Collection,
+    localizer: &mut MediaLocalizer,
+    wanted: Option<&HashSet<AnkiCardId>>,
+) -> Vec<AnkiDeck> {
     let default_deck = vec![DEFAULT_DECK.to_string()];
+    let is_wanted =
+        |card: &CardRow| wanted.is_none_or(|wanted| wanted.contains(&AnkiCardId(card.id)));
+    let partial_occlusions = partial_occlusions(collection, &is_wanted);
     let mut decks: BTreeMap<&[String], DeckContent> = BTreeMap::new();
     // Where each occlusion seen went; one that didn't convert has its cards rendered like any other.
     let mut occlusions: HashMap<String, Option<(&[String], usize)>> = HashMap::new();
@@ -77,6 +101,9 @@ fn render_decks(collection: &Collection, localizer: &mut MediaLocalizer) -> Vec<
         };
         if let Some(format) = occlusion_format(notetype) {
             let key = note_occlusion_key(format, card.note_id, note, notetype);
+            if partial_occlusions.contains(&key) {
+                continue;
+            }
             let location = match occlusions.get(&key) {
                 Some(location) => *location,
                 None => {
@@ -98,10 +125,13 @@ fn render_decks(collection: &Collection, localizer: &mut MediaLocalizer) -> Vec<
                         .get_mut(deck)
                         .expect("deck was added")
                         .image_occlusions[index];
-                    occlusion.anki_cards.push((target, card.id));
+                    occlusion.anki_cards.push((target, AnkiCardId(card.id)));
                 }
                 continue;
             }
+        }
+        if !is_wanted(card) {
+            continue;
         }
         // A cloze notetype has one template, its cards numbered by cloze instead.
         let template = if notetype.is_cloze {
@@ -140,7 +170,7 @@ fn render_decks(collection: &Collection, localizer: &mut MediaLocalizer) -> Vec<
             front: format!("{style}{}", localizer.localize(&convert_math(&front))),
             back: format!("{style}{}", localizer.localize(&convert_math(&back))),
             tags: note.tags.clone(),
-            anki_card_id: card.id,
+            anki_card_id: AnkiCardId(card.id),
         });
     }
 
@@ -150,6 +180,24 @@ fn render_decks(collection: &Collection, localizer: &mut MediaLocalizer) -> Vec<
             path: path.to_vec(),
             cards: content.cards,
             image_occlusions: content.image_occlusions,
+        })
+        .collect()
+}
+
+/// The occlusions with a card that isn't wanted: importing the others would duplicate the one Amber has.
+fn partial_occlusions(
+    collection: &Collection,
+    is_wanted: &impl Fn(&CardRow) -> bool,
+) -> HashSet<String> {
+    collection
+        .cards
+        .iter()
+        .filter(|card| !is_wanted(card))
+        .filter_map(|card| {
+            let note = collection.notes.get(&card.note_id)?;
+            let notetype = collection.notetypes.get(&note.notetype_id)?;
+            let format = occlusion_format(notetype)?;
+            Some(note_occlusion_key(format, card.note_id, note, notetype))
         })
         .collect()
 }
@@ -237,6 +285,47 @@ mod tests {
         // Assert
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn extract_anki_cards_only_wanted_cards_are_rendered() {
+        // Arrange
+
+        let collection = legacy_collection_bytes();
+        let package = build_package(&[("collection.anki2", &collection), ("media", b"{}")]);
+        let all = extract_anki(package.clone()).unwrap();
+        let wanted = HashSet::from([all.decks[0].cards[1].anki_card_id]);
+
+        // Act
+
+        let extraction = extract_anki_cards(package, &wanted).unwrap();
+
+        // Assert
+
+        let [deck] = extraction.decks.as_slice() else {
+            panic!("expected one deck");
+        };
+        assert_eq!(vec!["Spanish", "Verbs"], deck.path);
+        let ids: Vec<AnkiCardId> = deck.cards.iter().map(|c| c.anki_card_id).collect();
+        assert_eq!(wanted.into_iter().collect::<Vec<_>>(), ids);
+    }
+
+    #[test]
+    fn extract_anki_cards_occlusion_with_a_known_card_is_left_out() {
+        // Arrange
+
+        let (package, _) = enhanced_occlusion_package();
+        let all = extract_anki(package.clone()).unwrap();
+        let cards = &all.decks[0].image_occlusions[0].anki_cards;
+        let wanted = HashSet::from([cards[0].1]);
+
+        // Act
+
+        let result = extract_anki_cards(package, &wanted);
+
+        // Assert
+
+        assert!(matches!(result, Err(AnkiExtractionError::NoContent)));
     }
 
     #[test]

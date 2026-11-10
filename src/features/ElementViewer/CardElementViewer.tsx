@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { Container, Divider, Group, Stack, Text } from "@mantine/core";
-import { QuestionIcon, CheckCircleIcon } from "@phosphor-icons/react";
+import { Alert, Container, Divider, Group, Stack, Text } from "@mantine/core";
+import { QuestionIcon, CheckCircleIcon, InfoIcon } from "@phosphor-icons/react";
 import ContentOriginPanel from "./ContentOriginPanel";
 import ElementEditor from "./ElementEditor";
 import SearchHighlightPlugin from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightPlugin";
@@ -12,8 +12,10 @@ import {
 	selectStudyCardPhase,
 	selectStudyStatus,
 } from "../../stores/study/studySelectors";
+import { selectElementRefreshCount } from "../../stores/sync/syncSelector";
 import { ElementId } from "../../types/elements/elementId";
 import { useEditorFindInPage } from "./hooks/useEditorFindInPage";
+import { useIsCardSyncedFromAnki } from "./hooks/useIsCardSyncedFromAnki";
 import { useLineWidthContainerProps } from "./hooks/useLineWidthContainerProps";
 
 interface CardElementViewerProps {
@@ -36,6 +38,9 @@ export default function CardElementViewer({
 	const status = useAppSelector(selectStudyStatus);
 	const cardPhase = useAppSelector(selectStudyCardPhase);
 	const answerHidden = status === "studying" && cardPhase === "question";
+	// Remounts the editors once a sync reloads the card, as they only read their content on mount.
+	const refreshCount = useAppSelector(selectElementRefreshCount);
+	const fromAnki = useIsCardSyncedFromAnki(elementId.id);
 
 	const editorKeys = useMemo(
 		() => (answerHidden ? ["front"] : ["front", "back"]),
@@ -47,7 +52,15 @@ export default function CardElementViewer({
 
 	return (
 		<Container {...containerProps} py="lg">
-			<Stack key={`card-${elementId.id}`} gap="xl">
+			<Stack key={`card-${elementId.id}-${refreshCount}`} gap="xl">
+				{fromAnki && status !== "studying" && (
+					<Alert variant="light" icon={<InfoIcon />} p="xs">
+						<Text size="sm">
+							Imported from Anki. Edit this card in Anki: changes
+							made here are replaced when its note changes there.
+						</Text>
+					</Alert>
+				)}
 				<Stack gap="md">
 					<Group gap="xs">
 						<QuestionIcon size={18} />

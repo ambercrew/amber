@@ -1,1 +1,2 @@
+pub mod convert_lexical_to_html_event;
 pub mod convert_markdown_to_lexical_event;

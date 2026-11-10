@@ -1,4 +1,5 @@
 import { applyCardStyles } from "../../../../features/Import/anki/applyCardStyles";
+import { editHtml } from "./editHtml";
 
 describe("applyCardStyles", () => {
 	it("Should mark the highlighted part and space boxed words when the note type CSS styles them", () => {
@@ -10,7 +11,7 @@ describe("applyCardStyles", () => {
 
 		// Act
 
-		const actual = applyCardStyles(html);
+		const actual = editHtml(html, applyCardStyles);
 
 		// Assert
 
@@ -28,7 +29,7 @@ describe("applyCardStyles", () => {
 
 		// Act
 
-		const actual = applyCardStyles(html);
+		const actual = editHtml(html, applyCardStyles);
 
 		// Assert
 
@@ -47,7 +48,7 @@ describe("applyCardStyles", () => {
 
 		// Act
 
-		const actual = applyCardStyles(html);
+		const actual = editHtml(html, applyCardStyles);
 
 		// Assert
 
@@ -63,7 +64,7 @@ describe("applyCardStyles", () => {
 
 		// Act
 
-		const actual = applyCardStyles(html);
+		const actual = editHtml(html, applyCardStyles);
 
 		// Assert
 

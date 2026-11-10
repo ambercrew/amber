@@ -26,6 +26,9 @@ pub trait ElementCreationService: Send + Sync {
     ) -> Result<(), ElementCreationError>;
     async fn create_extract(&self, dto: CreateExtractDto) -> Result<(), ElementCreationError>;
     async fn create_card(&self, dto: CreateCardDto) -> Result<(), ElementCreationError>;
+    /// Like `create_card` for each, in order; siblings are placed together, in one pass
+    /// rather than one per card.
+    async fn create_cards(&self, dtos: Vec<CreateCardDto>) -> Result<(), ElementCreationError>;
 }
 
 #[derive(Debug, Error)]

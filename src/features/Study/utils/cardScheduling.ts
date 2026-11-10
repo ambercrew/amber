@@ -1,4 +1,5 @@
 import {
+	createEmptyCard,
 	FSRS,
 	generatorParameters,
 	Rating as FsrsRating,
@@ -11,6 +12,7 @@ import { CardReviewDto } from "../../../api/study/dto/cardReviewDto";
 import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
 import { CardState } from "../../../types/study/cardState";
 import { Rating } from "../../../types/study/rating";
+import { startOfLocalDay } from "../../../utils/startOfLocalDay";
 
 // Cards are scheduled here rather than in the backend because ts-fsrs
 // implements the whole FSRS scheduler — the New/Learning/Review/Relearning
@@ -73,10 +75,15 @@ function toFsrsCard(review: CardReviewDto): SchedulerCard {
 	};
 }
 
+// A card scheduled days ahead is due from the start of its day, as in Anki, so both apps show it all day.
+function dueDate(card: FsrsCard): Date {
+	return card.scheduled_days >= 1 ? startOfLocalDay(card.due) : card.due;
+}
+
 function toCardReview(cardId: string, card: FsrsCard): CardReviewDto {
 	return {
 		cardId,
-		due: card.due.toISOString(),
+		due: dueDate(card).toISOString(),
 		stability: card.stability,
 		difficulty: card.difficulty,
 		reps: card.reps,
@@ -111,4 +118,28 @@ export function scheduleAllRatings(
 		good: scheduled("good"),
 		easy: scheduled("easy"),
 	};
+}
+
+/**
+ * A card's review state after replaying `reviews` (oldest first) from `start`,
+ * or from a new card without one, e.g. once reviews made in Anki arrive.
+ */
+export function replayReviews(
+	profile: StudyProfileDto,
+	cardId: string,
+	reviews: { reviewedAt: string; rating: Rating }[],
+	start: CardReviewDto | null = null,
+): CardReviewDto {
+	const scheduler = createScheduler(profile);
+	let card = start
+		? (toFsrsCard(start) as FsrsCard)
+		: createEmptyCard(new Date(reviews[0]?.reviewedAt ?? Date.now()));
+	for (const review of reviews) {
+		card = scheduler.next(
+			card,
+			new Date(review.reviewedAt),
+			GRADES[review.rating],
+		).card;
+	}
+	return toCardReview(cardId, card);
 }

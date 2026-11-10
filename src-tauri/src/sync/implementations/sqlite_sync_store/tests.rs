@@ -3834,3 +3834,61 @@ async fn is_row_deleted_live_or_unknown_row_returns_false() {
     assert!(!live);
     assert!(!unknown);
 }
+
+#[tokio::test]
+async fn deleted_rows_row_added_again_after_its_delete_returns_none() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let store = scope.resolve::<dyn SyncStore>().await;
+    store
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Title", "Body").await;
+    delete_note(&tx, "1").await;
+    insert_note(&tx, "1", "Title", "Body").await;
+
+    // Act
+
+    let deleted = store
+        .deleted_rows("notes", &["1".to_string()])
+        .await
+        .unwrap();
+    let is_deleted = store.is_row_deleted("notes", "1").await.unwrap();
+
+    // Assert
+
+    assert!(deleted.is_empty());
+    assert!(!is_deleted);
+}
+
+#[tokio::test]
+async fn deleted_rows_mixed_keys_returns_only_deleted_ones() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let store = scope.resolve::<dyn SyncStore>().await;
+    store
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Title", "Body").await;
+    insert_note(&tx, "2", "Title", "Body").await;
+    delete_note(&tx, "1").await;
+    let keys = ["1", "2", "3"].map(String::from);
+
+    // Act
+
+    let actual = store.deleted_rows("notes", &keys).await.unwrap();
+
+    // Assert
+
+    assert_eq!(std::collections::HashSet::from(["1".to_string()]), actual);
+}

@@ -34,6 +34,8 @@ pub trait ImageOcclusionRepository: Send + Sync {
         occlusion_id: Uuid,
     ) -> Result<Vec<ImageOcclusionCardLink>, RepositoryError>;
 
+    async fn get_all_links(&self) -> Result<Vec<ImageOcclusionCardLink>, RepositoryError>;
+
     /// Linked cards that are neither trashed themselves nor inside a trashed or deleted ancestor.
     async fn get_live_linked_card_ids(
         &self,

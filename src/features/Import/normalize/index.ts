@@ -1,4 +1,4 @@
-import { sanitizeHtml } from "../../../utils/sanitizeHtml";
+import { sanitizeBody } from "../../../utils/sanitizeHtml";
 import { assetIdFromSrc, toCanonicalImageSrc } from "../../../utils/assetUrl";
 import { localizeImages } from "../images/localize";
 import { convertMath } from "./convertMath";
@@ -18,14 +18,20 @@ export async function normalize(
 	html: string,
 	opts: NormalizeOptions,
 ): Promise<string> {
-	const parser = new DOMParser();
-	const raw = parser.parseFromString(html, "text/html");
+	const raw = new DOMParser().parseFromString(html, "text/html");
+	return (await normalizeDocument(raw, opts)).innerHTML;
+}
+
+/** `normalize` for an already parsed document, returning the normalized body so callers needn't re-parse it. */
+export async function normalizeDocument(
+	raw: Document,
+	opts: NormalizeOptions,
+): Promise<HTMLElement> {
 	// After math, so rendered math's SVGs become equations rather than images.
 	convertMath(raw);
 	convertInlineSvgs(raw);
-	const sanitized = sanitizeHtml(raw.body.innerHTML);
-	const doc = parser.parseFromString(sanitized, "text/html");
-	const images = Array.from(doc.querySelectorAll("img[src]"));
+	const body = sanitizeBody(raw.body);
+	const images = Array.from(body.querySelectorAll("img[src]"));
 
 	const absoluteByAttr = new Map<string, string>();
 	const uniqueUrls = new Set<string>();
@@ -70,7 +76,7 @@ export async function normalize(
 		}
 	}
 
-	for (const link of doc.querySelectorAll("a[href]")) {
+	for (const link of body.querySelectorAll("a[href]")) {
 		const href = link.getAttribute("href");
 		if (!href) continue;
 
@@ -82,7 +88,7 @@ export async function normalize(
 		}
 	}
 
-	return doc.body.innerHTML;
+	return body;
 }
 
 function resolveUrl(src: string, baseUrl: string | null): string | null {

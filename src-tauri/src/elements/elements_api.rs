@@ -5,7 +5,7 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::common::api_error::ApiError;
-use crate::elements::dto::any_element_dto::AnyElementDto;
+use crate::elements::dto::any_element_dto::{AnyElementDto, MetaResponseDto};
 use crate::elements::dto::create_card_dto::CreateCardDto;
 use crate::elements::dto::create_extract_dto::CreateExtractDto;
 use crate::elements::dto::create_folder_dto::CreateFolderDto;
@@ -559,6 +559,27 @@ pub async fn get_element_by_id(
     dto.meta_mut().tags = tags;
 
     Ok(dto)
+}
+
+/// The element's meta without its content, or `None` when it no longer exists.
+#[tauri::command]
+pub async fn get_element_meta(
+    injector: State<'_, Arc<Injector>>,
+    element_id: ElementId,
+) -> Result<Option<MetaResponseDto>, ApiError> {
+    let scope = injector.start_scope();
+    let repository = scope.resolve::<dyn MetaRepository>().await;
+    if !repository.exists(element_id).await? {
+        return Ok(None);
+    }
+    let mut meta = MetaResponseDto::from(repository.get_by_id(element_id.id()).await?);
+    meta.tags = repository
+        .get_tags(element_id)
+        .await?
+        .into_iter()
+        .map(TagResponseDto::from)
+        .collect();
+    Ok(Some(meta))
 }
 
 #[tauri::command]

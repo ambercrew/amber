@@ -38,10 +38,10 @@ const INLINE_TAGS = new Set([
 const parsed = new Map<string, Rule[]>();
 
 /** Replaces the meaning a card's note type CSS gives its classes with markup the editor keeps. */
-export function applyCardStyles(html: string): string {
-	if (!html.includes("<style")) return html;
-	const doc = new DOMParser().parseFromString(html, "text/html");
-	const css = Array.from(doc.querySelectorAll("style"))
+export function applyCardStyles(doc: Document): void {
+	const styles = doc.querySelectorAll("style");
+	if (styles.length === 0) return;
+	const css = Array.from(styles)
 		.map(style => style.textContent ?? "")
 		.join("\n");
 	const effects = new Map<Element, Effects>();
@@ -57,7 +57,6 @@ export function applyCardStyles(html: string): string {
 		}
 	}
 	for (const [element, effect] of effects) apply(doc, element, effect);
-	return doc.body.innerHTML;
 }
 
 function rulesOf(css: string): Rule[] {

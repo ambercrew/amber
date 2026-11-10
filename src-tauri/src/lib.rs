@@ -1,4 +1,5 @@
 mod ai_integration;
+mod anki_sync;
 mod app_info;
 mod assets;
 mod backend;
@@ -28,6 +29,7 @@ use std::sync::Arc;
 use tauri::Manager;
 
 use ai_integration::ai_api::*;
+use anki_sync::anki_sync_api::*;
 use app_info::app_info_api::*;
 use assets::assets_api::*;
 use backend::api::auth_api::*;
@@ -184,6 +186,7 @@ pub async fn run() {
             // Elements
             get_element_tree,
             get_element_by_id,
+            get_element_meta,
             get_element_details,
             rename_element,
             set_element_name_source,
@@ -286,6 +289,12 @@ pub async fn run() {
             get_pdf_page_count,
             get_pdf_page_html,
             import_anki,
+            // Anki sync
+            get_anki_sync_status,
+            is_card_synced_from_anki,
+            preview_anki_sync,
+            sync_anki,
+            cancel_anki_sync,
             // App Info
             is_store_installed,
             set_system_chrome_theme,

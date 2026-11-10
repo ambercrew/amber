@@ -4,10 +4,14 @@ use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use injector_derive::ScopeInjectable;
 
+use crate::common::event_manager::EventManager;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::services::element_index_service::ElementIndexService;
 use crate::elements::services::priority_service::PriorityService;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::trash::events::elements_deleted_event::{
+    ELEMENTS_DELETED_EVENT, ElementsDeletedEventDto,
+};
 use crate::trash::repositories::trash_repository::TrashRepository;
 use crate::trash::services::trash_service::{TrashService, TrashServiceError};
 use crate::trash::value_objects::trashed_element::TrashedElement;
@@ -18,6 +22,7 @@ pub struct DefaultTrashService {
     meta_repository: Arc<dyn MetaRepository>,
     element_index_service: Arc<dyn ElementIndexService>,
     priority_service: Arc<dyn PriorityService>,
+    event_manager: Arc<dyn EventManager>,
 }
 
 #[async_trait]
@@ -58,6 +63,7 @@ impl TrashService for DefaultTrashService {
             return Err(TrashServiceError::NotInTrash);
         }
         self.meta_repository.delete(id).await?;
+        self.push_deleted(vec![id]).await;
         Ok(())
     }
 
@@ -65,9 +71,17 @@ impl TrashService for DefaultTrashService {
     // one may already be gone by the time its turn comes; the delete is then a
     // no-op rather than an error.
     async fn empty_trash(&self) -> Result<(), TrashServiceError> {
-        for root in self.trash_repository.get_trashed_roots().await? {
-            self.meta_repository.delete(root.element_id).await?;
+        let roots: Vec<_> = self
+            .trash_repository
+            .get_trashed_roots()
+            .await?
+            .into_iter()
+            .map(|root| root.element_id)
+            .collect();
+        for id in &roots {
+            self.meta_repository.delete(*id).await?;
         }
+        self.push_deleted(roots).await;
         Ok(())
     }
 
@@ -83,11 +97,22 @@ impl TrashService for DefaultTrashService {
             self.meta_repository.delete(*id).await?;
         }
 
-        Ok(expired.len())
+        let count = expired.len();
+        self.push_deleted(expired).await;
+        Ok(count)
     }
 }
 
 impl DefaultTrashService {
+    async fn push_deleted(&self, element_ids: Vec<ElementId>) {
+        if element_ids.is_empty() {
+            return;
+        }
+        let body = serde_json::to_value(ElementsDeletedEventDto { element_ids })
+            .expect("ElementsDeletedEventDto always serializes");
+        self.event_manager.push(ELEMENTS_DELETED_EVENT, body).await;
+    }
+
     /// A restored element's old priority may have been reclaimed by a live
     /// element while it was trashed, so it isn't safe to reuse as-is.
     async fn reassign_priorities(&self, ids: Vec<ElementId>) -> Result<(), TrashServiceError> {
@@ -155,6 +180,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::test_utils::RecordingEventManager;
 
     async fn initialize_test_injector() -> Injector {
         let mut injector = create_test_injector().await;
@@ -251,6 +277,60 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn empty_trash_trashed_roots_pushed_deleted_event_with_those_roots() {
+        // Arrange
+
+        let mut injector = initialize_test_injector().await;
+        let event_manager = Arc::new(RecordingEventManager::default());
+        injector.register_singleton::<dyn EventManager>(event_manager.clone());
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn TrashService>().await;
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+
+        let folder = make_folder("Science", None);
+        let folder_id = folder.meta.element_id;
+        folder_repository.create(folder).await.unwrap();
+        service.trash_element(folder_id).await.unwrap();
+
+        // Act
+
+        service.empty_trash().await.unwrap();
+
+        // Assert
+
+        let events = event_manager.events.lock().unwrap();
+        assert_eq!(1, events.len());
+        let (name, body) = &events[0];
+        assert_eq!(ELEMENTS_DELETED_EVENT, name);
+        let actual: Vec<ElementId> = serde_json::from_value(body["elementIds"].clone()).unwrap();
+        assert_eq!(vec![folder_id], actual);
+    }
+
+    #[tokio::test]
+    async fn trash_element_any_element_pushed_no_event() {
+        // Arrange
+
+        let mut injector = initialize_test_injector().await;
+        let event_manager = Arc::new(RecordingEventManager::default());
+        injector.register_singleton::<dyn EventManager>(event_manager.clone());
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn TrashService>().await;
+        let folder_repository = scope.resolve::<dyn FolderRepository>().await;
+
+        let folder = make_folder("Science", None);
+        let folder_id = folder.meta.element_id;
+        folder_repository.create(folder).await.unwrap();
+
+        // Act
+
+        service.trash_element(folder_id).await.unwrap();
+
+        // Assert
+
+        assert!(event_manager.events.lock().unwrap().is_empty());
     }
 
     #[tokio::test]

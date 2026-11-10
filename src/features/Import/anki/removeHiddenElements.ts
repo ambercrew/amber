@@ -11,8 +11,7 @@ const RAW_CLOZE = /\{\{c\d+::/;
  * and hidden images, cloze source or repeats of visible text. Other hidden content stays, as a scripted
  * template may hide parts of the card, or all of it, for its script to reveal.
  */
-export function removeHiddenElements(html: string): string {
-	const doc = new DOMParser().parseFromString(html, "text/html");
+export function removeHiddenElements(doc: Document): void {
 	for (const control of Array.from(
 		doc.body.querySelectorAll(CONTROL_SELECTOR),
 	))
@@ -39,7 +38,6 @@ export function removeHiddenElements(html: string): string {
 		)
 			element.remove();
 	}
-	return doc.body.innerHTML;
 }
 
 function squash(text: string | null): string {

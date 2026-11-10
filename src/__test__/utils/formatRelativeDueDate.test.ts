@@ -110,6 +110,21 @@ describe("formatRelativeDueDate", () => {
 		expect(actual).toBe("Tomorrow");
 	});
 
+	it("Should return Tomorrow when due at the start of tomorrow", () => {
+		// Arrange
+
+		vi.setSystemTime(new Date(2024, 0, 1, 10, 0));
+		const due = new Date(2024, 0, 2).toISOString();
+
+		// Act
+
+		const actual = formatRelativeDueDate(due);
+
+		// Assert
+
+		expect(actual).toBe("Tomorrow");
+	});
+
 	it("Should return day count when due several days away", () => {
 		// Arrange
 

@@ -1,4 +1,8 @@
-use std::{env, path::PathBuf, sync::Arc};
+use std::{
+    env,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use injector::injector::Injector;
 use tokio::fs;
@@ -97,6 +101,9 @@ async fn create_test_injector_with_sqlite_url(sqlite_url: &str) -> Injector {
     );
     injector.register_singleton(Arc::new(crate::sync::sync_lock::SyncLock::default()));
     injector.register_singleton(Arc::new(
+        crate::anki_sync::anki_sync_lock::AnkiSyncLock::default(),
+    ));
+    injector.register_singleton(Arc::new(
         crate::sync::sync_completion::SyncCompletion::default(),
     ));
 
@@ -108,4 +115,26 @@ async fn create_test_injector_with_sqlite_url(sqlite_url: &str) -> Injector {
     injector.register_singleton::<dyn SecretsRepository>(Arc::new(secrets_repository));
 
     injector
+}
+
+/// Records every pushed event, so tests can assert what a service told the frontend.
+#[derive(Default)]
+pub struct RecordingEventManager {
+    pub events: Mutex<Vec<(String, serde_json::Value)>>,
+}
+
+impl RecordingEventManager {
+    pub fn names(&self) -> Vec<String> {
+        let events = self.events.lock().unwrap();
+        events.iter().map(|(name, _)| name.clone()).collect()
+    }
+}
+
+#[async_trait::async_trait]
+impl EventManager for RecordingEventManager {
+    async fn push(&self, name: &str, body: serde_json::Value) {
+        self.events.lock().unwrap().push((name.to_string(), body));
+    }
+
+    async fn emit_all(&self) {}
 }

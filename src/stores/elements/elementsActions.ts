@@ -5,6 +5,7 @@ import {
 	createLearningAsset,
 	elementExists,
 	getElementById,
+	getElementMeta,
 	getElementTree,
 	moveElement,
 	MoveElementDto,
@@ -50,6 +51,18 @@ export function loadCurrentElementAction(elementId: ElementId) {
 			dispatch(loadElementDetailsAction(elementId)),
 		]);
 		return true;
+	};
+}
+
+/** Refreshes the open element's meta and details (schedule, ...), leaving its content and editors alone. */
+export function refreshCurrentElementMetaAction(elementId: ElementId) {
+	return async (dispatch: AppDispatch, getState: () => RootState) => {
+		const meta = await getElementMeta(elementId);
+		if (!meta) return;
+		const current = getState().elements.currentElement?.data.meta;
+		if (current?.elementId.id !== elementId.id) return;
+		dispatch(setCurrentElementMeta(meta));
+		await dispatch(loadElementDetailsAction(elementId));
 	};
 }
 

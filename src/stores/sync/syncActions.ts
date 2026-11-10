@@ -18,13 +18,17 @@ export interface SyncOptions {
 	skipIfKnownOffline?: boolean;
 }
 
+/** Resolves true once a sync finished, false when it was skipped or failed. */
 export function sync(options?: SyncOptions) {
-	return async function (dispatch: AppDispatch, getState: () => RootState) {
+	return async function (
+		dispatch: AppDispatch,
+		getState: () => RootState,
+	): Promise<boolean> {
 		if (
 			!selectIsSignedIn(getState()) ||
 			!selectUserInformation(getState())?.isEmailVerified
 		) {
-			return;
+			return false;
 		}
 
 		if (options?.skipIfKnownOffline && selectIsOffline(getState())) {
@@ -33,7 +37,7 @@ export function sync(options?: SyncOptions) {
 					"You're offline — sync will resume once you're back online.",
 				color: "yellow",
 			});
-			return;
+			return false;
 		}
 
 		try {
@@ -44,10 +48,12 @@ export function sync(options?: SyncOptions) {
 			await syncApi();
 			dispatch(setOnline());
 			notifications.show({ message: "Sync complete", autoClose: 1000 });
+			return true;
 		} catch (e) {
 			// eslint-disable-next-line no-console
 			console.error(e);
 			notifications.show({ message: errorToString(e), color: "red" });
+			return false;
 		} finally {
 			await defaultGlobalSyncEventManager.notifyListeners(
 				ListenerType.PreSyncComplete,

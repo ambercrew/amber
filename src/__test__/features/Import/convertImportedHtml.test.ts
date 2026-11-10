@@ -1,46 +1,45 @@
 import { convertImportedHtml } from "../../../features/Import/convertImportedHtml";
-import { htmlToLexicalJson } from "../../../components/Editor/lexicalJsonConversion";
-import { normalize } from "../../../features/Import/normalize";
+import { domToLexicalJson } from "../../../components/Editor/lexicalJsonConversion";
+import { normalizeDocument } from "../../../features/Import/normalize";
 
 vi.mock(import("../../../components/Editor/lexicalJsonConversion"));
 vi.mock(import("../../../features/Import/normalize"));
 
 describe("convertImportedHtml", () => {
+	beforeEach(() => {
+		vi.mocked(normalizeDocument).mockImplementation(async doc => doc.body);
+		vi.mocked(domToLexicalJson).mockImplementation(
+			dom => `lexical ${(dom as HTMLElement).innerHTML}`,
+		);
+	});
+
 	it("Should normalize and convert each fragment in order when given fragments", async () => {
 		// Arrange
 
-		vi.mocked(normalize).mockImplementation(
-			async html => `normalized ${html}`,
-		);
-		vi.mocked(htmlToLexicalJson).mockImplementation(
-			html => `lexical ${html}`,
-		);
+		const htmls = ["<b>hablar</b>", "to speak"];
 
 		// Act
 
 		const actual = await convertImportedHtml({
 			requestId: "request-1",
-			htmls: ["<b>hablar</b>", "to speak"],
+			htmls,
 		});
 
 		// Assert
 
-		expect(normalize).toHaveBeenCalledWith(
-			"<b>hablar</b>",
+		expect(normalizeDocument).toHaveBeenCalledWith(
+			expect.anything(),
 			expect.objectContaining({ baseUrl: null }),
 		);
 		expect(actual).toEqual({
-			contents: [
-				"lexical normalized <b>hablar</b>",
-				"lexical normalized to speak",
-			],
+			contents: ["lexical <b>hablar</b>", "lexical to speak"],
 		});
 	});
 
 	it("Should report the error when a fragment fails to convert", async () => {
 		// Arrange
 
-		vi.mocked(normalize).mockRejectedValue(new Error("boom"));
+		vi.mocked(normalizeDocument).mockRejectedValue(new Error("boom"));
 
 		// Act
 

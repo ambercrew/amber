@@ -20,6 +20,11 @@ pub trait MetaRepository: Send + Sync {
 
     async fn delete(&self, id: ElementId) -> Result<(), RepositoryError>;
     async fn get_tags(&self, id: ElementId) -> Result<Vec<Tag>, RepositoryError>;
+    /// Each element's tag names in their order, in one query; elements without tags are left out.
+    async fn get_tag_names_of(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<std::collections::HashMap<Uuid, Vec<String>>, RepositoryError>;
     async fn update_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError>;
 
     /// Adds `tags` to the element's existing tags, ignoring ones already present.

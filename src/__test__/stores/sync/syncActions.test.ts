@@ -172,13 +172,14 @@ describe("sync", () => {
 
 		// Act
 
-		await sync()(
+		const synced = await sync()(
 			dispatch,
 			createGetState({ isEmailVerified: true, isSignedIn: true }),
 		);
 
 		// Assert
 
+		expect(synced).toBe(false);
 		const shown = notificationsStore.getState().notifications;
 		expect(shown).toHaveLength(1);
 		expect(shown[0]).toMatchObject({
@@ -187,5 +188,36 @@ describe("sync", () => {
 		});
 		expect(dispatch).not.toHaveBeenCalledWith(setOnline());
 		expect(dispatch).toHaveBeenLastCalledWith(setIsSyncing(false));
+	});
+
+	it("Should resolve true when the sync finishes", async () => {
+		// Arrange
+
+		vi.mocked(defaultGlobalSyncEventManager).notifyListeners = vi.fn();
+		vi.mocked(syncApi).mockResolvedValueOnce(undefined);
+
+		// Act
+
+		const synced = await sync()(
+			vi.fn(),
+			createGetState({ isEmailVerified: true, isSignedIn: true }),
+		);
+
+		// Assert
+
+		expect(synced).toBe(true);
+	});
+
+	it("Should resolve false when the user is not signed in", async () => {
+		// Act
+
+		const synced = await sync()(
+			vi.fn(),
+			createGetState({ isEmailVerified: true, isSignedIn: false }),
+		);
+
+		// Assert
+
+		expect(synced).toBe(false);
 	});
 });

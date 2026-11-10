@@ -1,6 +1,7 @@
 import { combineReducers, configureStore } from "@reduxjs/toolkit";
 import userReducer from "./user/userReducer";
 import syncReducer from "./sync/syncReducer";
+import ankiSyncReducer from "./ankiSync/ankiSyncReducer";
 import settingsReducer from "./settings/settingsReducer";
 import appReducer from "./app/appReducer.ts";
 import elementsReducer from "./elements/elementsReducer";
@@ -16,6 +17,7 @@ import tableOfContentsReducer from "./tableOfContents/tableOfContentsReducer";
 const reducers = combineReducers({
 	user: userReducer,
 	sync: syncReducer,
+	ankiSync: ankiSyncReducer,
 	settings: settingsReducer,
 	app: appReducer,
 	elements: elementsReducer,

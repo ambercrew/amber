@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -121,6 +122,33 @@ impl MetaRepository for SqliteMetaRepository {
         .await?;
 
         Ok(rows.into_iter().map(Tag::from).collect())
+    }
+
+    async fn get_tag_names_of(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, Vec<String>>, RepositoryError> {
+        let ids = ids_json(ids.iter().copied());
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query!(
+            r#"SELECT element_id as "element_id: uuid::fmt::Hyphenated", tag_id
+            FROM element_tags
+            WHERE element_id IN (SELECT value FROM json_each($1))
+            ORDER BY element_id, sort_index"#,
+            ids
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        let mut tags: HashMap<Uuid, Vec<String>> = HashMap::new();
+        for row in rows {
+            tags.entry(row.element_id.into_uuid())
+                .or_default()
+                .push(row.tag_id);
+        }
+        Ok(tags)
     }
 
     async fn update_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError> {
@@ -1089,5 +1117,39 @@ mod tests {
         // Assert
 
         assert_eq!(vec!["history".to_string()], tags);
+    }
+
+    #[tokio::test]
+    async fn get_tag_names_of_several_elements_returns_each_ones_tags_in_order() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let tagged = ElementId::Folder(Uuid::new_v4());
+        let untagged = ElementId::Folder(Uuid::new_v4());
+        let other = ElementId::Folder(Uuid::new_v4());
+        for id in [tagged, untagged, other] {
+            repo.create_meta(&make_meta(id)).await.unwrap();
+        }
+        repo.update_tags(tagged, vec!["philosophy".into(), "history".into()])
+            .await
+            .unwrap();
+        repo.update_tags(other, vec!["art".into()]).await.unwrap();
+
+        // Act
+
+        let actual = repo
+            .get_tag_names_of(&[tagged.id(), untagged.id()])
+            .await
+            .unwrap();
+
+        // Assert
+
+        let expected = HashMap::from([(
+            tagged.id(),
+            vec!["philosophy".to_string(), "history".to_string()],
+        )]);
+        assert_eq!(expected, actual);
     }
 }

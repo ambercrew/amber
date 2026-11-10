@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use sqlx::{Row, SqliteConnection};
@@ -160,20 +160,61 @@ async fn apply_remote_page_inner(
     Ok(())
 }
 
-/// Whether a single-column-key row has a tombstone; tombstones are kept for good, so this outlives the row.
+/// SQL for whether the row keyed `{key}` was deleted: it has a tombstone and isn't in the table. A row
+/// that came back keeps its tombstone, as only a refused delete's restage forgets one. Binds `?1`, `?3`.
+async fn deleted_predicate(
+    tx: &mut SqliteConnection,
+    table: &str,
+    key: &str,
+) -> Result<String, SyncError> {
+    let columns = read_table_info(tx, table).await?;
+    let key_columns = primary_key_columns(table, &columns)?;
+    let [key_column] = key_columns.as_slice() else {
+        return Err(SyncError::InvalidPrimaryKey {
+            table: table.to_string(),
+            details: "a deletion lookup needs a single-column primary key".to_string(),
+        });
+    };
+    Ok(format!(
+        "EXISTS (SELECT 1 FROM sync_cells WHERE tbl = ?1 AND row_id = json_array({key}) AND col = ?3) \
+         AND NOT EXISTS (SELECT 1 FROM {} WHERE {} = {key})",
+        quote_ident(table),
+        quote_ident(&key_column.name),
+    ))
+}
+
+/// Whether a single-column-key row was deleted; tombstones are kept for good, so this outlives the row.
 pub(super) async fn is_row_deleted(
     tx: &mut SqliteConnection,
     table: &str,
     primary_key: &str,
 ) -> Result<bool, SyncError> {
-    Ok(sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM sync_cells WHERE tbl = ?1 AND row_id = json_array(?2) AND col = ?3)",
-    )
-    .bind(table)
-    .bind(primary_key)
-    .bind(merge::DELETED_COL)
-    .fetch_one(tx)
-    .await?)
+    let sql = format!("SELECT {}", deleted_predicate(tx, table, "?2").await?);
+    Ok(sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(table)
+        .bind(primary_key)
+        .bind(merge::DELETED_COL)
+        .fetch_one(tx)
+        .await?)
+}
+
+/// One probe of the primary key index per key, bound as a single JSON array.
+pub(super) async fn deleted_rows(
+    tx: &mut SqliteConnection,
+    table: &str,
+    primary_keys: &[String],
+) -> Result<HashSet<String>, SyncError> {
+    let keys = serde_json::to_string(primary_keys).expect("a list of strings always serializes");
+    // Qualified, as `sync_cells` has a `value` column of its own.
+    let predicate = deleted_predicate(tx, table, "keys.value").await?;
+    let sql = format!("SELECT keys.value FROM json_each(?2) AS keys WHERE {predicate}");
+    let rows: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(table)
+        .bind(keys)
+        .bind(merge::DELETED_COL)
+        .fetch_all(tx)
+        .await?;
+    Ok(rows.into_iter().collect())
 }
 
 /// Drops incomplete deleted rows, whose missing cells were deleted with them and
