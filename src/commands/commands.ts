@@ -55,6 +55,8 @@ import {
 	selectElementTreeError,
 } from "../stores/elements/elementsSelectors";
 import { sync } from "../stores/sync/syncActions";
+import { startAnkiSync } from "../stores/ankiSync/ankiSyncActions";
+import { selectIsAnkiSyncBusy } from "../stores/ankiSync/ankiSyncSelectors";
 import { selectIsSyncing } from "../stores/sync/syncSelector";
 import {
 	selectIsSignedIn,
@@ -104,6 +106,7 @@ import { newCardDto } from "../features/Sidebar/components/ElementTree/elementTr
 import { paths } from "../paths";
 import {
 	AiPromptLibraryIcon,
+	AnkiIcon,
 	AskAiIcon,
 	BrowserIcon,
 	HomeIcon,
@@ -150,6 +153,7 @@ export const commandIds = [
 	"zoom-out",
 	"reset-zoom",
 	"sync",
+	"sync-with-anki",
 	"open-settings",
 	"show-shortcuts",
 	"toggle-theme",
@@ -399,6 +403,7 @@ export const commandsById: Record<CommandId, Command> = {
 		group: "AI",
 		label: "Ask AI",
 		shortcut: FOCUS_AI_CHAT_SHORTCUT,
+		searchOnly: true,
 		icon: createElement(AskAiIcon),
 		enabled: state => selectSettings(state)?.enableAi ?? false,
 		execute: () => requestFocus("aiChat"),
@@ -407,6 +412,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "open-ai-prompt-library",
 		group: "AI",
 		label: "Open prompt library",
+		searchOnly: true,
 		icon: createElement(AiPromptLibraryIcon),
 		enabled: state => selectSettings(state)?.enableAi ?? false,
 		execute: dispatch => dispatch(openAiPromptLibraryModal()),
@@ -415,6 +421,7 @@ export const commandsById: Record<CommandId, Command> = {
 		id: "new-ai-prompt",
 		group: "AI",
 		label: "New AI prompt",
+		searchOnly: true,
 		icon: createElement(NewAiPromptIcon),
 		enabled: state => selectSettings(state)?.enableAi ?? false,
 		execute: dispatch =>
@@ -495,6 +502,16 @@ export const commandsById: Record<CommandId, Command> = {
 			!!selectUserInformation(state)?.isEmailVerified &&
 			!selectIsSyncing(state),
 		execute: dispatch => void dispatch(sync()),
+	},
+	"sync-with-anki": {
+		id: "sync-with-anki",
+		group: "App",
+		label: "Sync with Anki",
+		searchOnly: true,
+		icon: createElement(AnkiIcon),
+		// AnkiConnect only runs inside Anki desktop.
+		enabled: state => !isMobile() && !selectIsAnkiSyncBusy(state),
+		execute: dispatch => void dispatch(startAnkiSync()),
 	},
 	"open-settings": {
 		id: "open-settings",

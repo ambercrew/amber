@@ -14,11 +14,13 @@ use crate::elements::dto::create_card_dto::CreateCardDto;
 use crate::elements::dto::create_extract_dto::CreateExtractDto;
 use crate::elements::dto::create_folder_dto::CreateFolderDto;
 use crate::elements::dto::create_learning_asset_dto::CreateLearningAssetDto;
+use crate::elements::dto::tree_dto::MetaNodeDto;
 use crate::elements::entities::card::Card;
 use crate::elements::entities::extract::Extract;
 use crate::elements::entities::folder::Folder;
 use crate::elements::entities::learning_asset::LearningAsset;
 use crate::elements::entities::learning_asset_split::LearningAssetSplit;
+use crate::elements::entities::traits::Element;
 use crate::elements::events::element_created_event::{
     ELEMENT_CREATED_EVENT, ElementCreatedEventDto,
 };
@@ -47,6 +49,12 @@ use crate::study::repositories::learning_asset_review_repository::LearningAssetR
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::study::utils::day_boundary::start_of_today_utc;
 
+/// Where a new element comes from, with an inherited origin resolved from its parent.
+struct ResolvedOrigin {
+    derived_from: Option<ElementId>,
+    bibliographical_source_id: Option<Uuid>,
+}
+
 #[derive(ScopeInjectable)]
 pub struct DefaultElementCreationService {
     folder_repository: Arc<dyn FolderRepository>,
@@ -69,8 +77,10 @@ impl ElementCreationService for DefaultElementCreationService {
         let parent = dto.meta.parent;
         let position = self.index_service.get_new_last_index(parent).await?;
         let now = Utc::now();
-        let (derived_from, bibliographical_source_id) =
-            self.resolve_origin(parent, dto.meta.origin).await?;
+        let ResolvedOrigin {
+            derived_from,
+            bibliographical_source_id,
+        } = self.resolve_origin(parent, dto.meta.origin).await?;
         let profile = self
             .profile_resolution_service
             .resolve_profile(parent)
@@ -79,7 +89,7 @@ impl ElementCreationService for DefaultElementCreationService {
             .resolve_priority(derived_from, parent, &profile)
             .await?;
 
-        let element_id = ElementId::Folder(Uuid::new_v4());
+        let element_id = ElementId::Folder(dto.id);
         let (name, name_source) = resolve_name(dto.meta.name, &[], now);
 
         let folder = Folder {
@@ -98,9 +108,10 @@ impl ElementCreationService for DefaultElementCreationService {
                 modified_at: now,
             },
         };
+        let element = MetaNodeDto::from(folder.meta());
         self.folder_repository.create(folder).await?;
         self.copy_parent_tags(parent, element_id).await?;
-        self.emit_element_created(parent).await;
+        self.emit_element_created(parent, element).await;
         Ok(())
     }
 
@@ -111,8 +122,10 @@ impl ElementCreationService for DefaultElementCreationService {
         let element_id = ElementId::LearningAsset(dto.id);
         let parent = dto.meta.parent;
         let position = self.index_service.get_new_last_index(parent).await?;
-        let (derived_from, bibliographical_source_id) =
-            self.resolve_origin(parent, dto.meta.origin).await?;
+        let ResolvedOrigin {
+            derived_from,
+            bibliographical_source_id,
+        } = self.resolve_origin(parent, dto.meta.origin).await?;
         let now = Utc::now();
         let profile = self
             .profile_resolution_service
@@ -176,13 +189,14 @@ impl ElementCreationService for DefaultElementCreationService {
                 LearningAssetContent::Extracted(splits)
             }
         };
+        let element = MetaNodeDto::from(learning_asset.meta());
         self.learning_asset_repository
             .create(learning_asset, content)
             .await?;
         self.ensure_learning_asset_review(element_id, profile)
             .await?;
         self.copy_parent_tags(parent, element_id).await?;
-        self.emit_element_created(parent).await;
+        self.emit_element_created(parent, element).await;
         Ok(())
     }
 
@@ -190,8 +204,10 @@ impl ElementCreationService for DefaultElementCreationService {
         let element_id = ElementId::Extract(dto.id);
         let parent = dto.meta.parent;
         let position = self.index_service.get_new_last_index(parent).await?;
-        let (derived_from, bibliographical_source_id) =
-            self.resolve_origin(parent, dto.meta.origin).await?;
+        let ResolvedOrigin {
+            derived_from,
+            bibliographical_source_id,
+        } = self.resolve_origin(parent, dto.meta.origin).await?;
         let now = Utc::now();
         let profile = self
             .profile_resolution_service
@@ -221,54 +237,41 @@ impl ElementCreationService for DefaultElementCreationService {
             content: self.asset_service.ingest_content(dto.content).await?,
             interval_multiplier: profile.initial_interval_multiplier,
         };
+        let element = MetaNodeDto::from(extract.meta());
         self.extract_repository.create(extract).await?;
         // Extracts are reviewed like learning_assets.
         self.ensure_learning_asset_review(element_id, profile)
             .await?;
         self.copy_parent_tags(parent, element_id).await?;
-        self.emit_element_created(parent).await;
+        self.emit_element_created(parent, element).await;
         Ok(())
     }
 
     async fn create_card(&self, dto: CreateCardDto) -> Result<(), ElementCreationError> {
-        let element_id = ElementId::Card(dto.id);
-        let parent = dto.meta.parent;
-        let position = self.index_service.get_new_last_index(parent).await?;
-        let now = Utc::now();
-        let (derived_from, bibliographical_source_id) =
-            self.resolve_origin(parent, dto.meta.origin).await?;
-        let profile = self
-            .profile_resolution_service
-            .resolve_profile(parent)
-            .await?;
-        let priority = self
-            .resolve_priority(derived_from, parent, &profile)
-            .await?;
+        self.create_cards(vec![dto]).await
+    }
 
-        let (name, name_source) = resolve_name(dto.meta.name, &[&dto.front, &dto.back], now);
-
-        let card = Card {
-            meta: Meta {
-                element_id,
-                name,
-                name_source,
-                suspended: false,
-                parent,
-                position,
-                priority,
-                study_profile_id: None,
-                bibliographical_source_id,
-                derived_from,
-                created_at: now,
-                modified_at: now,
-            },
-            front: self.asset_service.ingest_content(dto.front).await?,
-            back: self.asset_service.ingest_content(dto.back).await?,
-        };
-        self.card_repository.create(card).await?;
-        self.ensure_card_review(dto.id, element_id).await?;
-        self.copy_parent_tags(parent, element_id).await?;
-        self.emit_element_created(parent).await;
+    async fn create_cards(&self, dtos: Vec<CreateCardDto>) -> Result<(), ElementCreationError> {
+        let mut resolved = Vec::with_capacity(dtos.len());
+        for dto in dtos {
+            let origin = self
+                .resolve_origin(dto.meta.parent, dto.meta.origin.clone())
+                .await?;
+            resolved.push((dto, origin));
+        }
+        // Consecutive cards sharing a parent and an origin element take one slot in the queue.
+        let mut resolved = resolved.into_iter().peekable();
+        while let Some(first) = resolved.next() {
+            let (dto, origin) = &first;
+            let key = (dto.meta.parent, origin.derived_from);
+            let mut siblings = vec![first];
+            while let Some(next) =
+                resolved.next_if(|(dto, origin)| (dto.meta.parent, origin.derived_from) == key)
+            {
+                siblings.push(next);
+            }
+            self.create_sibling_cards(key.0, key.1, siblings).await?;
+        }
         Ok(())
     }
 }
@@ -286,9 +289,74 @@ fn resolve_name(
 }
 
 impl DefaultElementCreationService {
-    async fn emit_element_created(&self, parent: Option<ElementId>) {
+    /// Cards under `parent` derived from `derived_from`, each with its resolved origin.
+    async fn create_sibling_cards(
+        &self,
+        parent: Option<ElementId>,
+        derived_from: Option<ElementId>,
+        cards: Vec<(CreateCardDto, ResolvedOrigin)>,
+    ) -> Result<(), ElementCreationError> {
+        // A new card has no profile of its own, so it studies with its parent's.
+        let profile = self
+            .profile_resolution_service
+            .resolve_profile(parent)
+            .await?;
+        let priorities = self
+            .priority_service
+            .get_priorities_for_new_elements(
+                derived_from.or(parent),
+                profile.priority_inheritance_policy,
+                cards.len(),
+            )
+            .await?;
+        let tags = self.parent_tag_names(parent).await?;
+        let mut position = self.index_service.get_new_last_index(parent).await?;
+
+        for ((dto, origin), priority) in cards.into_iter().zip(priorities) {
+            let ResolvedOrigin {
+                derived_from,
+                bibliographical_source_id,
+            } = origin;
+            let element_id = ElementId::Card(dto.id);
+            let now = Utc::now();
+            let (name, name_source) = resolve_name(dto.meta.name, &[&dto.front, &dto.back], now);
+            let next_position = FractionalIndex::new_after(&position);
+            let card = Card {
+                meta: Meta {
+                    element_id,
+                    name,
+                    name_source,
+                    suspended: false,
+                    parent,
+                    position,
+                    priority,
+                    study_profile_id: None,
+                    bibliographical_source_id,
+                    derived_from,
+                    created_at: now,
+                    modified_at: now,
+                },
+                front: self.asset_service.ingest_content(dto.front).await?,
+                back: self.asset_service.ingest_content(dto.back).await?,
+            };
+            position = next_position;
+            let element = MetaNodeDto::from(card.meta());
+            self.card_repository.create(card).await?;
+            self.ensure_card_review(dto.id, &profile).await?;
+            if !tags.is_empty() {
+                self.meta_repository
+                    .add_tags(element_id, tags.clone())
+                    .await?;
+            }
+            self.emit_element_created(parent, element).await;
+        }
+        Ok(())
+    }
+
+    async fn emit_element_created(&self, parent: Option<ElementId>, element: MetaNodeDto) {
         let body = serde_json::to_value(ElementCreatedEventDto {
             parent_id: parent.map(|parent_id| parent_id.id()),
+            element,
         })
         .expect("ElementCreatedEventDto always serializes");
         self.event_manager.push(ELEMENT_CREATED_EVENT, body).await;
@@ -298,18 +366,27 @@ impl DefaultElementCreationService {
         &self,
         parent: Option<ElementId>,
         origin: Origin,
-    ) -> Result<(Option<ElementId>, Option<Uuid>), ElementCreationError> {
+    ) -> Result<ResolvedOrigin, ElementCreationError> {
         match origin {
             Origin::Custom {
                 derived_from,
                 bibliographical_source_id,
-            } => Ok((derived_from, bibliographical_source_id)),
+            } => Ok(ResolvedOrigin {
+                derived_from,
+                bibliographical_source_id,
+            }),
             Origin::Inherited => match parent {
                 Some(parent_id) => {
                     let parent_meta = self.meta_repository.get_by_id(parent_id.id()).await?;
-                    Ok((Some(parent_id), parent_meta.bibliographical_source_id))
+                    Ok(ResolvedOrigin {
+                        derived_from: Some(parent_id),
+                        bibliographical_source_id: parent_meta.bibliographical_source_id,
+                    })
                 }
-                None => Ok((None, None)),
+                None => Ok(ResolvedOrigin {
+                    derived_from: None,
+                    bibliographical_source_id: None,
+                }),
             },
         }
     }
@@ -338,16 +415,23 @@ impl DefaultElementCreationService {
         parent: Option<ElementId>,
         element_id: ElementId,
     ) -> Result<(), ElementCreationError> {
-        let Some(parent_id) = parent else {
-            return Ok(());
-        };
-        let tags = self.meta_repository.get_tags(parent_id).await?;
-        if tags.is_empty() {
+        let tag_names = self.parent_tag_names(parent).await?;
+        if tag_names.is_empty() {
             return Ok(());
         }
-        let tag_names = tags.into_iter().map(|tag| tag.name).collect();
         self.meta_repository.add_tags(element_id, tag_names).await?;
         Ok(())
+    }
+
+    async fn parent_tag_names(
+        &self,
+        parent: Option<ElementId>,
+    ) -> Result<Vec<String>, ElementCreationError> {
+        let Some(parent_id) = parent else {
+            return Ok(Vec::new());
+        };
+        let tags = self.meta_repository.get_tags(parent_id).await?;
+        Ok(tags.into_iter().map(|tag| tag.name).collect())
     }
 
     async fn ensure_learning_asset_review(
@@ -380,7 +464,7 @@ impl DefaultElementCreationService {
     async fn ensure_card_review(
         &self,
         card_id: Uuid,
-        element_id: ElementId,
+        profile: &StudyProfile,
     ) -> Result<(), ElementCreationError> {
         let exists = self
             .card_review_repository
@@ -391,11 +475,7 @@ impl DefaultElementCreationService {
             return Ok(());
         }
 
-        let profile = self
-            .profile_resolution_service
-            .resolve_profile(Some(element_id))
-            .await?;
-        let review = CardReview::new_for_profile(card_id, &profile);
+        let review = CardReview::new_for_profile(card_id, profile);
         self.card_review_repository.upsert(&review).await?;
         Ok(())
     }
@@ -917,6 +997,60 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_cards_siblings_keep_their_order_with_reviews_and_parent_tags() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile(&scope, 1.0).await;
+        let parent_id = create_tagged_parent_folder(&scope, vec!["a".into()]).await;
+        let service = create_service(&scope).await;
+        let dtos: Vec<CreateCardDto> = (0..3)
+            .map(|_| CreateCardDto {
+                id: Uuid::new_v4(),
+                meta: dto_meta(Some(parent_id)),
+                front: String::new(),
+                back: String::new(),
+            })
+            .collect();
+        let ids: Vec<Uuid> = dtos.iter().map(|dto| dto.id).collect();
+
+        // Act
+
+        service.create_cards(dtos).await.unwrap();
+
+        // Assert
+
+        let meta_repository = scope.resolve::<dyn MetaRepository>().await;
+        let children = meta_repository
+            .get_children_ordered(Some(parent_id))
+            .await
+            .unwrap();
+        let child_ids: Vec<Uuid> = children.iter().map(|meta| meta.element_id.id()).collect();
+        assert_eq!(ids, child_ids);
+        assert!(
+            children
+                .windows(2)
+                .all(|pair| pair[0].priority < pair[1].priority)
+        );
+        let review_repository = scope.resolve::<dyn CardReviewRepository>().await;
+        for id in ids {
+            assert!(
+                review_repository
+                    .get_by_card_id(id)
+                    .await
+                    .unwrap()
+                    .is_some()
+            );
+            let tags = meta_repository.get_tags(ElementId::Card(id)).await.unwrap();
+            assert_eq!(
+                vec!["a".to_string()],
+                tags.into_iter().map(|tag| tag.name).collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn create_folder_parent_has_tags_copies_tags_to_folder() {
         // Arrange
 
@@ -925,6 +1059,7 @@ mod tests {
         let parent_id = create_tagged_parent_folder(&scope, vec!["a".into(), "b".into()]).await;
         let service = create_service(&scope).await;
         let dto = CreateFolderDto {
+            id: Uuid::new_v4(),
             meta: dto_meta(Some(parent_id)),
         };
 
@@ -1049,6 +1184,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_folder_any_folder_pushes_created_event_with_its_node() {
+        // Arrange
+
+        let pushed = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let recorded = pushed.clone();
+        let mut event_manager = MockEventManager::new();
+        event_manager.expect_push().returning(move |name, body| {
+            recorded.lock().unwrap().push((name.to_string(), body));
+            Box::pin(async {})
+        });
+        let mut injector = initialize_test_injector().await;
+        injector.register_singleton::<dyn EventManager>(Arc::new(event_manager));
+        let scope = injector.start_scope();
+        let service = create_service(&scope).await;
+        let id = Uuid::new_v4();
+        let dto = CreateFolderDto {
+            id,
+            meta: crate::elements::dto::create_meta_dto::CreateMetaDto {
+                name: Some("Science".to_string()),
+                ..dto_meta(None)
+            },
+        };
+
+        // Act
+
+        service.create_folder(dto).await.unwrap();
+
+        // Assert
+
+        let pushed = pushed.lock().unwrap();
+        let (name, body) = &pushed[0];
+        assert_eq!(ELEMENT_CREATED_EVENT, name);
+        assert_eq!(id.to_string(), body["element"]["elementId"]["id"]);
+        assert_eq!("Science", body["element"]["name"]);
+    }
+
+    #[tokio::test]
     async fn create_folder_no_parent_does_not_error() {
         // Arrange
 
@@ -1056,6 +1228,7 @@ mod tests {
         let scope = injector.start_scope();
         let service = create_service(&scope).await;
         let dto = CreateFolderDto {
+            id: Uuid::new_v4(),
             meta: dto_meta(None),
         };
 
@@ -1181,6 +1354,7 @@ mod tests {
         }
         let service = create_service(&scope).await;
         let dto = CreateFolderDto {
+            id: Uuid::new_v4(),
             meta: dto_meta(None),
         };
 

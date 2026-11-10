@@ -25,6 +25,9 @@ the existing tool closest to what you need and follow its shape.
 - **Approval:** anything that changes the user's data should require approval. The approval card
   should read as a plain sentence about what will happen, and once approved it can link to what
   was changed.
+- **Location:** if a call's change lands in an element (e.g. the parent a card goes in), return it
+  from `location`; the UI shows "in <element>" with the call, so don't write it into the markdown.
+  It's built from the call's saved context, which today only calls awaiting approval have.
 - **Applicability:** offer a tool only where it makes sense (e.g. only when an extract is open) via
   `is_applicable`, rather than registering it conditionally.
 - **Go through services**, never repositories, so events, sync and UI refreshes still happen.

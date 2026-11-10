@@ -13,7 +13,7 @@ use crate::ai_integration::services::tool_approval_resolver::{
     ToolApprovalResolver, ToolApprovalResolverError,
 };
 use crate::ai_integration::services::tools_provider::ToolsProvider;
-use crate::ai_integration::tools::app_tools::ApprovalMarkdown;
+use crate::ai_integration::tools::app_tools::ToolCallDescription;
 
 #[derive(ScopeInjectable)]
 pub struct DefaultToolApprovalResolver {
@@ -75,12 +75,12 @@ impl ToolApprovalResolver for DefaultToolApprovalResolver {
         Ok(message)
     }
 
-    async fn approval_markdown(
+    async fn describe(
         &self,
         tool_call: &ToolCallContent,
-    ) -> Result<Option<ApprovalMarkdown>, ToolApprovalResolverError> {
+    ) -> Result<ToolCallDescription, ToolApprovalResolverError> {
         let Some(approval) = &tool_call.approval else {
-            return Ok(None);
+            return Ok(ToolCallDescription::default());
         };
         let output = match approval.status {
             ApprovalStatus::Approved => approval.output.as_deref(),
@@ -90,7 +90,7 @@ impl ToolApprovalResolver for DefaultToolApprovalResolver {
             .tools_provider
             .get_tools(&approval.context)
             .await?
-            .approval_markdown(&tool_call.name, &tool_call.arguments, output))
+            .describe(&tool_call.name, &tool_call.arguments, output))
     }
 }
 
@@ -108,7 +108,10 @@ mod tests {
         ai_integration::{
             entities::chat::Chat,
             services::tools_provider::ToolsProviderError,
-            tools::{app_tool::AppTool, app_tools::AppTools},
+            tools::{
+                app_tool::AppTool,
+                app_tools::{AppTools, ApprovalMarkdown},
+            },
         },
         elements::value_objects::element_id::ElementId,
         infrastructure::repositories::sqlite::sqlite_ai_repository::SqliteAiRepository,
@@ -375,7 +378,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn approval_markdown_call_awaiting_approval_written_by_tool_built_from_saved_context() {
+    async fn describe_call_awaiting_approval_written_by_tool_built_from_saved_context() {
         // Arrange
 
         let injector = initialize_test_injector(Runs::default()).await;
@@ -388,7 +391,7 @@ mod tests {
 
         // Act
 
-        let actual = resolver.approval_markdown(&call).await.unwrap();
+        let actual = resolver.describe(&call).await.unwrap();
 
         // Assert
 
@@ -397,12 +400,12 @@ mod tests {
                 request: r#"Run with {"elementId":"element-1"} (fail: false)"#.to_string(),
                 result: None,
             }),
-            actual
+            actual.approval
         );
     }
 
     #[tokio::test]
-    async fn approval_markdown_approved_call_added_result_written_from_its_output() {
+    async fn describe_approved_call_added_result_written_from_its_output() {
         // Arrange
 
         let injector = initialize_test_injector(Runs::default()).await;
@@ -417,18 +420,18 @@ mod tests {
 
         // Act
 
-        let actual = resolver.approval_markdown(&call).await.unwrap();
+        let actual = resolver.describe(&call).await.unwrap();
 
         // Assert
 
         assert_eq!(
             Some("It said: Done.".to_string()),
-            actual.and_then(|markdown| markdown.result)
+            actual.approval.and_then(|markdown| markdown.result)
         );
     }
 
     #[tokio::test]
-    async fn approval_markdown_call_without_approval_returned_none() {
+    async fn describe_call_without_approval_returned_default() {
         // Arrange
 
         let injector = initialize_test_injector(Runs::default()).await;
@@ -437,10 +440,10 @@ mod tests {
 
         // Act
 
-        let actual = resolver.approval_markdown(&tool_call(None)).await.unwrap();
+        let actual = resolver.describe(&tool_call(None)).await.unwrap();
 
         // Assert
 
-        assert_eq!(None, actual);
+        assert_eq!(ToolCallDescription::default(), actual);
     }
 }

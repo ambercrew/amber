@@ -1,6 +1,8 @@
 pub mod ids_json;
 pub mod sqlite_ai_prompt_repository;
 pub mod sqlite_ai_repository;
+pub mod sqlite_anki_card_link_repository;
+pub mod sqlite_anki_sync_repository;
 pub mod sqlite_asset_repository;
 pub mod sqlite_bibliographical_source_repository;
 pub mod sqlite_card_repository;

@@ -311,4 +311,41 @@ describe("buildDisplayMessages", () => {
 			resultMarkdown: "Created it",
 		});
 	});
+
+	it("Should carry the tool location of a persisted and a streaming tool call when they have one", () => {
+		// Arrange
+
+		const location = { type: "folder", id: "folder-1" } as const;
+		const persisted: MessageDto[] = [
+			{
+				id: "m-1",
+				createdDate: "date",
+				chatId: "chat-1",
+				content: {
+					type: "toolCall",
+					value: { id: "tc-1", name: "create_card", arguments: {} },
+				},
+				contextSnippets: [],
+				toolLocation: location,
+			},
+		];
+
+		// Act
+
+		const actual = buildDisplayMessages(persisted, null, null, null, null, [
+			{
+				id: "streaming-tool-call-tc-2",
+				messageId: "m-2",
+				toolLocation: location,
+				content: {
+					type: "toolCall",
+					value: { id: "tc-2", name: "create_card", arguments: {} },
+				},
+			},
+		]);
+
+		// Assert
+
+		expect(actual.map(m => m.toolLocation)).toEqual([location, location]);
+	});
 });

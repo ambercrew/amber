@@ -28,6 +28,7 @@ import { MessageContentDto } from "../../../api/aiIntegration/dto/messageDto";
 import { DisplayMessage } from "../utils/buildDisplayMessages";
 import AiMarkdown from "./AiMarkdown";
 import ToolApprovalCard, { OnToolApprovalResolved } from "./ToolApprovalCard";
+import ToolCallLocation from "./ToolCallLocation";
 import DisclosureCaret from "../../../components/DisclosureCaret/DisclosureCaret";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import { useIsCoarsePointer } from "../../../hooks/useIsCoarsePointer";
@@ -43,6 +44,7 @@ interface MessageBubbleProps {
 	isStreaming?: boolean;
 	/** Text snippets the user selected as additional context, for `human` messages. */
 	contextSnippets?: string[];
+	toolLocation?: DisplayMessage["toolLocation"];
 	approval?: DisplayMessage["approval"];
 	onToolApprovalResolved?: OnToolApprovalResolved;
 	/** Copies the chat up to and including this message into a new chat; omitted while it can't be branched. */
@@ -185,6 +187,7 @@ function MessageBubble({
 	toolName,
 	isStreaming,
 	contextSnippets,
+	toolLocation,
 	approval,
 	onToolApprovalResolved,
 	onBranch,
@@ -278,6 +281,7 @@ function MessageBubble({
 				messageId={approval.messageId}
 				toolCall={content.value}
 				status={approval.status}
+				location={toolLocation}
 				markdown={approval.markdown}
 				resultMarkdown={approval.resultMarkdown}
 				onResolved={onToolApprovalResolved}
@@ -295,6 +299,7 @@ function MessageBubble({
 				<Text size="xs" c="dimmed" fs="italic">
 					{toolLabel(name, done)}
 				</Text>
+				{toolLocation && <ToolCallLocation location={toolLocation} />}
 			</Group>
 		</Box>
 	);

@@ -344,11 +344,16 @@ function $highlight(
 /** Shiki syntax highlighting that leaves highlight marks in code blocks intact. */
 export const CodeHighlightExtension = defineExtension({
 	name: "amber/code-highlight",
-	config: safeCast<{ theme: string }>({ theme: "gruvbox-light-soft" }),
+	// The headless converter disables it: the editor re-highlights every code block once loaded.
+	config: safeCast<{ theme: string; disabled: boolean }>({
+		theme: "gruvbox-light-soft",
+		disabled: false,
+	}),
 	nodes: [ClozeHiddenNode],
 	// Upstream's highlighting stays off; it still provides the nodes and indentation.
 	dependencies: [configExtension(CodeShikiExtension, { disabled: true })],
-	register: (editor, { theme }) => {
+	register: (editor, { theme, disabled }) => {
+		if (disabled) return mergeRegister();
 		const highlighting = new Set<NodeKey>();
 		const loading: Loading = { editor, waiting: new Map() };
 		const $highlightCode = (code: CodeNode) =>

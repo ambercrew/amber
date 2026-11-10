@@ -1,4 +1,6 @@
 import studyReducer, {
+	learningAssetSkipped,
+	elementsDropped,
 	answerShown,
 	cardGraded,
 	elementRequeued,
@@ -324,6 +326,30 @@ describe("studyReducer", () => {
 			expect(ids(actual)).toEqual(["b", "x", "y", "c"]);
 		});
 
+		it("Should insert an element once when it is repeated in due", () => {
+			// Arrange
+
+			const state: StudyState = {
+				...BASE_STATE,
+				status: "studying",
+				queue: [queueItem("card", "a")],
+				totalCount: 1,
+			};
+			const due = ["a", "b", "b"].map(id => queueItem("card", id));
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				newlyDueElementsAdded({ due, currentIndex: 0 }),
+			);
+
+			// Assert
+
+			expect(ids(actual)).toEqual(["a", "b"]);
+			expect(actual.totalCount).toBe(2);
+		});
+
 		it("Should leave the queue unchanged when no session is running", () => {
 			// Arrange
 
@@ -477,5 +503,127 @@ describe("studyReducer", () => {
 		// Assert
 
 		expect(actual.summary).toBeNull();
+	});
+
+	describe("long queues", () => {
+		const QUEUE = [
+			queueItem("card", "a"),
+			queueItem("card", "b"),
+			queueItem("card", "c"),
+			queueItem("card", "d"),
+		];
+		const STUDYING: StudyState = {
+			...BASE_STATE,
+			status: "studying",
+			queue: QUEUE,
+			totalCount: QUEUE.length,
+		};
+		const ids = (state: StudyState) =>
+			state.queue.map(item => item.elementId.id);
+
+		it("Should put a new element before the next queued one when it is due between two", () => {
+			// Arrange
+
+			const due = [
+				QUEUE[0],
+				QUEUE[1],
+				queueItem("card", "new"),
+				QUEUE[2],
+			];
+
+			// Act
+
+			const actual = studyReducer(
+				STUDYING,
+				newlyDueElementsAdded({ due, currentIndex: 0 }),
+			);
+
+			// Assert
+
+			expect(ids(actual)).toEqual(["a", "b", "new", "c", "d"]);
+			expect(actual.totalCount).toBe(5);
+		});
+
+		it("Should keep new elements in order at the end when nothing queued follows them", () => {
+			// Arrange
+
+			const due = [
+				...QUEUE,
+				queueItem("card", "x"),
+				queueItem("card", "y"),
+			];
+
+			// Act
+
+			const actual = studyReducer(
+				STUDYING,
+				newlyDueElementsAdded({ due, currentIndex: 0 }),
+			);
+
+			// Assert
+
+			expect(ids(actual)).toEqual(["a", "b", "c", "d", "x", "y"]);
+		});
+
+		it("Should never put a new element before the current one", () => {
+			// Arrange
+
+			const due = [queueItem("card", "new"), ...QUEUE];
+
+			// Act
+
+			const actual = studyReducer(
+				STUDYING,
+				newlyDueElementsAdded({ due, currentIndex: 2 }),
+			);
+
+			// Assert
+
+			expect(ids(actual)).toEqual(["a", "b", "c", "new", "d"]);
+		});
+
+		it("Should keep the same queue when nothing new is due", () => {
+			// Act
+
+			const actual = studyReducer(
+				STUDYING,
+				newlyDueElementsAdded({ due: QUEUE, currentIndex: 0 }),
+			);
+
+			// Assert
+
+			expect(actual.queue).toBe(STUDYING.queue);
+		});
+
+		it("Should drop pending elements but keep the current one when both are dropped", () => {
+			// Arrange
+
+			const payload = {
+				elementIds: [QUEUE[1].elementId, QUEUE[2].elementId],
+				currentElementId: QUEUE[1].elementId,
+			};
+
+			// Act
+
+			const actual = studyReducer(STUDYING, elementsDropped(payload));
+
+			// Assert
+
+			expect(ids(actual)).toEqual(["a", "b", "d"]);
+			expect(actual.totalCount).toBe(3);
+		});
+
+		it("Should move a skipped element to the end when it is skipped", () => {
+			// Act
+
+			const actual = studyReducer(
+				STUDYING,
+				learningAssetSkipped({ elementId: QUEUE[1].elementId }),
+			);
+
+			// Assert
+
+			expect(ids(actual)).toEqual(["a", "c", "d", "b"]);
+		});
 	});
 });

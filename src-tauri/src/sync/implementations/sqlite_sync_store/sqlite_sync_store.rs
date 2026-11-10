@@ -1,9 +1,11 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
 
 use super::pending_buffer::PendingBuffer;
+use super::schema_gate;
 use super::{apply, fk_repair, push_pull, register};
 use crate::generated_code::ChangeBatch;
 use crate::infrastructure::value_objects::db_pool::DbPool;
@@ -87,8 +89,22 @@ impl SyncStore for SqliteSyncStore {
         fk_repair::has_unresolved_foreign_keys(guard.as_mut()).await
     }
 
+    async fn record_local_schema_version(&self) -> Result<(), SyncError> {
+        let mut guard = self.tx.lock().await;
+        schema_gate::record_local_schema_version(guard.as_mut()).await
+    }
+
     async fn is_row_deleted(&self, table: &str, primary_key: &str) -> Result<bool, SyncError> {
         let mut guard = self.tx.lock().await;
         apply::is_row_deleted(guard.as_mut(), table, primary_key).await
+    }
+
+    async fn deleted_rows(
+        &self,
+        table: &str,
+        primary_keys: &[String],
+    ) -> Result<HashSet<String>, SyncError> {
+        let mut guard = self.tx.lock().await;
+        apply::deleted_rows(guard.as_mut(), table, primary_keys).await
     }
 }

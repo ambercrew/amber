@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 
 use crate::generated_code::ChangeBatch;
@@ -10,6 +12,7 @@ use crate::sync::value_objects::granularity::Granularity;
 /// tracking, advancing the push/pull cursors, and applying a remote change
 /// batch. `SyncEngine` drives these into a full cycle.
 #[async_trait]
+#[cfg_attr(test, mockall::automock)]
 pub trait SyncStore: Send + Sync {
     /// Registers `table` for change tracking at the given granularity,
     /// (re)creating its sync triggers. Idempotent for the same granularity;
@@ -62,6 +65,16 @@ pub trait SyncStore: Send + Sync {
     /// this with `has_pending_changes` before committing.
     async fn has_unresolved_foreign_keys(&self) -> Result<bool, SyncError>;
 
+    /// Publishes this device's latest migration, so a device behind it stops syncing.
+    async fn record_local_schema_version(&self) -> Result<(), SyncError>;
+
     /// Whether the `table` row with this primary key was deleted, here or on another device.
     async fn is_row_deleted(&self, table: &str, primary_key: &str) -> Result<bool, SyncError>;
+
+    /// The keys among `primary_keys` whose `table` row was deleted, in one query.
+    async fn deleted_rows(
+        &self,
+        table: &str,
+        primary_keys: &[String],
+    ) -> Result<HashSet<String>, SyncError>;
 }

@@ -1,22 +1,9 @@
-import {
-	Box,
-	Divider,
-	Group,
-	NavLink,
-	Progress,
-	Stack,
-	Text,
-} from "@mantine/core";
+import { Box, Divider, Group, Progress, Stack, Text } from "@mantine/core";
 import { IconProps } from "@phosphor-icons/react";
 import { ReactElement, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
-import { getHomeStatistics } from "../../../api/statistics/api/statisticsApi";
+import { getReviewedTodayCount } from "../../../api/statistics/api/statisticsApi";
 import { commandIcon } from "../../../commands/commandIcon";
 import useApi from "../../../hooks/useApi";
-import { useElementParams } from "../../../hooks/useElementParams";
-import { paths } from "../../../paths";
-import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
-import { StudySessionLocationState } from "../../../types/study/studySessionLocationState";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectStudyQueue } from "../../../stores/study/studySelectors";
@@ -24,9 +11,8 @@ import { openStudySessionSettingsModal } from "../../../stores/app/appReducer";
 import { useDueElementsPreview } from "../../Study/hooks/useDueElementsPreview";
 import { ElementNodeType } from "../../../types/elements/elementNodeType";
 import PanelHeader from "./PanelHeader";
+import PriorityQueueList from "./PriorityQueueList";
 import StudyScopeBanner from "./StudyScopeBanner";
-
-const ICON_SIZE = 18;
 
 // Only the types that can actually be due, in the order they're shown.
 const COUNTED_TYPES: {
@@ -40,9 +26,7 @@ const COUNTED_TYPES: {
 ];
 
 function PriorityQueuePanel() {
-	const navigate = useNavigate();
 	const dispatch = useAppDispatch();
-	const selected = useElementParams();
 	const queue = useAppSelector(selectStudyQueue);
 	const { callApi } = useApi();
 	const [reviewedToday, setReviewedToday] = useState<number | null>(null);
@@ -51,14 +35,13 @@ function PriorityQueuePanel() {
 
 	// The queue shrinks as elements are reviewed, so refetch alongside it.
 	useEffect(() => {
-		void callApi(getHomeStatistics).then(result => {
-			if (!result) return;
-			setReviewedToday(
-				result.learningAssetCount +
-					result.extractCount +
-					result.cardCount,
-			);
+		let isStale = false;
+		void callApi(getReviewedTodayCount).then(count => {
+			if (!isStale && count !== undefined) setReviewedToday(count);
 		});
+		return () => {
+			isStale = true;
+		};
 	}, [callApi, queue]);
 
 	const counts = useMemo(
@@ -144,46 +127,7 @@ function PriorityQueuePanel() {
 				</Stack>
 			</Box>
 			<Divider mb="xs" />
-			{queue.map(({ elementId, title }) => {
-				const isSelected =
-					selected?.type === elementId.type &&
-					selected?.id === elementId.id;
-
-				return (
-					<NavLink
-						key={`${elementId.type}:${elementId.id}`}
-						label={
-							<Text size="sm" lineClamp={2}>
-								{title}
-							</Text>
-						}
-						active={isSelected}
-						styles={{
-							root: { alignItems: "flex-start" },
-							section: { marginTop: 2 },
-							label: {
-								whiteSpace: "normal",
-								overflow: "visible",
-							},
-						}}
-						leftSection={
-							<ElementNodeIcon
-								type={elementId.type}
-								size={ICON_SIZE}
-							/>
-						}
-						onClick={() => {
-							const state: StudySessionLocationState = {
-								studySessionNav: true,
-							};
-							void navigate(
-								paths.element(elementId.type, elementId.id),
-								{ state },
-							);
-						}}
-					/>
-				);
-			})}
+			<PriorityQueueList queue={queue} />
 		</Stack>
 	);
 }

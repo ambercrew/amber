@@ -1,4 +1,5 @@
 pub mod card_state;
+pub mod due_element;
 pub mod element_status;
 pub mod fuzz_factor_configuration;
 pub mod learning_asset_action;

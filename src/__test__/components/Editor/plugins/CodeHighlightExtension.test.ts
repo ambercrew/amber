@@ -21,6 +21,7 @@ import {
 	CodeHighlightExtension,
 	stripCodeThemes,
 } from "../../../../components/Editor/plugins/CodeHighlightPlugin/CodeHighlightExtension";
+import { htmlToLexicalJson } from "../../../../components/Editor/lexicalJsonConversion";
 import {
 	$createHighlightNode,
 	$isHighlightNode,
@@ -334,5 +335,33 @@ describe("CodeHighlightExtension", () => {
 		expect(code.theme).toBeUndefined();
 		const styles = [code, ...code.children].map(node => node.style ?? "");
 		expect(styles.every(style => style === "")).toBe(true);
+	});
+
+	it("Should highlight imported code once loaded when the headless converter left it plain", async () => {
+		// Arrange
+
+		const json = htmlToLexicalJson(
+			'<pre data-language="javascript">const x = 1;\nlet y = "a";</pre>',
+		);
+		const editor = buildEditor();
+
+		// Act
+
+		editor.setEditorState(editor.parseEditorState(json));
+
+		// Assert
+
+		const stored = (
+			JSON.parse(json) as {
+				root: { children: { children: { type: string }[] }[] };
+			}
+		).root.children[0];
+		expect(stored.children.map(node => node.type)).not.toContain(
+			"code-highlight",
+		);
+		await waitForHighlighting(editor);
+		expect(
+			editor.getEditorState().read(() => $code().getTextContent()),
+		).toBe('const x = 1;\nlet y = "a";');
 	});
 });

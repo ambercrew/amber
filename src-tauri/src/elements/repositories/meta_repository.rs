@@ -1,5 +1,7 @@
 use async_trait::async_trait;
 use fractional_index::FractionalIndex;
+#[cfg(test)]
+use mockall::automock;
 use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
@@ -7,8 +9,10 @@ use crate::elements::entities::tag::Tag;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::meta::Meta;
 use crate::elements::value_objects::name_source::NameSource;
+use crate::elements::value_objects::tree_entry::TreeEntry;
 
 #[async_trait]
+#[cfg_attr(test, automock)]
 pub trait MetaRepository: Send + Sync {
     async fn create_meta(&self, meta: &Meta) -> Result<(), RepositoryError>;
 
@@ -16,6 +20,11 @@ pub trait MetaRepository: Send + Sync {
 
     async fn delete(&self, id: ElementId) -> Result<(), RepositoryError>;
     async fn get_tags(&self, id: ElementId) -> Result<Vec<Tag>, RepositoryError>;
+    /// Each element's tag names in their order, in one query; elements without tags are left out.
+    async fn get_tag_names_of(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<std::collections::HashMap<Uuid, Vec<String>>, RepositoryError>;
     async fn update_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError>;
 
     /// Adds `tags` to the element's existing tags, ignoring ones already present.
@@ -67,6 +76,9 @@ pub trait MetaRepository: Send + Sync {
     /// Unsuspends every finished element, returning how many it changed (finished wins, see `ElementStatus`).
     async fn unsuspend_finished(&self) -> Result<u64, RepositoryError>;
 
+    /// Ids of the elements with a `meta` row but no row in their element table.
+    async fn find_ids_without_content(&self) -> Result<Vec<String>, RepositoryError>;
+
     /// Sets or clears (`None`) the bibliographical source of the element's registry entry.
     async fn set_bibliographical_source(
         &self,
@@ -86,6 +98,9 @@ pub trait MetaRepository: Send + Sync {
         id: ElementId,
         derived_from: Option<ElementId>,
     ) -> Result<(), RepositoryError>;
+
+    /// Every element outside the trash, as the tree shows it.
+    async fn get_tree_entries(&self) -> Result<Vec<TreeEntry>, RepositoryError>;
 
     /// Changes the parent and position of the given element.
     async fn move_to(
@@ -140,6 +155,9 @@ pub trait MetaRepository: Send + Sync {
 
     /// All elements, ordered by priority ascending (front of queue first).
     async fn get_all_ordered_by_priority(&self) -> Result<Vec<Meta>, RepositoryError>;
+
+    /// Same order as `get_all_ordered_by_priority`, without loading each element's meta.
+    async fn get_ids_ordered_by_priority(&self) -> Result<Vec<ElementId>, RepositoryError>;
 
     /// The element at the given zero-based offset in priority order,
     /// excluding `excluding` (if any — `None` when scanning for a not-yet-created

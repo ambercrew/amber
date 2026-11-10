@@ -52,7 +52,7 @@ tauri-plugin-process = "3.0.0-alpha.3"
 thiserror = "2.0.21"
 tokio = { version = "1.53.1", features = ["full"] }
 tokio-stream = "0.1.19"
-uuid = { version = "1.26.1", features = [ "v4", "serde" ] }
+uuid = { version = "1.26.1", features = [ "v4", "v5", "serde" ] }
 fractional_index = "2.0.2"
 fsrs = "6.6.2"
 rig = { version = "=0.42.0", default-features = false, features = ["pdf", "derive", "native-tls", "sqlite", "agent"] }
@@ -63,7 +63,13 @@ tokio-rusqlite = "0.6.0"
 fontdb = "0.24.0"
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 quick-xml = "0.42.0"
+roxmltree = "0.20.0"
 sha2 = "0.11.0"
+# Reads Anki collections from memory; must match the `rusqlite` that `tokio-rusqlite` links.
+rusqlite = { version = "0.32.1", features = ["serialize", "collation"] }
+# Pure Rust, so Android builds need no C toolchain for zstd.
+ruzstd = "0.9.1"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 
 # No default runtime feature on purpose: every platform states its runtime
 # explicitly via its own tauri.<platform>.conf.json ("build.features"),

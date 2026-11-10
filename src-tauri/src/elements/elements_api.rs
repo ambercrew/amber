@@ -5,7 +5,7 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::common::api_error::ApiError;
-use crate::elements::dto::any_element_dto::AnyElementDto;
+use crate::elements::dto::any_element_dto::{AnyElementDto, MetaResponseDto};
 use crate::elements::dto::create_card_dto::CreateCardDto;
 use crate::elements::dto::create_extract_dto::CreateExtractDto;
 use crate::elements::dto::create_folder_dto::CreateFolderDto;
@@ -18,7 +18,7 @@ use crate::elements::dto::learning_asset_mark_dto::{
 use crate::elements::dto::learning_asset_split_id_dto::LearningAssetSplitIdDto;
 use crate::elements::dto::learning_asset_split_meta_dto::LearningAssetSplitMetaDto;
 use crate::elements::dto::learning_asset_split_text_dto::LearningAssetSplitTextDto;
-use crate::elements::dto::move_element_dto::MoveElementRequestDto;
+use crate::elements::dto::move_element_dto::{MoveElementRequestDto, MoveElementResponseDto};
 use crate::elements::dto::new_element_priority_dto::NewElementPriorityResponseDto;
 use crate::elements::dto::pdf_bytes_dto::PdfBytesDto;
 use crate::elements::dto::pdf_highlights_dto::{PdfHighlightsDto, UpdatePdfHighlightsDto};
@@ -503,15 +503,15 @@ pub async fn set_derived_from(
 pub async fn move_element(
     injector: State<'_, Arc<Injector>>,
     dto: MoveElementRequestDto,
-) -> Result<(), ApiError> {
+) -> Result<MoveElementResponseDto, ApiError> {
     let scope = injector.start_scope();
-    scope
+    let moved = scope
         .resolve::<dyn ElementMoveService>()
         .await
         .move_element(dto)
         .await?;
     scope.save_changes().await?;
-    Ok(())
+    Ok(moved)
 }
 
 #[tauri::command]
@@ -559,6 +559,27 @@ pub async fn get_element_by_id(
     dto.meta_mut().tags = tags;
 
     Ok(dto)
+}
+
+/// The element's meta without its content, or `None` when it no longer exists.
+#[tauri::command]
+pub async fn get_element_meta(
+    injector: State<'_, Arc<Injector>>,
+    element_id: ElementId,
+) -> Result<Option<MetaResponseDto>, ApiError> {
+    let scope = injector.start_scope();
+    let repository = scope.resolve::<dyn MetaRepository>().await;
+    if !repository.exists(element_id).await? {
+        return Ok(None);
+    }
+    let mut meta = MetaResponseDto::from(repository.get_by_id(element_id.id()).await?);
+    meta.tags = repository
+        .get_tags(element_id)
+        .await?
+        .into_iter()
+        .map(TagResponseDto::from)
+        .collect();
+    Ok(Some(meta))
 }
 
 #[tauri::command]

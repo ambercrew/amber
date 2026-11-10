@@ -23,6 +23,7 @@ impl TrashRepository for SqliteTrashRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
+        // The `+` keeps SQLite off the trashed_at index, which would visit every live element.
         sqlx::query!(
             r#"WITH RECURSIVE subtree(element_id) AS (
                 SELECT element_id FROM meta WHERE element_id = $1
@@ -33,7 +34,7 @@ impl TrashRepository for SqliteTrashRepository {
             SET trashed_at = datetime($2),
                 trashed_root = CASE WHEN element_id = $1 THEN 1 ELSE 0 END
             WHERE element_id IN (SELECT element_id FROM subtree)
-              AND (element_id = $1 OR trashed_at IS NULL)"#,
+              AND (element_id = $1 OR +trashed_at IS NULL)"#,
             uuid,
             trashed_at
         )
@@ -75,6 +76,7 @@ impl TrashRepository for SqliteTrashRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
+        // One grouped pass: a count per root would rescan every subtree for each root.
         let rows = sqlx::query!(
             r#"WITH RECURSIVE subtrees(root_id, element_id) AS (
                 SELECT element_id, element_id FROM meta
@@ -88,9 +90,10 @@ impl TrashRepository for SqliteTrashRepository {
                 m.element_type,
                 m.name,
                 m.trashed_at as "trashed_at!: DateTime<Utc>",
-                (SELECT COUNT(*) - 1 FROM subtrees s WHERE s.root_id = m.element_id) as "descendant_count!: i64"
-            FROM meta m
-            WHERE m.trashed_root = 1 AND m.trashed_at IS NOT NULL
+                COUNT(*) - 1 as "descendant_count!: i64"
+            FROM subtrees s
+            JOIN meta m ON m.element_id = s.root_id
+            GROUP BY s.root_id
             ORDER BY m.trashed_at DESC, m.name"#
         )
         .fetch_all(&mut *tx)

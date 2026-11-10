@@ -1,4 +1,6 @@
 use async_trait::async_trait;
+#[cfg(test)]
+use mockall::automock;
 use thiserror::Error;
 
 use crate::common::repository_error::RepositoryError;
@@ -15,6 +17,7 @@ use crate::study::services::profile_resolution_service::ProfileResolutionError;
 /// reviewed like learning_assets) so it's immediately schedulable without a separate
 /// first-review step.
 #[async_trait]
+#[cfg_attr(test, automock)]
 pub trait ElementCreationService: Send + Sync {
     async fn create_folder(&self, dto: CreateFolderDto) -> Result<(), ElementCreationError>;
     async fn create_learning_asset(
@@ -23,6 +26,9 @@ pub trait ElementCreationService: Send + Sync {
     ) -> Result<(), ElementCreationError>;
     async fn create_extract(&self, dto: CreateExtractDto) -> Result<(), ElementCreationError>;
     async fn create_card(&self, dto: CreateCardDto) -> Result<(), ElementCreationError>;
+    /// Like `create_card` for each, in order; siblings are placed together, in one pass
+    /// rather than one per card.
+    async fn create_cards(&self, dtos: Vec<CreateCardDto>) -> Result<(), ElementCreationError>;
 }
 
 #[derive(Debug, Error)]

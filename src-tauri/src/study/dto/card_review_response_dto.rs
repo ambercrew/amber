@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::study::entities::card_review::CardReview;
 use crate::study::value_objects::card_state::CardState;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CardReviewResponseDto {
     pub card_id: Uuid,

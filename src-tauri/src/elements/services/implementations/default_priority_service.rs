@@ -26,13 +26,34 @@ impl PriorityService for DefaultPriorityService {
         parent: Option<ElementId>,
         policy: PriorityInheritancePolicy,
     ) -> Result<FractionalIndex, PriorityError> {
-        let total = self.meta_repository.count_all().await?;
-        if total == 0 {
-            return Ok(FractionalIndex::default());
-        }
+        let mut priorities = self
+            .get_priorities_for_new_elements(parent, policy, 1)
+            .await?;
+        Ok(priorities.pop().expect("one priority was asked for"))
+    }
 
-        self.get_priority_for_position(self.new_element_position(parent, policy, total).await?)
+    async fn get_priorities_for_new_elements(
+        &self,
+        parent: Option<ElementId>,
+        policy: PriorityInheritancePolicy,
+        count: usize,
+    ) -> Result<Vec<FractionalIndex>, PriorityError> {
+        let total = self.meta_repository.count_all().await?;
+        if count == 0 || total == 0 {
+            return spread(None, None, count).ok_or(PriorityError::PriorityExhausted);
+        }
+        let position = self.new_element_position(parent, policy, total).await?;
+        match self
+            .try_get_priorities_for_position(position, count, total)
             .await
+        {
+            Err(PriorityError::PriorityExhausted) => {
+                self.rebalance_priorities().await?;
+                self.try_get_priorities_for_position(position, count, total)
+                    .await
+            }
+            other => other,
+        }
     }
 
     async fn get_position_for_new_element(
@@ -57,16 +78,19 @@ impl PriorityService for DefaultPriorityService {
         &self,
         ids: &[ElementId],
     ) -> Result<HashMap<ElementId, PriorityInfo>, PriorityError> {
-        let ordered = self.meta_repository.get_all_ordered_by_priority().await?;
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let ordered = self.meta_repository.get_ids_ordered_by_priority().await?;
         let total = ordered.len() as i64;
         let wanted: HashSet<ElementId> = ids.iter().copied().collect();
 
         let mut result = HashMap::with_capacity(wanted.len());
-        for (index, meta) in ordered.iter().enumerate() {
-            if !wanted.contains(&meta.element_id) {
+        for (index, element_id) in ordered.into_iter().enumerate() {
+            if !wanted.contains(&element_id) {
                 continue;
             }
-            result.insert(meta.element_id, priority_info(index as i64 + 1, total));
+            result.insert(element_id, priority_info(index as i64 + 1, total));
         }
         Ok(result)
     }
@@ -282,24 +306,29 @@ impl DefaultPriorityService {
         position: i64,
     ) -> Result<FractionalIndex, PriorityError> {
         let total = self.meta_repository.count_all().await?;
+        let mut priorities = self
+            .try_get_priorities_for_position(position, 1, total)
+            .await?;
+        Ok(priorities.pop().expect("one priority was asked for"))
+    }
+
+    /// `count` ascending priorities for new elements at `position`, between its neighbors; `total` is
+    /// the element count, which a rebalance leaves unchanged.
+    async fn try_get_priorities_for_position(
+        &self,
+        position: i64,
+        count: usize,
+        total: i64,
+    ) -> Result<Vec<FractionalIndex>, PriorityError> {
         if total == 0 {
-            return Ok(FractionalIndex::default());
+            return spread(None, None, count).ok_or(PriorityError::PriorityExhausted);
         }
         let PriorityNeighbors { before, after } = self
             .neighbors_at(None, clamp_new_element_position(position, total) - 1)
             .await?;
-
-        let new_priority = match (&before, &after) {
-            (Some(before), Some(after)) => {
-                FractionalIndex::new_between(&before.priority, &after.priority)
-                    .ok_or(PriorityError::PriorityExhausted)?
-            }
-            (Some(before), None) => FractionalIndex::new_after(&before.priority),
-            (None, Some(after)) => FractionalIndex::new_before(&after.priority),
-            (None, None) => FractionalIndex::default(),
-        };
-
-        Ok(new_priority)
+        let lower = before.as_ref().map(|meta| &meta.priority);
+        let upper = after.as_ref().map(|meta| &meta.priority);
+        spread(lower, upper, count).ok_or(PriorityError::PriorityExhausted)
     }
 
     /// Splits the gap between the live neighbors of the batch's old range.
@@ -367,6 +396,39 @@ impl DefaultPriorityService {
         }
         Ok(())
     }
+}
+
+/// `count` ascending keys strictly between the bounds, bisecting the gap so
+/// they stay short; `None` when the bounds leave no room.
+fn spread(
+    lower: Option<&FractionalIndex>,
+    upper: Option<&FractionalIndex>,
+    count: usize,
+) -> Option<Vec<FractionalIndex>> {
+    let mut keys = Vec::with_capacity(count);
+    spread_into(lower, upper, count, &mut keys)?;
+    Some(keys)
+}
+
+fn spread_into(
+    lower: Option<&FractionalIndex>,
+    upper: Option<&FractionalIndex>,
+    count: usize,
+    keys: &mut Vec<FractionalIndex>,
+) -> Option<()> {
+    if count == 0 {
+        return Some(());
+    }
+    let middle = match (lower, upper) {
+        (Some(lower), Some(upper)) => FractionalIndex::new_between(lower, upper)?,
+        (Some(lower), None) => FractionalIndex::new_after(lower),
+        (None, Some(upper)) => FractionalIndex::new_before(upper),
+        (None, None) => FractionalIndex::default(),
+    };
+    let below = (count - 1) / 2;
+    spread_into(lower, Some(&middle), below, keys)?;
+    keys.push(middle.clone());
+    spread_into(Some(&middle), upper, count - 1 - below, keys)
 }
 
 /// The new element isn't counted in `total` yet, so it can take any position
@@ -1660,5 +1722,81 @@ mod tests {
         assert_ne!(old_priority, actual[0]);
         assert!(before_priority < actual[0]);
         assert!(actual[0] < after_priority);
+    }
+
+    #[tokio::test]
+    async fn get_priorities_for_new_elements_below_parent_returns_ascending_between_parent_and_next()
+     {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 3).await;
+        let (parent_id, parent_priority) = queue[0].clone();
+        let next_priority = queue[1].1.clone();
+
+        // Act
+
+        let actual = service
+            .get_priorities_for_new_elements(Some(parent_id), policy(Placement::BelowParent), 1000)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(1000, actual.len());
+        assert!(actual.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(parent_priority < actual[0]);
+        assert!(actual[999] < next_priority);
+    }
+
+    #[tokio::test]
+    async fn get_priorities_for_new_elements_many_elements_keys_stay_short() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+        let folder_repo = scope.resolve::<dyn FolderRepository>().await;
+        let queue = make_queue(&folder_repo, 2).await;
+
+        // Act
+
+        let actual = service
+            .get_priorities_for_new_elements(
+                Some(queue[0].0),
+                policy(Placement::BelowParent),
+                10_000,
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        let longest = actual.iter().map(|key| key.as_bytes().len()).max().unwrap();
+        assert!(longest <= 16, "longest key was {longest} bytes");
+    }
+
+    #[tokio::test]
+    async fn get_priorities_for_new_elements_empty_queue_returns_ascending() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn PriorityService>().await;
+
+        // Act
+
+        let actual = service
+            .get_priorities_for_new_elements(None, policy(Placement::BelowParent), 5)
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(5, actual.len());
+        assert!(actual.windows(2).all(|pair| pair[0] < pair[1]));
     }
 }

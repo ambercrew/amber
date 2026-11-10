@@ -19,6 +19,20 @@ describe("sanitizeHtml", () => {
 		);
 	});
 
+	it("Should keep superscripts and subscripts when given formulas", () => {
+		// Arrange
+
+		const html = "<p>x<sup>2</sup> + H<sub>2</sub>O</p>";
+
+		// Act
+
+		const actual = sanitizeHtml(html);
+
+		// Assert
+
+		expect(actual).toBe(html);
+	});
+
 	it("Should strip disallowed tags but keep their text content", () => {
 		// Arrange
 

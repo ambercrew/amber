@@ -208,12 +208,16 @@ function AiPromptLibraryModal() {
 					) : (
 						<Stack gap="sm" style={viewStyle}>
 							<Group justify="space-between" wrap="nowrap">
-								<Text size="sm" c="dimmed">
+								<Text
+									size="sm"
+									c="dimmed"
+									style={{ flex: 1, minWidth: 0 }}>
 									Type / in the chat to insert one of these
 									prompts.
 								</Text>
 								<Button
 									size="xs"
+									style={{ flexShrink: 0 }}
 									leftSection={<PlusIcon size={14} />}
 									data-autofocus
 									onClick={() => startEditing(null)}>

@@ -26,6 +26,7 @@ import {
 	ScissorsIcon,
 	SparkleIcon,
 	StackIcon,
+	StarIcon,
 	TagIcon,
 	TextAaIcon,
 	TextboxIcon,
@@ -69,6 +70,9 @@ export const ELEMENT_STATUS_ICONS: Record<ElementStatus, Icon> = {
 export const ReadPointIcon = BookmarkSimpleIcon;
 export const SetMarkIcon = BookmarkSimpleIcon;
 export const GoToMarkIcon = ArrowRightIcon;
+
+/** Anki desktop, wherever syncing with it is offered. */
+export const AnkiIcon = StarIcon;
 
 // AI
 /** The AI itself: its panel, its settings and what's handed to it. */

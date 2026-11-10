@@ -1,7 +1,16 @@
 import { $generateNodesFromSerializedNodes } from "@lexical/clipboard";
-import { buildEditorFromExtensions, defineExtension } from "@lexical/extension";
-import { $generateNodesFromDOM } from "@lexical/html";
-import { $insertNodes, $setSelection, type LexicalEditor } from "lexical";
+import {
+	buildEditorFromExtensions,
+	configExtension,
+	defineExtension,
+} from "@lexical/extension";
+import { $generateHtmlFromNodes, $generateNodesFromDOM } from "@lexical/html";
+import {
+	$insertNodes,
+	$setSelection,
+	type HTMLConfig,
+	type LexicalEditor,
+} from "lexical";
 import { markdownToHtml } from "../../utils/markdownToHtml";
 import { sanitizeHtml } from "../../utils/sanitizeHtml";
 import {
@@ -9,7 +18,11 @@ import {
 	editorNodes,
 	editorTheme,
 } from "./editorExtension";
-import { stripCodeThemes } from "./plugins/CodeHighlightPlugin/CodeHighlightExtension";
+import {
+	CodeHighlightExtension,
+	stripCodeThemes,
+} from "./plugins/CodeHighlightPlugin/CodeHighlightExtension";
+import { EquationNode } from "./plugins/EquationPlugin/EquationNode";
 
 // Stand-in for @lexical/clipboard's non-exported `BaseSerializedNode`.
 export interface SerializedLexicalNodeTree {
@@ -19,16 +32,25 @@ export interface SerializedLexicalNodeTree {
 	[key: string]: unknown;
 }
 
-export function runHeadless(populate: (editor: LexicalEditor) => void): string {
-	const editor = buildEditorFromExtensions(
+function buildHeadlessEditor(name: string, html?: HTMLConfig) {
+	return buildEditorFromExtensions(
 		defineExtension({
-			name: "headless-lexical-json",
+			name,
 			namespace: "headless",
 			nodes: editorNodes,
-			dependencies: editorExtensionDependencies,
+			dependencies: [
+				...editorExtensionDependencies,
+				// Highlighting each code block with Shiki made converting code-heavy imports many times slower.
+				configExtension(CodeHighlightExtension, { disabled: true }),
+			],
 			theme: editorTheme,
+			html,
 		}),
 	);
+}
+
+export function runHeadless(populate: (editor: LexicalEditor) => void): string {
+	const editor = buildHeadlessEditor("headless-lexical-json");
 
 	editor.update(() => populate(editor), { discrete: true });
 
@@ -42,9 +64,12 @@ export function runHeadless(populate: (editor: LexicalEditor) => void): string {
 
 /** Converts sanitized HTML into serialized Lexical editor state JSON. */
 export function htmlToLexicalJson(html: string): string {
+	return domToLexicalJson(new DOMParser().parseFromString(html, "text/html"));
+}
+
+/** `htmlToLexicalJson` for already parsed, sanitized HTML, e.g. a body built up in place. */
+export function domToLexicalJson(dom: Document | ParentNode): string {
 	return runHeadless(editor => {
-		const parser = new DOMParser();
-		const dom = parser.parseFromString(html, "text/html");
 		$insertNodes($generateNodesFromDOM(editor, dom));
 	});
 }
@@ -70,4 +95,35 @@ export function serializedNodesToLexicalJson(
 		$setSelection(null);
 		mutate?.();
 	});
+}
+
+/**
+ * Renders serialized Lexical editor states as HTML, e.g. for Anki, sharing one editor.
+ * Equations become MathJax delimiters, which Anki typesets itself.
+ */
+export function lexicalJsonsToHtml(jsons: string[]): string[] {
+	const editor = buildHeadlessEditor("headless-lexical-html", {
+		export: new Map([
+			[
+				EquationNode,
+				(_editor, node) => {
+					const equation = node as EquationNode;
+					const element = document.createElement("span");
+					element.textContent = equation.__display
+						? `\\[${equation.getEquation()}\\]`
+						: `\\(${equation.getEquation()}\\)`;
+					return { element };
+				},
+			],
+		]),
+	});
+	const htmls = jsons.map(json => {
+		if (!json.trim()) return "";
+		editor.setEditorState(editor.parseEditorState(json));
+		return editor
+			.getEditorState()
+			.read(() => $generateHtmlFromNodes(editor, null));
+	});
+	editor.dispose();
+	return htmls;
 }

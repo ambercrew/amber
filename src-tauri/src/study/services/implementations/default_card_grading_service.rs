@@ -15,6 +15,7 @@ use crate::study::repositories::card_review_log_repository::CardReviewLogReposit
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::services::card_grading_service::{CardGradingService, GradeCardError};
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
+use crate::study::utils::day_boundary::start_of_due_day;
 use crate::study::value_objects::rating::Rating;
 
 #[derive(ScopeInjectable)]
@@ -83,7 +84,12 @@ impl CardGradingService for DefaultCardGradingService {
         due: DateTime<Utc>,
     ) -> Result<CardReview, GradeCardError> {
         let (mut review, _) = self.scheduling_inputs(card_id).await?;
-        review.due = due;
+        // Day-scheduled cards are due from the start of their day, as the scheduler puts them.
+        review.due = if review.scheduled_days >= 1 {
+            start_of_due_day(due)
+        } else {
+            due
+        };
         self.card_review_repository.upsert(&review).await?;
         emit_element_due_changed(&self.event_manager).await;
         Ok(review)
@@ -298,6 +304,35 @@ mod tests {
         assert_eq!(0, actual.lapses);
         assert_eq!(0, actual.learning_steps);
         assert!(actual.last_reviewed.is_none());
+    }
+
+    #[tokio::test]
+    async fn set_due_day_scheduled_card_moves_it_to_the_start_of_that_day() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_id = create_test_card(&scope).await;
+        let service = scope.resolve::<dyn CardGradingService>().await;
+        let review = CardReview {
+            state: CardState::Review,
+            scheduled_days: 4,
+            learning_steps: 0,
+            ..scheduled_review(card_id)
+        };
+        service
+            .register_review(review, Rating::Good, None)
+            .await
+            .unwrap();
+        let due = Utc::now() + Duration::days(7);
+
+        // Act
+
+        let actual = service.set_due(card_id, due).await.unwrap();
+
+        // Assert
+
+        assert_eq!(start_of_due_day(due), actual.due);
     }
 
     #[tokio::test]

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useWindowEvent } from "@mantine/hooks";
+import { useDebouncedCallback, useWindowEvent } from "@mantine/hooks";
 import { ELEMENT_CREATED_EVENT } from "../../../api/elements/events/elementCreatedEvent";
 import { ELEMENT_DUE_CHANGED_EVENT } from "../../../api/study/events/elementDueChangedEvent";
 import { getDueElements } from "../../../api/study/api/studyApi";
@@ -19,6 +19,9 @@ import {
 import { PRIORITY_CHANGED } from "../../../types/events/priorityChangedEvent";
 import { SAVED_SEARCHES_CHANGED } from "../../../types/events/savedSearchesChangedEvent";
 import { STUDY_SESSION_SETTINGS_CHANGED } from "../../../types/events/studySessionSettingsChangedEvent";
+
+/** A big import announces elements by the thousand; they share one refresh. */
+const CREATED_REFRESH_DELAY_MS = 200;
 
 // Lets the sidebar preview which elements are due before a session starts,
 // without affecting status/counts/etc. Once a session is active, the queue
@@ -50,10 +53,12 @@ export function useDueElementsPreview() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [isStudying, scope, callApi, dispatch]);
 
-	useTauriEvent(ELEMENT_CREATED_EVENT, () => {
+	const refreshAfterCreation = useDebouncedCallback(() => {
 		if (isStudying) return;
 		refresh();
-	});
+	}, CREATED_REFRESH_DELAY_MS);
+
+	useTauriEvent(ELEMENT_CREATED_EVENT, refreshAfterCreation);
 
 	useWindowEvent(PRIORITY_CHANGED, () => {
 		if (isStudying) return;

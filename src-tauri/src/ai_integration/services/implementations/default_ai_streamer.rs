@@ -208,16 +208,18 @@ impl AiStreamer for DefaultAiStreamer {
                             }
                             self.transaction_manager.save_changes().await?;
 
-                            let approval_markdown = self
+                            let description = self
                                 .tool_approval_resolver
-                                .approval_markdown(&tool_call_content)
-                                .await?
-                                .map(|markdown| markdown.request);
+                                .describe(&tool_call_content)
+                                .await?;
                             on_event(StreamLlmResponseEvent::ToolCall {
                                 chat_id,
                                 tool_call: tool_call_content,
                                 message_id,
-                                approval_markdown,
+                                tool_location: description.location,
+                                approval_markdown: description
+                                    .approval
+                                    .map(|markdown| markdown.request),
                             })?;
                         } else if let MultiTurnStreamItem::StreamUserItem(
                             StreamedUserContent::ToolResult {

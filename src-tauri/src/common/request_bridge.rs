@@ -63,6 +63,17 @@ impl<R: tauri::Runtime> RequestBridge<R> {
         event: &str,
         payload: T,
     ) -> Result<String, RequestBridgeError> {
+        self.request_with_timeout(event, payload, DEFAULT_TIMEOUT)
+            .await
+    }
+
+    /// `request` for work that can outlast `DEFAULT_TIMEOUT`, e.g. fetching images.
+    pub async fn request_with_timeout<T: Serialize + Send + Clone>(
+        &self,
+        event: &str,
+        payload: T,
+        timeout: Duration,
+    ) -> Result<String, RequestBridgeError> {
         let request_id = Uuid::new_v4();
         let receiver = self.register(request_id);
 
@@ -76,7 +87,7 @@ impl<R: tauri::Runtime> RequestBridge<R> {
             )
             .map_err(|_| RequestBridgeError::Emit)?;
 
-        match tokio::time::timeout(DEFAULT_TIMEOUT, receiver).await {
+        match tokio::time::timeout(timeout, receiver).await {
             Ok(Ok(response)) => Ok(response),
             Ok(Err(_)) => Err(RequestBridgeError::Emit),
             Err(_) => {

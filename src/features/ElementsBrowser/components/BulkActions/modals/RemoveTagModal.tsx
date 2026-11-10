@@ -28,7 +28,7 @@ export default function RemoveTagModal({
 	const availableTags = useMemo(() => {
 		const names = new Set<string>();
 		for (const result of selectedResults) {
-			for (const tag of result.tags) names.add(tag.name);
+			for (const tag of result.tags) names.add(tag);
 		}
 		return Array.from(names).sort();
 	}, [selectedResults]);

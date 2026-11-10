@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -12,9 +13,11 @@ use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::meta::Meta;
 use crate::elements::value_objects::name_source::NameSource;
+use crate::elements::value_objects::tree_entry::TreeEntry;
 use crate::infrastructure::repositories::sqlite::ids_json::ids_json;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::meta_row::MetaRow;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::tag_row::TagRow;
+use crate::infrastructure::repositories::sqlite::sqlite_rows::tree_entry_row::TreeEntryRow;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 
 #[derive(ScopeInjectable)]
@@ -119,6 +122,33 @@ impl MetaRepository for SqliteMetaRepository {
         .await?;
 
         Ok(rows.into_iter().map(Tag::from).collect())
+    }
+
+    async fn get_tag_names_of(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, Vec<String>>, RepositoryError> {
+        let ids = ids_json(ids.iter().copied());
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query!(
+            r#"SELECT element_id as "element_id: uuid::fmt::Hyphenated", tag_id
+            FROM element_tags
+            WHERE element_id IN (SELECT value FROM json_each($1))
+            ORDER BY element_id, sort_index"#,
+            ids
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        let mut tags: HashMap<Uuid, Vec<String>> = HashMap::new();
+        for row in rows {
+            tags.entry(row.element_id.into_uuid())
+                .or_default()
+                .push(row.tag_id);
+        }
+        Ok(tags)
     }
 
     async fn update_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError> {
@@ -360,6 +390,20 @@ impl MetaRepository for SqliteMetaRepository {
         Ok(result.rows_affected())
     }
 
+    async fn find_ids_without_content(&self) -> Result<Vec<String>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let ids = sqlx::query_scalar(
+            "SELECT element_id FROM meta
+             WHERE (element_type = 'folder' AND element_id NOT IN (SELECT id FROM folders))
+                OR (element_type = 'learning_asset' AND element_id NOT IN (SELECT id FROM learning_assets))
+                OR (element_type = 'extract' AND element_id NOT IN (SELECT id FROM extracts))
+                OR (element_type = 'card' AND element_id NOT IN (SELECT id FROM cards))",
+        )
+        .fetch_all(tx.as_mut())
+        .await?;
+        Ok(ids)
+    }
+
     async fn set_bibliographical_source(
         &self,
         id: ElementId,
@@ -521,6 +565,26 @@ impl MetaRepository for SqliteMetaRepository {
         Ok(row.map(|r| r.into()))
     }
 
+    async fn get_tree_entries(&self) -> Result<Vec<TreeEntry>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let rows = sqlx::query_as!(
+            TreeEntryRow,
+            r#"SELECT
+                element_id as "element_id: _",
+                element_type,
+                name,
+                position as "position: _",
+                parent_id as "parent_id: _",
+                parent_type
+            FROM meta
+            WHERE trashed_at IS NULL"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
     async fn get_children_ordered(
         &self,
         parent: Option<ElementId>,
@@ -654,6 +718,23 @@ impl MetaRepository for SqliteMetaRepository {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
+    async fn get_ids_ordered_by_priority(&self) -> Result<Vec<ElementId>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let rows = sqlx::query!(
+            r#"SELECT element_id as "element_id: uuid::fmt::Hyphenated", element_type
+               FROM meta
+               WHERE trashed_at IS NULL
+               ORDER BY priority"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.element_id.into_uuid(), row.element_type).into_element_id())
+            .collect())
+    }
+
     async fn get_at_priority_offset(
         &self,
         excluding: Option<ElementId>,
@@ -735,6 +816,41 @@ mod tests {
         injector
     }
 
+    #[tokio::test]
+    async fn find_ids_without_content_extract_row_missing_returns_only_that_element() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        let repository = scope.resolve::<dyn MetaRepository>().await;
+        {
+            let mut guard = tx.lock().await;
+            for id in ["with-content", "without-content"] {
+                sqlx::query(
+                    "INSERT INTO meta(element_id, element_type, name, position, priority)
+                     VALUES (?1, 'extract', 'name', x'80', x'80')",
+                )
+                .bind(id)
+                .execute(guard.as_mut())
+                .await
+                .unwrap();
+            }
+            sqlx::query("INSERT INTO extracts(id, content) VALUES ('with-content', '{}')")
+                .execute(guard.as_mut())
+                .await
+                .unwrap();
+        }
+
+        // Act
+
+        let actual = repository.find_ids_without_content().await.unwrap();
+
+        // Assert
+
+        assert_eq!(vec!["without-content".to_string()], actual);
+    }
+
     fn make_meta(id: ElementId) -> Meta {
         Meta {
             element_id: id,
@@ -757,6 +873,39 @@ mod tests {
             name_source: NameSource::Automatic,
             ..make_meta(id)
         }
+    }
+
+    #[tokio::test]
+    async fn get_ids_ordered_by_priority_elements_out_of_order_returns_them_by_priority() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let first = ElementId::Card(Uuid::new_v4());
+        let second = ElementId::Folder(Uuid::new_v4());
+        let first_priority = FractionalIndex::default();
+        let next_priority = FractionalIndex::new_after(&first_priority);
+        repo.create_meta(&Meta {
+            priority: next_priority,
+            ..make_meta(second)
+        })
+        .await
+        .unwrap();
+        repo.create_meta(&Meta {
+            priority: first_priority,
+            ..make_meta(first)
+        })
+        .await
+        .unwrap();
+
+        // Act
+
+        let ids = repo.get_ids_ordered_by_priority().await.unwrap();
+
+        // Assert
+
+        assert_eq!(vec![first, second], ids);
     }
 
     #[tokio::test]
@@ -968,5 +1117,39 @@ mod tests {
         // Assert
 
         assert_eq!(vec!["history".to_string()], tags);
+    }
+
+    #[tokio::test]
+    async fn get_tag_names_of_several_elements_returns_each_ones_tags_in_order() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let tagged = ElementId::Folder(Uuid::new_v4());
+        let untagged = ElementId::Folder(Uuid::new_v4());
+        let other = ElementId::Folder(Uuid::new_v4());
+        for id in [tagged, untagged, other] {
+            repo.create_meta(&make_meta(id)).await.unwrap();
+        }
+        repo.update_tags(tagged, vec!["philosophy".into(), "history".into()])
+            .await
+            .unwrap();
+        repo.update_tags(other, vec!["art".into()]).await.unwrap();
+
+        // Act
+
+        let actual = repo
+            .get_tag_names_of(&[tagged.id(), untagged.id()])
+            .await
+            .unwrap();
+
+        // Assert
+
+        let expected = HashMap::from([(
+            tagged.id(),
+            vec!["philosophy".to_string(), "history".to_string()],
+        )]);
+        assert_eq!(expected, actual);
     }
 }

@@ -1,3 +1,5 @@
+import { ElementId } from "../../../types/elements/elementId";
+
 export type MessageContentDto =
 	| { type: "human"; value: string }
 	| { type: "document"; value: DocumentContentDto }
@@ -36,7 +38,7 @@ export default interface MessageDto {
 	chatId: string;
 	content: MessageContentDto;
 	contextSnippets: string[];
+	toolLocation?: ElementId;
 	approvalMarkdown?: string;
-	/** Added by the tool once an approved call ran, e.g. linking what it created. */
 	approvalResultMarkdown?: string;
 }

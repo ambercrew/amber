@@ -8,6 +8,8 @@ import { useElementParams } from "../../hooks/useElementParams";
 import {
 	elementExists,
 	getElementById,
+	getElementDetails,
+	getElementMeta,
 } from "../../api/elements/api/elementsApi";
 import { setupStore } from "../../stores/store";
 import { AnyElementDto } from "../../api/elements/dto/anyElementDto";
@@ -166,7 +168,7 @@ describe("useCurrentElementSync", () => {
 		expect(store.getState().elements.currentElement).toBeNull();
 	});
 
-	it("Should refetch when tree changes", async () => {
+	it("Should update only the meta and details when the tree changes", async () => {
 		// Arrange
 
 		vi.mocked(useElementParams).mockReturnValue({
@@ -185,14 +187,13 @@ describe("useCurrentElementSync", () => {
 				FOLDER_ELEMENT,
 			),
 		);
-
-		const updatedElement: AnyElementDto = {
-			...FOLDER_ELEMENT,
-			data: {
-				meta: { ...FOLDER_ELEMENT.data.meta, name: "Science Updated" },
-			},
-		};
-		vi.mocked(getElementById).mockResolvedValue(updatedElement);
+		const parent = { type: "folder", id: "folder-2" } as const;
+		vi.mocked(getElementMeta).mockResolvedValue({
+			...FOLDER_ELEMENT.data.meta,
+			parent,
+		});
+		vi.mocked(getElementById).mockClear();
+		vi.mocked(getElementDetails).mockClear();
 
 		// Act
 
@@ -205,10 +206,39 @@ describe("useCurrentElementSync", () => {
 
 		// Assert
 
-		await waitFor(() => {
+		await waitFor(() =>
 			expect(
-				store.getState().elements.currentElement?.data.meta.name,
-			).toBe("Science Updated");
+				store.getState().elements.currentElement?.data.meta.parent,
+			).toEqual(parent),
+		);
+		await waitFor(() => expect(getElementDetails).toHaveBeenCalled());
+		expect(getElementById).not.toHaveBeenCalled();
+	});
+
+	it("Should not refresh the meta when the hook mounts", async () => {
+		// Arrange
+
+		vi.mocked(useElementParams).mockReturnValue({
+			type: "folder",
+			id: "folder-1",
 		});
+		vi.mocked(elementExists).mockResolvedValue(true);
+		vi.mocked(getElementById).mockResolvedValue(FOLDER_ELEMENT);
+		const store = makeStore();
+
+		// Act
+
+		renderHook(() => useCurrentElementSync(), {
+			wrapper: makeWrapper(store),
+		});
+
+		// Assert
+
+		await waitFor(() =>
+			expect(store.getState().elements.currentElement).toEqual(
+				FOLDER_ELEMENT,
+			),
+		);
+		expect(getElementMeta).not.toHaveBeenCalled();
 	});
 });

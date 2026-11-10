@@ -19,3 +19,14 @@ pub async fn get_home_statistics(
         .await?;
     Ok(statistics.into())
 }
+
+#[tauri::command]
+pub async fn get_reviewed_today_count(injector: State<'_, Arc<Injector>>) -> Result<i64, ApiError> {
+    let scope = injector.start_scope();
+    let count = scope
+        .resolve::<dyn StatisticsService>()
+        .await
+        .count_reviewed_today()
+        .await?;
+    Ok(count)
+}

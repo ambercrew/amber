@@ -1,3 +1,4 @@
+import { ElementId } from "../../../types/elements/elementId";
 import ChatDto from "./chatDto";
 import { ToolCallContentDto, ToolResultContentDto } from "./messageDto";
 
@@ -10,6 +11,7 @@ type StreamLlmResponseEventDto =
 				chatId: string;
 				toolCall: ToolCallContentDto;
 				messageId: string;
+				toolLocation?: ElementId;
 				approvalMarkdown?: string;
 			};
 	  }

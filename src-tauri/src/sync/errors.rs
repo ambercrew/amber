@@ -56,6 +56,12 @@ pub enum SyncError {
     #[error("Foreign key repair did not converge for the synced tables")]
     FkRepairDidNotConverge,
 
+    #[error("Update Amber to keep syncing: another device is on a newer version")]
+    AppUpdateRequired {
+        local_version: i64,
+        remote_version: i64,
+    },
+
     #[error("Database error")]
     Database(#[from] sqlx::Error),
 

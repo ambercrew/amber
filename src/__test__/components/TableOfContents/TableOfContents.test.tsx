@@ -1,7 +1,8 @@
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import TableOfContents from "../../../components/TableOfContents/TableOfContents";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
+import { virtualizerScrollToIndex } from "../../test-utils/virtualizerScrollToIndex";
 
 function readExpandedByTable() {
 	return JSON.parse(
@@ -386,6 +387,82 @@ describe("TableOfContents", () => {
 			screen.getByText(title).closest("[data-value]")!;
 		expect(row("Chapter 2")).toHaveAttribute("aria-current", "location");
 		expect(row("Chapter 1")).not.toHaveAttribute("aria-current");
+	});
+
+	it("Should scroll to the current row when the table is shown", async () => {
+		// Arrange
+
+		virtualizerScrollToIndex.mockClear();
+		localStorage.setItem(
+			"table-of-contents-expanded",
+			JSON.stringify({ "asset-scroll": { "1": true } }),
+		);
+
+		// Act
+
+		renderWithProviders(
+			<TableOfContents
+				storageKey="asset-scroll"
+				entries={[
+					{ id: "0", title: "Chapter 1", selectable: true },
+					{
+						id: "1",
+						title: "Chapter 2",
+						selectable: true,
+						children: [
+							{ id: "1.0", title: "Section", selectable: true },
+						],
+					},
+				]}
+				activeEntryId="1.0"
+				onSelect={vi.fn()}
+			/>,
+		);
+
+		// Assert
+
+		await waitFor(() =>
+			expect(virtualizerScrollToIndex).toHaveBeenCalledExactlyOnceWith(
+				2,
+				{ align: "start" },
+			),
+		);
+	});
+
+	it("Should scroll to the deepest shown heading when the current row is collapsed away", async () => {
+		// Arrange
+
+		virtualizerScrollToIndex.mockClear();
+
+		// Act
+
+		renderWithProviders(
+			<TableOfContents
+				storageKey="asset-scroll-collapsed"
+				entries={[
+					{ id: "0", title: "Chapter 1", selectable: true },
+					{
+						id: "1",
+						title: "Chapter 2",
+						selectable: true,
+						children: [
+							{ id: "1.0", title: "Section", selectable: true },
+						],
+					},
+				]}
+				activeEntryId="1.0"
+				onSelect={vi.fn()}
+			/>,
+		);
+
+		// Assert
+
+		await waitFor(() =>
+			expect(virtualizerScrollToIndex).toHaveBeenCalledExactlyOnceWith(
+				1,
+				{ align: "start" },
+			),
+		);
 	});
 
 	it("Should hand the entry to the latest onSelect when the parent passes a new one", () => {

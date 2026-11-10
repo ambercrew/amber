@@ -47,6 +47,7 @@ import Aside from "../../Aside/components/Aside.tsx";
 import ImportModal from "../../Import/components/ImportModal.tsx";
 import StudyProfileModal from "../../Study/components/StudyProfileModal.tsx";
 import SettingsModal from "../../Settings/components/SettingsModal.tsx";
+import AnkiSyncReviewModal from "../../AnkiSync/components/AnkiSyncReviewModal";
 import PriorityModal from "../../Aside/components/PriorityModal.tsx";
 import DueDateModal from "../../Aside/components/DueDateModal.tsx";
 import ShortcutsModal from "./ShortcutsModal.tsx";
@@ -72,6 +73,8 @@ import useBackButtonPress from "../../../hooks/useBackButtonPress.ts";
 import { BackButtonPriority } from "../../../managers/backButtonManager.ts";
 import { useLexicalConversionBridge } from "../hooks/useLexicalConversionBridge.ts";
 import { useOcclusionCardContentsBridge } from "../../ImageOcclusion/hooks/useOcclusionCardContentsBridge";
+import { useImportedHtmlConversionBridge } from "../../Import/hooks/useImportedHtmlConversionBridge";
+import { useAnkiSyncBridge } from "../../AnkiSync/hooks/useAnkiSyncBridge";
 import { MainScrollContext } from "../context/mainScrollContext.ts";
 import { HeadroomOverrideContext } from "../context/headroomOverrideContext.ts";
 import {
@@ -140,7 +143,13 @@ function App() {
 
 	// What the chrome covers right now, unlike the fixed spaces above; scrollbars and their ticks follow it.
 	const insets = useMemo(
-		() => chromeInsets(pinned, !footerCollapsed, SAFE_AREA_BOTTOM),
+		() =>
+			chromeInsets(
+				pinned,
+				!footerCollapsed,
+				SAFE_AREA_TOP,
+				SAFE_AREA_BOTTOM,
+			),
 		[pinned, footerCollapsed],
 	);
 
@@ -209,6 +218,8 @@ function App() {
 	useStudySessionSummaryToast();
 	useLexicalConversionBridge();
 	useOcclusionCardContentsBridge();
+	useImportedHtmlConversionBridge();
+	useAnkiSyncBridge();
 	useWheelZoom();
 
 	useEffect(() => {
@@ -280,6 +291,7 @@ function App() {
 						<ImportModal />
 						<StudyProfileModal />
 						<SettingsModal />
+						<AnkiSyncReviewModal />
 						<PriorityModal />
 						<DueDateModal />
 						<ShortcutsModal />

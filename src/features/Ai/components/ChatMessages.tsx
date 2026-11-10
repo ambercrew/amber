@@ -54,6 +54,7 @@ function ChatMessages({
 						toolName={message.toolName}
 						isStreaming={message.isStreaming}
 						contextSnippets={message.contextSnippets}
+						toolLocation={message.toolLocation}
 						approval={message.approval}
 						onToolApprovalResolved={onToolApprovalResolved}
 						onBranch={

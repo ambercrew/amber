@@ -25,22 +25,29 @@ impl StatisticsRepository for SqliteStatisticsRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
+        // A local day starts no earlier than the UTC day before it, which lets the index skip older logs.
+        let earliest = date.pred_opt().unwrap_or(date).to_string();
+
         // Same learning asset filter as the daily activity, so the counts match the heatmap.
         let row = sqlx::query!(
             r#"SELECT
                 (SELECT COUNT(DISTINCT l.element_id) FROM learning_asset_review_logs l
                     JOIN meta m ON m.element_id = l.element_id
                     WHERE m.element_type = 'learning_asset'
+                        AND l.reviewed_at >= $2
                         AND date(l.reviewed_at, 'localtime') = $1
                         AND (l.action = 'next' OR l.duration_ms IS NOT NULL)) AS "learning_assets!: i64",
                 (SELECT COUNT(DISTINCT l.element_id) FROM learning_asset_review_logs l
                     JOIN meta m ON m.element_id = l.element_id
                     WHERE m.element_type = 'extract'
+                        AND l.reviewed_at >= $2
                         AND date(l.reviewed_at, 'localtime') = $1
                         AND (l.action = 'next' OR l.duration_ms IS NOT NULL)) AS "extracts!: i64",
                 (SELECT COUNT(DISTINCT card_id) FROM card_review_logs
-                    WHERE date(reviewed_at, 'localtime') = $1) AS "cards!: i64""#,
-            date
+                    WHERE reviewed_at >= $2
+                        AND date(reviewed_at, 'localtime') = $1) AS "cards!: i64""#,
+            date,
+            earliest
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -238,6 +245,38 @@ mod tests {
             front: String::new(),
             back: String::new(),
         }
+    }
+
+    #[tokio::test]
+    async fn count_reviewed_elements_review_just_after_local_midnight_is_counted() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let card_log_repo = scope.resolve::<dyn CardReviewLogRepository>().await;
+        let repo = scope.resolve::<dyn StatisticsRepository>().await;
+        let today = chrono::Local::now().date_naive();
+        let card_id = Uuid::new_v4();
+        card_repo.create(card(card_id)).await.unwrap();
+        card_log_repo
+            .create(&CardReviewLog {
+                id: Uuid::new_v4(),
+                card_id: Some(card_id),
+                reviewed_at: crate::study::utils::day_boundary::start_of_day_utc(today),
+                rating: Rating::Good,
+                duration_ms: None,
+            })
+            .await
+            .unwrap();
+
+        // Act
+
+        let actual = repo.count_reviewed_elements(today).await.unwrap();
+
+        // Assert
+
+        assert_eq!(1, actual.cards);
     }
 
     #[tokio::test]

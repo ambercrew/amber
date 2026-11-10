@@ -5,6 +5,7 @@ import { CreateExtractDto } from "../../../types/elements/createExtractDto";
 import { CreateFolderDto } from "../../../types/elements/createFolderDto";
 import { CreateLearningAssetDto } from "../../../types/elements/createLearningAssetDto";
 import { ElementId } from "../../../types/elements/elementId";
+import { MoveElementResponseDto } from "../dto/moveElementResponseDto";
 import { UpdateCardDto } from "../../../types/elements/updateCardDto";
 import { UpdateExtractDto } from "../../../types/elements/updateExtractDto";
 import { UpdateLearningAssetDto } from "../../../types/elements/updateLearningAssetDto";
@@ -20,7 +21,7 @@ import { LearningAssetSplitIdDto } from "../../../types/elements/learningAssetSp
 import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAssetSplitMetaDto";
 import { LearningAssetHeadingDto } from "../../../types/elements/learningAssetHeadingDto";
 import { LearningAssetSplitTextDto } from "../../../types/elements/learningAssetSplitTextDto";
-import { AnyElementDto } from "../dto/anyElementDto";
+import { AnyElementDto, MetaResponseDto } from "../dto/anyElementDto";
 import { ElementDetailsResponseDto } from "../dto/elementDetailsDto";
 import { NodeDto } from "../dto/nodeDto";
 import { NewElementPriorityDto } from "../dto/newElementPriorityDto";
@@ -152,6 +153,12 @@ export function getElementById(elementId: ElementId): Promise<AnyElementDto> {
 	return invoke("get_element_by_id", { elementId });
 }
 
+export function getElementMeta(
+	elementId: ElementId,
+): Promise<MetaResponseDto | null> {
+	return invoke("get_element_meta", { elementId });
+}
+
 export function getElementDetails(
 	elementId: ElementId,
 ): Promise<ElementDetailsResponseDto> {
@@ -166,7 +173,9 @@ export interface MoveElementDto {
 	position: DropPosition;
 }
 
-export function moveElement(dto: MoveElementDto): Promise<void> {
+export function moveElement(
+	dto: MoveElementDto,
+): Promise<MoveElementResponseDto> {
 	return invoke("move_element", { dto });
 }
 

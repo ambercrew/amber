@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -8,11 +9,11 @@ use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::value_objects::element_id::ElementId;
-use crate::elements::value_objects::element_id_with_priority::ElementIdWithPriority;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::card_review_row::CardReviewRow;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 use crate::study::entities::card_review::CardReview;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
+use crate::study::value_objects::due_element::DueElement;
 
 #[derive(ScopeInjectable)]
 pub struct SqliteCardReviewRepository {
@@ -46,6 +47,51 @@ impl CardReviewRepository for SqliteCardReviewRepository {
         .await?;
 
         Ok(row.map(|value| value.into()))
+    }
+
+    async fn get_all(&self) -> Result<Vec<CardReview>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query_as!(
+            CardReviewRow,
+            r#"SELECT
+                card_id as "card_id: _",
+                due as "due: _",
+                stability,
+                difficulty,
+                reps,
+                lapses,
+                state,
+                last_reviewed as "last_reviewed: _",
+                scheduled_days,
+                learning_steps
+            FROM card_reviews"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
+    async fn get_due_moved_times(&self) -> Result<HashMap<Uuid, DateTime<Utc>>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query!(
+            r#"SELECT
+                card_id as "card_id: uuid::fmt::Hyphenated",
+                due_moved_at as "due_moved_at!: DateTime<Utc>"
+            FROM card_reviews
+            WHERE due_moved_at IS NOT NULL"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.card_id.into_uuid(), row.due_moved_at))
+            .collect())
     }
 
     async fn upsert(&self, review: &CardReview) -> Result<(), RepositoryError> {
@@ -89,12 +135,12 @@ impl CardReviewRepository for SqliteCardReviewRepository {
     async fn get_due_cards(
         &self,
         as_of: DateTime<Utc>,
-    ) -> Result<Vec<ElementIdWithPriority>, RepositoryError> {
+    ) -> Result<Vec<DueElement>, RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
         let due = sqlx::query!(
-            r#"SELECT c.id as "id: uuid::fmt::Hyphenated", m.priority
+            r#"SELECT c.id as "id: uuid::fmt::Hyphenated", m.name, m.priority
             FROM cards c
             JOIN meta m ON m.element_id = c.id
             LEFT JOIN card_reviews cr ON cr.card_id = c.id
@@ -106,8 +152,9 @@ impl CardReviewRepository for SqliteCardReviewRepository {
         .fetch_all(&mut *tx)
         .await?
         .into_iter()
-        .map(|row| ElementIdWithPriority {
+        .map(|row| DueElement {
             element_id: ElementId::Card(row.id.into_uuid()),
+            name: row.name,
             priority: FractionalIndex::from_bytes(row.priority).expect("Invalid fractional index"),
         })
         .collect();

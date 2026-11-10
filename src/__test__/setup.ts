@@ -2,6 +2,7 @@
 import "@testing-library/jest-dom";
 import type { TestingLibraryMatchers } from "@testing-library/jest-dom/matchers";
 import { beforeEach, vi } from "vitest";
+import { virtualizerScrollToIndex } from "./test-utils/virtualizerScrollToIndex";
 
 // Vitest 5 no longer merges `jest.Matchers`, and jest-dom's own `vitest` types target the old `Assertion<T>`.
 declare module "vitest" {
@@ -32,6 +33,29 @@ vi.mock("@tauri-apps/api/core", async importOriginal => ({
 vi.mock("@tauri-apps/api/event", () => ({
 	listen: vi.fn().mockResolvedValue(() => {
 		/* Empty */
+	}),
+}));
+
+// jsdom has no layout, so nothing would ever be in view: every row renders instead.
+vi.mock("@tanstack/react-virtual", async importOriginal => ({
+	...(await importOriginal<typeof import("@tanstack/react-virtual")>()),
+	useVirtualizer: ({
+		count,
+		getItemKey,
+	}: {
+		count: number;
+		getItemKey: (index: number) => string;
+	}) => ({
+		getVirtualItems: () =>
+			Array.from({ length: count }, (_, index) => ({
+				index,
+				key: getItemKey(index),
+				start: 0,
+				end: 0,
+			})),
+		getTotalSize: () => 0,
+		measureElement: () => undefined,
+		scrollToIndex: virtualizerScrollToIndex,
 	}),
 }));
 

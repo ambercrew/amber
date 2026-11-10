@@ -1,6 +1,8 @@
 import {
 	memo,
+	Ref,
 	useCallback,
+	useImperativeHandle,
 	useLayoutEffect,
 	useMemo,
 	useRef,
@@ -10,12 +12,12 @@ import {
 import {
 	ActionIcon,
 	Box,
+	flattenTreeData,
 	getTreeExpandedState,
 	Group,
 	RenderTreeNodePayload,
 	Stack,
 	Text,
-	Tree,
 	TreeNodeData,
 	useTree,
 } from "@mantine/core";
@@ -26,7 +28,12 @@ import {
 } from "@phosphor-icons/react";
 import AppTooltip from "../AppTooltip/AppTooltip";
 import DisclosureCaret from "../DisclosureCaret/DisclosureCaret";
-import { useScrollToCurrentOnShow } from "./useScrollToCurrentOnShow";
+import { useRowIndexes } from "../VirtualTree/useRowIndexes";
+import VirtualTree, { VirtualTreeHandle } from "../VirtualTree/VirtualTree";
+import {
+	ScrollTarget,
+	useScrollToCurrentOnShow,
+} from "./useScrollToCurrentOnShow";
 import { TableOfContentsEntry } from "../../types/elements/tableOfContentsEntry";
 
 const EXPANDED_STORAGE_KEY = "table-of-contents-expanded";
@@ -79,7 +86,7 @@ function toTreeData(entries: TableOfContentsEntry[]): TreeNodeData[] {
 
 interface ActiveEntry {
 	current: string | null;
-	/** The ids of the current entry and the headings above it. */
+	/** The ids of the headings above the current entry and of the entry itself, from the top level down. */
 	path: Set<string>;
 }
 
@@ -193,6 +200,7 @@ interface EntryTreeProps {
 	storageKey: string;
 	activeEntry: ActiveEntryStore;
 	onSelect: (entry: TableOfContentsEntry) => void;
+	ref: Ref<ScrollTarget>;
 }
 
 // Memoized with stable props, so a change of the current entry re-renders only the rows it touches.
@@ -201,6 +209,7 @@ function EntryTreeView({
 	storageKey,
 	activeEntry,
 	onSelect,
+	ref,
 }: EntryTreeProps) {
 	const [expandedByTable, setExpandedByTable] = useLocalStorage<
 		Record<string, Record<string, boolean>>
@@ -228,6 +237,11 @@ function EntryTreeView({
 	});
 
 	const data = useMemo(() => toTreeData(entries), [entries]);
+	const rows = useMemo(
+		() => flattenTreeData(data, tree.expandedState),
+		[data, tree.expandedState],
+	);
+	const rowIndexes = useRowIndexes(rows);
 	const entriesById = useMemo(() => collectById(entries), [entries]);
 	const nested = entries.some(entry => entry.children?.length);
 	// Saved too, unlike Mantine's own expand/collapse all, which skip `onNodeExpand`/`onNodeCollapse`.
@@ -236,6 +250,17 @@ function EntryTreeView({
 		tree.setExpandedState(next);
 		rememberOwn(() => next);
 	};
+
+	const virtualTreeRef = useRef<VirtualTreeHandle>(null);
+	useImperativeHandle(ref, () => ({
+		scrollToCurrent: () => {
+			// The current entry, or the deepest heading above it while it's collapsed away.
+			const shown = [...activeEntry.get().path]
+				.reverse()
+				.find(id => rowIndexes.has(id));
+			if (shown) virtualTreeRef.current?.scrollRowToTop(shown);
+		},
+	}));
 
 	return (
 		<Stack gap={4}>
@@ -259,10 +284,11 @@ function EntryTreeView({
 					</AppTooltip>
 				</Group>
 			)}
-			<Tree
-				data={data}
+			<VirtualTree
+				ref={virtualTreeRef}
+				rows={rows}
+				rowIndexes={rowIndexes}
 				tree={tree}
-				withLines
 				expandOnClick={false}
 				renderNode={payload => (
 					<EntryNode
@@ -320,11 +346,13 @@ export default function TableOfContents({
 	);
 
 	const containerRef = useRef<HTMLDivElement>(null);
-	useScrollToCurrentOnShow(containerRef, activeEntryId);
+	const treeRef = useRef<ScrollTarget>(null);
+	useScrollToCurrentOnShow(containerRef, treeRef, activeEntryId);
 
 	return (
 		<Box ref={containerRef}>
 			<EntryTree
+				ref={treeRef}
 				entries={entries}
 				storageKey={storageKey}
 				activeEntry={activeEntry}

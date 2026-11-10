@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::ai_integration::entities::message::{Message, ToolCallContent};
 use crate::ai_integration::services::tools_provider::ToolsProviderError;
-use crate::ai_integration::tools::app_tools::ApprovalMarkdown;
+use crate::ai_integration::tools::app_tools::ToolCallDescription;
 use crate::common::repository_error::RepositoryError;
 
 #[derive(Error, Debug)]
@@ -30,9 +30,9 @@ pub trait ToolApprovalResolver: Send + Sync {
         approved: bool,
     ) -> Result<Message, ToolApprovalResolverError>;
 
-    /// The approval card's markdown for a call, written by its tool each time it's shown.
-    async fn approval_markdown(
+    /// How a call is shown, written by its tool each time; only calls with a saved context have one.
+    async fn describe(
         &self,
         tool_call: &ToolCallContent,
-    ) -> Result<Option<ApprovalMarkdown>, ToolApprovalResolverError>;
+    ) -> Result<ToolCallDescription, ToolApprovalResolverError>;
 }

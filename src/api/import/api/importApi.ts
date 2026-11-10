@@ -4,6 +4,8 @@ import { FetchedPageDto } from "../dto/fetchedPageDto";
 import { FetchedImageDto } from "../dto/fetchedImageDto";
 import { PdfExtractionDto } from "../dto/pdfExtractionDto";
 import { EpubExtractionDto } from "../dto/epubExtractionDto";
+import { ImportAnkiRequestDto } from "../dto/importAnkiRequestDto";
+import { ElementId } from "../../../types/elements/elementId";
 
 export function fetchPage(url: string): Promise<FetchedPageDto> {
 	return invoke("fetch_page", { url });
@@ -52,6 +54,12 @@ export async function extractPdf(
 
 export function extractEpub(bytesBase64: string): Promise<EpubExtractionDto> {
 	return invoke("extract_epub", { bytesBase64 });
+}
+
+export function importAnki(
+	dto: ImportAnkiRequestDto,
+): Promise<ElementId | null> {
+	return invoke("import_anki", { dto });
 }
 
 export function getPdfPageCount(bytesBase64: string): Promise<number> {

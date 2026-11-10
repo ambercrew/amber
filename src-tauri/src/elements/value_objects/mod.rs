@@ -1,5 +1,4 @@
 pub mod element_id;
-pub mod element_id_with_priority;
 pub mod learning_asset_content;
 pub mod learning_asset_heading;
 pub mod learning_asset_split_id;
@@ -11,3 +10,4 @@ pub mod meta;
 pub mod name_source;
 pub mod origin;
 pub mod reading_position;
+pub mod tree_entry;

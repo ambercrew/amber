@@ -20,6 +20,7 @@ use crate::{
             document_uploader::{DocumentUploader, UploadOutcome},
             tool_approval_resolver::ToolApprovalResolver,
         },
+        tools::app_tools::ToolCallDescription,
     },
     common::api_error::ApiError,
     infrastructure::extensions::unit_of_work::UnitOfWorkExt,
@@ -103,15 +104,11 @@ pub async fn resolve_tool_approval(
     let resolver = scope.resolve::<dyn ToolApprovalResolver>().await;
     let message = resolver.resolve(message_id, approved).await?;
     scope.save_changes().await?;
-    let approval_markdown = match message.content() {
-        MessageContent::ToolCall(tool_call) => resolver.approval_markdown(tool_call).await?,
-        _ => None,
+    let description = match message.content() {
+        MessageContent::ToolCall(tool_call) => resolver.describe(tool_call).await?,
+        _ => ToolCallDescription::default(),
     };
-    Ok(MessageResponseDto::new(
-        message,
-        Vec::new(),
-        approval_markdown,
-    ))
+    Ok(MessageResponseDto::new(message, Vec::new(), description))
 }
 
 #[tauri::command]
@@ -159,14 +156,14 @@ pub async fn get_chat_messages_ordered(
         let context_snippets = context_snippets_by_message
             .remove(&message.id())
             .unwrap_or_default();
-        let approval_markdown = match message.content() {
-            MessageContent::ToolCall(tool_call) => resolver.approval_markdown(tool_call).await?,
-            _ => None,
+        let description = match message.content() {
+            MessageContent::ToolCall(tool_call) => resolver.describe(tool_call).await?,
+            _ => ToolCallDescription::default(),
         };
         responses.push(MessageResponseDto::new(
             message,
             context_snippets,
-            approval_markdown,
+            description,
         ));
     }
     Ok(responses)

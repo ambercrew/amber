@@ -410,7 +410,7 @@ fn parent_dir(path: &str) -> String {
     }
 }
 
-fn percent_decode(input: &str) -> String {
+pub(crate) fn percent_decode(input: &str) -> String {
     let bytes = input.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
@@ -431,7 +431,7 @@ fn percent_decode(input: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-fn html_unescape(input: &str) -> String {
+pub(crate) fn html_unescape(input: &str) -> String {
     input
         .replace("&amp;", "&")
         .replace("&quot;", "\"")

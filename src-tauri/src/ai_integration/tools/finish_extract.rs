@@ -146,6 +146,7 @@ mod tests {
     use crate::study::events::element_due_changed_event::ELEMENT_DUE_CHANGED_EVENT;
 
     use super::*;
+    use crate::test_utils::RecordingEventManager;
 
     async fn initialize_test_injector() -> Injector {
         let mut injector = create_test_injector().await;
@@ -256,20 +257,6 @@ mod tests {
         assert!(is_finished(&scope, extract_id).await);
     }
 
-    #[derive(Default)]
-    struct RecordingEventManager {
-        names: std::sync::Mutex<Vec<String>>,
-    }
-
-    #[async_trait::async_trait]
-    impl EventManager for RecordingEventManager {
-        async fn push(&self, name: &str, _body: Value) {
-            self.names.lock().unwrap().push(name.to_string());
-        }
-
-        async fn emit_all(&self) {}
-    }
-
     #[tokio::test]
     async fn call_open_extract_pushed_element_due_changed_event() {
         // Arrange
@@ -291,9 +278,7 @@ mod tests {
 
         assert!(
             event_manager
-                .names
-                .lock()
-                .unwrap()
+                .names()
                 .contains(&ELEMENT_DUE_CHANGED_EVENT.to_string())
         );
     }

@@ -8,204 +8,61 @@ use injector_derive::ScopeInjectable;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::dto::tree_dto::{MetaNodeDto, NodeChildrenDto, NodeDto};
-use crate::elements::entities::traits::Element;
-use crate::elements::entities::{
-    card::Card, extract::Extract, folder::Folder, learning_asset::LearningAsset,
-};
-use crate::elements::repositories::card_repository::CardRepository;
-use crate::elements::repositories::extract_repository::ExtractRepository;
-use crate::elements::repositories::folder_repository::FolderRepository;
-use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
+use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::services::element_tree_service::ElementTreeService;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::elements::value_objects::tree_entry::TreeEntry;
 
 #[derive(ScopeInjectable)]
 pub struct DefaultElementTreeService {
-    folder_repository: Arc<dyn FolderRepository>,
-    learning_asset_repository: Arc<dyn LearningAssetRepository>,
-    extract_repository: Arc<dyn ExtractRepository>,
-    card_repository: Arc<dyn CardRepository>,
+    meta_repository: Arc<dyn MetaRepository>,
 }
 
-type ElementMap<V> = HashMap<Option<ElementId>, Vec<V>>;
+type EntriesByParent = HashMap<Option<ElementId>, Vec<TreeEntry>>;
 
 #[async_trait]
 impl ElementTreeService for DefaultElementTreeService {
     async fn get_element_tree(&self) -> Result<Vec<NodeDto>, RepositoryError> {
-        let folders = self.folder_repository.get_all().await?;
-        let learning_assets = self.learning_asset_repository.get_all().await?;
-        let extracts = self.extract_repository.get_all().await?;
-        let cards = self.card_repository.get_all().await?;
-
-        let folders_by_parent = group_by_parent(folders, |f| f.meta().parent);
-        let learning_assets_by_parent = group_by_parent(learning_assets, |r| r.meta().parent);
-        let extracts_by_parent = group_by_parent(extracts, |e| e.meta().parent);
-        let cards_by_parent = group_by_parent(cards, |c| c.meta().parent);
-
-        let mut root_nodes: Vec<(fractional_index::FractionalIndex, NodeDto)> = Vec::new();
-
-        for f in folders_by_parent.get(&None).into_iter().flatten() {
-            root_nodes.push((
-                f.meta().position.clone(),
-                build_node(
-                    f,
-                    Some(f.meta().element_id),
-                    &folders_by_parent,
-                    &learning_assets_by_parent,
-                    &extracts_by_parent,
-                    &cards_by_parent,
-                ),
-            ));
+        let mut by_parent = EntriesByParent::new();
+        for entry in self.meta_repository.get_tree_entries().await? {
+            by_parent.entry(entry.parent).or_default().push(entry);
         }
-        for r in learning_assets_by_parent.get(&None).into_iter().flatten() {
-            root_nodes.push((
-                r.meta().position.clone(),
-                build_node(
-                    r,
-                    Some(r.meta().element_id),
-                    &folders_by_parent,
-                    &learning_assets_by_parent,
-                    &extracts_by_parent,
-                    &cards_by_parent,
-                ),
-            ));
-        }
-        for e in extracts_by_parent.get(&None).into_iter().flatten() {
-            root_nodes.push((
-                e.meta().position.clone(),
-                build_node(
-                    e,
-                    Some(e.meta().element_id),
-                    &folders_by_parent,
-                    &learning_assets_by_parent,
-                    &extracts_by_parent,
-                    &cards_by_parent,
-                ),
-            ));
-        }
-        for c in cards_by_parent.get(&None).into_iter().flatten() {
-            root_nodes.push((
-                c.meta().position.clone(),
-                build_node(
-                    c,
-                    Some(c.meta().element_id),
-                    &folders_by_parent,
-                    &learning_assets_by_parent,
-                    &extracts_by_parent,
-                    &cards_by_parent,
-                ),
-            ));
+        for siblings in by_parent.values_mut() {
+            siblings.sort_by(|a, b| a.position.cmp(&b.position));
         }
 
-        root_nodes.sort_by(|a, b| a.0.cmp(&b.0));
-        Ok(root_nodes.into_iter().map(|(_, n)| n).collect())
+        Ok(by_parent
+            .get(&None)
+            .into_iter()
+            .flatten()
+            .map(|entry| build_node(entry, &by_parent))
+            .collect())
     }
 }
 
-fn group_by_parent<V, F>(items: Vec<V>, get_parent: F) -> ElementMap<V>
-where
-    V: Element,
-    F: Fn(&V) -> Option<ElementId>,
-{
-    let mut map: ElementMap<V> = HashMap::new();
-    for item in items {
-        map.entry(get_parent(&item)).or_default().push(item);
+fn build_node(entry: &TreeEntry, by_parent: &EntriesByParent) -> NodeDto {
+    let mut children = NodeChildrenDto {
+        folders: Vec::new(),
+        learning_assets: Vec::new(),
+        extracts: Vec::new(),
+        cards: Vec::new(),
+    };
+    for child in by_parent.get(&Some(entry.element_id)).into_iter().flatten() {
+        let group = match child.element_id {
+            ElementId::Folder(_) => &mut children.folders,
+            ElementId::LearningAsset(_) => &mut children.learning_assets,
+            ElementId::Extract(_) => &mut children.extracts,
+            ElementId::Card(_) => &mut children.cards,
+        };
+        group.push(build_node(child, by_parent));
     }
-    for group in map.values_mut() {
-        group.sort_by(|a, b| a.meta().position.cmp(&b.meta().position));
-    }
-    map
-}
-
-fn make_meta(element: &impl Element) -> MetaNodeDto {
-    let meta = element.meta();
-    MetaNodeDto {
-        element_id: meta.element_id,
-        name: meta.name.clone(),
-        position: meta.position.to_string(),
-    }
-}
-
-fn build_node(
-    element: &impl Element,
-    parent_key: Option<ElementId>,
-    folders_by_parent: &ElementMap<Folder>,
-    learning_assets_by_parent: &ElementMap<LearningAsset>,
-    extracts_by_parent: &ElementMap<Extract>,
-    cards_by_parent: &ElementMap<Card>,
-) -> NodeDto {
     NodeDto {
-        meta: make_meta(element),
-        children: NodeChildrenDto {
-            folders: folders_by_parent
-                .get(&parent_key)
-                .map(|fs| {
-                    fs.iter()
-                        .map(|f| {
-                            build_node(
-                                f,
-                                Some(f.meta().element_id),
-                                folders_by_parent,
-                                learning_assets_by_parent,
-                                extracts_by_parent,
-                                cards_by_parent,
-                            )
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
-            learning_assets: learning_assets_by_parent
-                .get(&parent_key)
-                .map(|rs| {
-                    rs.iter()
-                        .map(|r| {
-                            build_node(
-                                r,
-                                Some(r.meta().element_id),
-                                folders_by_parent,
-                                learning_assets_by_parent,
-                                extracts_by_parent,
-                                cards_by_parent,
-                            )
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
-            extracts: extracts_by_parent
-                .get(&parent_key)
-                .map(|es| {
-                    es.iter()
-                        .map(|e| {
-                            build_node(
-                                e,
-                                Some(e.meta().element_id),
-                                folders_by_parent,
-                                learning_assets_by_parent,
-                                extracts_by_parent,
-                                cards_by_parent,
-                            )
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
-            cards: cards_by_parent
-                .get(&parent_key)
-                .map(|cs| {
-                    cs.iter()
-                        .map(|c| {
-                            build_node(
-                                c,
-                                Some(c.meta().element_id),
-                                folders_by_parent,
-                                learning_assets_by_parent,
-                                extracts_by_parent,
-                                cards_by_parent,
-                            )
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
+        meta: MetaNodeDto {
+            element_id: entry.element_id,
+            name: entry.name.clone(),
+            position: entry.position.to_string(),
         },
+        children,
     }
 }
 

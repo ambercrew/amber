@@ -1,6 +1,10 @@
 import { CardReviewDto } from "../../../../api/study/dto/cardReviewDto";
 import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
-import { scheduleAllRatings } from "../../../../features/Study/utils/cardScheduling";
+import {
+	replayReviews,
+	scheduleAllRatings,
+} from "../../../../features/Study/utils/cardScheduling";
+import { startOfLocalDay } from "../../../../utils/startOfLocalDay";
 
 const NOW = new Date("2024-06-01T12:00:00Z");
 
@@ -116,7 +120,7 @@ describe("scheduleAllRatings", () => {
 		expect(minutesUntilDue(actual.due)).toBe(10);
 	});
 
-	it("Should schedule a whole number of days when a review card is rated Good", () => {
+	it("Should make a review card due from the start of its day when rated Good", () => {
 		// Arrange
 
 		const review = REVIEW_CARD;
@@ -127,9 +131,11 @@ describe("scheduleAllRatings", () => {
 
 		// Assert
 
+		const dueDay = new Date(NOW);
+		dueDay.setDate(dueDay.getDate() + actual.scheduledDays);
 		expect(actual.state).toBe("review");
 		expect(actual.scheduledDays).toBeGreaterThan(1);
-		expect(minutesUntilDue(actual.due)).toBe(actual.scheduledDays * 1440);
+		expect(actual.due).toBe(startOfLocalDay(dueDay).toISOString());
 	});
 
 	it("Should order the four ratings from the shortest to the longest interval when a review card is graded", () => {
@@ -232,8 +238,68 @@ describe("scheduleAllRatings", () => {
 
 		// Assert
 
+		const dueDay = new Date(NOW);
+		dueDay.setDate(dueDay.getDate() + actual.scheduledDays);
 		expect(actual.state).toBe("review");
 		expect(actual.lapses).toBe(1);
-		expect(minutesUntilDue(actual.due)).toBe(actual.scheduledDays * 1440);
+		expect(actual.due).toBe(startOfLocalDay(dueDay).toISOString());
+	});
+
+	it("Should match grading each review in turn when replaying a review history", () => {
+		// Arrange
+
+		const first = new Date("2024-06-01T12:00:00Z");
+		const second = new Date("2024-06-01T12:10:00Z");
+		const afterFirst = scheduleAllRatings(
+			NO_STEPS_PROFILE,
+			{ ...NEW_CARD, due: first.toISOString() },
+			first,
+		).good;
+		const expected = scheduleAllRatings(
+			NO_STEPS_PROFILE,
+			afterFirst,
+			second,
+		).hard;
+
+		// Act
+
+		const actual = replayReviews(NO_STEPS_PROFILE, "card-1", [
+			{ reviewedAt: first.toISOString(), rating: "good" },
+			{ reviewedAt: second.toISOString(), rating: "hard" },
+		]);
+
+		// Assert
+
+		expect(actual).toEqual(expected);
+	});
+
+	it("Should continue from the given schedule when replaying with a start", () => {
+		// Arrange
+
+		const graded = new Date("2024-06-01T12:00:00Z");
+		const reviewedAt = new Date("2024-06-05T12:00:00Z");
+		const start = scheduleAllRatings(
+			NO_STEPS_PROFILE,
+			{ ...NEW_CARD, due: graded.toISOString() },
+			graded,
+		).good;
+		const expected = scheduleAllRatings(
+			NO_STEPS_PROFILE,
+			start,
+			reviewedAt,
+		).good;
+
+		// Act
+
+		const actual = replayReviews(
+			NO_STEPS_PROFILE,
+			NEW_CARD.cardId,
+			[{ reviewedAt: reviewedAt.toISOString(), rating: "good" }],
+			start,
+		);
+
+		// Assert
+
+		expect(actual).toEqual(expected);
 	});
 });

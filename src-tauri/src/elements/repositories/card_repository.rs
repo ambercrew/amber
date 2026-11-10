@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
@@ -15,6 +16,11 @@ pub trait CardRepository: Send + Sync {
         front: String,
         back: String,
     ) -> Result<(), RepositoryError>;
+    /// When the card's front or back was last saved; `None` if not since it was created.
+    async fn get_content_modified_at(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<DateTime<Utc>>, RepositoryError>;
     /// Cards whose front or back still embeds a `data:image/` URI.
     async fn find_ids_with_embedded_images(&self) -> Result<Vec<Uuid>, RepositoryError>;
 }

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -14,9 +15,27 @@ struct AppEvent {
     body: Value,
 }
 
+#[derive(Default)]
+struct QueuedEvents {
+    events: Vec<AppEvent>,
+    /// Name and body of each queued event; a bulk import queues thousands, so `events` isn't scanned.
+    seen: HashSet<(String, String)>,
+}
+
+impl QueuedEvents {
+    fn push(&mut self, name: &str, body: Value) {
+        if self.seen.insert((name.to_string(), body.to_string())) {
+            self.events.push(AppEvent {
+                name: name.to_string(),
+                body,
+            });
+        }
+    }
+}
+
 pub struct TauriEventManager<R: tauri::Runtime> {
     app_handle: Arc<tauri::AppHandle<R>>,
-    events: Mutex<Vec<AppEvent>>,
+    queue: Mutex<QueuedEvents>,
 }
 
 #[async_trait]
@@ -25,7 +44,7 @@ impl<R: tauri::Runtime> ScopeInjectable for TauriEventManager<R> {
         let app_handle = scope.resolve::<tauri::AppHandle<R>>().await;
         Self {
             app_handle,
-            events: Mutex::new(Vec::new()),
+            queue: Mutex::default(),
         }
     }
 }
@@ -33,22 +52,55 @@ impl<R: tauri::Runtime> ScopeInjectable for TauriEventManager<R> {
 #[async_trait]
 impl<R: tauri::Runtime> EventManager for TauriEventManager<R> {
     async fn push(&self, name: &str, body: Value) {
-        let mut events = self.events.lock().await;
-        let event = AppEvent {
-            name: name.to_string(),
-            body,
-        };
-        if !events.contains(&event) {
-            events.push(event);
-        }
+        self.queue.lock().await.push(name, body);
     }
 
     async fn emit_all(&self) {
-        let events = self.events.lock().await.drain(..).collect::<Vec<_>>();
+        let events = std::mem::take(&mut *self.queue.lock().await).events;
         for event in events {
             if let Err(err) = self.app_handle.emit(&event.name, event.body) {
                 log::error!("Failed to emit event '{}': {}", event.name, err);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn push_identical_event_queues_it_once() {
+        // Arrange
+
+        let mut queue = QueuedEvents::default();
+
+        // Act
+
+        queue.push("created", json!({ "id": 1 }));
+        queue.push("created", json!({ "id": 1 }));
+
+        // Assert
+
+        assert_eq!(1, queue.events.len());
+    }
+
+    #[test]
+    fn push_different_bodies_queues_both_in_order() {
+        // Arrange
+
+        let mut queue = QueuedEvents::default();
+
+        // Act
+
+        queue.push("created", json!({ "id": 1 }));
+        queue.push("created", json!({ "id": 2 }));
+
+        // Assert
+
+        let bodies: Vec<_> = queue.events.iter().map(|event| &event.body).collect();
+        assert_eq!(vec![&json!({ "id": 1 }), &json!({ "id": 2 })], bodies);
     }
 }

@@ -39,6 +39,15 @@ pub trait PriorityService: Send + Sync {
         policy: PriorityInheritancePolicy,
     ) -> Result<FractionalIndex, PriorityError>;
 
+    /// Ascending priorities for `count` new elements derived from the same
+    /// element, placed together where one would go. Costs what one does.
+    async fn get_priorities_for_new_elements(
+        &self,
+        parent: Option<ElementId>,
+        policy: PriorityInheritancePolicy,
+        count: usize,
+    ) -> Result<Vec<FractionalIndex>, PriorityError>;
+
     /// The 1-based position [`get_priority_for_new_element`] would place that
     /// element at, without creating it.
     async fn get_position_for_new_element(

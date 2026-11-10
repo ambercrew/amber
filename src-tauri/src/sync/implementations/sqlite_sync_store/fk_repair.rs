@@ -5,6 +5,7 @@ use sqlx::{Row, SqliteConnection};
 use super::column_info::{column_affinity, read_table_info};
 use super::trigger_sql::quote_ident;
 use crate::sync::errors::SyncError;
+use crate::sync::utils::merge;
 use crate::sync::value_objects::fk_policy::FkPolicy;
 
 /// A foreign-key repair policy loaded from `sync_fk_policies` (see
@@ -25,17 +26,19 @@ struct DeclaredFk {
     to: String,
 }
 
-/// Resolves every dangling foreign-key reference among synced tables:
-/// configured policies (`sync_fk_policies`) first, then unconfigured declared
-/// SQL FKs by discarding the violating row. Runs to a fixpoint, since one repair
-/// can newly orphan a row linked only by an implicit reference. Must run outside
-/// the `sync_applying` guard so repairs are tracked as local changes.
+/// A reference whose orphaned rows are discarded once their parent is known to be deleted.
+struct DiscardReference {
+    tbl: String,
+    col: String,
+    ref_tbl: String,
+    ref_col: String,
+}
+
+/// Resolves dangling references, to a fixpoint. A row is only discarded if its parent has a
+/// tombstone, as a discard reaches every device; other orphans wait and hold the cursor back.
 pub(super) async fn repair_foreign_keys(tx: &mut SqliteConnection) -> Result<(), SyncError> {
     let policies = load_policies(tx).await?;
-    let configured: HashSet<(String, String)> = policies
-        .iter()
-        .map(|p| (p.tbl.clone(), p.col.clone()))
-        .collect();
+    let discard_references = load_discard_references(tx, &policies).await?;
 
     const MAX_ITERATIONS: usize = 64;
     for _ in 0..MAX_ITERATIONS {
@@ -43,10 +46,12 @@ pub(super) async fn repair_foreign_keys(tx: &mut SqliteConnection) -> Result<(),
         for policy in &policies {
             changed += apply_policy(tx, policy).await?;
         }
-        changed += discard_unconfigured_violations(tx, &configured).await?;
+        for reference in &discard_references {
+            changed += discard_orphans(tx, reference).await?;
+        }
 
         if changed == 0 {
-            return Ok(());
+            return log_waiting_rows(tx, &discard_references).await;
         }
     }
 
@@ -138,50 +143,132 @@ async fn apply_policy(
                 .await?
                 .rows_affected()
         }
-        FkPolicy::DiscardRow => {
-            let sql = format!("DELETE FROM {table} WHERE {predicate}");
-            sqlx::query(sqlx::AssertSqlSafe(sql))
-                .execute(&mut *tx)
-                .await?
-                .rows_affected()
-        }
+        // Handled by `discard_orphans`, which also needs the parent's tombstone.
+        FkPolicy::DiscardRow => 0,
     };
+
+    if rows_affected > 0 {
+        log::warn!(
+            "FK repair reset {rows_affected} dangling reference(s) {}.{} -> {}.{}",
+            policy.tbl,
+            policy.col,
+            policy.ref_tbl,
+            policy.ref_col
+        );
+    }
 
     Ok(rows_affected)
 }
 
-/// Discards rows violating a declared SQL FK with no configured policy on the
-/// same `(table, column)`.
-async fn discard_unconfigured_violations(
+/// Every discarding reference: `DiscardRow` policies, plus declared SQL FKs with no policy.
+async fn load_discard_references(
     tx: &mut SqliteConnection,
-    configured: &HashSet<(String, String)>,
-) -> Result<u64, SyncError> {
-    let mut total = 0;
+    policies: &[StoredFkPolicy],
+) -> Result<Vec<DiscardReference>, SyncError> {
+    let configured: HashSet<(&str, &str)> = policies
+        .iter()
+        .map(|p| (p.tbl.as_str(), p.col.as_str()))
+        .collect();
+
+    let mut references: Vec<DiscardReference> = policies
+        .iter()
+        .filter(|p| matches!(p.policy, FkPolicy::DiscardRow))
+        .map(|p| DiscardReference {
+            tbl: p.tbl.clone(),
+            col: p.col.clone(),
+            ref_tbl: p.ref_tbl.clone(),
+            ref_col: p.ref_col.clone(),
+        })
+        .collect();
+
     for table in registered_tables(tx).await? {
         for fk in declared_foreign_keys(tx, &table).await? {
-            if configured.contains(&(table.clone(), fk.from.clone())) {
-                continue;
+            if !configured.contains(&(table.as_str(), fk.from.as_str())) {
+                references.push(DiscardReference {
+                    tbl: table.clone(),
+                    col: fk.from,
+                    ref_tbl: fk.tbl,
+                    ref_col: fk.to,
+                });
             }
-            let predicate = violation_predicate(&table, &fk.from, &fk.tbl, &fk.to);
-            let sql = format!("DELETE FROM {} WHERE {predicate}", quote_ident(&table));
-            let rows_affected = sqlx::query(sqlx::AssertSqlSafe(sql))
-                .execute(&mut *tx)
-                .await?
-                .rows_affected();
-            if rows_affected > 0 {
-                log::warn!(
-                    "Discarded {rows_affected} row(s) from '{}' violating unconfigured foreign key {}.{} -> {}.{}",
-                    table,
-                    table,
-                    fk.from,
-                    fk.tbl,
-                    fk.to
-                );
-            }
-            total += rows_affected;
         }
     }
-    Ok(total)
+
+    Ok(references)
+}
+
+async fn discard_orphans(
+    tx: &mut SqliteConnection,
+    reference: &DiscardReference,
+) -> Result<u64, SyncError> {
+    let sql = format!(
+        "DELETE FROM {} WHERE {}",
+        quote_ident(&reference.tbl),
+        orphan_predicate(reference, true)
+    );
+    let rows_affected = sqlx::query(sqlx::AssertSqlSafe(sql))
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
+    if rows_affected > 0 {
+        log::warn!(
+            "FK repair discarded {rows_affected} row(s) from '{}': deleted parent in {}.{}",
+            reference.tbl,
+            reference.ref_tbl,
+            reference.ref_col
+        );
+    }
+
+    Ok(rows_affected)
+}
+
+async fn log_waiting_rows(
+    tx: &mut SqliteConnection,
+    references: &[DiscardReference],
+) -> Result<(), SyncError> {
+    for reference in references {
+        let sql = format!(
+            "SELECT COUNT(*) FROM {} WHERE {}",
+            quote_ident(&reference.tbl),
+            orphan_predicate(reference, false)
+        );
+        let waiting: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .fetch_one(&mut *tx)
+            .await?;
+        if waiting > 0 {
+            log::warn!(
+                "FK repair kept {waiting} row(s) in '{}': parent in {}.{} is absent but not \
+                 deleted, so the pull cursor stays back until it arrives",
+                reference.tbl,
+                reference.ref_tbl,
+                reference.ref_col
+            );
+        }
+    }
+
+    Ok(())
+}
+
+/// Rows violating `reference` whose parent does (or doesn't) have a tombstone.
+fn orphan_predicate(reference: &DiscardReference, parent_deleted: bool) -> String {
+    let violation = violation_predicate(
+        &reference.tbl,
+        &reference.col,
+        &reference.ref_tbl,
+        &reference.ref_col,
+    );
+    let tombstone = format!(
+        "EXISTS (SELECT 1 FROM sync_cells WHERE sync_cells.tbl = '{ref_tbl}' \
+         AND sync_cells.row_id = json_array({table}.{col}) AND sync_cells.col = '{deleted}')",
+        ref_tbl = reference.ref_tbl.replace('\'', "''"),
+        table = quote_ident(&reference.tbl),
+        col = quote_ident(&reference.col),
+        deleted = merge::DELETED_COL,
+    );
+    let negation = if parent_deleted { "" } else { "NOT " };
+
+    format!("{violation} AND {negation}{tombstone}")
 }
 
 async fn registered_tables(tx: &mut SqliteConnection) -> Result<Vec<String>, SyncError> {

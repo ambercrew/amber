@@ -1,4 +1,7 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::elements::value_objects::element_id::ElementId;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
@@ -57,4 +60,12 @@ pub struct EpubExtractionDto {
     pub publication_date: Option<String>,
     pub html: String,
     pub chapter_count: usize,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportAnkiRequestDto {
+    pub bytes_base64: String,
+    pub parent: Option<ElementId>,
+    pub bibliographical_source_id: Option<Uuid>,
 }

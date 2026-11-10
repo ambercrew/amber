@@ -1,5 +1,5 @@
-import { ReactNode } from "react";
-import { Button, Card, Group, Stack, Text } from "@mantine/core";
+import { ReactNode, useMemo } from "react";
+import { Box, Button, Card, Group, Stack, Text } from "@mantine/core";
 import {
 	CheckIcon,
 	ShieldCheckIcon,
@@ -15,6 +15,13 @@ import { resolveToolApproval } from "../../../api/aiIntegration/api/aiApi";
 import useApi from "../../../hooks/useApi";
 import { ResolvedApproval } from "../utils/buildDisplayMessages";
 import AiMarkdown from "./AiMarkdown";
+import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
+import {
+	ELEMENT_REFERENCE_TAG,
+	parseElementReference,
+} from "../../../api/aiIntegration/elementReference";
+import ToolCallLocation from "./ToolCallLocation";
+import { ElementId } from "../../../types/elements/elementId";
 
 export type OnToolApprovalResolved = (
 	messageId: string,
@@ -25,6 +32,8 @@ interface ToolApprovalCardProps {
 	messageId: string;
 	toolCall: ToolCallContentDto;
 	status: ApprovalStatus;
+	/** Where the call's change lands, e.g. the parent a card goes in. */
+	location?: ElementId;
 	/** What the user is asked to approve, written by the tool; may hold `<element-ref>` tags. */
 	markdown: string;
 	/** Added by the tool once an approved call ran, e.g. linking what it created. */
@@ -111,10 +120,37 @@ function DecisionButton({
 	);
 }
 
+function firstElementReference(markdown: string) {
+	const node = new DOMParser()
+		.parseFromString(markdown, "text/html")
+		.querySelector(ELEMENT_REFERENCE_TAG);
+	return node && parseElementReference(node);
+}
+
+/** What an approved call did, e.g. linking the card it created, above the decision buttons. */
+function ToolCallResult({ markdown }: { markdown: string }) {
+	const element = useMemo(() => firstElementReference(markdown), [markdown]);
+	return (
+		<Group gap={4} wrap="nowrap" miw={0} c="dimmed">
+			<Box display="flex" style={{ flexShrink: 0 }}>
+				{element ? (
+					<ElementNodeIcon type={element.type} size={14} />
+				) : (
+					<CheckIcon size={14} />
+				)}
+			</Box>
+			<Box fz="xs" miw={0}>
+				<AiMarkdown markdown={markdown} />
+			</Box>
+		</Group>
+	);
+}
+
 function ToolApprovalCard({
 	messageId,
 	toolCall,
 	status,
+	location,
 	markdown,
 	resultMarkdown,
 	onResolved,
@@ -140,25 +176,22 @@ function ToolApprovalCard({
 	return (
 		<Card withBorder radius="md" padding="sm">
 			<Card.Section withBorder inheritPadding py="sm">
-				<Group gap={4} wrap="nowrap">
-					{STATUS_ICONS[status]}
-					<Text size="md" fw={500} lh={1}>
-						{status === "pending"
-							? `Allow ${toolName}?`
-							: `Asked to ${toolName}`}
-					</Text>
-				</Group>
+				<Stack gap={4}>
+					<Group gap={4} wrap="nowrap">
+						{STATUS_ICONS[status]}
+						<Text size="md" fw={500} lh={1}>
+							{status === "pending"
+								? `Allow ${toolName}?`
+								: `Asked to ${toolName}`}
+						</Text>
+					</Group>
+					{location && <ToolCallLocation location={location} />}
+				</Stack>
 			</Card.Section>
 
 			<Card.Section withBorder inheritPadding py="xs">
 				<AiMarkdown markdown={markdown} />
 			</Card.Section>
-
-			{resultMarkdown && (
-				<Card.Section withBorder inheritPadding py="xs">
-					<AiMarkdown markdown={resultMarkdown} />
-				</Card.Section>
-			)}
 
 			<Card.Section withBorder inheritPadding py="xs">
 				<Stack gap="xs">
@@ -166,6 +199,9 @@ function ToolApprovalCard({
 						<Text size="xs" c="red">
 							{errorMessage}
 						</Text>
+					)}
+					{resultMarkdown && (
+						<ToolCallResult markdown={resultMarkdown} />
 					)}
 					<Group justify="flex-end" gap="xs">
 						<DecisionButton

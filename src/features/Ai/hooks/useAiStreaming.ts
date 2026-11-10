@@ -111,6 +111,7 @@ export default function useAiStreaming({
 						{
 							id: `streaming-tool-call-${event.data.toolCall.id}`,
 							messageId: event.data.messageId,
+							toolLocation: event.data.toolLocation,
 							approvalMarkdown: event.data.approvalMarkdown,
 							content: {
 								type: "toolCall",

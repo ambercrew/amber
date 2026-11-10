@@ -49,6 +49,14 @@ impl StatisticsService for DefaultStatisticsService {
             element_counts,
         ))
     }
+
+    async fn count_reviewed_today(&self) -> Result<i64, RepositoryError> {
+        let counts = self
+            .statistics_repository
+            .count_reviewed_elements(Local::now().date_naive())
+            .await?;
+        Ok(counts.learning_assets + counts.extracts + counts.cards)
+    }
 }
 
 fn summarize(

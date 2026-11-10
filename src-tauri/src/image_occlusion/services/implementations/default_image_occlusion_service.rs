@@ -68,9 +68,9 @@ impl ImageOcclusionService for DefaultImageOcclusionService {
     }
 
     async fn was_deleted(&self, id: Uuid) -> Result<bool, ImageOcclusionError> {
-        Ok(self
-            .sync_store
-            .is_row_deleted(IMAGE_OCCLUSIONS_TABLE, &id.hyphenated().to_string())
+        let store = &self.sync_store;
+        Ok(store
+            .is_uuid_row_deleted(IMAGE_OCCLUSIONS_TABLE, id)
             .await?)
     }
 

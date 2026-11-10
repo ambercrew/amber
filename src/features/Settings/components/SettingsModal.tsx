@@ -1,5 +1,5 @@
 import { DatabaseIcon, InfoIcon, PaletteIcon } from "@phosphor-icons/react";
-import { AiIcon } from "../../../config/icons";
+import { AiIcon, AnkiIcon } from "../../../config/icons";
 import SectionedModal, {
 	ModalSection,
 } from "../../../components/AppModal/SectionedModal";
@@ -11,6 +11,8 @@ import AppearanceTab from "./AppearanceTab";
 import DataTab from "./DataTab";
 import AboutTab from "./AboutTab";
 import AiTab from "./AiTab";
+import AnkiTab from "./AnkiTab";
+import { isMobile } from "../../../utils/tauriUtils";
 
 const SECTIONS: ModalSection[] = [
 	{
@@ -25,6 +27,17 @@ const SECTIONS: ModalSection[] = [
 		icon: <DatabaseIcon />,
 		render: () => <DataTab />,
 	},
+	// AnkiConnect only runs inside Anki desktop.
+	...(isMobile()
+		? []
+		: [
+				{
+					value: "anki",
+					label: "Anki",
+					icon: <AnkiIcon />,
+					render: () => <AnkiTab />,
+				},
+			]),
 	{
 		value: "ai",
 		label: "AI",

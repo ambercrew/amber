@@ -101,7 +101,7 @@ mod tests {
     use chrono::Utc;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
-    use serde_json::{Value, json};
+    use serde_json::json;
     use uuid::Uuid;
 
     use crate::elements::entities::extract::Extract;
@@ -110,25 +110,11 @@ mod tests {
     use crate::infrastructure::repositories::sqlite::sqlite_extract_repository::SqliteExtractRepository;
     use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_repository::SqliteLearningAssetRepository;
     use crate::infrastructure::repositories::sqlite::sqlite_meta_repository::SqliteMetaRepository;
-    use crate::test_utils::create_test_injector;
+    use crate::test_utils::{RecordingEventManager, create_test_injector};
 
     use super::*;
 
     const CONTENT: &str = r#"{"root":{"children":[{"type":"paragraph","children":[{"type":"text","text":"New words"}]}]}}"#;
-
-    #[derive(Default)]
-    struct RecordingEventManager {
-        events: std::sync::Mutex<Vec<(String, Value)>>,
-    }
-
-    #[async_trait]
-    impl EventManager for RecordingEventManager {
-        async fn push(&self, name: &str, body: Value) {
-            self.events.lock().unwrap().push((name.to_string(), body));
-        }
-
-        async fn emit_all(&self) {}
-    }
 
     async fn initialize_test_injector() -> (Injector, Arc<RecordingEventManager>) {
         let mut injector = create_test_injector().await;

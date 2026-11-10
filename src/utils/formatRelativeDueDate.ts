@@ -1,3 +1,5 @@
+import { startOfLocalDay } from "./startOfLocalDay";
+
 export function formatRelativeDueDate(due: string): string {
 	const dueDate = new Date(due);
 	const now = new Date();
@@ -10,25 +12,15 @@ export function formatRelativeDueDate(due: string): string {
 		return `In ${diffMinutes} minute${diffMinutes === 1 ? "" : "s"}`;
 	}
 
-	const diffHours = Math.round(diffMs / 3_600_000);
-	if (diffHours < 24) {
+	// Rounded, as a DST change makes a day 23 or 25 hours long.
+	const diffDays = Math.round(
+		(startOfLocalDay(dueDate).getTime() - startOfLocalDay(now).getTime()) /
+			86_400_000,
+	);
+	if (diffDays <= 0) {
+		const diffHours = Math.round(diffMs / 3_600_000);
 		return `In ${diffHours} hour${diffHours === 1 ? "" : "s"}`;
 	}
-
-	const startOfDue = new Date(
-		dueDate.getFullYear(),
-		dueDate.getMonth(),
-		dueDate.getDate(),
-	);
-	const startOfToday = new Date(
-		now.getFullYear(),
-		now.getMonth(),
-		now.getDate(),
-	);
-	const diffDays = Math.round(
-		(startOfDue.getTime() - startOfToday.getTime()) / 86_400_000,
-	);
-	if (diffDays <= 0) return "Today";
 	if (diffDays === 1) return "Tomorrow";
 	return `In ${diffDays} days`;
 }
