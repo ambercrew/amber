@@ -1,14 +1,19 @@
 import {
+	ActionIcon,
 	alpha,
 	AppShell,
+	Button,
 	Collapse,
 	Combobox,
 	createTheme,
 	Fieldset,
 	lighten,
 	Mark,
+	MultiSelect,
+	Select,
 	CSSVariablesResolver,
 	MantineColorsTuple,
+	MantineTheme,
 	virtualColor,
 } from "@mantine/core";
 import { generateColors } from "@mantine/colors-generator";
@@ -17,9 +22,23 @@ import { MOTION_DURATION_MS } from "./config/motion";
 
 // Ramps generated from one brand seed each; the seed lands at the shade matching
 // its own lightness, so these all sit near the dark end of their tuple.
-const green = generateColors("#076647");
 const blue = generateColors("#1478c0");
 const orange = generateColors("#c2560a");
+
+// The brand seed's hue (#076647), re-spaced by hand: generated, shades 5–7 were neon mint.
+// 6 takes white text, 4 is dark-mode text and 8 light-mode text.
+const green: MantineColorsTuple = [
+	"#e8fcf2",
+	"#cef6e2",
+	"#a8eacb",
+	"#7bdbb0",
+	"#4bc494",
+	"#17a878",
+	"#08845d",
+	"#01724f",
+	"#015f41",
+	"#014c34",
+];
 
 // Warm gold, hand-tuned by eye to share the amber's temperature.
 const yellow: MantineColorsTuple = [
@@ -35,10 +54,8 @@ const yellow: MantineColorsTuple = [
 	"#64480e",
 ];
 
-// Hand-tuned: light mode reads red text from shade 6 and dark mode from shade 5,
-// and no single `generateColors` seed lands in both windows. Mantine's default red
-// hue, re-spaced in luminance so 6 stays dark enough for white-on-red and 5 stays
-// light enough to clear AA on the dark body (4.5:1) without turning salmon.
+// Mantine's red hue, re-spaced by hand: 6 is dark enough for white-on-red and light-mode
+// text, 4 light enough for dark-mode text. No `generateColors` seed lands in both windows.
 const red: MantineColorsTuple = [
 	"#fff5f4",
 	"#ffe1de",
@@ -66,9 +83,8 @@ const amber: MantineColorsTuple = [
 	"#6f3f10",
 ];
 
-// Warm stone grays, hand-tuned so chrome and content share the primary's
-// temperature. Chroma rises toward the dark end, which is why the app's own
-// surfaces are set from literal values rather than shades of this tuple.
+// Warm stone grays, hand-tuned so chrome and content share the primary's temperature.
+// Chroma rises toward the dark end; the light surfaces are lightened from shade 0.
 const grayLight: MantineColorsTuple = [
 	"#f4f2ec",
 	"#edeae2",
@@ -96,24 +112,48 @@ const grayDark: MantineColorsTuple = [
 	"#181510",
 ];
 
-// Warm charcoal. Spaced by relative luminance, not by eye: Mantine derives most
-// of its dark semantic colors from this one tuple (text 0, dimmed 2,
-// placeholder/disabled 3, border 4, hover 5, input surface 6, body 7, sidebar 8),
-// so each step is set to the value its own role needs to clear contrast. Body (7)
-// and sidebar (8) sit only 1.09:1 apart — close enough to read as one dark
-// surface, far enough (4 L* steps) that the seam is still visible.
+// Low-chroma warm charcoal, spaced by luminance for Mantine's roles: text 0, dimmed 1–2,
+// disabled 3, border 4, hover 5, input/popover 6, body 7. Surfaces lighten as they rise.
 const dark: MantineColorsTuple = [
-	"#d1cecb",
-	"#bfbbb6",
-	"#afa9a1",
-	"#9c9386",
-	"#6b6156",
-	"#554c44",
-	"#3e3831",
-	"#211e19",
-	"#191512",
-	"#090807",
+	"#d6d2cc",
+	"#c0bbb3",
+	"#a8a299",
+	"#8d877e",
+	"#5a554e",
+	"#3d3934",
+	"#302d29",
+	"#1c1a17",
+	"#161412",
+	"#0f0e0c",
 ];
+
+// Subtle primary buttons take their own text color, so dark mode can quiet them
+// without touching selected rows and light badges, which read `-light-color`.
+const subtlePrimaryColor = (
+	theme: MantineTheme,
+	props: { variant?: string; color?: string },
+) => {
+	const isPrimary = !props.color || props.color === theme.primaryColor;
+	return props.variant === "subtle" && isPrimary
+		? "var(--subtle-primary-color)"
+		: undefined;
+};
+
+// Mantine color of search matches: the sidebar's filter and the editor's find in page.
+const SEARCH_MATCH_COLOR = "violet";
+
+// The selected row of the sidebar's file tree and the table of contents, per color scheme.
+// Mantine's primary `light` variant, its light fill pushed a third of the way to amber-2.
+const SELECTED_ROW_COLORS = {
+	background: {
+		light: "color-mix(in srgb, var(--mantine-color-amber-1), var(--mantine-color-amber-2) 35%)",
+		dark: "var(--mantine-primary-color-light)",
+	},
+	text: {
+		light: "var(--mantine-primary-color-light-color)",
+		dark: "var(--mantine-primary-color-light-color)",
+	},
+};
 
 export const theme = createTheme({
 	primaryColor: "amber",
@@ -122,8 +162,17 @@ export const theme = createTheme({
 	defaultRadius: "md",
 
 	components: {
-		// Offset the sidebar one shade from the body so the main content
-		// area reads as the elevated "page" surface.
+		Button: Button.extend({
+			vars: (theme, props) => ({
+				root: { "--button-color": subtlePrimaryColor(theme, props) },
+			}),
+		}),
+		ActionIcon: ActionIcon.extend({
+			vars: (theme, props) => ({
+				root: { "--ai-color": subtlePrimaryColor(theme, props) },
+			}),
+		}),
+		// Offset the sidebar from the body: darker in light mode, lighter in dark mode.
 		AppShell: AppShell.extend({
 			styles: {
 				navbar: {
@@ -134,13 +183,11 @@ export const theme = createTheme({
 				},
 			},
 		}),
-		// Search-match marks (e.g. Highlight in the sidebar tree) sit on top
-		// of amber-washed selected rows, so they need a saturated amber bg.
+		// Search matches (the sidebar tree's Highlight) share find in page's color.
 		Mark: Mark.extend({
 			styles: {
 				root: {
-					backgroundColor:
-						"light-dark(var(--mantine-color-amber-3), var(--mantine-color-amber-4))",
+					backgroundColor: "var(--search-match-bg)",
 				},
 			},
 		}),
@@ -162,6 +209,12 @@ export const theme = createTheme({
 		// full-screen modals flicker on mobile and dropdowns bounce on scroll.
 		Combobox: Combobox.extend({
 			defaultProps: { floatingStrategy: "fixed" },
+		}),
+		Select: Select.extend({
+			defaultProps: { withAlignedLabels: true },
+		}),
+		MultiSelect: MultiSelect.extend({
+			defaultProps: { withAlignedLabels: true },
 		}),
 		Fieldset: Fieldset.extend({
 			styles: {
@@ -195,9 +248,12 @@ export const theme = createTheme({
 	},
 });
 
-// Dark `variant="light"` backgrounds are derived as darken(shade9, 0.5), which
-// lands below the body for palettes seeded from dark colors — a light Badge
-// reads as a hole rather than a tint. Wash the mid shade over the surface.
+// Dark tinted text is shade 3, so status colors keep their hue. Amber stays a quiet cream:
+// it's on every subtle button and selected row, where a saturated shade is too loud.
+const darkLightTextShade: Record<string, number> = { gray: 1, amber: 1 };
+
+// Mantine's dark `variant="light"` background, darken(shade9, 0.5), lands below the body
+// and reads as a hole, so wash the mid shade over the surface.
 const lightVariantColors = Object.fromEntries(
 	["amber", "gray", "red", "green", "blue", "orange", "yellow"].flatMap(
 		name => [
@@ -211,7 +267,7 @@ const lightVariantColors = Object.fromEntries(
 			],
 			[
 				`--mantine-color-${name}-light-color`,
-				`var(--mantine-color-${name}-1)`,
+				`var(--mantine-color-${name}-${darkLightTextShade[name] ?? 3})`,
 			],
 		],
 	),
@@ -223,6 +279,10 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--selection-color": "var(--mantine-color-white)",
 	},
 	light: {
+		"--selected-row-bg": SELECTED_ROW_COLORS.background.light,
+		"--selected-row-color": SELECTED_ROW_COLORS.text.light,
+		"--search-match-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-2)`,
+		"--search-match-current-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-4)`,
 		"--mantine-color-body": lighten("var(--mantine-color-gray-0)", 0.8),
 		"--sidebar-bg": lighten("var(--mantine-color-gray-0)", 0.1),
 		"--editor-surface-bg": "var(--sidebar-bg)",
@@ -232,22 +292,48 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--sidebar-hover-bg": "var(--mantine-color-gray-2)",
 		// A SegmentedControl's gray-1 track barely separates from the sidebar.
 		"--sidebar-control-bg": "var(--mantine-color-gray-2)",
+		// Spotlight's gray-0 hover is 1.09:1 on the palette's near-white surface.
+		"--spotlight-hover-bg": "var(--mantine-color-gray-2)",
+		"--subtle-primary-color": "var(--mantine-color-amber-light-color)",
+
+		// Mantine's stock teal is the one cool color here; green-8 is closest to the brand seed.
+		"--mantine-color-success": "var(--mantine-color-green-8)",
+		// Mantine's gray-6 reads 4.7:1 on the sidebar and under 4.5:1 on hovered rows.
+		"--mantine-color-dimmed": "var(--mantine-color-gray-7)",
+		// gray-5 reads ~3.5:1 on a white input.
+		"--mantine-color-placeholder": "var(--mantine-color-gray-6)",
+		// amber-7 reads 4.3:1 on the sidebar and amber-8 too dark; three-quarters to 7 clears 4.5:1.
+		"--mantine-color-anchor":
+			"color-mix(in srgb, var(--mantine-color-amber-7) 75%, var(--mantine-color-amber-8))",
 	},
 	dark: {
+		"--selected-row-bg": SELECTED_ROW_COLORS.background.dark,
+		"--selected-row-color": SELECTED_ROW_COLORS.text.dark,
+		"--search-match-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-9)`,
+		"--search-match-current-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-6)`,
 		"--mantine-color-body": "var(--mantine-color-dark-7)",
-		"--sidebar-bg": "var(--mantine-color-dark-8)",
+		// Between body (dark-7) and inputs (dark-6), so side panels sit just above the page.
+		"--sidebar-bg": "#252320",
 		"--editor-surface-bg": "var(--sidebar-bg)",
 		"--inset-surface-bg": "var(--sidebar-bg)",
 		"--pdf-viewport-bg": "var(--mantine-color-body)",
-		"--sidebar-hover-bg": "var(--mantine-color-dark-6)",
-		// A SegmentedControl's dark-8 track is the sidebar's own background.
+		// dark-6 is 1.14:1 on the sidebar; dark-5 matches Spotlight's hover below.
+		"--sidebar-hover-bg": "var(--mantine-color-dark-5)",
+		// A SegmentedControl's dark-8 track is 1.17:1 on the sidebar.
 		"--sidebar-control-bg": "var(--mantine-color-dark-9)",
+		// One step above Spotlight's own dark-6, which sits 1.27:1 on the body.
+		"--spotlight-hover-bg": "var(--mantine-color-dark-5)",
+		// Link amber muted halfway to dimmed text: full amber on every icon button is too loud.
+		"--subtle-primary-color":
+			"color-mix(in srgb, var(--mantine-color-anchor), var(--mantine-color-dimmed))",
 
-		// Mantine's dark defaults for these come from shade 8 of a stock red/teal
-		// it never sees us replace, which reads ~2:1 on our body. Shade 4 is where
-		// dark mode already takes its text color from.
+		// Mantine's dark defaults are shade 8 of its stock red and teal, ~2:1 on our body.
+		// Shade 4 is dark mode's own tinted text.
 		"--mantine-color-error": "var(--mantine-color-red-4)",
-		"--mantine-color-success": "var(--mantine-color-green-8)",
+		"--mantine-color-success": "var(--mantine-color-green-4)",
+		// Halfway to dark-1: Mantine's dark-2 read dull, and dark-1 sits too close to body text.
+		"--mantine-color-dimmed":
+			"color-mix(in srgb, var(--mantine-color-dark-2), var(--mantine-color-dark-1))",
 		// dark-3 clears AA on the body but not on dark-6, the input it sits inside.
 		"--mantine-color-placeholder": "var(--mantine-color-dark-2)",
 

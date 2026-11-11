@@ -73,7 +73,7 @@ export function SlashMenuPlugin() {
 				if (!anchorElementRef.current || options.length === 0)
 					return null;
 				return createPortal(
-					<Paper withBorder shadow="lg" radius="md" p={4} miw={220}>
+					<Paper withBorder shadow="lg" p={4} miw={220}>
 						<ScrollArea.Autosize mah={300}>
 							{options.map((option, i) => (
 								<UnstyledButton

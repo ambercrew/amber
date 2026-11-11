@@ -108,7 +108,7 @@ export default function HomeStatistics() {
 				/>
 			</SimpleGrid>
 
-			<Paper withBorder radius="md" p="md">
+			<Paper withBorder p="md">
 				<Stack gap="sm">
 					<Title order={3} size="h5">
 						Study activity

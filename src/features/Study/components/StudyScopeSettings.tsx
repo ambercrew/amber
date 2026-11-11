@@ -136,7 +136,6 @@ export default function StudyScopeSettings({
 					value={toValue(value, label !== null, recentIndex)}
 					onChange={handleSelect}
 					allowDeselect={false}
-					withAlignedLabels
 					searchable
 					disabled={disabled}
 					leftSection={<TargetIcon size={16} />}

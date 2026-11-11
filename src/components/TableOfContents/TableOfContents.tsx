@@ -34,6 +34,7 @@ import {
 	ScrollTarget,
 	useScrollToCurrentOnShow,
 } from "./useScrollToCurrentOnShow";
+import { indentedRowStyle } from "../VirtualTree/indentedRowStyle";
 import { TableOfContentsEntry } from "../../types/elements/tableOfContentsEntry";
 
 const EXPANDED_STORAGE_KEY = "table-of-contents-expanded";
@@ -116,7 +117,7 @@ interface EntryNodeProps {
 }
 
 function EntryNode({ payload, activeEntry, onSelect }: EntryNodeProps) {
-	const { node, expanded, hasChildren, elementProps, tree } = payload;
+	const { node, level, expanded, hasChildren, elementProps, tree } = payload;
 	const { entry } = node.nodeProps as { entry: TableOfContentsEntry };
 	// Mantine's own click only focuses the row here, since `expandOnClick` is off.
 	const { onClick: focusRow, ...restElementProps } = elementProps;
@@ -150,20 +151,21 @@ function EntryNode({ payload, activeEntry, onSelect }: EntryNodeProps) {
 			onMouseLeave={() => setHovered(false)}
 			bg={
 				current
-					? "var(--mantine-primary-color-light)"
+					? "var(--selected-row-bg)"
 					: hovered
 						? "var(--sidebar-hover-bg)"
 						: undefined
 			}
 			c={
 				current
-					? "var(--mantine-primary-color-light-color)"
+					? "var(--selected-row-color)"
 					: onActivePath
 						? "var(--mantine-primary-color-filled)"
 						: undefined
 			}
 			style={{
 				...restElementProps.style,
+				...indentedRowStyle(level),
 				borderRadius: "var(--mantine-radius-default)",
 				cursor: "pointer",
 			}}>

@@ -174,7 +174,7 @@ function ToolApprovalCard({
 		});
 
 	return (
-		<Card withBorder radius="md" padding="sm">
+		<Card withBorder padding="sm">
 			<Card.Section withBorder inheritPadding py="sm">
 				<Stack gap={4}>
 					<Group gap={4} wrap="nowrap">

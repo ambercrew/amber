@@ -20,7 +20,6 @@ export default function FilterOperatorSelect({
 			value={value}
 			allowDeselect={false}
 			data-autofocus={autoFocus ? true : undefined}
-			withAlignedLabels
 			comboboxProps={{ withinPortal: false }}
 			onChange={next => next && onChange(next)}
 		/>

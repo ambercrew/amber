@@ -13,6 +13,7 @@ import { ElementNodeProps } from "../../utils/elementTreeUtils";
 import ElementTreeMenuItems from "./ElementTreeMenuItems";
 import RenameElementForm from "./RenameElementForm";
 import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
+import { indentedRowStyle } from "../../../../components/VirtualTree/indentedRowStyle";
 import DisclosureCaret from "../../../../components/DisclosureCaret/DisclosureCaret";
 
 const ICON_SIZE = 18;
@@ -44,7 +45,7 @@ function ElementTreeNode({
 	onTrashClick,
 	onAfterCreate,
 }: ElementTreeNodeProps) {
-	const { node, expanded, elementProps } = payload;
+	const { node, level, expanded, elementProps } = payload;
 	const { type, childrenCount } = node.nodeProps as ElementNodeProps;
 	const id = node.value;
 	const label = typeof node.label === "string" ? node.label : node.value;
@@ -74,17 +75,16 @@ function ElementTreeNode({
 			onMouseLeave={() => setIsHovered(false)}
 			bg={
 				isSelected
-					? "var(--mantine-primary-color-light)"
+					? "var(--selected-row-bg)"
 					: isMenuOpen || isContextMenuOpen || isHovered
 						? "var(--mantine-color-gray-light-hover)"
 						: undefined
 			}
-			c={
-				isSelected
-					? "var(--mantine-primary-color-light-color)"
-					: undefined
-			}
-			style={{ borderRadius: "var(--mantine-radius-default)" }}>
+			c={isSelected ? "var(--selected-row-color)" : undefined}
+			style={{
+				...indentedRowStyle(level),
+				borderRadius: "var(--mantine-radius-default)",
+			}}>
 			<ActionIcon
 				variant="transparent"
 				size="xs"

@@ -36,7 +36,6 @@ function QueueTab({ form }: QueueTabProps) {
 				}
 				data={PLACEMENT_OPTIONS}
 				allowDeselect={false}
-				withAlignedLabels
 				{...form.getInputProps("placementType")}
 			/>
 			{percentileLabel && (

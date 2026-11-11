@@ -40,7 +40,6 @@ export default function SelectFilterEditor<T extends string>({
 				data={data}
 				value={values}
 				onChange={next => onChange(operator, next as T[])}
-				withAlignedLabels
 				comboboxProps={{ withinPortal: false }}
 			/>
 		</Stack>

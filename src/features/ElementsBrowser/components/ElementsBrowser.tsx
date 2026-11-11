@@ -135,7 +135,7 @@ export default function ElementsBrowser() {
 
 	return (
 		<Container size="md" py="lg">
-			<Paper withBorder radius="md" p="md">
+			<Paper withBorder p="md">
 				<Stack gap="sm">
 					<PageTitle
 						icon={<BrowserIcon />}

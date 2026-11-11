@@ -50,7 +50,6 @@ function ElementProfileRow({ elementId, details }: ElementProfileRowProps) {
 			<Select
 				size="sm"
 				value={selectValue}
-				withAlignedLabels
 				flex={1}
 				data={[
 					{ value: INHERIT_VALUE, label: inheritLabel },

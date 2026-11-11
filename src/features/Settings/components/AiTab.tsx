@@ -125,7 +125,6 @@ function AiTab() {
 								([value, { label }]) => ({ label, value }),
 							)}
 							allowDeselect={false}
-							withAlignedLabels
 						/>
 					</Stack>
 
