@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useDebouncedCallback, useWindowEvent } from "@mantine/hooks";
 import { ELEMENT_CREATED_EVENT } from "../../../api/elements/events/elementCreatedEvent";
 import { ELEMENT_DUE_CHANGED_EVENT } from "../../../api/study/events/elementDueChangedEvent";
+import { ELEMENTS_TRASHED_EVENT } from "../../../api/trash/events/elementsTrashedEvent";
 import { getDueElements } from "../../../api/study/api/studyApi";
 import useApi from "../../../hooks/useApi";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -59,6 +60,12 @@ export function useDueElementsPreview() {
 	}, CREATED_REFRESH_DELAY_MS);
 
 	useTauriEvent(ELEMENT_CREATED_EVENT, refreshAfterCreation);
+
+	// A trashed element is no longer due, though its schedule never changed.
+	useTauriEvent(ELEMENTS_TRASHED_EVENT, () => {
+		if (isStudying) return;
+		refresh();
+	});
 
 	useWindowEvent(PRIORITY_CHANGED, () => {
 		if (isStudying) return;

@@ -7,6 +7,7 @@ import {
 } from "../../../../api/study/api/studyApi";
 import { CardReviewDto } from "../../../../api/study/dto/cardReviewDto";
 import { AnyElementDto } from "../../../../api/elements/dto/anyElementDto";
+import { ELEMENTS_TRASHED_EVENT } from "../../../../api/trash/events/elementsTrashedEvent";
 import { ELEMENT_DUE_CHANGED_EVENT } from "../../../../api/study/events/elementDueChangedEvent";
 import { StudyState } from "../../../../stores/study/studyReducer";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
@@ -69,12 +70,12 @@ function HookWrapper() {
 }
 
 /** Runs the handler the hook registered with `listen` for `event`. */
-function emitTauriEvent(event: string) {
+function emitTauriEvent(event: string, payload: unknown = null) {
 	const calls = vi
 		.mocked(listen)
 		.mock.calls.filter(([name]) => name === event);
 	const latest = calls[calls.length - 1];
-	if (latest) latest[1]({ event, id: 0, payload: null });
+	if (latest) latest[1]({ event, id: 0, payload });
 }
 
 describe("useSessionScheduleChanges", () => {
@@ -190,5 +191,39 @@ describe("useSessionScheduleChanges", () => {
 			).toEqual(["1", "3", "2"]);
 		});
 		expect(store.getState().study.totalCount).toBe(3);
+	});
+
+	it("Should drop trashed elements from the session queue when the backend reports them trashed", async () => {
+		// Arrange
+
+		const { store } = renderWithProviders(<HookWrapper />, {
+			preloadedState: {
+				study: STUDYING_STATE,
+				elements: {
+					tree: [],
+					isLoading: false,
+					error: null,
+					currentElement: CARD_ELEMENT,
+					zoomOwnedByCurrentView: false,
+				},
+			},
+		});
+
+		// Act
+
+		act(() => {
+			emitTauriEvent(ELEMENTS_TRASHED_EVENT, {
+				elementIds: [{ type: "card", id: "2" }],
+			});
+		});
+
+		// Assert
+
+		await waitFor(() => {
+			expect(
+				store.getState().study.queue.map(item => item.elementId.id),
+			).toEqual(["1"]);
+		});
+		expect(store.getState().study.totalCount).toBe(1);
 	});
 });

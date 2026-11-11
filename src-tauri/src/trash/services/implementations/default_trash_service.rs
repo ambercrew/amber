@@ -12,6 +12,9 @@ use crate::elements::value_objects::element_id::ElementId;
 use crate::trash::events::elements_deleted_event::{
     ELEMENTS_DELETED_EVENT, ElementsDeletedEventDto,
 };
+use crate::trash::events::elements_trashed_event::{
+    ELEMENTS_TRASHED_EVENT, ElementsTrashedEventDto,
+};
 use crate::trash::repositories::trash_repository::TrashRepository;
 use crate::trash::services::trash_service::{TrashService, TrashServiceError};
 use crate::trash::value_objects::trashed_element::TrashedElement;
@@ -28,14 +31,17 @@ pub struct DefaultTrashService {
 #[async_trait]
 impl TrashService for DefaultTrashService {
     async fn trash_element(&self, id: ElementId) -> Result<(), TrashServiceError> {
-        self.trash_repository.trash(id, Utc::now()).await?;
+        let trashed = self.trash_repository.trash(id, Utc::now()).await?;
+        self.push_trashed(trashed).await;
         Ok(())
     }
 
     async fn trash_many(&self, ids: Vec<ElementId>) -> Result<(), TrashServiceError> {
+        let mut trashed = Vec::new();
         for id in ids {
-            self.trash_repository.trash(id, Utc::now()).await?;
+            trashed.extend(self.trash_repository.trash(id, Utc::now()).await?);
         }
+        self.push_trashed(trashed).await;
         Ok(())
     }
 
@@ -104,6 +110,15 @@ impl TrashService for DefaultTrashService {
 }
 
 impl DefaultTrashService {
+    async fn push_trashed(&self, element_ids: Vec<ElementId>) {
+        if element_ids.is_empty() {
+            return;
+        }
+        let body = serde_json::to_value(ElementsTrashedEventDto { element_ids })
+            .expect("ElementsTrashedEventDto always serializes");
+        self.event_manager.push(ELEMENTS_TRASHED_EVENT, body).await;
+    }
+
     async fn push_deleted(&self, element_ids: Vec<ElementId>) {
         if element_ids.is_empty() {
             return;
@@ -302,15 +317,15 @@ mod tests {
         // Assert
 
         let events = event_manager.events.lock().unwrap();
-        assert_eq!(1, events.len());
-        let (name, body) = &events[0];
+        assert_eq!(2, events.len());
+        let (name, body) = &events[1];
         assert_eq!(ELEMENTS_DELETED_EVENT, name);
         let actual: Vec<ElementId> = serde_json::from_value(body["elementIds"].clone()).unwrap();
         assert_eq!(vec![folder_id], actual);
     }
 
     #[tokio::test]
-    async fn trash_element_any_element_pushed_no_event() {
+    async fn trash_element_any_element_pushes_its_id_in_one_trashed_event() {
         // Arrange
 
         let mut injector = initialize_test_injector().await;
@@ -330,7 +345,12 @@ mod tests {
 
         // Assert
 
-        assert!(event_manager.events.lock().unwrap().is_empty());
+        let events = event_manager.events.lock().unwrap();
+        assert_eq!(1, events.len());
+        let (name, body) = &events[0];
+        assert_eq!(ELEMENTS_TRASHED_EVENT, name);
+        let actual: Vec<ElementId> = serde_json::from_value(body["elementIds"].clone()).unwrap();
+        assert_eq!(vec![folder_id], actual);
     }
 
     #[tokio::test]

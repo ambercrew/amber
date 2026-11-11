@@ -5,6 +5,7 @@ import { getDueElements } from "../../../../api/study/api/studyApi";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { DueElementDto } from "../../../../api/study/dto/dueElementDto";
 import { ELEMENT_CREATED_EVENT } from "../../../../api/elements/events/elementCreatedEvent";
+import { ELEMENTS_TRASHED_EVENT } from "../../../../api/trash/events/elementsTrashedEvent";
 import { ELEMENT_DUE_CHANGED_EVENT } from "../../../../api/study/events/elementDueChangedEvent";
 import { studyScopeChanged } from "../../../../stores/study/studyReducer";
 import { STUDY_SESSION_SETTINGS_CHANGED } from "../../../../types/events/studySessionSettingsChangedEvent";
@@ -93,6 +94,30 @@ describe("useDueElementsPreview", () => {
 
 		await act(async () => {
 			emitTauriEvent(ELEMENT_DUE_CHANGED_EVENT);
+		});
+
+		// Assert
+
+		await waitFor(() => {
+			expect(getDueElements).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	it("Should reload due elements when elements are trashed and a session is not studying", async () => {
+		// Arrange
+
+		vi.mocked(getDueElements).mockResolvedValue([]);
+		renderWithProviders(<HookWrapper />, {
+			preloadedState: { study: studyStateFor("editing") },
+		});
+		await waitFor(() => {
+			expect(getDueElements).toHaveBeenCalledTimes(1);
+		});
+
+		// Act
+
+		await act(async () => {
+			emitTauriEvent(ELEMENTS_TRASHED_EVENT);
 		});
 
 		// Assert
