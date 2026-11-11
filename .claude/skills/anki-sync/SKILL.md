@@ -41,6 +41,8 @@ between long steps.
 - **Identity.** Amber's notes use the `Amber Basic` / `Amber Image Occlusion` notetypes
   (`package/definitions.rs`); a basic note's guid is the card's hyphenated id. Cards imported from Anki
   keep a link (`AnkiCardLinkRepository`) to their original card and are paired with it, never exported.
+  A sync sets the link's synced `synced` flag (`replace_paired_cards`), which is what the card view's
+  "edit in Anki" warning reads on every device, as `anki_paired_cards` stays on the syncing one.
 - **Change detection.** `fingerprint()` (`notes.rs`) hashes the fields (as Lexical JSON, before
   rendering), tags and card ords. The deck is compared separately, and `EXPORT_VERSION` is stored
   beside each record (`anki_exported_notes`). An unchanged note is never rendered or sent. Bump

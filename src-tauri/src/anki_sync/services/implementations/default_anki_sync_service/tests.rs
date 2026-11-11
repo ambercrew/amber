@@ -2055,6 +2055,41 @@ async fn is_synced_import_card_imported_from_a_package_counts_only_once_a_sync_p
 }
 
 #[tokio::test]
+async fn is_synced_import_card_paired_on_another_device_counts_without_a_local_pair() {
+    // Arrange
+
+    let injector = injector(FakeAnki::holding(Vec::new()), importing_nothing()).await;
+    let scope = injector.start_scope();
+    let card_id = create_card(&scope).await;
+    let links = scope.resolve::<dyn AnkiCardLinkRepository>().await;
+    links
+        .create(&AnkiCardLink {
+            card_id,
+            anki_card_id: AnkiCardId(7),
+        })
+        .await
+        .unwrap();
+    let repository = scope.resolve::<dyn AnkiSyncRepository>().await;
+    repository
+        .replace_paired_cards(PROFILE, &[pair(card_id, 7)], &HashMap::new())
+        .await
+        .unwrap();
+    let tx = scope.resolve::<DbTransaction>().await;
+    sqlx::query("DELETE FROM anki_paired_cards")
+        .execute(tx.lock().await.as_mut())
+        .await
+        .unwrap();
+
+    // Act
+
+    let synced = repository.is_synced_import(card_id).await.unwrap();
+
+    // Assert
+
+    assert!(synced);
+}
+
+#[tokio::test]
 async fn preview_card_outside_any_folder_listed_as_sent_to_the_amber_deck() {
     // Arrange
 
