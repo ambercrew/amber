@@ -3,12 +3,11 @@ use crate::elements::value_objects::reading_position::ReadingPosition;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{Datelike, NaiveDate, Utc};
 use injector_derive::ScopeInjectable;
-use rand::Rng;
-use rand::seq::SliceRandom;
 
 use crate::common::repository_error::RepositoryError;
+use crate::elements::value_objects::element_id::ElementId;
 use crate::local_configurations::repositories::local_configuration_repository::{
     LocalConfigurationRepository, LocalConfigurationRepositoryExt,
 };
@@ -18,6 +17,7 @@ use crate::search::repositories::search_repository::SearchRepository;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::services::due_elements_service::DueElementsService;
+use crate::study::utils::day_boundary::local_date;
 use crate::study::value_objects::due_element::DueElement;
 use crate::study::value_objects::fuzz_factor_configuration::{
     FUZZ_FACTOR_CONFIGURATION_NAME, FuzzFactorConfiguration,
@@ -103,7 +103,7 @@ impl DueElementsService for DefaultDueElementsService {
         Ok(order_by_priority_with_fuzz(
             due,
             fuzz_factor,
-            &mut rand::rng(),
+            local_date(Utc::now()),
         ))
     }
 }
@@ -114,11 +114,11 @@ impl DueElementsService for DefaultDueElementsService {
 ///
 /// `fuzz_factor` (0-100) controls the bracket size as a fraction of the
 /// whole queue: 0 keeps the exact priority order, 100 shuffles the entire
-/// queue.
+/// queue. The shuffle is seeded by `day`, so every fetch on one day agrees.
 fn order_by_priority_with_fuzz(
     mut entries: Vec<DueElement>,
     fuzz_factor: u8,
-    rng: &mut impl Rng,
+    day: NaiveDate,
 ) -> Vec<DueElement> {
     entries.sort_by(|a, b| a.priority.cmp(&b.priority));
 
@@ -127,17 +127,31 @@ fn order_by_priority_with_fuzz(
         .max(1.0) as usize;
 
     for bracket in entries.chunks_mut(bracket_size) {
-        bracket.shuffle(rng);
+        bracket.sort_by_cached_key(|entry| day_shuffle_key(day, &entry.element_id));
     }
 
     entries
+}
+
+/// A pseudo-random rank for the element on `day`, so its place within a bracket holds all day
+/// whatever else is due.
+fn day_shuffle_key(day: NaiveDate, element_id: &ElementId) -> u64 {
+    let (high, low) = element_id.id().as_u64_pair();
+    splitmix64(splitmix64(low ^ day.num_days_from_ce() as u64) ^ high)
+}
+
+fn splitmix64(value: u64) -> u64 {
+    let mut z = value.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::elements::value_objects::element_id::ElementId;
     use crate::elements::value_objects::name_source::NameSource;
-    use chrono::{Duration, Utc};
+    use chrono::{Duration, NaiveDate, Utc};
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
     use uuid::Uuid;
@@ -483,11 +497,11 @@ mod tests {
 
         let entries = ordered_entries(20);
         let expected: Vec<ElementId> = entries.iter().map(|entry| entry.element_id).collect();
-        let mut rng = rand::rng();
+        let day = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
 
         // Act
 
-        let actual = ids(order_by_priority_with_fuzz(entries, 0, &mut rng));
+        let actual = ids(order_by_priority_with_fuzz(entries, 0, day));
 
         // Assert
 
@@ -500,11 +514,11 @@ mod tests {
 
         let entries = ordered_entries(20);
         let mut expected: Vec<ElementId> = entries.iter().map(|entry| entry.element_id).collect();
-        let mut rng = rand::rng();
+        let day = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
 
         // Act
 
-        let mut actual = ids(order_by_priority_with_fuzz(entries, 100, &mut rng));
+        let mut actual = ids(order_by_priority_with_fuzz(entries, 100, day));
 
         // Assert
 
@@ -519,11 +533,11 @@ mod tests {
 
         let entries = ordered_entries(20);
         let expected: Vec<ElementId> = entries.iter().map(|entry| entry.element_id).collect();
-        let mut rng = rand::rng();
+        let day = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
 
         // Act
 
-        let actual = ids(order_by_priority_with_fuzz(entries, 25, &mut rng));
+        let actual = ids(order_by_priority_with_fuzz(entries, 25, day));
 
         // Assert
 
@@ -537,5 +551,43 @@ mod tests {
             sorted_expected_chunk.sort_by_key(|id| id.id());
             assert_eq!(sorted_expected_chunk, sorted_chunk);
         }
+    }
+
+    #[test]
+    fn order_by_priority_with_fuzz_same_day_returns_the_same_order() {
+        // Arrange
+
+        let entries = ordered_entries(20);
+        let day = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
+
+        // Act
+
+        let first = ids(order_by_priority_with_fuzz(entries.clone(), 100, day));
+        let second = ids(order_by_priority_with_fuzz(entries, 100, day));
+
+        // Assert
+
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn order_by_priority_with_fuzz_next_day_returns_a_different_order() {
+        // Arrange
+
+        let entries = ordered_entries(20);
+        let day = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
+
+        // Act
+
+        let today = ids(order_by_priority_with_fuzz(entries.clone(), 100, day));
+        let tomorrow = ids(order_by_priority_with_fuzz(
+            entries,
+            100,
+            day.succ_opt().unwrap(),
+        ));
+
+        // Assert
+
+        assert_ne!(today, tomorrow);
     }
 }
