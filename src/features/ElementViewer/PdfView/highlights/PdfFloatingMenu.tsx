@@ -3,16 +3,8 @@ import { useMounted } from "@mantine/hooks";
 import { MantineTransition, Transition } from "@mantine/core";
 import { useStore } from "react-redux";
 import { useNavigate } from "react-router";
-import { useRegistry } from "@embedpdf/core/react";
-import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
-import {
-	useActiveDocument,
-	useDocumentManagerCapability,
-} from "@embedpdf/plugin-document-manager/react";
-import {
-	SelectionSelectionMenuProps,
-	useSelectionCapability,
-} from "@embedpdf/plugin-selection/react";
+import { useDocuments, useSelector } from "@embedpdf/react/runtime";
+import { SelectionToken, useSelection } from "@embedpdf/react/selection";
 import FloatingMenuBar, {
 	FloatingMenuBarItem,
 } from "../../../../components/FloatingMenuBar/FloatingMenuBar";
@@ -46,70 +38,46 @@ import {
 	OPEN_HIGHLIGHT_BUTTON,
 	REMOVE_HIGHLIGHT_BUTTON,
 } from "../../highlightFloatingMenuButtons";
-import {
-	buildClozeCardDto,
-	buildExtractDto,
-	ClozeSelectionSlice,
-} from "./pdfFloatingMenuContent";
+import { buildClozeCardDto, buildExtractDto } from "./pdfFloatingMenuContent";
 import {
 	buildHighlightAnnotations,
 	CLOZE_HIGHLIGHT_COLOR,
 	EXTRACT_HIGHLIGHT_COLOR,
 	findFirstHighlightedElement,
 	findHighlightsUnderSelection,
-	flattenHighlightRects,
-	getActivePdfHighlights,
 	PdfHighlightCustomData,
 } from "./pdfHighlightAnnotations";
+import { usePdfHighlights } from "./pdfHighlightsContext";
 import {
-	isBackwardPdfSelection,
-	PdfMenuAlign,
-	pdfMenuAnchor,
-} from "./pdfMenuAnchor";
-import { Rect } from "@embedpdf/models";
-import { GlyphPointer } from "@embedpdf/plugin-selection";
+	listSelectedPages,
+	readClozePageTexts,
+	readSelectedTexts,
+	SelectedPage,
+	selectedLineRects,
+} from "./pdfSelection";
 import { PdfHighlightRemoval } from "./usePdfHighlightRemoval";
-import { usePdfAnnotationState } from "./usePdfAnnotationState";
 
-const ALIGN_SHIFT: Record<PdfMenuAlign, string> = {
-	start: "0%",
-	center: "-50%",
-	end: "-100%",
-};
-const ALIGN_ORIGIN: Record<PdfMenuAlign, string> = {
-	start: "left",
-	center: "center",
-	end: "right",
-};
-
-/** Mantine's `pop`, growing out of the anchor whether the menu sits above or below it. */
-function popTransition(above: boolean, align: PdfMenuAlign): MantineTransition {
+/** Mantine's `pop`, growing out of the selection whether the menu sits above or below it. */
+function popTransition(above: boolean): MantineTransition {
 	return {
 		...floatingMenuPop(above),
-		common: {
-			transformOrigin: `${above ? "bottom" : "top"} ${ALIGN_ORIGIN[align]}`,
-		},
+		common: { transformOrigin: `${above ? "bottom" : "top"} center` },
 	};
 }
 
-// The bar's height plus its gap, needed above the selection to open there.
-const MENU_ROOM_ABOVE_PX = 56;
-
-interface PdfFloatingMenuProps extends SelectionSelectionMenuProps {
+interface PdfFloatingMenuProps {
 	learningAssetId: string;
-	/** Where the current selection's drag began, to tell which end the pointer let go at. */
-	selectionAnchor: GlyphPointer | null;
+	/** Whether the menu sits above the selection, so it grows out of the right edge. */
+	above: boolean;
 	onHighlightCreated: (lastPageIndex: number) => void;
 	/** Asks to confirm a removal that would trash elements created from the highlights. */
 	onConfirmRemoval: (removal: PdfHighlightRemoval) => void;
 }
 
+/** The actions on a settled text selection: extract, cloze, AI, and opening or removing a highlight under it. */
 export default function PdfFloatingMenu({
-	menuWrapperProps,
-	placement,
-	context,
 	learningAssetId,
-	selectionAnchor,
+	above,
 	onHighlightCreated,
 	onConfirmRemoval,
 }: PdfFloatingMenuProps) {
@@ -119,62 +87,32 @@ export default function PdfFloatingMenu({
 	const store = useStore<RootState>();
 	const navigate = useNavigate();
 	const aiEnabled = useAppSelector(selectSettings)?.enableAi ?? false;
-	const { activeDocumentId } = useActiveDocument();
-	const { provides: selection } = useSelectionCapability();
-	const { provides: documentManager } = useDocumentManagerCapability();
-	const { provides: annotation } = useAnnotationCapability();
-	const { registry } = useRegistry();
+	const selection = useSelection();
+	const documents = useDocuments();
+	const { highlights, addHighlights, removeHighlights } = usePdfHighlights();
 	const parent = useMemo(
 		() => ({ type: "learningAsset" as const, id: learningAssetId }),
 		[learningAssetId],
 	);
 
-	// Live, so the highlight set below can't go stale while this menu stays mounted.
-	const annotationState = usePdfAnnotationState(activeDocumentId);
-
-	// Scanning all annotations is O(n), so only recompute when the set changes.
-	const highlights = useMemo(
-		() => getActivePdfHighlights(annotationState),
-		[annotationState],
+	const selectedPages = useCallback(
+		() => listSelectedPages(selection, documents),
+		[selection, documents],
 	);
 
-	const highlightUnderSelection = useMemo(() => {
-		if (!selection || !activeDocumentId) return null;
-		const selectionRects = flattenHighlightRects(
-			selection.forDocument(activeDocumentId).getHighlightRects(),
-		);
-		if (selectionRects.length === 0) return null;
-		return findFirstHighlightedElement(highlights, selectionRects);
-	}, [selection, activeDocumentId, highlights]);
-
-	// Embedpdf always prefers below; a backward drag ends at the top, so open above when it fits.
-	const { above, anchor } = useMemo(() => {
-		const scope =
-			selection && activeDocumentId
-				? selection.forDocument(activeDocumentId)
-				: null;
-		const range = scope?.getState().selection ?? null;
-		const backward = isBackwardPdfSelection(selectionAnchor, range);
-		const above =
-			placement.suggestTop ||
-			(backward === true &&
-				range?.start.page === context.pageIndex &&
-				(placement.spaceAbove ?? 0) > MENU_ROOM_ABOVE_PX);
-		return {
-			above,
-			// A fraction of the selection's width, so the page's zoom doesn't matter.
-			anchor: pdfMenuAnchor(
-				scope?.getHighlightRectsForPage(context.pageIndex) ?? [],
-				backward ?? above,
+	// Reference-stable until the selection changes, so this follows lines that land after the menu mounts.
+	const snapshot = useSelector(SelectionToken, current =>
+		current.getSnapshot(),
+	);
+	const highlightUnderSelection = useMemo(
+		() =>
+			findFirstHighlightedElement(
+				highlights,
+				selectedLineRects(selectedPages()),
 			),
-		};
-	}, [
-		selection,
-		activeDocumentId,
-		selectionAnchor,
-		placement,
-		context.pageIndex,
-	]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- `snapshot` is what `selectedPages` reads.
+		[highlights, selectedPages, snapshot],
+	);
 
 	const handleOpenHighlight = useCallback(() => {
 		if (!highlightUnderSelection) return;
@@ -187,70 +125,52 @@ export default function PdfFloatingMenu({
 	}, [highlightUnderSelection, navigate]);
 
 	const handleRemoveHighlight = useCallback(() => {
-		if (!selection || !annotation || !activeDocumentId) return;
-		const selectionRects = flattenHighlightRects(
-			selection.forDocument(activeDocumentId).getHighlightRects(),
+		const underSelection = new Set(
+			findHighlightsUnderSelection(
+				highlights,
+				selectedLineRects(selectedPages()),
+			),
 		);
-		if (selectionRects.length === 0) return;
-		const toDelete = findHighlightsUnderSelection(
-			highlights,
-			selectionRects,
-		);
-		if (toDelete.length === 0) return;
+		if (underSelection.size === 0) return;
 		// As in the editor, the element goes with every highlight made for it, on every page.
-		const removedIds = new Set(toDelete.map(({ id }) => id));
 		const elements = new Map(
 			highlights
-				.filter(({ id }) => removedIds.has(id))
+				.filter(({ id }) => underSelection.has(id))
 				.map(({ custom }) => [
 					custom.elementId,
 					{ type: custom.elementType, id: custom.elementId },
 				]),
 		);
-		const annotations = highlights
+		const highlightIds = highlights
 			.filter(({ custom }) => elements.has(custom.elementId))
-			.map(({ pageIndex, id }) => ({ pageIndex, id }));
+			.map(({ id }) => id);
 		const { tree } = store.getState().elements;
 		const elementIds = Array.from(elements.values()).filter(elementId =>
 			existsInTree(tree, elementId),
 		);
 		// Nothing would be trashed, so there's nothing to confirm.
 		if (elementIds.length === 0) {
-			annotation
-				.forDocument(activeDocumentId)
-				.deleteAnnotations(annotations);
+			removeHighlights(highlightIds);
 			return;
 		}
-		onConfirmRemoval({ annotations, elementIds });
-	}, [
-		selection,
-		annotation,
-		activeDocumentId,
-		highlights,
-		store,
-		onConfirmRemoval,
-	]);
+		onConfirmRemoval({ highlightIds, elementIds });
+	}, [highlights, selectedPages, store, removeHighlights, onConfirmRemoval]);
 
 	/** Attaches the selection to the AI chat, then sends `prompt` about it when given. */
 	const sendSelectionToAi = useCallback(
 		(prompt?: string) => {
-			if (!selection || !activeDocumentId) return;
-			const scope = selection.forDocument(activeDocumentId);
-			void scope
-				.getSelectedText()
-				.toPromise()
-				.then(pages => {
-					const text = pages.join(" ").trim();
-					if (!text) return;
-					dispatch(addAiContextSnippet(text));
-					if (prompt) {
-						dispatch(requestAiPrompt(prompt));
-						requestFocus("aiChat");
-					}
-					scope.clear();
-				});
+			void readSelectedTexts(selection, selectedPages()).then(pages => {
+				const text = pages.join(" ").trim();
+				if (!text) return;
+				dispatch(addAiContextSnippet(text));
+				if (prompt) {
+					dispatch(requestAiPrompt(prompt));
+					requestFocus("aiChat");
+				}
+				selection.clear();
+			});
 		},
-		[selection, activeDocumentId, dispatch],
+		[selection, selectedPages, dispatch],
 	);
 	const handleAddAiContext = useCallback(
 		() => sendSelectionToAi(),
@@ -264,116 +184,60 @@ export default function PdfFloatingMenu({
 	/** Highlights the selection as the element just created from it, then moves the read point and clears the selection. */
 	const highlightCreatedElement = useCallback(
 		(
-			boundingRects: { page: number; rect: Rect }[],
+			pages: SelectedPage[],
 			elementId: string,
 			kind: PdfHighlightCustomData["elementType"],
 			color: string,
 		) => {
-			if (!selection || !annotation || !activeDocumentId) return;
-			const annotationScope = annotation.forDocument(activeDocumentId);
-			for (const highlight of buildHighlightAnnotations(
-				boundingRects,
-				elementId,
-				kind,
-				color,
-			))
-				annotationScope.createAnnotation(
-					highlight.pageIndex,
-					highlight,
-				);
-			onHighlightCreated(
-				Math.max(...boundingRects.map(({ page }) => page)),
+			addHighlights(
+				buildHighlightAnnotations(
+					selectedLineRects(pages),
+					elementId,
+					kind,
+					color,
+				),
 			);
-			selection.forDocument(activeDocumentId).clear();
+			onHighlightCreated(
+				Math.max(...pages.map(({ pageIndex }) => pageIndex)),
+			);
+			selection.clear();
 		},
-		[selection, annotation, activeDocumentId, onHighlightCreated],
+		[addHighlights, onHighlightCreated, selection],
 	);
 
 	const handleCreateExtract = useCallback(() => {
-		if (!selection || !activeDocumentId || !annotation) return;
-		const scope = selection.forDocument(activeDocumentId);
-		const boundingRects = flattenHighlightRects(scope.getHighlightRects());
-		if (boundingRects.length === 0) return;
-		void scope
-			.getSelectedText()
-			.toPromise()
-			.then(async pages => {
-				const dto = buildExtractDto(pages, parent);
-				if (!dto) return;
-				// Awaited so its DB write finishes before the highlight's save starts; concurrent writes race into SQLITE_BUSY.
-				await dispatch(createExtractAction(dto));
-				highlightCreatedElement(
-					boundingRects,
-					dto.id,
-					"extract",
-					EXTRACT_HIGHLIGHT_COLOR,
-				);
-			});
-	}, [
-		selection,
-		activeDocumentId,
-		annotation,
-		parent,
-		dispatch,
-		highlightCreatedElement,
-	]);
+		const pages = selectedPages();
+		if (pages.length === 0) return;
+		void readSelectedTexts(selection, pages).then(async texts => {
+			const dto = buildExtractDto(texts, parent);
+			if (!dto) return;
+			// Awaited so the element exists before its highlight is saved pointing at it; a failure keeps the selection.
+			if (!(await dispatch(createExtractAction(dto)))) return;
+			highlightCreatedElement(
+				pages,
+				dto.id,
+				"extract",
+				EXTRACT_HIGHLIGHT_COLOR,
+			);
+		});
+	}, [selectedPages, selection, parent, dispatch, highlightCreatedElement]);
 
 	const handleCreateCloze = useCallback(() => {
-		if (
-			!selection ||
-			!activeDocumentId ||
-			!documentManager ||
-			!registry ||
-			!annotation
-		) {
-			return;
-		}
-		const scope = selection.forDocument(activeDocumentId);
-		const boundingRects = flattenHighlightRects(scope.getHighlightRects());
-		const pageIndexes = Array.from(
-			new Set(boundingRects.map(({ page }) => page)),
-		).sort((a, b) => a - b);
-		const doc = documentManager.getActiveDocument();
-		if (pageIndexes.length === 0 || !doc) return;
-
-		const engine = registry.getEngine();
-		const slices = scope.getState().slices;
-		const selectionSlices: (ClozeSelectionSlice | undefined)[] =
-			pageIndexes.map(pageIndex => slices[pageIndex]);
-		void Promise.all([
-			scope.getSelectedText().toPromise(),
-			Promise.all(
-				pageIndexes.map(pageIndex =>
-					engine.extractText(doc, [pageIndex]).toPromise(),
-				),
-			),
-		]).then(async ([selectedTexts, pageTexts]) => {
-			const dto = buildClozeCardDto(
-				pageTexts,
-				selectedTexts,
-				parent,
-				selectionSlices,
-			);
+		const pages = selectedPages();
+		if (pages.length === 0) return;
+		void readClozePageTexts(selection, pages).then(async pageTexts => {
+			const dto = buildClozeCardDto(pageTexts, parent);
 			if (!dto) return;
 			// Awaited for the same reason as the extract's.
-			await dispatch(createCardAction(dto));
+			if (!(await dispatch(createCardAction(dto)))) return;
 			highlightCreatedElement(
-				boundingRects,
+				pages,
 				dto.id,
 				"card",
 				CLOZE_HIGHLIGHT_COLOR,
 			);
 		});
-	}, [
-		selection,
-		activeDocumentId,
-		documentManager,
-		registry,
-		annotation,
-		parent,
-		dispatch,
-		highlightCreatedElement,
-	]);
+	}, [selectedPages, selection, parent, dispatch, highlightCreatedElement]);
 
 	const items = useMemo<FloatingMenuBarItem[]>(
 		() => [
@@ -429,32 +293,14 @@ export default function PdfFloatingMenu({
 	);
 
 	return (
-		<div {...menuWrapperProps}>
-			<div
-				style={{
-					position: "absolute",
-					left: `${anchor.offset * 100}%`,
-					transform: `translateX(${ALIGN_SHIFT[anchor.align]})`,
-					pointerEvents: "auto",
-					zIndex: 100,
-					width: "max-content",
-					...(above
-						? { bottom: "100%", marginBottom: 8 }
-						: { top: "100%", marginTop: 8 }),
-				}}>
-				<Transition
-					mounted={opened}
-					transition={popTransition(above, anchor.align)}
-					duration={MOTION_DURATION_MS}
-					timingFunction={MOTION_EASING}>
-					{transitionStyles => (
-						<FloatingMenuBar
-							items={items}
-							style={transitionStyles}
-						/>
-					)}
-				</Transition>
-			</div>
-		</div>
+		<Transition
+			mounted={opened}
+			transition={popTransition(above)}
+			duration={MOTION_DURATION_MS}
+			timingFunction={MOTION_EASING}>
+			{transitionStyles => (
+				<FloatingMenuBar items={items} style={transitionStyles} />
+			)}
+		</Transition>
 	);
 }

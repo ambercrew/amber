@@ -10,8 +10,7 @@ import { ElementId } from "../../../../types/elements/elementId";
 import { escapeHtml } from "../../../../utils/escapeHtml";
 import { sanitizeHtml } from "../../../../utils/sanitizeHtml";
 
-// @embedpdf's selection plugin only exposes plain text per page, so each
-// page becomes its own unstyled paragraph.
+// Each page becomes its own unstyled paragraph: the selection plugin reads plain text only.
 export function selectedTextToHtml(pages: string[]): string {
 	return pages
 		.map(page => page.trim())
@@ -20,42 +19,23 @@ export function selectedTextToHtml(pages: string[]): string {
 		.join("");
 }
 
-export interface ClozeSelectionSlice {
-	start: number;
-	count: number;
+/** One page of a cloze selection: the page's text split around the selected part. */
+export interface ClozePageText {
+	before: string;
+	hidden: string;
+	after: string;
 }
 
-// The cloze front, hiding the selected part of each page; prefers the plugin's offsets
-// (`slices`) over `indexOf`, which would grab the wrong occurrence of a repeated phrase.
-export function clozeFrontToHtml(
-	pageTexts: string[],
-	selectedTexts: string[],
-	selectionSlices: (ClozeSelectionSlice | undefined)[] = [],
-): string {
-	return pageTexts
-		.map((fullText, index) => {
-			const selectedText = selectedTexts[index]?.trim();
-			const slice = selectionSlices[index];
-			const matchIndex = slice
-				? slice.start
-				: (selectedText?.length ?? 0) > 0
-					? fullText.indexOf(selectedText as string)
-					: -1;
-			const matchLength = slice
-				? slice.count
-				: (selectedText?.length ?? 0);
-			if (!selectedText || matchIndex === -1) {
-				return `<p>${escapeHtml(fullText)}</p>`;
-			}
-			const before = fullText.slice(0, matchIndex);
-			const hidden = fullText.slice(matchIndex, matchIndex + matchLength);
-			const after = fullText.slice(matchIndex + matchLength);
-			return (
-				`<p>${escapeHtml(before)}` +
-				`<${CLOZE_HIDDEN_TAG_NAME} ${CLOZE_HIDDEN_ATTRIBUTE}="${escapeHtml(hidden)}">${CLOZE_PLACEHOLDER}</${CLOZE_HIDDEN_TAG_NAME}>` +
-				`${escapeHtml(after)}</p>`
-			);
-		})
+/** The cloze front: each page's text in its own paragraph, with its selected part hidden. */
+export function clozeFrontToHtml(pages: ClozePageText[]): string {
+	return pages
+		.map(({ before, hidden, after }) =>
+			hidden.trim()
+				? `<p>${escapeHtml(before)}` +
+					`<${CLOZE_HIDDEN_TAG_NAME} ${CLOZE_HIDDEN_ATTRIBUTE}="${escapeHtml(hidden)}">${CLOZE_PLACEHOLDER}</${CLOZE_HIDDEN_TAG_NAME}>` +
+					`${escapeHtml(after)}</p>`
+				: `<p>${escapeHtml(before + hidden + after)}</p>`,
+		)
 		.join("");
 }
 
@@ -82,13 +62,11 @@ export function buildExtractDto(
 /** Builds the DTO for a cloze card created from a PDF text selection, or
  * `null` when the selection was empty/whitespace-only. */
 export function buildClozeCardDto(
-	pageTexts: string[],
-	selectedTexts: string[],
+	pages: ClozePageText[],
 	parent: ElementId,
-	selectionSlices: (ClozeSelectionSlice | undefined)[] = [],
 ): CreateCardDto | null {
-	const backText = selectedTexts.join(" ").trim();
-	if (!backText) return null;
+	const hiddenTexts = pages.map(({ hidden }) => hidden);
+	if (!hiddenTexts.join(" ").trim()) return null;
 
 	return {
 		id: crypto.randomUUID(),
@@ -97,13 +75,7 @@ export function buildClozeCardDto(
 			parent,
 			origin: { type: "inherited" },
 		},
-		front: htmlToLexicalJson(
-			sanitizeHtml(
-				clozeFrontToHtml(pageTexts, selectedTexts, selectionSlices),
-			),
-		),
-		back: htmlToLexicalJson(
-			sanitizeHtml(selectedTextToHtml(selectedTexts)),
-		),
+		front: htmlToLexicalJson(sanitizeHtml(clozeFrontToHtml(pages))),
+		back: htmlToLexicalJson(sanitizeHtml(selectedTextToHtml(hiddenTexts))),
 	};
 }

@@ -1,88 +1,32 @@
-import { useCallback, useState } from "react";
-import {
-	AnnotationLayer,
-	BoxedAnnotationRenderer,
-} from "@embedpdf/plugin-annotation/react";
-import { PagePointerProvider } from "@embedpdf/plugin-interaction-manager/react";
-import { RenderLayer } from "@embedpdf/plugin-render/react";
-import { SearchLayer } from "@embedpdf/plugin-search/react";
-import { GlyphPointer } from "@embedpdf/plugin-selection";
-import { SelectionLayer } from "@embedpdf/plugin-selection/react";
-import { useRecordExtractReadPoint } from "../../readPoint/readPointContext";
-import PdfFloatingMenu from "../highlights/PdfFloatingMenu";
-import { PdfHighlightRemoval } from "../highlights/usePdfHighlightRemoval";
+import { useState } from "react";
+import { LinkLayer } from "@embedpdf/react/link";
+import { RenderLayer } from "@embedpdf/react/render";
+import { SearchLayer } from "@embedpdf/react/search";
+import { SelectionLayer } from "@embedpdf/react/selection";
+import PdfHighlightLayer from "../highlights/PdfHighlightLayer";
 import PdfPageMarks from "../marks/PdfPageMarks";
-import { PDF_PAGE_ATTRIBUTE } from "./PdfContextMenu";
-import { usePdfCore, usePdfScrollPace } from "./pdfCoreContext";
+import { usePdfScrollPace } from "./pdfCoreContext";
 
 interface PdfPageProps {
 	pageIndex: number;
-	/** Shared by every page, so they're built once by the document rather than per page. */
-	annotationRenderers: BoxedAnnotationRenderer[];
-	selectionAnchor: GlyphPointer | null;
-	onConfirmRemoval: (removal: PdfHighlightRemoval) => void;
 }
 
-/** One PDF page with its layers: rendering, annotations, text selection, search matches and marks. */
-export default function PdfPage({
-	pageIndex,
-	annotationRenderers,
-	selectionAnchor,
-	onConfirmRemoval,
-}: PdfPageProps) {
-	const { documentId, learningAssetId } = usePdfCore();
-	const recordExtractReadPoint = useRecordExtractReadPoint();
-	const handleHighlightCreated = useCallback(
-		(lastPageIndex: number) => recordExtractReadPoint(lastPageIndex + 1, 0),
-		[recordExtractReadPoint],
-	);
+/** One PDF page's layers, inside the Stage: the picture, links, our highlights, the text selection, search matches and marks. */
+export default function PdfPage({ pageIndex }: PdfPageProps) {
 	// A page only flown past stays blank, sparing its render and text layers; once live it stays live.
 	const { flying } = usePdfScrollPace();
 	const [live, setLive] = useState(!flying);
 	if (!live && !flying) setLive(true);
-
-	if (!live)
-		return (
-			<PagePointerProvider
-				documentId={documentId}
-				pageIndex={pageIndex}
-				{...{ [PDF_PAGE_ATTRIBUTE]: pageIndex + 1 }}>
-				{null}
-			</PagePointerProvider>
-		);
+	if (!live) return null;
 
 	return (
-		<PagePointerProvider
-			documentId={documentId}
-			pageIndex={pageIndex}
-			{...{ [PDF_PAGE_ATTRIBUTE]: pageIndex + 1 }}>
-			{/* Without `draggable={false}`, the native image drag fires pointercancel with no
-			    pointerup, leaving embedpdf's text selection stuck "selecting". */}
-			<RenderLayer
-				documentId={documentId}
-				pageIndex={pageIndex}
-				draggable={false}
-			/>
-			<AnnotationLayer
-				documentId={documentId}
-				pageIndex={pageIndex}
-				annotationRenderers={annotationRenderers}
-			/>
-			<SelectionLayer
-				documentId={documentId}
-				pageIndex={pageIndex}
-				selectionMenu={props => (
-					<PdfFloatingMenu
-						{...props}
-						learningAssetId={learningAssetId}
-						selectionAnchor={selectionAnchor}
-						onHighlightCreated={handleHighlightCreated}
-						onConfirmRemoval={onConfirmRemoval}
-					/>
-				)}
-			/>
-			<SearchLayer documentId={documentId} pageIndex={pageIndex} />
+		<>
+			<RenderLayer />
+			<LinkLayer />
+			<PdfHighlightLayer />
+			<SelectionLayer />
+			<SearchLayer />
 			<PdfPageMarks pageNumber={pageIndex + 1} />
-		</PagePointerProvider>
+		</>
 	);
 }

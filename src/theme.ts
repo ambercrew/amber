@@ -139,8 +139,8 @@ const subtlePrimaryColor = (
 		: undefined;
 };
 
-// Mantine color of search matches: the sidebar's filter and the editor's find in page.
-const SEARCH_MATCH_COLOR = "violet";
+// Mantine color of search matches: the sidebar's filter, the editor's find in page and the PDF's.
+export const SEARCH_MATCH_COLOR = "violet";
 
 // The selected row of the sidebar's file tree and the table of contents, per color scheme.
 // Mantine's primary `light` variant, its light fill pushed a third of the way to amber-2.

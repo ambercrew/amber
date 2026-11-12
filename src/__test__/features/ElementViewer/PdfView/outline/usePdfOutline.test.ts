@@ -1,160 +1,203 @@
 import { describe, expect, it } from "vitest";
-import { PdfActionType, PdfBookmarkObject } from "@embedpdf/models";
+import { OutlineItem } from "@embedpdf/react/outline";
 import {
-	findCurrentEntryId,
+	landingOf,
 	toTableOfContents,
 } from "../../../../../features/ElementViewer/PdfView/outline/usePdfOutline";
 
-function destination(title: string, pageIndex: number, children?: unknown[]) {
+/** An outline item at `objectNumber`, under `parent`'s, going to `pageIndex` (none when undefined). */
+function item(
+	objectNumber: number,
+	title: string,
+	pageIndex: number | undefined,
+	parent: number | null = null,
+): OutlineItem {
 	return {
+		ref: { kind: "objectNumber", objectNumber },
+		parent:
+			parent === null
+				? null
+				: { kind: "objectNumber", objectNumber: parent },
 		title,
-		target: { type: "destination", destination: { pageIndex } },
-		children,
+		// The page index rides in the destination's page ref, for `pageIndexOf` below to read back.
+		target:
+			pageIndex === undefined
+				? null
+				: {
+						kind: "goto",
+						destination: {
+							kind: "fit",
+							page: {
+								kind: "objectNumber",
+								objectNumber: 1000 + pageIndex,
+							},
+						},
+					},
+		action: null,
+		open: false,
+		color: null,
+		bold: false,
+		italic: false,
 	};
 }
 
-function bookmarksOf(bookmarks: unknown[]) {
-	return bookmarks as PdfBookmarkObject[];
+function pageIndexOf(outlineItem: OutlineItem): number | undefined {
+	const target = outlineItem.target;
+	return target?.kind === "goto"
+		? target.destination.page.objectNumber - 1000
+		: undefined;
 }
 
 describe("toTableOfContents", () => {
-	it("Should id entries by their index path and keep the nesting when bookmarks are nested", () => {
+	it("Should id entries by their index path and keep the nesting when items are nested", () => {
 		// Arrange
 
-		const bookmarks = bookmarksOf([
-			destination("Chapter 1", 0, [destination("Section 1.1", 2)]),
-		]);
+		const items = [
+			item(10, "Chapter 1", 0),
+			item(11, "Section 1.1", 2, 10),
+			item(12, "Section 1.2", 3, 10),
+			item(20, "Chapter 2", 5),
+		];
 
 		// Act
 
-		const { entries } = toTableOfContents(bookmarks);
+		const { entries } = toTableOfContents(items, pageIndexOf);
 
 		// Assert
 
-		expect(entries[0].id).toBe("0");
-		expect(entries[0].children?.[0]).toEqual({
-			id: "0.0",
-			title: "Section 1.1",
-			selectable: true,
-			children: undefined,
-		});
+		expect(entries.map(({ id }) => id)).toEqual(["0", "1"]);
+		expect(entries[0].children).toEqual([
+			{ id: "0.0", title: "Section 1.1", selectable: true },
+			{ id: "0.1", title: "Section 1.2", selectable: true },
+		]);
+		expect(entries[1].children).toBeUndefined();
 	});
 
-	it("Should follow the action's destination when the bookmark is a go-to action", () => {
+	it("Should list each entry's page in document order", () => {
 		// Arrange
 
-		const bookmarks = bookmarksOf([
-			{
-				title: "Intro",
-				target: {
-					type: "action",
-					action: {
-						type: PdfActionType.Goto,
-						destination: { pageIndex: 2 },
-					},
-				},
-			},
-		]);
+		const items = [
+			item(10, "Chapter 1", 0),
+			item(11, "Section 1.1", 2, 10),
+			item(20, "Chapter 2", 5),
+		];
 
 		// Act
 
-		const { items } = toTableOfContents(bookmarks);
+		const { targets } = toTableOfContents(items, pageIndexOf);
 
 		// Assert
 
-		expect(items).toEqual([{ id: "0", pageIndex: 2 }]);
+		expect(targets).toEqual([
+			{ id: "0", pageIndex: 0, landing: null },
+			{ id: "0.0", pageIndex: 2, landing: null },
+			{ id: "1", pageIndex: 5, landing: null },
+		]);
 	});
 
-	it("Should make the entry unselectable when the bookmark has no target", () => {
+	it("Should map each item's object number to its entry id", () => {
 		// Arrange
 
-		const bookmarks = bookmarksOf([{ title: "Part I" }]);
+		const items = [
+			item(10, "Chapter 1", 0),
+			item(11, "Section 1.1", 2, 10),
+		];
 
 		// Act
 
-		const { entries } = toTableOfContents(bookmarks);
+		const { idsByObjectNumber } = toTableOfContents(items, pageIndexOf);
+
+		// Assert
+
+		expect(idsByObjectNumber.get(11)).toBe("0.0");
+	});
+
+	it("Should make the entry unselectable when the item goes nowhere", () => {
+		// Arrange
+
+		const items = [item(10, "Part I", undefined)];
+
+		// Act
+
+		const { entries } = toTableOfContents(items, pageIndexOf);
 
 		// Assert
 
 		expect(entries[0].selectable).toBe(false);
 	});
+
+	it("Should put an item at the top level when its parent isn't in the outline", () => {
+		// Arrange
+
+		const items = [item(10, "Chapter 1", 0), item(11, "Orphan", 2, 99)];
+
+		// Act
+
+		const { entries } = toTableOfContents(items, pageIndexOf);
+
+		// Assert
+
+		expect(entries.map(({ title }) => title)).toEqual([
+			"Chapter 1",
+			"Orphan",
+		]);
+	});
 });
 
-describe("findCurrentEntryId", () => {
-	it("Should pick the latest chapter starting at or before the page when the page is between chapters", () => {
+describe("landingOf", () => {
+	const page = { kind: "objectNumber" as const, objectNumber: 1005 };
+
+	it("Should keep only the spot's y when the destination gives a position and a zoom", () => {
 		// Arrange
 
-		const { items } = toTableOfContents(
-			bookmarksOf([
-				destination("Chapter 1", 0),
-				destination("Chapter 2", 10),
-				destination("Chapter 3", 20),
-			]),
-		);
+		const destination = {
+			kind: "xyz" as const,
+			page,
+			x: 40,
+			y: 120,
+			zoom: 2,
+		};
 
 		// Act
 
-		const current = findCurrentEntryId(items, 15);
+		const actual = landingOf(destination);
 
 		// Assert
 
-		expect(current).toBe("1");
+		expect(actual).toEqual({
+			kind: "xyz",
+			page,
+			x: null,
+			y: 120,
+			zoom: null,
+		});
 	});
 
-	it("Should pick the section rather than its chapter when the page is inside a section", () => {
+	it("Should return null when the destination only names the page", () => {
 		// Arrange
 
-		const { items } = toTableOfContents(
-			bookmarksOf([
-				destination("Chapter 1", 0, [
-					destination("Section 1.1", 0),
-					destination("Section 1.2", 5),
-				]),
-				destination("Chapter 2", 10),
-			]),
-		);
+		const destination = { kind: "fit" as const, page };
 
 		// Act
 
-		const current = findCurrentEntryId(items, 7);
+		const actual = landingOf(destination);
 
 		// Assert
 
-		expect(current).toBe("0.1");
+		expect(actual).toBeNull();
 	});
 
-	it("Should pick the deepest entry when a later, shallower entry starts on the same page", () => {
+	it("Should return null when the destination's y is left open", () => {
 		// Arrange
 
-		const { items } = toTableOfContents(
-			bookmarksOf([
-				destination("Chapter 1", 5, [destination("Section 1.1", 5)]),
-				destination("Chapter 2", 5),
-			]),
-		);
+		const destination = { kind: "fitH" as const, page, y: null };
 
 		// Act
 
-		const current = findCurrentEntryId(items, 5);
+		const actual = landingOf(destination);
 
 		// Assert
 
-		expect(current).toBe("0.0");
-	});
-
-	it("Should return null when the page comes before the first chapter", () => {
-		// Arrange
-
-		const { items } = toTableOfContents(
-			bookmarksOf([destination("Chapter 1", 3)]),
-		);
-
-		// Act
-
-		const current = findCurrentEntryId(items, 1);
-
-		// Assert
-
-		expect(current).toBeNull();
+		expect(actual).toBeNull();
 	});
 });

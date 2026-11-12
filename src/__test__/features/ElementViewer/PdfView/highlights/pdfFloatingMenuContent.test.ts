@@ -104,15 +104,16 @@ describe("selectedTextToHtml", () => {
 });
 
 describe("clozeFrontToHtml", () => {
-	it("Should hide the selected text within the full page text", () => {
+	it("Should hide the selected part of the page text", () => {
 		// Arrange
 
-		const pageTexts = ["Before Selected After"];
-		const selectedTexts = ["Selected"];
+		const pages = [
+			{ before: "Before ", hidden: "Selected", after: " After" },
+		];
 
 		// Act
 
-		const html = clozeFrontToHtml(pageTexts, selectedTexts);
+		const html = clozeFrontToHtml(pages);
 
 		// Assert
 
@@ -121,33 +122,31 @@ describe("clozeFrontToHtml", () => {
 		);
 	});
 
-	it("Should fall back to plain, un-hidden text when the selected text isn't found on the page", () => {
+	it("Should show the page's plain text when nothing on it is selected", () => {
 		// Arrange
 
-		const pageTexts = ["Some page content"];
-		const selectedTexts = ["Not on this page"];
+		const pages = [{ before: "Some page ", hidden: " ", after: "content" }];
 
 		// Act
 
-		const html = clozeFrontToHtml(pageTexts, selectedTexts);
+		const html = clozeFrontToHtml(pages);
 
 		// Assert
 
-		expect(html).toBe("<p>Some page content</p>");
+		expect(html).toBe("<p>Some page  content</p>");
 	});
 
 	it("Should build one paragraph per page for a multi-page selection", () => {
 		// Arrange
 
-		const pageTexts = [
-			"Page one Selected1 text",
-			"Page two Selected2 text",
+		const pages = [
+			{ before: "Page one ", hidden: "Selected1", after: "" },
+			{ before: "", hidden: "Selected2", after: " text" },
 		];
-		const selectedTexts = ["Selected1", "Selected2"];
 
 		// Act
 
-		const html = clozeFrontToHtml(pageTexts, selectedTexts);
+		const html = clozeFrontToHtml(pages);
 
 		// Assert
 
@@ -159,12 +158,13 @@ describe("clozeFrontToHtml", () => {
 	it("Should escape HTML-significant characters surrounding the hidden text", () => {
 		// Arrange
 
-		const pageTexts = ["<b>Before</b> Selected & after"];
-		const selectedTexts = ["Selected"];
+		const pages = [
+			{ before: "<b>Before</b> ", hidden: "Selected", after: " & after" },
+		];
 
 		// Act
 
-		const html = clozeFrontToHtml(pageTexts, selectedTexts);
+		const html = clozeFrontToHtml(pages);
 
 		// Assert
 
@@ -175,12 +175,13 @@ describe("clozeFrontToHtml", () => {
 	it("Should escape quotes in the hidden text so they can't terminate the attribute", () => {
 		// Arrange
 
-		const pageTexts = [`Before "quoted" after`];
-		const selectedTexts = [`"quoted"`];
+		const pages = [
+			{ before: "Before ", hidden: `"quoted"`, after: " after" },
+		];
 
 		// Act
 
-		const html = clozeFrontToHtml(pageTexts, selectedTexts);
+		const html = clozeFrontToHtml(pages);
 
 		// Assert
 
@@ -189,20 +190,20 @@ describe("clozeFrontToHtml", () => {
 		);
 	});
 
-	it("Should hide the occurrence at the given offset rather than the first match when the selected text repeats on the page", () => {
+	it("Should hide the selected occurrence rather than the first when the selected text repeats on the page", () => {
 		// Arrange
 
-		const pageTexts = ["Selected first, Selected second"];
-		const selectedTexts = ["Selected"];
-		const selectionSlices = [{ start: 16, count: 8 }];
+		const pages = [
+			{
+				before: "Selected first, ",
+				hidden: "Selected",
+				after: " second",
+			},
+		];
 
 		// Act
 
-		const html = clozeFrontToHtml(
-			pageTexts,
-			selectedTexts,
-			selectionSlices,
-		);
+		const html = clozeFrontToHtml(pages);
 
 		// Assert
 
@@ -252,12 +253,13 @@ describe("buildClozeCardDto", () => {
 	it("Should return null when the selected text is blank", () => {
 		// Arrange
 
-		const pageTexts = ["Some full page text"];
-		const selectedTexts = [""];
+		const pages = [
+			{ before: "Some full ", hidden: "", after: "page text" },
+		];
 
 		// Act
 
-		const dto = buildClozeCardDto(pageTexts, selectedTexts, PARENT);
+		const dto = buildClozeCardDto(pages, PARENT);
 
 		// Assert
 
@@ -267,12 +269,13 @@ describe("buildClozeCardDto", () => {
 	it("Should build a card dto with a hidden front and a plain-text back", () => {
 		// Arrange
 
-		const pageTexts = ["Before Selected After"];
-		const selectedTexts = ["Selected"];
+		const pages = [
+			{ before: "Before ", hidden: "Selected", after: " After" },
+		];
 
 		// Act
 
-		const dto = buildClozeCardDto(pageTexts, selectedTexts, PARENT);
+		const dto = buildClozeCardDto(pages, PARENT);
 
 		// Assert
 
@@ -295,12 +298,13 @@ describe("buildClozeCardDto", () => {
 	it("Should keep the hidden text intact when the selection contains a double quote", () => {
 		// Arrange
 
-		const pageTexts = [`Before "quoted phrase" after`];
-		const selectedTexts = [`"quoted phrase"`];
+		const pages = [
+			{ before: "Before ", hidden: `"quoted phrase"`, after: " after" },
+		];
 
 		// Act
 
-		const dto = buildClozeCardDto(pageTexts, selectedTexts, PARENT);
+		const dto = buildClozeCardDto(pages, PARENT);
 
 		// Assert
 

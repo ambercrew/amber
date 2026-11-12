@@ -5,7 +5,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useScrollCapability } from "@embedpdf/plugin-scroll/react";
+import { useStageEvent } from "@embedpdf/react/stage";
 import { useReadingCommand } from "../../../../commands/readingCommands";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { isNoReadPoint, NO_READ_POINT } from "../../readPoint/readingPosition";
@@ -46,8 +46,6 @@ export function usePdfReadPoint({
 	getCurrentPage,
 	getMenuPage,
 }: Props): ReturnValue {
-	const { provides: scrollCapability } = useScrollCapability();
-
 	const { place, accepts, reset } = useReadPointPlacement({
 		learningAssetId,
 		initial,
@@ -55,17 +53,13 @@ export function usePdfReadPoint({
 	// Gates automatic saves until the restore has run, so its own scroll isn't saved as the reader jumping to page 1.
 	const restoredRef = useRef(false);
 
-	const handlePageChange = useEffectEvent((pageNumber: number) => {
-		if (restoredRef.current && accepts("automatic"))
-			place({ split: pageNumber, block: 0 }, "automatic");
-	});
-	useEffect(
-		() =>
-			scrollCapability?.onPageChange(event => {
-				if (event.documentId === documentId)
-					handlePageChange(event.pageNumber);
-			}),
-		[scrollCapability, documentId],
+	// The handler is re-read on every event, so it never goes stale.
+	useStageEvent(
+		stage => stage.onPageChanged,
+		({ pageIndex }) => {
+			if (restoredRef.current && accepts("automatic"))
+				place({ split: pageIndex + 1, block: 0 }, "automatic");
+		},
 	);
 
 	// `initial` is only meaningful for this opening's first layout.
@@ -76,7 +70,7 @@ export function usePdfReadPoint({
 			behavior: "instant",
 		});
 	});
-	// Once per document: `layoutReady` only turns false again for another document.
+	// Once per document: `layoutReady` never turns false again, as the Viewer remounts per document.
 	useEffect(() => {
 		if (!layoutReady) return;
 		restore();

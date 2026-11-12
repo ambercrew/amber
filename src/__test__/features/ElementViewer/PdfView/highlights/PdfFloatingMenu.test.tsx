@@ -1,7 +1,14 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { PdfAnnotationSubtype } from "@embedpdf/models";
-import { GlyphPointer, SelectionRangeX } from "@embedpdf/plugin-selection";
+import { ReactNode, useCallback, useMemo, useState } from "react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import PdfFloatingMenu from "../../../../../features/ElementViewer/PdfView/highlights/PdfFloatingMenu";
+import {
+	buildHighlightAnnotations,
+	PdfHighlightAnnotation,
+} from "../../../../../features/ElementViewer/PdfView/highlights/pdfHighlightAnnotations";
+import {
+	groupHighlightsByPage,
+	PdfHighlightsContext,
+} from "../../../../../features/ElementViewer/PdfView/highlights/pdfHighlightsContext";
 import {
 	createCardAction,
 	createExtractAction,
@@ -13,180 +20,133 @@ import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../../../../features/Ai/aiPr
 
 vi.mock(import("../../../../../stores/elements/elementsActions"));
 
-const { useRegistryMock } = vi.hoisted(() => ({
-	useRegistryMock: vi.fn(),
+const { useSelectionMock, useDocumentsMock } = vi.hoisted(() => ({
+	useSelectionMock: vi.fn(),
+	useDocumentsMock: vi.fn(),
 }));
-vi.mock("@embedpdf/core/react", () => ({
-	useRegistry: useRegistryMock,
+vi.mock("@embedpdf/react/selection", () => ({
+	SelectionToken: "selection",
+	useSelection: useSelectionMock,
 }));
-
-const { useAnnotationCapabilityMock } = vi.hoisted(() => ({
-	useAnnotationCapabilityMock: vi.fn(),
-}));
-vi.mock("@embedpdf/plugin-annotation/react", () => ({
-	useAnnotationCapability: useAnnotationCapabilityMock,
-}));
-
-const { useActiveDocumentMock, useDocumentManagerCapabilityMock } = vi.hoisted(
-	() => ({
-		useActiveDocumentMock: vi.fn(),
-		useDocumentManagerCapabilityMock: vi.fn(),
-	}),
-);
-vi.mock("@embedpdf/plugin-document-manager/react", () => ({
-	useActiveDocument: useActiveDocumentMock,
-	useDocumentManagerCapability: useDocumentManagerCapabilityMock,
+vi.mock("@embedpdf/react/runtime", () => ({
+	useDocuments: useDocumentsMock,
+	useSelector: (_token: unknown, select: (capability: unknown) => unknown) =>
+		select(useSelectionMock()),
 }));
 
-const { useSelectionCapabilityMock } = vi.hoisted(() => ({
-	useSelectionCapabilityMock: vi.fn(),
-}));
-vi.mock("@embedpdf/plugin-selection/react", () => ({
-	useSelectionCapability: useSelectionCapabilityMock,
-}));
-
-const RECT = { origin: { x: 0, y: 0 }, size: { width: 10, height: 10 } };
-const PLACEMENT = {
-	pageIndex: 0,
-	rect: RECT,
-	spaceAbove: 100,
-	spaceBelow: 100,
-	suggestTop: false,
-	isVisible: true,
-};
-const DOCUMENT_ID = "doc-1";
+const RECT = { x: 0, y: 0, width: 10, height: 10 };
 const LEARNING_ASSET_ID = "learningAsset-1";
+// Page refs carry the page index plus this, so the fake documents can map them back.
+const PAGE_OBJECT_OFFSET = 100;
 
-interface TestHighlight {
-	commitState: "synced" | "deleted";
-	object: {
-		id: string;
-		type: PdfAnnotationSubtype;
-		pageIndex: number;
-		rect: typeof RECT;
-		segmentRects: (typeof RECT)[];
-		custom: { elementId: string; elementType: "extract" | "card" };
-	};
-}
-
-/** A tracked highlight annotation as the plugin keeps it in `byUid`. */
-function buildHighlight({
-	id,
-	commitState = "synced",
-	pageIndex = 0,
-}: {
-	id: string;
-	commitState?: TestHighlight["commitState"];
-	pageIndex?: number;
-}): TestHighlight {
+function pageRef(pageIndex: number) {
 	return {
-		commitState,
-		object: {
-			id,
-			type: PdfAnnotationSubtype.HIGHLIGHT,
-			pageIndex,
-			rect: RECT,
-			segmentRects: [RECT],
-			custom: { elementId: "element-1", elementType: "extract" },
-		},
+		kind: "objectNumber" as const,
+		objectNumber: PAGE_OBJECT_OFFSET + pageIndex,
 	};
 }
 
+function buildHighlight(id: string, pageIndex = 0): PdfHighlightAnnotation {
+	const [highlight] = buildHighlightAnnotations(
+		[{ pageIndex, rect: RECT }],
+		"element-1",
+		"extract",
+		"#FFCD45",
+	);
+	return { ...highlight, id };
+}
+
+/** Holds highlights in state, as `PdfHighlightsProvider` does, without loading or saving them. */
+function TestHighlights({
+	initial,
+	onRemove,
+	children,
+}: {
+	initial: PdfHighlightAnnotation[];
+	onRemove: (ids: string[]) => void;
+	children: ReactNode;
+}) {
+	const [highlights, setHighlights] = useState(initial);
+	const addHighlights = useCallback(
+		(added: PdfHighlightAnnotation[]) =>
+			setHighlights(current => [...current, ...added]),
+		[],
+	);
+	const removeHighlights = useCallback(
+		(ids: string[]) => {
+			onRemove(ids);
+			setHighlights(current =>
+				current.filter(({ id }) => !ids.includes(id)),
+			);
+		},
+		[onRemove],
+	);
+	const value = useMemo(
+		() => ({
+			highlights,
+			highlightsByPage: groupHighlightsByPage(highlights),
+			addHighlights,
+			removeHighlights,
+		}),
+		[highlights, addHighlights, removeHighlights],
+	);
+	return (
+		<PdfHighlightsContext value={value}>{children}</PdfHighlightsContext>
+	);
+}
+
+/** Selects `[start, end)` of page 0's `pageText`; the fake reads ranges as string offsets. */
 function renderMenu({
-	selectedText,
 	pageText,
-	slice,
+	start,
+	end,
 	highlights = [],
-	lineRects = [RECT],
-	suggestTop = false,
-	spaceAbove = 100,
-	range = null,
-	selectionAnchor = null,
 	aiEnabled = false,
 }: {
-	selectedText: string;
 	pageText: string;
-	slice: { start: number; count: number };
-	highlights?: TestHighlight[];
-	lineRects?: (typeof RECT)[];
-	suggestTop?: boolean;
-	spaceAbove?: number;
-	range?: SelectionRangeX | null;
-	selectionAnchor?: GlyphPointer | null;
+	start: number;
+	end: number;
+	highlights?: PdfHighlightAnnotation[];
 	aiEnabled?: boolean;
 }) {
-	const selectionScope = {
-		getHighlightRects: vi.fn(() => ({ 0: [RECT] })),
-		getHighlightRectsForPage: vi.fn(() => lineRects),
-		getSelectedText: vi.fn(() => ({
-			toPromise: () => Promise.resolve([selectedText]),
+	const page = pageRef(0);
+	const selection = {
+		getSnapshot: vi.fn(() => ({
+			pages: [{ page, segments: [{ rect: RECT }] }],
+			range: {
+				start: { page, index: start },
+				end: { page, index: end },
+			},
+			direction: "forward",
 		})),
-		getState: vi.fn(() => ({ slices: { 0: slice }, selection: range })),
+		readTextInRange: vi.fn(
+			(range: { start: { index: number }; end: { index: number } }) =>
+				Promise.resolve(
+					pageText.slice(range.start.index, range.end.index),
+				),
+		),
 		clear: vi.fn(),
 	};
-	let state = {
-		byUid: Object.fromEntries(
-			highlights.map(highlight => [highlight.object.id, highlight]),
-		) as Record<string, TestHighlight>,
-	};
-	const stateListeners = new Set<(state: unknown) => void>();
-	const annotationScope = {
-		getState: vi.fn(() => state),
-		onStateChange: vi.fn((listener: (state: unknown) => void) => {
-			stateListeners.add(listener);
-			return () => stateListeners.delete(listener);
-		}),
-		createAnnotation: vi.fn(),
-		deleteAnnotations: vi.fn(
-			(toDelete: { pageIndex: number; id: string }[]) => {
-				// Soft delete: a new `byUid` with the entry marked `deleted`.
-				const byUid = { ...state.byUid };
-				for (const { id } of toDelete) {
-					const tracked = byUid[id];
-					if (tracked)
-						byUid[id] = { ...tracked, commitState: "deleted" };
-				}
-				state = { byUid };
-				for (const listener of stateListeners) listener(state);
-			},
-		),
-	};
-	useSelectionCapabilityMock.mockReturnValue({
-		provides: { forDocument: () => selectionScope },
-	});
-	useAnnotationCapabilityMock.mockReturnValue({
-		provides: { forDocument: () => annotationScope },
-	});
-	useActiveDocumentMock.mockReturnValue({ activeDocumentId: DOCUMENT_ID });
-	useDocumentManagerCapabilityMock.mockReturnValue({
-		provides: { getActiveDocument: () => ({}) },
-	});
-	useRegistryMock.mockReturnValue({
-		registry: {
-			getEngine: () => ({
-				extractText: () => ({
-					toPromise: () => Promise.resolve(pageText),
-				}),
-			}),
-		},
+	useSelectionMock.mockReturnValue(selection);
+	useDocumentsMock.mockReturnValue({
+		getPageIndex: (ref: { objectNumber: number }) =>
+			ref.objectNumber - PAGE_OBJECT_OFFSET,
 	});
 	vi.mocked(createExtractAction).mockReturnValue(() => Promise.resolve(true));
 	vi.mocked(createCardAction).mockReturnValue(() => Promise.resolve(true));
 
 	const onHighlightCreated = vi.fn();
 	const onConfirmRemoval = vi.fn();
+	const onRemove = vi.fn();
 	const { store } = renderWithProviders(
-		<PdfFloatingMenu
-			rect={RECT}
-			menuWrapperProps={{ style: {}, ref: () => {} }}
-			selected
-			placement={{ ...PLACEMENT, suggestTop, spaceAbove }}
-			selectionAnchor={selectionAnchor}
-			context={{ type: "selection", pageIndex: 0 }}
-			learningAssetId={LEARNING_ASSET_ID}
-			onHighlightCreated={onHighlightCreated}
-			onConfirmRemoval={onConfirmRemoval}
-		/>,
+		<TestHighlights initial={highlights} onRemove={onRemove}>
+			<PdfFloatingMenu
+				learningAssetId={LEARNING_ASSET_ID}
+				above={false}
+				onHighlightCreated={onHighlightCreated}
+				onConfirmRemoval={onConfirmRemoval}
+			/>
+		</TestHighlights>,
 		{
 			preloadedState: {
 				settings: {
@@ -196,27 +156,7 @@ function renderMenu({
 		},
 	);
 
-	return {
-		selectionScope,
-		annotationScope,
-		onHighlightCreated,
-		onConfirmRemoval,
-		store,
-	};
-}
-
-function lineRect(x: number, y: number, width: number) {
-	return { origin: { x, y }, size: { width, height: 10 } };
-}
-
-/** The element embedpdf's wrapper holds, which places the bar across the selection. */
-async function getMenuPosition() {
-	const paper = (
-		await screen.findByRole("button", { name: "Create Extract" })
-	).closest(".mantine-Paper-root");
-	if (!(paper?.parentElement instanceof HTMLElement))
-		throw new Error("Menu position not found");
-	return paper.parentElement;
+	return { selection, onHighlightCreated, onConfirmRemoval, onRemove, store };
 }
 
 describe("PdfFloatingMenu", () => {
@@ -227,10 +167,10 @@ describe("PdfFloatingMenu", () => {
 	it("Should attach the selection and ask the AI for cards when Make Cards with AI is clicked", async () => {
 		// Arrange
 
-		const { selectionScope, store } = renderMenu({
-			selectedText: "Selected passage",
+		const { selection, store } = renderMenu({
 			pageText: "Selected passage",
-			slice: { start: 0, count: 16 },
+			start: 0,
+			end: 16,
 			aiEnabled: true,
 		});
 
@@ -250,17 +190,13 @@ describe("PdfFloatingMenu", () => {
 		expect(store.getState().ai.pendingPrompt).toBe(
 			CONVERT_SNIPPET_TO_CARDS_PROMPT,
 		);
-		expect(selectionScope.clear).toHaveBeenCalledOnce();
+		expect(selection.clear).toHaveBeenCalledOnce();
 	});
 
 	it("Should not offer Make Cards with AI when AI is disabled", async () => {
 		// Arrange & Act
 
-		renderMenu({
-			selectedText: "a",
-			pageText: "a",
-			slice: { start: 0, count: 1 },
-		});
+		renderMenu({ pageText: "a", start: 0, end: 1 });
 
 		// Assert
 
@@ -270,274 +206,214 @@ describe("PdfFloatingMenu", () => {
 		).toBeNull();
 	});
 
-	it("Should end the menu at the last selected line's end when it opens below a selection", async () => {
-		// Arrange & Act
-
-		renderMenu({
-			selectedText: "a",
-			pageText: "a",
-			slice: { start: 0, count: 1 },
-			lineRects: [lineRect(0, 0, 200), lineRect(0, 20, 150)],
-		});
-
-		// Assert
-
-		expect(await getMenuPosition()).toHaveStyle({
-			left: "75%",
-			transform: "translateX(-100%)",
-		});
-	});
-
-	it("Should open above at the first line's start when the selection was dragged backwards", async () => {
-		// Arrange & Act
-
-		renderMenu({
-			selectedText: "a",
-			pageText: "a",
-			slice: { start: 0, count: 1 },
-			lineRects: [lineRect(50, 0, 150), lineRect(0, 20, 200)],
-			range: { start: { page: 0, index: 0 }, end: { page: 0, index: 9 } },
-			selectionAnchor: { page: 0, index: 9 },
-		});
-
-		// Assert
-
-		expect(await getMenuPosition()).toHaveStyle({
-			bottom: "100%",
-			left: "25%",
-			transform: "translateX(0%)",
-		});
-	});
-
-	it("Should stay below a backwards selection when there's no room above it", async () => {
-		// Arrange & Act
-
-		renderMenu({
-			selectedText: "a",
-			pageText: "a",
-			slice: { start: 0, count: 1 },
-			lineRects: [lineRect(50, 0, 150), lineRect(0, 20, 200)],
-			range: { start: { page: 0, index: 0 }, end: { page: 0, index: 9 } },
-			selectionAnchor: { page: 0, index: 9 },
-			spaceAbove: 10,
-		});
-
-		// Assert
-
-		expect(await getMenuPosition()).toHaveStyle({
-			top: "100%",
-			left: "25%",
-		});
-	});
-
-	it("Should start the menu at the first selected line's start when it opens above a selection", async () => {
-		// Arrange & Act
-
-		renderMenu({
-			selectedText: "a",
-			pageText: "a",
-			slice: { start: 0, count: 1 },
-			lineRects: [lineRect(50, 0, 150), lineRect(0, 20, 200)],
-			suggestTop: true,
-		});
-
-		// Assert
-
-		expect(await getMenuPosition()).toHaveStyle({
-			left: "25%",
-			transform: "translateX(0%)",
-		});
-	});
-
-	it("Should clear the selection after creating an extract", async () => {
+	it("Should create an extract from the selected text and highlight it when Create Extract is clicked", async () => {
 		// Arrange
 
-		const { selectionScope } = renderMenu({
-			selectedText: "Selected phrase",
-			pageText: "Full page text",
-			slice: { start: 0, count: 8 },
+		const { selection, onHighlightCreated } = renderMenu({
+			pageText: "Before Selected phrase after",
+			start: 7,
+			end: 22,
 		});
 
 		// Act
 
 		fireEvent.click(
-			document.querySelector('[aria-label="Create Extract"]')!,
+			await screen.findByRole("button", { name: "Create Extract" }),
 		);
 
 		// Assert
 
-		await waitFor(() => expect(selectionScope.clear).toHaveBeenCalled());
+		await waitFor(() => expect(selection.clear).toHaveBeenCalled());
+		const dto = vi.mocked(createExtractAction).mock.calls[0][0];
+		expect(dto.content).toContain("Selected phrase");
+		expect(dto.content).not.toContain("Before");
+		expect(onHighlightCreated).toHaveBeenCalledWith(0);
 	});
 
-	it("Should clear the selection after creating a cloze card", async () => {
+	it("Should keep the selection and add no highlight when creating the extract fails", async () => {
 		// Arrange
 
-		const { selectionScope } = renderMenu({
-			selectedText: "Selected phrase",
-			pageText: "Full page text with Selected phrase",
-			slice: { start: 20, count: 15 },
+		const { selection, onHighlightCreated } = renderMenu({
+			pageText: "Selected phrase",
+			start: 0,
+			end: 8,
+		});
+		vi.mocked(createExtractAction).mockReturnValue(() =>
+			Promise.resolve(false),
+		);
+
+		// Act
+
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Create Extract" }),
+		);
+
+		// Assert
+
+		await waitFor(() => expect(createExtractAction).toHaveBeenCalled());
+		await act(async () => {});
+		expect(selection.clear).not.toHaveBeenCalled();
+		expect(onHighlightCreated).not.toHaveBeenCalled();
+	});
+
+	it("Should hide only the selected occurrence when the selected text repeats on the page", async () => {
+		// Arrange
+
+		const { selection } = renderMenu({
+			pageText: "Selected first, Selected second",
+			start: 16,
+			end: 24,
 		});
 
 		// Act
 
-		fireEvent.click(document.querySelector('[aria-label="Create Cloze"]')!);
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Create Cloze" }),
+		);
 
 		// Assert
 
-		await waitFor(() => expect(selectionScope.clear).toHaveBeenCalled());
+		await waitFor(() => expect(selection.clear).toHaveBeenCalled());
+		const dto = vi.mocked(createCardAction).mock.calls[0][0];
+		expect(dto.front).toContain("Selected first, ");
+		expect(dto.front).toContain(" second");
+		expect(dto.back).toContain("Selected");
 	});
 
-	it("Should offer Open and Remove when the selection overlaps a highlight", () => {
-		// Arrange
-
-		const highlight = buildHighlight({ id: "h1" });
-
-		// Act
+	it("Should offer Open and Remove when the selection overlaps a highlight", async () => {
+		// Arrange & Act
 
 		renderMenu({
-			selectedText: "Selected phrase",
-			pageText: "Full page text",
-			slice: { start: 0, count: 8 },
-			highlights: [highlight],
+			pageText: "Selected phrase",
+			start: 0,
+			end: 8,
+			highlights: [buildHighlight("h1")],
 		});
 
 		// Assert
 
-		expect(document.querySelector('[aria-label="Open"]')).not.toBeNull();
 		expect(
-			document.querySelector('[aria-label="Remove Highlight"]'),
-		).not.toBeNull();
+			await screen.findByRole("button", { name: "Open" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Remove Highlight" }),
+		).toBeInTheDocument();
 	});
 
-	it("Should not offer Open or Remove when the overlapping highlight is soft-deleted", () => {
-		// Arrange
-
-		const deletedHighlight = buildHighlight({
-			id: "h1",
-			commitState: "deleted",
-		});
-
-		// Act
+	it("Should not offer Open or Remove when the highlight is on another page", async () => {
+		// Arrange & Act
 
 		renderMenu({
-			selectedText: "Selected phrase",
-			pageText: "Full page text",
-			slice: { start: 0, count: 8 },
-			highlights: [deletedHighlight],
+			pageText: "Selected phrase",
+			start: 0,
+			end: 8,
+			highlights: [buildHighlight("h1", 1)],
 		});
 
 		// Assert
 
-		expect(document.querySelector('[aria-label="Open"]')).toBeNull();
+		await screen.findByRole("button", { name: "Create Extract" });
+		expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
 		expect(
-			document.querySelector('[aria-label="Remove Highlight"]'),
+			screen.queryByRole("button", { name: "Remove Highlight" }),
 		).toBeNull();
 	});
 
-	it("Should delete the highlight without asking when its element no longer exists", () => {
+	it("Should delete the highlight without asking when its element no longer exists", async () => {
 		// Arrange
 
-		const { annotationScope } = renderMenu({
-			selectedText: "Selected phrase",
-			pageText: "Full page text",
-			slice: { start: 0, count: 8 },
-			highlights: [buildHighlight({ id: "h1" })],
+		const { onRemove, onConfirmRemoval } = renderMenu({
+			pageText: "Selected phrase",
+			start: 0,
+			end: 8,
+			highlights: [buildHighlight("h1")],
 		});
 
 		// Act
 
 		fireEvent.click(
-			document.querySelector('[aria-label="Remove Highlight"]')!,
+			await screen.findByRole("button", { name: "Remove Highlight" }),
 		);
 
 		// Assert
 
-		expect(annotationScope.deleteAnnotations).toHaveBeenCalledWith([
-			{ pageIndex: 0, id: "h1" },
-		]);
+		expect(onRemove).toHaveBeenCalledWith(["h1"]);
+		expect(onConfirmRemoval).not.toHaveBeenCalled();
 	});
 
 	it("Should hide the highlight actions when the highlight is removed", async () => {
 		// Arrange
 
 		renderMenu({
-			selectedText: "Selected phrase",
-			pageText: "Full page text",
-			slice: { start: 0, count: 8 },
-			highlights: [buildHighlight({ id: "h1" })],
+			pageText: "Selected phrase",
+			start: 0,
+			end: 8,
+			highlights: [buildHighlight("h1")],
 		});
 
 		// Act
 
 		fireEvent.click(
-			document.querySelector('[aria-label="Remove Highlight"]')!,
+			await screen.findByRole("button", { name: "Remove Highlight" }),
 		);
 
 		// Assert
 
 		await waitFor(() =>
 			expect(
-				document.querySelector('[aria-label="Remove Highlight"]'),
+				screen.queryByRole("button", { name: "Remove Highlight" }),
 			).toBeNull(),
 		);
-		expect(document.querySelector('[aria-label="Open"]')).toBeNull();
+		expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
 	});
 
-	it("Should ask to confirm instead of deleting when the highlight's element still exists", () => {
+	it("Should ask to confirm instead of deleting when the highlight's element still exists", async () => {
 		// Arrange
 
 		vi.mocked(existsInTree).mockReturnValue(true);
-		const { annotationScope, onConfirmRemoval } = renderMenu({
-			selectedText: "Selected phrase",
-			pageText: "Full page text",
-			slice: { start: 0, count: 8 },
-			highlights: [buildHighlight({ id: "h1" })],
+		const { onRemove, onConfirmRemoval } = renderMenu({
+			pageText: "Selected phrase",
+			start: 0,
+			end: 8,
+			highlights: [buildHighlight("h1")],
 		});
 
 		// Act
 
 		fireEvent.click(
-			document.querySelector('[aria-label="Remove Highlight"]')!,
+			await screen.findByRole("button", { name: "Remove Highlight" }),
 		);
 
 		// Assert
 
 		expect(onConfirmRemoval).toHaveBeenCalledWith({
-			annotations: [{ pageIndex: 0, id: "h1" }],
+			highlightIds: ["h1"],
 			elementIds: [{ type: "extract", id: "element-1" }],
 		});
-		expect(annotationScope.deleteAnnotations).not.toHaveBeenCalled();
+		expect(onRemove).not.toHaveBeenCalled();
 	});
 
-	it("Should remove the element's highlights on other pages too when its highlight is removed", () => {
+	it("Should remove the element's highlights on other pages too when its highlight is removed", async () => {
 		// Arrange
 
 		vi.mocked(existsInTree).mockReturnValue(true);
 		const { onConfirmRemoval } = renderMenu({
-			selectedText: "Selected phrase",
-			pageText: "Full page text",
-			slice: { start: 0, count: 8 },
-			highlights: [
-				buildHighlight({ id: "h1" }),
-				buildHighlight({ id: "h2", pageIndex: 1 }),
-			],
+			pageText: "Selected phrase",
+			start: 0,
+			end: 8,
+			highlights: [buildHighlight("h1"), buildHighlight("h2", 1)],
 		});
 
 		// Act
 
 		fireEvent.click(
-			document.querySelector('[aria-label="Remove Highlight"]')!,
+			await screen.findByRole("button", { name: "Remove Highlight" }),
 		);
 
 		// Assert
 
 		expect(onConfirmRemoval).toHaveBeenCalledWith(
-			expect.objectContaining({
-				annotations: [
-					{ pageIndex: 0, id: "h1" },
-					{ pageIndex: 1, id: "h2" },
-				],
-			}),
+			expect.objectContaining({ highlightIds: ["h1", "h2"] }),
 		);
 	});
 });
