@@ -1,27 +1,28 @@
 import ReplayCardReviewsEventDto, {
 	ReplayCardReviewsResponseDto,
 } from "../../api/ankiSync/events/replayCardReviewsEvent";
-import { replayReviews } from "../Study/utils/cardScheduling";
+import { createScheduler, replayReviews } from "../Study/utils/cardScheduling";
 
 function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
 /** Answers the backend's request to reschedule cards from their merged Amber and Anki reviews. */
-export function replayCardReviews({
+export async function replayCardReviews({
 	cards,
-}: ReplayCardReviewsEventDto): ReplayCardReviewsResponseDto {
+}: ReplayCardReviewsEventDto): Promise<ReplayCardReviewsResponseDto> {
 	try {
-		return {
-			reviews: cards.map(card =>
+		const reviews = await Promise.all(
+			cards.map(async card =>
 				replayReviews(
-					card.profile,
+					await createScheduler(card.profile),
 					card.cardId,
 					card.reviews,
 					card.start,
 				),
 			),
-		};
+		);
+		return { reviews };
 	} catch (error) {
 		return { error: errorMessage(error) };
 	}

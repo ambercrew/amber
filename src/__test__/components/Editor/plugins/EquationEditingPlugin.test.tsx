@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { act, fireEvent } from "@testing-library/react";
-import { LexicalComposer } from "@lexical/react/LexicalComposer";
+import { LexicalExtensionComposer } from "@lexical/react/LexicalExtensionComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
@@ -13,6 +13,7 @@ import {
 	$isNodeSelection,
 	$setSelection,
 	LexicalEditor,
+	defineExtension,
 } from "lexical";
 import {
 	$createEquationNode,
@@ -32,18 +33,22 @@ function EditorCapture({
 	return null;
 }
 
+const TEST_EXTENSION = defineExtension({
+	name: "test",
+	namespace: "test",
+	nodes: [EquationNode],
+	onError: error => {
+		throw error;
+	},
+});
+
 function renderEditor() {
 	let capturedEditor: LexicalEditor | null = null;
 
 	renderWithProviders(
-		<LexicalComposer
-			initialConfig={{
-				namespace: "test",
-				nodes: [EquationNode],
-				onError: error => {
-					throw error;
-				},
-			}}>
+		<LexicalExtensionComposer
+			extension={TEST_EXTENSION}
+			contentEditable={null}>
 			<RichTextPlugin
 				contentEditable={<ContentEditable aria-label="editor" />}
 				placeholder={null}
@@ -55,7 +60,7 @@ function renderEditor() {
 					capturedEditor = editor;
 				}}
 			/>
-		</LexicalComposer>,
+		</LexicalExtensionComposer>,
 	);
 
 	if (!capturedEditor) throw new Error("Editor was not captured");

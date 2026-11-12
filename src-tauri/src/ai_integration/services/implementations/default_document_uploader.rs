@@ -9,7 +9,7 @@ use text_splitter::{ChunkConfig, TextSplitter};
 use uuid::Uuid;
 
 use crate::ai_integration::ai_state::AiState;
-use crate::ai_integration::clients::multi_client::multi_embedding_model::MultiEmbeddingModel;
+use crate::ai_integration::clients::multi_client::EmbeddingModel;
 use crate::ai_integration::entities::document::Document;
 use crate::ai_integration::entities::message::{self, Message, MessageContent};
 use crate::ai_integration::repositories::ai_repository::AiRepository;
@@ -33,7 +33,7 @@ impl DefaultDocumentUploader {
         &self,
         path: &Path,
         chat_id: Uuid,
-    ) -> Result<(MultiEmbeddingModel, Vec<(Document, Vec<Embedding>)>), DocumentUploaderError> {
+    ) -> Result<(EmbeddingModel, Vec<(Document, Vec<Embedding>)>), DocumentUploaderError> {
         let client = self.ai_client_provider.get_client().await?;
         let embed_model = self
             .ai_client_provider

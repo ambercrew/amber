@@ -1,8 +1,8 @@
-import { ReactNode, useEffect, useRef } from "react";
+import { ReactNode, useEffect, useMemo, useRef } from "react";
 import { act, waitFor } from "@testing-library/react";
-import { LexicalComposer } from "@lexical/react/LexicalComposer";
+import { LexicalExtensionComposer } from "@lexical/react/LexicalExtensionComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { LexicalEditor } from "lexical";
+import { defineExtension, LexicalEditor } from "lexical";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runReadingCommand } from "../../../../commands/readingCommands";
 import {
@@ -63,6 +63,17 @@ vi.mock("../../../../features/ElementViewer/ElementEditor", () => ({
 		children?: ReactNode;
 	}) {
 		const rootRef = useRef<HTMLDivElement>(null);
+		const extension = useMemo(
+			() =>
+				defineExtension({
+					name: "test",
+					namespace: initialContent,
+					onError: (error: Error) => {
+						throw error;
+					},
+				}),
+			[initialContent],
+		);
 		useEffect(() => {
 			const seq = Number(initialContent.replace("split-", ""));
 			Array.from(rootRef.current?.children ?? []).forEach((block, i) => {
@@ -76,13 +87,9 @@ vi.mock("../../../../features/ElementViewer/ElementEditor", () => ({
 			return () => onRootElement?.(null);
 		}, [initialContent, onRootElement]);
 		return (
-			<LexicalComposer
-				initialConfig={{
-					namespace: initialContent,
-					onError: (error: Error) => {
-						throw error;
-					},
-				}}>
+			<LexicalExtensionComposer
+				extension={extension}
+				contentEditable={null}>
 				<CaptureEditor id={initialContent} />
 				{children}
 				<div ref={rootRef} data-testid={initialContent}>
@@ -90,7 +97,7 @@ vi.mock("../../../../features/ElementViewer/ElementEditor", () => ({
 						<p key={i} />
 					))}
 				</div>
-			</LexicalComposer>
+			</LexicalExtensionComposer>
 		);
 	},
 }));

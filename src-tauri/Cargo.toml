@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 prost-build = "0.14.4"
 tauri-build = { version = "3.0.0-alpha.4", features = [] }
 sqlx = { version = "0.9.0", features = [ "runtime-tokio", "tls-native-tls", "macros", "sqlite" ] }
-tokio = { version = "1.53.1", features = ["full"] }
+tokio = { version = "1.54.1", features = ["full"] }
 
 [dependencies]
 async-stream = "0.3.6"
@@ -35,11 +35,11 @@ prost-types = "0.14.4"
 rand = "0.10.3"
 regex = "1.13.1"
 tauri-plugin-http = "3.0.0-alpha.3"
-reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls", "http2", "charset", "macos-system-configuration"] }
-reqwest-middleware = { version = "0.4", features = ["json"] }
-reqwest-retry = "0.8"
+reqwest = { version = "0.13.5", default-features = false, features = ["native-tls", "http2", "charset", "system-proxy", "json", "query", "form"] }
+reqwest-middleware = { version = "0.5.2", features = ["json", "query"] }
+reqwest-retry = "0.9.1"
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = { version = "1.0.151", features = ["raw_value"] }
+serde_json = { version = "1.0.154", features = ["raw_value"] }
 serde_repr = "0.1.21"
 tauri-plugin-log = "3.0.0-alpha.3"
 sqlx = { version = "0.9.0", features = [ "runtime-tokio", "tls-native-tls", "macros", "sqlite", "chrono", "uuid" ] }
@@ -50,21 +50,21 @@ tauri-plugin-opener = "3.0.0-alpha.3"
 tauri-plugin-os = "3.0.0-alpha.3"
 tauri-plugin-process = "3.0.0-alpha.3"
 thiserror = "2.0.21"
-tokio = { version = "1.53.1", features = ["full"] }
+tokio = { version = "1.54.1", features = ["full"] }
 tokio-stream = "0.1.19"
-uuid = { version = "1.26.1", features = [ "v4", "v5", "serde" ] }
+uuid = { version = "1.29.0", features = [ "v4", "v5", "serde" ] }
 fractional_index = "2.0.2"
 fsrs = "6.6.2"
-rig = { version = "=0.42.0", default-features = false, features = ["pdf", "derive", "native-tls", "sqlite", "agent"] }
-schemars = "1.2.2"
-text-splitter = "0.33.0"
+rig = { version = "=0.45.0", default-features = false, features = ["pdf", "derive", "native-tls", "reqwest", "sqlite", "agent"] }
+schemars = "1.2.3"
+text-splitter = "0.33.1"
 sqlite-vec = "0.1.9"
 tokio-rusqlite = "0.6.0"
 fontdb = "0.24.0"
-zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+zip = { version = "9.1.3", default-features = false, features = ["deflate"] }
 quick-xml = "0.42.0"
-roxmltree = "0.20.0"
-sha2 = "0.11.0"
+roxmltree = "0.21.2"
+sha2 = "0.11.1"
 # Reads Anki collections from memory; must match the `rusqlite` that `tokio-rusqlite` links.
 rusqlite = { version = "0.32.1", features = ["serialize", "collation"] }
 # Pure Rust, so Android builds need no C toolchain for zstd.
@@ -100,6 +100,8 @@ optional = true
 
 [dev-dependencies]
 mockall = "0.15.0"
+# The mock client is built on rig's scripted completion wire.
+rig = { version = "=0.45.0", default-features = false, features = ["test-utils"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "3.0.0-alpha.3"

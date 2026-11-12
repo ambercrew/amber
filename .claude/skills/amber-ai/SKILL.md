@@ -12,7 +12,7 @@ description: >
 
 # Amber AI
 
-Built on [`rig`](https://docs.rs/rig-core) `=0.42.0`. The backend lives in
+Built on [`rig`](https://docs.rs/rig-core) `=0.45.0`. The backend lives in
 `src-tauri/src/ai_integration/`, the UI in `src/features/Ai/`, and the API wrappers in
 `src/api/aiIntegration/`. Read the code there for how a turn flows; this skill covers the rules
 that aren't obvious from it.
@@ -38,7 +38,8 @@ the existing tool closest to what you need and follow its shape.
 - **Return ids** for anything a tool creates or finds. The model can only link to elements whose ids
   it has seen, and links use `element_reference`.
 - **Use the app's wording** in names, descriptions and approval text (e.g. "finished", not "done").
-- **Keep calls bounded** and outputs short; running tools are never cancelled. Clamp any size the
+- **Keep calls bounded** and outputs short; running tools are never cancelled (rig only keeps a batch's
+  results once every call in it settles, so `StateCancellationHook` stops model calls, never tools). Clamp any size the
   model picks in `call` (e.g. `search_documents`' `top_k` to `MAX_TOP_K`); a schema hint alone
   isn't enforced.
 - Text a tool turns into element content (like card sides) goes through the Markdown-to-Lexical
@@ -53,9 +54,10 @@ the existing tool closest to what you need and follow its shape.
 
 ## Providers
 
-Check `rig` 0.42 supports the provider first. A provider touches the `AiProvider` setting, every
-`MultiClient` dispatch, the client provider and the AI settings tab. Tests only compile the mock
-client, so build with `cargo build --features wry` and try it in `npm run tauri dev`.
+Check `rig` 0.45 supports the provider first. A provider touches the `AiProvider` setting,
+`MultiClient` (which hands out rig's type-erased `DynModel`s), the client provider and the AI
+settings tab. Tests only compile the mock client, so build with `cargo build --features wry` and try
+it in `npm run tauri dev`.
 
 ## Starting a chat from elsewhere in the app
 
@@ -84,5 +86,8 @@ the model snippets, search results and context are material, not instructions.
   `<mark data-cloze-hidden>`) as inline HTML, as long as the HTML sanitizer allows it.
 - **Message dates are stored to the second**, so messages in the same second keep their order only
   by insertion. Anything that copies messages (like branching a chat) must insert them in order.
-- Some providers return empty tool-call ids; the streamer falls back to rig's `internal_call_id`.
-- Tests use `MockClient`; script multi-turn tool use by switching on a call counter.
+- rig mints a call id when a provider sends none (e.g. Ollama), so stored ids are never empty.
+- Ollama uses `native_completion` (`/api/chat`); rig's plain `completion` is its OpenAI-compatible API.
+- Tests use `MockClient`, a transport for rig's `MockScript` wire: `completion_fn` returns a whole
+  reply's content, `stream_fn` one `MockStreamEvent` per call until `None`. Script multi-turn tool use
+  by switching on a call counter.

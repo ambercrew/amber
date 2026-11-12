@@ -2,10 +2,8 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use rig::{
-    embeddings::{EmbedError, EmbeddingError},
-    loaders::file::FileLoaderError,
-    loaders::pdf::PdfLoaderError,
-    vector_store::VectorStoreError,
+    ProviderError, embeddings::EmbedError, loaders::file::FileLoaderError,
+    loaders::pdf::PdfLoaderError, vector_store::VectorStoreError,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -29,11 +27,24 @@ pub enum DocumentUploaderError {
     #[error("Failed to embed content")]
     Embed(#[from] EmbedError),
     #[error("Failed to generate embeddings")]
-    Embedding(#[from] EmbeddingError),
+    Embedding(#[source] Box<ProviderError>),
     #[error(transparent)]
-    VectorStore(#[from] VectorStoreError),
+    VectorStore(Box<VectorStoreError>),
     #[error(transparent)]
     AiClientProvider(#[from] AiClientProviderError),
+}
+
+// rig's errors are large, so they're boxed to keep every result small.
+impl From<ProviderError> for DocumentUploaderError {
+    fn from(error: ProviderError) -> Self {
+        Self::Embedding(Box::new(error))
+    }
+}
+
+impl From<VectorStoreError> for DocumentUploaderError {
+    fn from(error: VectorStoreError) -> Self {
+        Self::VectorStore(Box::new(error))
+    }
 }
 
 impl From<String> for DocumentUploaderError {

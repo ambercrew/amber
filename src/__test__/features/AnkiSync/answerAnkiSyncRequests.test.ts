@@ -21,7 +21,7 @@ const PROFILE: StudyProfileDto = {
 };
 
 describe("answerAnkiSyncRequests", () => {
-	it("Should reschedule each card in order when given review histories", () => {
+	it("Should reschedule each card in order when given review histories", async () => {
 		// Arrange
 
 		const event = {
@@ -41,7 +41,7 @@ describe("answerAnkiSyncRequests", () => {
 
 		// Act
 
-		const actual = replayCardReviews(event);
+		const actual = await replayCardReviews(event);
 
 		// Assert
 

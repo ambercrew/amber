@@ -1,124 +1,92 @@
-use rig::client::{CompletionClient, EmbeddingsClient};
+use rig::DynModel;
+use rig::operation::{Completion, Embedding};
 
 #[cfg(not(test))]
-use rig::providers::gemini;
-#[cfg(not(test))]
-use rig::providers::ollama;
-#[cfg(not(test))]
-use rig::providers::openai;
-#[cfg(not(test))]
-use rig::providers::openrouter;
+use rig::providers::{
+    gemini::Gemini,
+    ollama::Ollama,
+    openai::{self, OpenAI},
+    openrouter,
+};
 
 #[cfg(test)]
 use crate::ai_integration::clients::mock_client::MockClient;
-use crate::ai_integration::clients::multi_client::{
-    multi_completion_model::MultiCompletionModel, multi_embedding_model::MultiEmbeddingModel,
-};
 
-/// Used for enum dispatching from multiple models.
+pub type EmbeddingModel = DynModel<Embedding>;
+
+/// The client of the provider picked in settings, building its models.
 pub enum MultiClient {
     #[cfg(not(test))]
-    Ollama(ollama::Client),
+    Ollama(Ollama),
     #[cfg(not(test))]
-    OpenAI(openai::Client),
+    OpenAI(OpenAI),
+    /// OpenRouter speaks OpenAI's API, so it's an OpenAI client with its own dialect.
     #[cfg(not(test))]
-    OpenRouter(openrouter::Client),
+    OpenRouter(openai::OpenAI),
     #[cfg(not(test))]
-    Gemini(gemini::Client),
+    Gemini(Gemini),
     #[cfg(test)]
     Mock(MockClient),
 }
 
-impl CompletionClient for MultiClient {
-    type CompletionModel = MultiCompletionModel;
-
-    fn completion_model(&self, model: impl Into<String>) -> Self::CompletionModel {
-        match self {
-            #[cfg(not(test))]
-            MultiClient::Ollama(client) => {
-                MultiCompletionModel::Ollama(client.completion_model(model))
-            }
-            #[cfg(not(test))]
-            MultiClient::OpenAI(client) => {
-                MultiCompletionModel::OpenAI(client.completion_model(model))
-            }
-            #[cfg(not(test))]
-            MultiClient::OpenRouter(client) => {
-                MultiCompletionModel::OpenRouter(client.completion_model(model))
-            }
-            #[cfg(not(test))]
-            MultiClient::Gemini(client) => {
-                MultiCompletionModel::Gemini(client.completion_model(model))
-            }
-            #[cfg(test)]
-            MultiClient::Mock(client) => {
-                let mut client = client.clone();
-                client.model = Some(model.into());
-                MultiCompletionModel::Mock(client)
-            }
-        }
+impl MultiClient {
+    #[cfg(not(test))]
+    pub fn ollama() -> Self {
+        Self::Ollama(Ollama::new())
     }
-}
 
-impl EmbeddingsClient for MultiClient {
-    type EmbeddingModel = MultiEmbeddingModel;
+    #[cfg(not(test))]
+    pub fn openai(api_key: String) -> Self {
+        Self::OpenAI(OpenAI::new(api_key))
+    }
 
-    fn embedding_model(&self, model: impl Into<String>) -> Self::EmbeddingModel {
+    #[cfg(not(test))]
+    pub fn openrouter(api_key: String) -> Self {
+        Self::OpenRouter(openrouter::new(api_key))
+    }
+
+    #[cfg(not(test))]
+    pub fn gemini(api_key: String) -> Self {
+        Self::Gemini(Gemini::new(api_key))
+    }
+
+    pub fn completion(&self, model: impl Into<String>) -> DynModel<Completion> {
         match self {
+            // The native chat API, as `completion` is Ollama's OpenAI-compatible one.
             #[cfg(not(test))]
-            MultiClient::Ollama(client) => {
-                MultiEmbeddingModel::Ollama(client.embedding_model(model))
-            }
+            Self::Ollama(client) => client.native_completion(model).erase(),
             #[cfg(not(test))]
-            MultiClient::OpenAI(client) => {
-                MultiEmbeddingModel::OpenAI(client.embedding_model(model))
-            }
+            Self::OpenAI(client) => client.responses(model).erase(),
             #[cfg(not(test))]
-            MultiClient::OpenRouter(client) => {
-                MultiEmbeddingModel::OpenRouter(client.embedding_model(model))
-            }
+            Self::OpenRouter(client) => client.completion(model).erase(),
             #[cfg(not(test))]
-            MultiClient::Gemini(client) => {
-                MultiEmbeddingModel::Gemini(client.embedding_model(model))
-            }
+            Self::Gemini(client) => client.completion(model).erase(),
             #[cfg(test)]
-            MultiClient::Mock(client) => {
-                let mut client = client.clone();
-                client.embeddings_model = Some(model.into());
-                MultiEmbeddingModel::Mock(client)
-            }
+            Self::Mock(client) => client.completion(model),
         }
     }
 
-    fn embedding_model_with_ndims(
-        &self,
-        model: impl Into<String>,
-        ndims: usize,
-    ) -> Self::EmbeddingModel {
+    /// `ndims` overrides the dimensions rig knows the model by, if it knows them at all.
+    pub fn embedding(&self, model: impl Into<String>, ndims: Option<usize>) -> EmbeddingModel {
         match self {
             #[cfg(not(test))]
-            MultiClient::Ollama(client) => {
-                MultiEmbeddingModel::Ollama(client.embedding_model_with_ndims(model, ndims))
-            }
+            Self::Ollama(client) => client.embedding(model, ndims).erase(),
             #[cfg(not(test))]
-            MultiClient::OpenAI(client) => {
-                MultiEmbeddingModel::OpenAI(client.embedding_model_with_ndims(model, ndims))
-            }
+            Self::OpenAI(client) => client.embedding(model, ndims).erase(),
             #[cfg(not(test))]
-            MultiClient::OpenRouter(client) => {
-                MultiEmbeddingModel::OpenRouter(client.embedding_model_with_ndims(model, ndims))
-            }
+            Self::OpenRouter(client) => client.embedding(model, ndims).erase(),
             #[cfg(not(test))]
-            MultiClient::Gemini(client) => {
-                MultiEmbeddingModel::Gemini(client.embedding_model_with_ndims(model, ndims))
-            }
+            Self::Gemini(client) => client.embedding(model, ndims).erase(),
             #[cfg(test)]
-            MultiClient::Mock(client) => {
-                let mut client = client.clone();
-                client.embeddings_model_dims = Some(ndims);
-                client.embeddings_model = Some(model.into());
-                MultiEmbeddingModel::Mock(client)
-            }
+            Self::Mock(client) => client.embedding(model, ndims),
         }
+    }
+
+    /// OpenAI's reasoning models reject `temperature`, so it's left at the model's default.
+    pub fn supports_temperature(&self) -> bool {
+        #[cfg(not(test))]
+        return !matches!(self, Self::OpenAI(_));
+        #[cfg(test)]
+        true
     }
 }

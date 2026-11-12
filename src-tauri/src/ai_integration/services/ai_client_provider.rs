@@ -1,12 +1,11 @@
 use async_trait::async_trait;
-use rig::embeddings::EmbeddingError;
+use rig::ProviderError;
 use rig::sqlite::SqliteVectorStore;
 use rig::vector_store::VectorStoreError;
 use thiserror::Error;
 
 use crate::SourceError;
-use crate::ai_integration::clients::multi_client::MultiClient;
-use crate::ai_integration::clients::multi_client::multi_embedding_model::MultiEmbeddingModel;
+use crate::ai_integration::clients::multi_client::{EmbeddingModel, MultiClient};
 use crate::ai_integration::entities::document::Document;
 #[cfg(not(test))]
 use crate::settings::value_objects::ai_provider::AiProvider;
@@ -27,16 +26,26 @@ pub enum AiClientProviderError {
     #[error("Failed to connect to the embeddings database")]
     ConnectingToEmbeddingsDatabase(#[source] SourceError),
     #[error(transparent)]
-    VectorStore(#[from] VectorStoreError),
+    VectorStore(Box<VectorStoreError>),
     #[error("Failed to create vector store directory.")]
     CreateVectorStoreDirectory(#[source] SourceError),
     #[error("Failed to determine the embedding model's dimensions")]
-    DetectEmbeddingDimensions(#[from] EmbeddingError),
-    #[cfg(not(test))]
-    #[error("Failed to create the client")]
-    CreateClient,
+    DetectEmbeddingDimensions(#[source] Box<ProviderError>),
     #[error("Cancelled due to state update.")]
     Cancelled,
+}
+
+// rig's errors are large, so they're boxed to keep every result small.
+impl From<VectorStoreError> for AiClientProviderError {
+    fn from(error: VectorStoreError) -> Self {
+        Self::VectorStore(Box::new(error))
+    }
+}
+
+impl From<ProviderError> for AiClientProviderError {
+    fn from(error: ProviderError) -> Self {
+        Self::DetectEmbeddingDimensions(Box::new(error))
+    }
 }
 
 #[async_trait]
@@ -50,9 +59,9 @@ pub trait AiClientProvider: Send + Sync {
     async fn get_embeddings_model(
         &self,
         client: &MultiClient,
-    ) -> Result<MultiEmbeddingModel, AiClientProviderError>;
+    ) -> Result<EmbeddingModel, AiClientProviderError>;
     async fn get_vector_store(
         &self,
-        embed_model: &MultiEmbeddingModel,
-    ) -> Result<SqliteVectorStore<MultiEmbeddingModel, Document>, AiClientProviderError>;
+        embed_model: &EmbeddingModel,
+    ) -> Result<SqliteVectorStore<Document>, AiClientProviderError>;
 }

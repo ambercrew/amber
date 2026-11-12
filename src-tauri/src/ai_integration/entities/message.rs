@@ -1,8 +1,5 @@
 use chrono::{DateTime, Utc};
-use rig::{
-    agent::Text,
-    message::{AssistantContent, ProviderCallId, ToolCallId, UserContent},
-};
+use rig::message::{AssistantContent, AssistantMessage, CallId, ToolName, UserContent};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -80,42 +77,21 @@ impl Message {
                     ))],
                 })
             }
-            MessageContent::Assistant(content) => Ok(rig::message::Message::Assistant {
-                id: None,
-                content: vec![AssistantContent::Text(Text {
-                    text: content,
-                    additional_params: None,
-                })],
-            }),
+            MessageContent::Assistant(content) => Ok(rig::message::Message::assistant(content)),
             MessageContent::ToolCall(ToolCallContent {
                 id,
                 name,
                 arguments,
                 ..
-            }) => {
-                let provider = ProviderCallId::new(id);
-                Ok(rig::message::Message::Assistant {
-                    id: None,
-                    content: vec![AssistantContent::ToolCall(rig::message::ToolCall {
-                        id: ToolCallId::for_provider(provider.as_ref()),
-                        provider,
-                        function: rig::message::ToolFunction { name, arguments },
-                        signature: None,
-                        additional_params: None,
-                    })],
-                })
-            }
-            MessageContent::ToolResult(ToolResultContent { id, name, text }) => {
-                let provider = ProviderCallId::new(id);
-                Ok(rig::message::Message::User {
-                    content: vec![UserContent::ToolResult(rig::message::ToolResult {
-                        call: ToolCallId::for_provider(provider.as_ref()),
-                        provider,
-                        name,
-                        content: vec![rig::message::ToolResultContent::text(text)],
-                    })],
-                })
-            }
+            }) => Ok(rig::message::Message::Assistant(AssistantMessage::new(
+                vec![AssistantContent::ToolCall(rig::message::ToolCall::new(
+                    CallId::from_wire(id),
+                    rig::message::ToolFunction::new(tool_name(name), arguments),
+                ))],
+            ))),
+            MessageContent::ToolResult(ToolResultContent { id, name, text }) => Ok(
+                rig::message::Message::tool_result(CallId::from_wire(id), tool_name(name), text),
+            ),
         }
     }
 }
@@ -190,9 +166,9 @@ pub struct ToolResultContent {
 impl From<rig::message::ToolCall> for ToolCallContent {
     fn from(tool_call: rig::message::ToolCall) -> Self {
         Self {
-            id: provider_or_handle(tool_call.provider, tool_call.id),
-            name: tool_call.function.name,
-            arguments: tool_call.function.arguments,
+            id: tool_call.id.wire().into_owned(),
+            arguments: tool_call.function.arguments_value(),
+            name: tool_call.function.name.to_string(),
             approval: None,
         }
     }
@@ -213,19 +189,16 @@ impl From<rig::message::ToolResult> for ToolResultContent {
             .unwrap_or_else(|| "Tool called successfully".to_string());
 
         Self {
-            id: provider_or_handle(tool_result.provider, tool_result.call),
-            name: tool_result.name,
+            id: tool_result.call.wire().into_owned(),
+            name: tool_result.name.to_string(),
             text,
         }
     }
 }
 
-/// The identifier to persist for a tool call or its result: the provider's own
-/// id when it issued one, otherwise rig's minted correlation handle.
-fn provider_or_handle(provider: Option<ProviderCallId>, handle: ToolCallId) -> String {
-    provider
-        .map(|provider| provider.call_id)
-        .unwrap_or_else(|| handle.into_string())
+/// Results stored before tool names were saved have none, and rig needs one.
+fn tool_name(name: String) -> ToolName {
+    ToolName::new(name).unwrap_or_else(|_| ToolName::new("tool").expect("a non-empty name"))
 }
 
 #[derive(Debug)]

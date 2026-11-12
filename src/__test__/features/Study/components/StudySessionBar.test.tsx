@@ -9,7 +9,10 @@ import {
 } from "../../../../api/study/api/studyApi";
 import { AnyElementDto } from "../../../../api/elements/dto/anyElementDto";
 import { formatRelativeDueDate } from "../../../../utils/formatRelativeDueDate";
-import { scheduleAllRatings } from "../../../../features/Study/utils/cardScheduling";
+import {
+	createScheduler,
+	scheduleAllRatings,
+} from "../../../../features/Study/utils/cardScheduling";
 import { CardSchedulingDto } from "../../../../api/study/dto/cardSchedulingDto";
 import { Rating } from "../../../../types/study/rating";
 
@@ -125,7 +128,7 @@ describe("StudySessionBar", () => {
 		const user = userEvent.setup();
 		vi.mocked(getCardScheduling).mockResolvedValue(CARD_SCHEDULING);
 		const scheduled = scheduleAllRatings(
-			CARD_SCHEDULING.profile,
+			await createScheduler(CARD_SCHEDULING.profile),
 			CARD_SCHEDULING.review,
 			new Date(),
 		);

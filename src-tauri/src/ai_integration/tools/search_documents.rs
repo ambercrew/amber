@@ -105,7 +105,7 @@ impl Tool for SearchDocuments {
             .top_n::<Document>(req)
             .await?
             .into_iter()
-            .map(|(_, _, document)| document)
+            .map(|result| result.document)
             .collect::<Vec<_>>();
 
         Ok(results)

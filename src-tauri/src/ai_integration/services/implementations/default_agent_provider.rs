@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
-use rig::client::AgentClientExt;
+use rig::AgentBuilder;
 use uuid::Uuid;
 
 use crate::ai_integration::entities::message::Message;
@@ -83,9 +83,11 @@ impl AgentProvider for DefaultAgentProvider {
         let completion_model_name = self.ai_client_provider.get_completion_model_name().await?;
         let context = self.build_context(element_id).await?;
 
-        let builder = client
-            .agent(&completion_model_name)
-            .temperature(DEFAULT_TEMPERATURE)
+        let mut builder = AgentBuilder::new(client.completion(&completion_model_name));
+        if client.supports_temperature() {
+            builder = builder.temperature(DEFAULT_TEMPERATURE);
+        }
+        let builder = builder
             .name("Amber Tutor")
             .default_max_turns(DEFAULT_MAX_TURN)
             .preamble(preamble(context.as_deref()).as_str());
@@ -117,17 +119,14 @@ pub mod tests {
     use chrono::Utc;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
-    use rig::{
-        completion::{CompletionResponse, Prompt, Usage},
-        message::{AssistantContent, Message as RigMessage},
-    };
+    use rig::message::{AssistantContent, Message as RigMessage};
     use tokio::sync::Mutex;
     use uuid::Uuid;
 
     use crate::{
         ai_integration::{
             ai_state::AiState,
-            clients::mock_client::{MOCK_PROVIDER, MockClient},
+            clients::mock_client::MockClient,
             entities::message::{DocumentContent, Message, MessageContent},
             services::implementations::default_ai_client_provider::DefaultAiClientProvider,
         },
@@ -283,12 +282,8 @@ pub mod tests {
         injector
     }
 
-    fn mock_response_with_text(text: &str) -> CompletionResponse {
-        CompletionResponse::new(
-            vec![AssistantContent::text(text)],
-            Usage::default(),
-            MOCK_PROVIDER,
-        )
+    fn mock_response_with_text(text: &str) -> Vec<AssistantContent> {
+        vec![AssistantContent::text(text)]
     }
 
     #[tokio::test]
@@ -496,7 +491,7 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(move |request| {
-                let has_context = request.chat_history.iter().any(|message| {
+                let has_context = request.chat_history.iter().map(Arc::as_ref).any(|message| {
                     matches!(
                         message,
                         RigMessage::System { content } if content.contains("**Context:**")
@@ -533,7 +528,7 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(move |request| {
-                let has_context = request.chat_history.iter().any(|message| {
+                let has_context = request.chat_history.iter().map(Arc::as_ref).any(|message| {
                     matches!(
                         message,
                         RigMessage::System { content }

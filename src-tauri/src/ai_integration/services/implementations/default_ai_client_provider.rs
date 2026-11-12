@@ -2,12 +2,6 @@ use std::sync::{Arc, Once};
 
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
-use rig::client::EmbeddingsClient;
-#[cfg(not(test))]
-use rig::client::{BearerAuth, Nothing, ProviderClient};
-use rig::embeddings::EmbeddingModel;
-#[cfg(not(test))]
-use rig::providers::{gemini, ollama, openai, openrouter};
 use rig::sqlite::SqliteVectorStore;
 use tokio::fs;
 use tokio_rusqlite::Connection;
@@ -15,8 +9,7 @@ use tokio_rusqlite::Connection;
 use crate::ai_integration::ai_state::AiState;
 #[cfg(test)]
 use crate::ai_integration::clients::mock_client::MockClient;
-use crate::ai_integration::clients::multi_client::MultiClient;
-use crate::ai_integration::clients::multi_client::multi_embedding_model::MultiEmbeddingModel;
+use crate::ai_integration::clients::multi_client::{EmbeddingModel, MultiClient};
 use crate::ai_integration::entities::document::Document;
 use crate::ai_integration::services::ai_client_provider::{
     AiClientProvider, AiClientProviderError,
@@ -95,26 +88,13 @@ impl AiClientProvider for DefaultAiClientProvider {
         #[cfg(not(test))]
         {
             let provider = settings.ai_provider;
-            let client = match provider {
-                AiProvider::Ollama => {
-                    ollama::Client::from_val(Nothing.into()).map(MultiClient::Ollama)
+            Ok(match provider {
+                AiProvider::Ollama => MultiClient::ollama(),
+                AiProvider::OpenAI => MultiClient::openai(self.get_api_key(provider).await?),
+                AiProvider::OpenRouter => {
+                    MultiClient::openrouter(self.get_api_key(provider).await?)
                 }
-                AiProvider::OpenAI => {
-                    openai::Client::from_val(BearerAuth::from(self.get_api_key(provider).await?))
-                        .map(MultiClient::OpenAI)
-                }
-                AiProvider::OpenRouter => openrouter::Client::from_val(BearerAuth::from(
-                    self.get_api_key(provider).await?,
-                ))
-                .map(MultiClient::OpenRouter),
-                AiProvider::Gemini => gemini::Client::from_val(gemini::client::GeminiApiKey::from(
-                    self.get_api_key(provider).await?,
-                ))
-                .map(MultiClient::Gemini),
-            };
-            client.map_err(|err| {
-                log::error!("Error creating the {provider} client: {:?}", err);
-                AiClientProviderError::CreateClient
+                AiProvider::Gemini => MultiClient::gemini(self.get_api_key(provider).await?),
             })
         }
     }
@@ -162,11 +142,11 @@ impl AiClientProvider for DefaultAiClientProvider {
     async fn get_embeddings_model(
         &self,
         client: &MultiClient,
-    ) -> Result<MultiEmbeddingModel, AiClientProviderError> {
+    ) -> Result<EmbeddingModel, AiClientProviderError> {
         let model_name = self.get_embeddings_model_name().await?;
-        let probe_model = client.embedding_model(&model_name);
+        let probe_model = client.embedding(&model_name, None);
 
-        if probe_model.ndims() > 0 {
+        if probe_model.capabilities().ndims > 0 {
             return Ok(probe_model);
         }
 
@@ -182,8 +162,9 @@ impl AiClientProvider for DefaultAiClientProvider {
         // throwaway embedding call. This keeps it consistent with the vector store
         // table dimensions, which are created from this same model.
         let actual_dims = probe_model
-            .embed_texts(vec!["ping".to_string()])
+            .call(vec!["ping".to_string()])
             .await?
+            .embeddings
             .first()
             .map(|embedding| embedding.vec.len())
             .unwrap_or(0);
@@ -192,13 +173,13 @@ impl AiClientProvider for DefaultAiClientProvider {
             return Err(AiClientProviderError::Cancelled);
         }
 
-        Ok(client.embedding_model_with_ndims(model_name, actual_dims))
+        Ok(client.embedding(model_name, Some(actual_dims)))
     }
 
     async fn get_vector_store(
         &self,
-        embed_model: &MultiEmbeddingModel,
-    ) -> Result<SqliteVectorStore<MultiEmbeddingModel, Document>, AiClientProviderError> {
+        embed_model: &EmbeddingModel,
+    ) -> Result<SqliteVectorStore<Document>, AiClientProviderError> {
         register_sqlite_vec_extension();
 
         let vector_store_directory = self
@@ -213,8 +194,8 @@ impl AiClientProvider for DefaultAiClientProvider {
             )));
         }
 
-        let path =
-            vector_store_directory.join(format!("{VECTOR_STORE_NAME}_{}", embed_model.ndims()));
+        let ndims = embed_model.capabilities().ndims;
+        let path = vector_store_directory.join(format!("{VECTOR_STORE_NAME}_{ndims}"));
         let path = &*path.to_string_lossy();
         let conn = match Connection::open(path).await {
             Err(err) => {
@@ -224,7 +205,7 @@ impl AiClientProvider for DefaultAiClientProvider {
             }
             Ok(conn) => conn,
         };
-        Ok(SqliteVectorStore::new(conn, embed_model).await?)
+        Ok(SqliteVectorStore::new(conn, ndims).await?)
     }
 }
 
@@ -286,7 +267,7 @@ pub mod tests {
 
         // Assert
 
-        assert_eq!(1536, embed_model.ndims());
+        assert_eq!(1536, embed_model.capabilities().ndims);
     }
 
     #[tokio::test]
@@ -319,7 +300,7 @@ pub mod tests {
 
         // Assert
 
-        assert_eq!(1024, embed_model.ndims());
+        assert_eq!(1024, embed_model.capabilities().ndims);
     }
 
     #[tokio::test]

@@ -1,12 +1,12 @@
 import {
-	createEmptyCard,
-	FSRS,
-	generatorParameters,
+	DefaultScheduler,
 	Rating as FsrsRating,
 	State as FsrsState,
-	type Card as FsrsCard,
+	type DefaultSchedulerCard,
+	type DefaultSchedulerCardInput,
 	type Grade,
-	type Steps,
+	type ScheduleStatus,
+	type StepUnit,
 } from "ts-fsrs";
 import { CardReviewDto } from "../../../api/study/dto/cardReviewDto";
 import { StudyProfileDto } from "../../../api/study/dto/studyProfileDto";
@@ -20,6 +20,12 @@ import { startOfLocalDay } from "../../../utils/startOfLocalDay";
 // maximum-interval cap — while the Rust `fsrs` crate only exposes the memory
 // model and leaves that wrapper to its caller.
 
+// FSRS-6 matches the weights the Rust `fsrs` crate optimizes and the stored memory states.
+export type CardScheduler = DefaultScheduler<"FSRS-6">;
+type FsrsCard = DefaultSchedulerCard<"FSRS-6">;
+type FsrsCardInput = DefaultSchedulerCardInput<"FSRS-6">;
+type FsrsStateValue = (typeof FsrsState)[keyof typeof FsrsState];
+
 const GRADES: Record<Rating, Grade> = {
 	again: FsrsRating.Again,
 	hard: FsrsRating.Hard,
@@ -27,57 +33,62 @@ const GRADES: Record<Rating, Grade> = {
 	easy: FsrsRating.Easy,
 };
 
-const FSRS_STATES: Record<CardState, FsrsState> = {
+const FSRS_STATES: Record<CardState, FsrsStateValue> = {
 	new: FsrsState.New,
 	learning: FsrsState.Learning,
 	review: FsrsState.Review,
 	relearning: FsrsState.Relearning,
 };
 
-const CARD_STATES: Record<FsrsState, CardState> = {
+const CARD_STATES: Record<FsrsStateValue, CardState> = {
 	[FsrsState.New]: "new",
 	[FsrsState.Learning]: "learning",
 	[FsrsState.Review]: "review",
 	[FsrsState.Relearning]: "relearning",
 };
 
-export function createScheduler(profile: StudyProfileDto): FSRS {
-	return new FSRS(
-		generatorParameters({
-			w: profile.fsrsParams.length > 0 ? profile.fsrsParams : undefined,
-			request_retention: profile.desiredRetention,
-			// An empty list means no steps, not ts-fsrs's defaults.
-			learning_steps: profile.learningSteps as Steps,
-			relearning_steps: profile.relearningSteps as Steps,
-		}),
-	);
+// ts-fsrs counts relearning as learning in its schedule status.
+const SCHEDULE_STATUSES: Record<CardState, ScheduleStatus> = {
+	new: "new",
+	learning: "learning",
+	review: "review",
+	relearning: "learning",
+};
+
+export function createScheduler(
+	profile: StudyProfileDto,
+): Promise<CardScheduler> {
+	return DefaultScheduler({
+		version: "FSRS-6",
+		weights: profile.fsrsParams.length > 0 ? profile.fsrsParams : undefined,
+		desiredRetention: profile.desiredRetention,
+		// An empty list means no steps, not ts-fsrs's defaults.
+		learningSteps: profile.learningSteps as StepUnit[],
+		relearningSteps: profile.relearningSteps as StepUnit[],
+	});
 }
 
-// ts-fsrs derives the days elapsed from `last_review` and overwrites whatever
-// the input card carried, so its deprecated `elapsed_days` field is left off
-// the card we build. The type still requires it, hence the cast where the
-// scheduler is called.
-type SchedulerCard = Omit<FsrsCard, "elapsed_days">;
-
-function toFsrsCard(review: CardReviewDto): SchedulerCard {
+function toFsrsCard(review: CardReviewDto): FsrsCardInput {
 	return {
-		due: new Date(review.due),
+		cardId: review.cardId,
+		dueAt: new Date(review.due),
 		stability: review.stability,
 		difficulty: review.difficulty,
-		scheduled_days: review.scheduledDays,
-		learning_steps: review.learningSteps,
+		scheduledDays: review.scheduledDays,
+		learningStep: review.learningSteps,
 		reps: review.reps,
 		lapses: review.lapses,
 		state: FSRS_STATES[review.state],
-		last_review: review.lastReviewed
+		scheduleStatus: SCHEDULE_STATUSES[review.state],
+		lastReviewAt: review.lastReviewed
 			? new Date(review.lastReviewed)
-			: undefined,
+			: null,
 	};
 }
 
 // A card scheduled days ahead is due from the start of its day, as in Anki, so both apps show it all day.
 function dueDate(card: FsrsCard): Date {
-	return card.scheduled_days >= 1 ? startOfLocalDay(card.due) : card.due;
+	return card.scheduledDays >= 1 ? startOfLocalDay(card.dueAt) : card.dueAt;
 }
 
 function toCardReview(cardId: string, card: FsrsCard): CardReviewDto {
@@ -89,9 +100,11 @@ function toCardReview(cardId: string, card: FsrsCard): CardReviewDto {
 		reps: card.reps,
 		lapses: card.lapses,
 		state: CARD_STATES[card.state],
-		lastReviewed: card.last_review ? card.last_review.toISOString() : null,
-		scheduledDays: card.scheduled_days,
-		learningSteps: card.learning_steps,
+		lastReviewed: card.lastReviewAt
+			? card.lastReviewAt.toISOString()
+			: null,
+		scheduledDays: card.scheduledDays,
+		learningSteps: card.learningStep,
 	};
 }
 
@@ -101,16 +114,16 @@ function toCardReview(cardId: string, card: FsrsCard): CardReviewDto {
  * actually gets saved come from one computation.
  */
 export function scheduleAllRatings(
-	profile: StudyProfileDto,
+	scheduler: CardScheduler,
 	review: CardReviewDto,
 	now: Date,
 ): Record<Rating, CardReviewDto> {
-	const preview = createScheduler(profile).repeat(
-		toFsrsCard(review) as FsrsCard,
-		now,
-	);
+	const card = toFsrsCard(review);
 	const scheduled = (rating: Rating) =>
-		toCardReview(review.cardId, preview[GRADES[rating]].card);
+		toCardReview(
+			review.cardId,
+			scheduler.review({ card, now, grade: GRADES[rating] }).card,
+		);
 
 	return {
 		again: scheduled("again"),
@@ -125,21 +138,23 @@ export function scheduleAllRatings(
  * or from a new card without one, e.g. once reviews made in Anki arrive.
  */
 export function replayReviews(
-	profile: StudyProfileDto,
+	scheduler: CardScheduler,
 	cardId: string,
 	reviews: { reviewedAt: string; rating: Rating }[],
 	start: CardReviewDto | null = null,
 ): CardReviewDto {
-	const scheduler = createScheduler(profile);
-	let card = start
-		? (toFsrsCard(start) as FsrsCard)
-		: createEmptyCard(new Date(reviews[0]?.reviewedAt ?? Date.now()));
+	let card: FsrsCardInput = start
+		? toFsrsCard(start)
+		: scheduler.newCard({
+				cardId,
+				now: new Date(reviews[0]?.reviewedAt ?? Date.now()),
+			});
 	for (const review of reviews) {
-		card = scheduler.next(
+		card = scheduler.review({
 			card,
-			new Date(review.reviewedAt),
-			GRADES[review.rating],
-		).card;
+			now: new Date(review.reviewedAt),
+			grade: GRADES[review.rating],
+		}).card;
 	}
-	return toCardReview(cardId, card);
+	return toCardReview(cardId, card as FsrsCard);
 }
