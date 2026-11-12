@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { LexicalComposer } from "@lexical/react/LexicalComposer";
+import { LexicalExtensionComposer } from "@lexical/react/LexicalExtensionComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
@@ -13,6 +13,7 @@ import {
 	$isElementNode,
 	$isTextNode,
 	LexicalEditor,
+	defineExtension,
 } from "lexical";
 import {
 	FloatingMenuButton,
@@ -61,17 +62,21 @@ function EditorCapture({
 	return null;
 }
 
+const TEST_EXTENSION = defineExtension({
+	name: "test",
+	namespace: "test",
+	onError: error => {
+		throw error;
+	},
+});
+
 function renderPlugin(buttons: FloatingMenuButton[]) {
 	let capturedEditor: LexicalEditor | null = null;
 
 	const utils = renderWithProviders(
-		<LexicalComposer
-			initialConfig={{
-				namespace: "test",
-				onError: error => {
-					throw error;
-				},
-			}}>
+		<LexicalExtensionComposer
+			extension={TEST_EXTENSION}
+			contentEditable={null}>
 			<RichTextPlugin
 				contentEditable={<ContentEditable aria-label="editor" />}
 				placeholder={null}
@@ -83,7 +88,7 @@ function renderPlugin(buttons: FloatingMenuButton[]) {
 					capturedEditor = editor;
 				}}
 			/>
-		</LexicalComposer>,
+		</LexicalExtensionComposer>,
 	);
 
 	if (!capturedEditor) throw new Error("Editor was not captured");
@@ -146,6 +151,16 @@ describe("FloatingMenuPlugin", () => {
 				return 0;
 			},
 		);
+		// jsdom has no layout, so the menu is placed where it asks to go, with its selection in view.
+		vi.mocked(computePosition).mockImplementation(
+			async (_reference, _floating, options) => ({
+				x: 0,
+				y: 0,
+				placement: options?.placement ?? "bottom",
+				strategy: "absolute",
+				middlewareData: {},
+			}),
+		);
 		// jsdom does not implement Range.getBoundingClientRect
 		Range.prototype.getBoundingClientRect = () =>
 			({
@@ -163,6 +178,7 @@ describe("FloatingMenuPlugin", () => {
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
+		vi.mocked(computePosition).mockReset();
 	});
 
 	it("Should render an icon-only button when showLabel is not set", async () => {
@@ -426,7 +442,7 @@ describe("FloatingMenuPlugin", () => {
 		// Arrange
 
 		vi.mocked(useIsCoarsePointer).mockReturnValue(false);
-		vi.mocked(computePosition).mockResolvedValueOnce({
+		vi.mocked(computePosition).mockResolvedValue({
 			x: 12,
 			y: 40,
 			placement: "top",
@@ -464,10 +480,46 @@ describe("FloatingMenuPlugin", () => {
 		});
 	}
 
+	it("Should flip above the selection when it is scrolled toward the bottom edge", async () => {
+		// Arrange
+
+		vi.mocked(useIsCoarsePointer).mockReturnValue(false);
+		vi.mocked(computePosition).mockResolvedValue({
+			x: 12,
+			y: 80,
+			placement: "bottom",
+			strategy: "absolute",
+			middlewareData: {},
+		});
+		const { editor } = renderPlugin([makeButton()]);
+		await setTextAndSelectAll(editor, "Hello world");
+		vi.mocked(computePosition).mockResolvedValue({
+			x: 12,
+			y: 40,
+			placement: "top",
+			strategy: "absolute",
+			middlewareData: {},
+		});
+
+		// Act
+
+		await act(async () => {
+			window.dispatchEvent(new Event("scroll"));
+		});
+
+		// Assert
+
+		expect(getMenuPaper()).toHaveStyle({
+			top: "40px",
+			transformOrigin: "bottom center",
+			visibility: "visible",
+		});
+	});
+
 	it("Should fade out where it was instead of jumping when the selection is collapsed", async () => {
 		// Arrange
 
-		vi.mocked(computePosition).mockResolvedValueOnce({
+		vi.mocked(computePosition).mockResolvedValue({
 			x: 12,
 			y: 40,
 			placement: "bottom",

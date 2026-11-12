@@ -9,7 +9,7 @@ import {
 	RangeSelection,
 } from "lexical";
 import { MantineColor } from "@mantine/core";
-import { computePosition, flip, offset, shift } from "@floating-ui/dom";
+import type { Placement, VirtualElement } from "@floating-ui/dom";
 import { isBackwardSelection, selectionEndRect } from "./selectionEndRect";
 import { useIsCoarsePointer } from "../../../hooks/useIsCoarsePointer";
 import styles from "../Editor.module.css";
@@ -17,6 +17,7 @@ import FloatingMenuBar, {
 	FloatingMenuBarItem,
 } from "../../FloatingMenuBar/FloatingMenuBar";
 import { floatingMenuPop } from "../../FloatingMenuBar/floatingMenuPop";
+import { useFloatingMenuPosition } from "../../FloatingMenuBar/useFloatingMenuPosition";
 import { MOTION_EASING } from "../../../config/motion";
 import { useMotionDuration } from "../../../hooks/useMotionDuration";
 import { matchesShortcut } from "../../../commands/useAppHotkeys";
@@ -60,9 +61,6 @@ interface Props {
 	buttons: FloatingMenuItem[];
 }
 
-// Matches the PDF viewer's floating menu.
-const MENU_GAP_PX = 8;
-
 function usePointerInteractions() {
 	const [isPointerDown, setIsPointerDown] = useState(false);
 	const [isPointerReleased, setIsPointerReleased] = useState(true);
@@ -103,12 +101,6 @@ function usePointerInteractions() {
 
 export function FloatingMenuPlugin({ buttons }: Props) {
 	const [editor] = useLexicalComposerContext();
-	// Kept after hiding, so the menu fades out where it was instead of jumping.
-	const [coords, setCoords] = useState<{
-		x: number;
-		y: number;
-		below: boolean;
-	} | null>(null);
 	const [isOpen, setIsOpen] = useState(false);
 	const [activeState, setActiveState] = useState<Record<string, boolean>>({});
 	const [visibleState, setVisibleState] = useState<Record<string, boolean>>(
@@ -116,50 +108,70 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 	);
 	const isEditorFocused = useIsEditorFocused();
 	const [isMenuFocused, setIsMenuFocused] = useState(false);
-	const menuRef = useRef<HTMLDivElement>(null);
+	const [menuElement, setMenuElement] = useState<HTMLDivElement | null>(null);
 	const escapedRef = useRef(false);
 	const { isPointerDown, isPointerReleased, isMultiClickRef } =
 		usePointerInteractions();
-	const coarsePointer = useIsCoarsePointer();
 	const motionDuration = useMotionDuration();
 
-	// Bumped on every reposition or hide, so a stale async position can't reopen the menu.
-	const positionRequestRef = useRef(0);
+	// The selection the menu is placed against, re-measured on every placement as the page scrolls.
+	const anchorRef = useRef<{ range: Range; backward: boolean } | null>(null);
+	const [reference, setReference] = useState<VirtualElement | null>(null);
+	const coarsePointer = useIsCoarsePointer();
+	const [placement, setPlacement] = useState<Placement>("bottom");
+	const position = useFloatingMenuPosition({
+		open: isOpen,
+		floating: menuElement,
+		reference,
+		placement,
+	});
 
-	const hideMenu = useCallback(() => {
-		positionRequestRef.current++;
-		setIsOpen(false);
-	}, []);
+	const hideMenu = useCallback(() => setIsOpen(false), []);
 
 	const calculatePosition = useCallback(() => {
-		const menu = menuRef.current;
 		const domSelection = getSelection();
 		// A double/triple click keeps the open menu in place, then moves it on release.
 		if (isPointerDown && isMultiClickRef.current && isOpen) return;
-		if (!menu || isPointerDown || !domSelection?.rangeCount) {
+		if (!menuElement || isPointerDown || !domSelection?.rangeCount) {
 			hideMenu();
 			return;
 		}
 
 		const range = domSelection.getRangeAt(0);
 		const backward = isBackwardSelection(domSelection, range);
-		const reference = {
-			getBoundingClientRect: () => selectionEndRect(range, backward),
-		};
+		anchorRef.current = { range, backward };
+		const root = editor.getRootElement() ?? undefined;
+		setReference(current =>
+			current?.contextElement === root
+				? current
+				: {
+						contextElement: root,
+						getBoundingClientRect: () => {
+							const anchor = anchorRef.current;
+							return anchor
+								? selectionEndRect(
+										anchor.range,
+										anchor.backward,
+									)
+								: new DOMRect();
+						},
+					},
+		);
 		// Away from the rest of the selection so it isn't covered, except on touch, where the
-		// menu stays above to clear the selection handles.
-		const placement = backward || coarsePointer ? "top" : "bottom";
-		const request = ++positionRequestRef.current;
-		void computePosition(reference, menu, {
-			placement,
-			strategy: "absolute",
-			middleware: [offset(MENU_GAP_PX), flip(), shift({ padding: 8 })],
-		}).then(({ x, y, placement }) => {
-			if (request !== positionRequestRef.current) return;
-			setCoords({ x, y, below: placement.startsWith("bottom") });
-			setIsOpen(true);
-		});
-	}, [isPointerDown, isMultiClickRef, isOpen, coarsePointer, hideMenu]);
+		// menu stays above to clear the selection handles. It flips when scrolling leaves no room.
+		setPlacement(backward || coarsePointer ? "top" : "bottom");
+		setIsOpen(true);
+		position.update();
+	}, [
+		isPointerDown,
+		isMultiClickRef,
+		isOpen,
+		menuElement,
+		editor,
+		coarsePointer,
+		hideMenu,
+		position,
+	]);
 
 	const $handleSelectionChange = useCallback(() => {
 		if (
@@ -262,8 +274,12 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 		);
 	}, [editor, buttons, closeMenu]);
 
-	const shouldShow = (isEditorFocused || isMenuFocused) && isOpen;
-	const below = coords?.below ?? false;
+	const shouldShow =
+		(isEditorFocused || isMenuFocused) &&
+		isOpen &&
+		position.placed &&
+		!position.referenceHidden;
+	const below = position.below;
 	const pop = floatingMenuPop(!below);
 	const popState = shouldShow ? pop.in : pop.out;
 
@@ -286,12 +302,10 @@ export function FloatingMenuPlugin({ buttons }: Props) {
 
 	return (
 		<FloatingMenuBar
-			ref={menuRef}
+			ref={setMenuElement}
 			items={items}
 			className={styles["floating-menu"]}
 			style={{
-				top: coords?.y ?? 0,
-				left: coords?.x ?? 0,
 				transform: popState.transform,
 				transformOrigin: below ? "top center" : "bottom center",
 				opacity: popState.opacity,
