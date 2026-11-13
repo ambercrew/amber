@@ -17,9 +17,46 @@ export const MARK_COLORS: Record<MarkSlot, MantineColor> = {
 	3: "violet",
 };
 
-/** A slot's solid fill (a set mark's menu button, its gutter flag and scrollbar tick), dark enough for white text. */
+/** A slot's solid fill for its gutter flag and scrollbar tick; the menu buttons use `markButtonVars`. */
 export function markFillColor(slot: MarkSlot): MantineColor {
 	return `${MARK_COLORS[slot]}.7`;
+}
+
+const lightDark = (light: string, dark: string) =>
+	`light-dark(${light}, ${dark})`;
+const shadeOf = (color: MantineColor, shade: number) =>
+	`var(--mantine-color-${color}-${shade})`;
+// Dark mode's shared light tint (shade 5 at 25%) sits ~1.4:1 on the menu, so marks double it.
+const darkTint = (color: MantineColor, percent: number) =>
+	`color-mix(in srgb, ${shadeOf(color, 5)} ${percent}%, transparent)`;
+
+/**
+ * CSS variables for a slot's menu buttons, every state clearing WCAG AA: 4.5:1 labels, and 3:1 between
+ * the filled half, the tinted half and the menu. Checked against stock Mantine blue, pink and violet.
+ */
+export function markButtonVars(slot: MarkSlot, filled: boolean) {
+	const color = MARK_COLORS[slot];
+	if (filled) {
+		// White on blue-7 is 4.2:1, so light mode fills a shade darker; dark mode fills light with dark text.
+		return {
+			"--button-bg": lightDark(shadeOf(color, 8), shadeOf(color, 3)),
+			"--button-hover": lightDark(shadeOf(color, 9), shadeOf(color, 2)),
+			"--button-color": lightDark(
+				"var(--mantine-color-white)",
+				"var(--mantine-color-dark-7)",
+			),
+		};
+	}
+	// Mantine's light hover (shade 2) leaves shade-9 text at 4.0:1, so it only goes partway.
+	return {
+		"--button-bg": lightDark(shadeOf(color, 1), darkTint(color, 50)),
+		"--button-hover": lightDark(
+			`color-mix(in srgb, ${shadeOf(color, 2)} 35%, ${shadeOf(color, 1)})`,
+			darkTint(color, 60),
+		),
+		"--button-color": lightDark(shadeOf(color, 9), shadeOf(color, 1)),
+		"--button-hover-color": lightDark(shadeOf(color, 9), shadeOf(color, 0)),
+	};
 }
 
 /** Label for jumping to the read point, e.g. "Go to read point (43% through)". */

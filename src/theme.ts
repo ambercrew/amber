@@ -255,6 +255,7 @@ const darkLightTextShade: Record<string, number> = { gray: 1, amber: 1 };
 // Mantine's dark `variant="light"` background, darken(shade9, 0.5), lands below the body
 // and reads as a hole, so wash the mid shade over the surface.
 const lightVariantColors = Object.fromEntries(
+	// Every color used with `variant="light"`; the marks set their own tints in `markButtonVars`.
 	["amber", "gray", "red", "green", "blue", "orange", "yellow"].flatMap(
 		name => [
 			[
@@ -284,14 +285,12 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--search-match-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-2)`,
 		"--search-match-current-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-4)`,
 		"--mantine-color-body": lighten("var(--mantine-color-gray-0)", 0.8),
-		"--sidebar-bg": lighten("var(--mantine-color-gray-0)", 0.1),
+		"--sidebar-bg": lighten("var(--mantine-color-gray-0)", 0.3),
 		"--editor-surface-bg": "var(--sidebar-bg)",
 		"--inset-surface-bg": "var(--sidebar-bg)",
 		"--pdf-viewport-bg": "#e8e5dc",
 		// Mantine's gray-0 hover (nav links, tabs) is the sidebar's own background, so it never shows there.
 		"--sidebar-hover-bg": "var(--mantine-color-gray-2)",
-		// A SegmentedControl's gray-1 track barely separates from the sidebar.
-		"--sidebar-control-bg": "var(--mantine-color-gray-2)",
 		// Spotlight's gray-0 hover is 1.09:1 on the palette's near-white surface.
 		"--spotlight-hover-bg": "var(--mantine-color-gray-2)",
 		"--subtle-primary-color": "var(--mantine-color-amber-light-color)",
@@ -302,25 +301,23 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--mantine-color-dimmed": "var(--mantine-color-gray-7)",
 		// gray-5 reads ~3.5:1 on a white input.
 		"--mantine-color-placeholder": "var(--mantine-color-gray-6)",
-		// amber-7 reads 4.3:1 on the sidebar and amber-8 too dark; three-quarters to 7 clears 4.5:1.
+		// amber-7 reads 4.3:1 on the sidebar; 30% of the way from 8 clears 4.5:1 even on hovered and selected rows.
 		"--mantine-color-anchor":
-			"color-mix(in srgb, var(--mantine-color-amber-7) 75%, var(--mantine-color-amber-8))",
+			"color-mix(in srgb, var(--mantine-color-amber-7) 30%, var(--mantine-color-amber-8))",
+		"--anchor-hover-color": "var(--mantine-color-amber-9)",
 	},
 	dark: {
 		"--selected-row-bg": SELECTED_ROW_COLORS.background.dark,
 		"--selected-row-color": SELECTED_ROW_COLORS.text.dark,
 		"--search-match-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-9)`,
 		"--search-match-current-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-6)`,
-		"--mantine-color-body": "var(--mantine-color-dark-7)",
-		// Between body (dark-7) and inputs (dark-6), so side panels sit just above the page.
-		"--sidebar-bg": "#252320",
+		"--mantine-color-body": "#201e1b",
+		"--sidebar-bg": "#2a2723",
 		"--editor-surface-bg": "var(--sidebar-bg)",
 		"--inset-surface-bg": "var(--sidebar-bg)",
 		"--pdf-viewport-bg": "var(--mantine-color-body)",
 		// dark-6 is 1.14:1 on the sidebar; dark-5 matches Spotlight's hover below.
 		"--sidebar-hover-bg": "var(--mantine-color-dark-5)",
-		// A SegmentedControl's dark-8 track is 1.17:1 on the sidebar.
-		"--sidebar-control-bg": "var(--mantine-color-dark-9)",
 		// One step above Spotlight's own dark-6, which sits 1.27:1 on the body.
 		"--spotlight-hover-bg": "var(--mantine-color-dark-5)",
 		// Link amber muted halfway to dimmed text: full amber on every icon button is too loud.
@@ -341,5 +338,6 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 
 		// Derived as primaryShade - 4, which would be a near-white cream.
 		"--mantine-color-amber-outline": "var(--mantine-color-amber-4)",
+		"--anchor-hover-color": "var(--mantine-color-amber-3)",
 	},
 });

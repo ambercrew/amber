@@ -36,9 +36,6 @@ function ElementStatusControl({
 				size="xs"
 				fullWidth
 				aria-label="Status"
-				styles={{
-					root: { backgroundColor: "var(--sidebar-control-bg)" },
-				}}
 				data={options}
 				value={value}
 				onChange={next => handleChange(next as ElementStatus)}

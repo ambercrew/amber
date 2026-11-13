@@ -65,6 +65,7 @@ const DECISIONS = {
 		chosenLabel: "Approved",
 		icon: <CheckIcon size={14} />,
 		pendingVariant: "filled",
+		chosenVariant: "filled",
 		color: undefined,
 		ring: "var(--mantine-primary-color-light)",
 	},
@@ -73,8 +74,9 @@ const DECISIONS = {
 		chosenLabel: "Rejected",
 		icon: <XIcon size={14} />,
 		pendingVariant: "default",
-		color: "dark",
-		ring: "var(--mantine-color-dark-light)",
+		chosenVariant: "light",
+		color: "red",
+		ring: undefined,
 	},
 } as const;
 
@@ -85,8 +87,15 @@ function DecisionButton({
 	disabled,
 	onClick,
 }: DecisionButtonProps) {
-	const { label, chosenLabel, icon, pendingVariant, color, ring } =
-		DECISIONS[decision];
+	const {
+		label,
+		chosenLabel,
+		icon,
+		pendingVariant,
+		chosenVariant,
+		color,
+		ring,
+	} = DECISIONS[decision];
 
 	if (status === "pending") {
 		return (
@@ -106,14 +115,14 @@ function DecisionButton({
 	return (
 		<Button
 			component="div"
-			variant={chosen ? "filled" : "subtle"}
+			variant={chosen ? chosenVariant : "subtle"}
 			color={chosen ? color : "gray"}
 			c={chosen ? undefined : "dimmed"}
 			size="xs"
 			leftSection={icon}
 			style={{
 				pointerEvents: "none",
-				boxShadow: chosen ? `0 0 0 2px ${ring}` : undefined,
+				boxShadow: chosen && ring ? `0 0 0 2px ${ring}` : undefined,
 			}}>
 			{chosen ? chosenLabel : label}
 		</Button>

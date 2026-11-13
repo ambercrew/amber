@@ -31,3 +31,11 @@
 		background-color: var(--spotlight-hover-bg);
 	}
 }
+
+/* From `--anchor-hover-color` in theme.ts: links shift a shade on hover, not only underline. */
+@media (hover: hover) {
+	.mantine-Anchor-root:hover,
+	.mantine-Typography-root a:hover {
+		color: var(--anchor-hover-color);
+	}
+}

@@ -32,7 +32,7 @@ function AnkiSyncProgress({ progress, onCancel }: AnkiSyncProgressProps) {
 				aria-label={label}
 			/>
 			<Group justify="flex-end">
-				<Button size="compact-xs" variant="default" onClick={onCancel}>
+				<Button size="xs" variant="default" onClick={onCancel}>
 					Cancel
 				</Button>
 			</Group>

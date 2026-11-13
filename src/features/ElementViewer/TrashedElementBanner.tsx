@@ -34,8 +34,7 @@ export default function TrashedElementBanner() {
 			<Group justify="space-between" wrap="nowrap" gap="sm">
 				<Text size="sm">This element is in the trash.</Text>
 				<Button
-					variant="light"
-					color="yellow"
+					variant="transparent"
 					leftSection={<ArrowCounterClockwiseIcon size={16} />}
 					onClick={() =>
 						void dispatch(restoreElementAction(elementId))
