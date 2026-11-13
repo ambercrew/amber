@@ -24,8 +24,9 @@ export const FIND_NEXT_SHORTCUT = "mod+G";
 export const FIND_PREVIOUS_SHORTCUT = "mod+shift+G";
 
 // Zoom
-export const ZOOM_IN_SHORTCUT = "mod+=";
-export const ZOOM_IN_ALT_SHORTCUT = "mod+[plus]";
+export const ZOOM_IN_SHORTCUT = "mod+[plus]";
+// Plus needs shift on most layouts, so the unshifted key zooms too.
+export const ZOOM_IN_ALT_SHORTCUT = "mod+=";
 export const ZOOM_OUT_SHORTCUT = "mod+-";
 export const RESET_ZOOM_SHORTCUT = "mod+0";
 

@@ -181,7 +181,7 @@ export interface Command {
 	group: CommandGroup;
 	label: string | ((state: RootState) => string);
 	shortcut?: string; // useHotkeys format: 'mod+L', 'mod+shift+P', 'alt+ArrowUp'
-	/** Further keys that also run the command but aren't displayed, e.g. `mod+[plus]` beside `mod+=`. */
+	/** Further keys that also run the command but aren't displayed, e.g. `mod+=` beside `mod+[plus]`. */
 	extraShortcuts?: string[];
 	/** Describes the shortcut in the help when one key runs several commands; the others are left out. */
 	shortcutLabel?: string;

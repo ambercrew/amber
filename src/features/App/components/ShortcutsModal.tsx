@@ -1,15 +1,24 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { useStore } from "react-redux";
 import {
 	Box,
+	Button,
+	Collapse,
 	Group,
+	Highlight,
 	Kbd,
 	SimpleGrid,
 	Stack,
 	Table,
 	Text,
+	TextInput,
 	Title,
 } from "@mantine/core";
+import {
+	CaretDownIcon,
+	CaretRightIcon,
+	MagnifyingGlassIcon,
+} from "@phosphor-icons/react";
 import AppModal from "../../../components/AppModal/AppModal";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
@@ -19,7 +28,6 @@ import { RootState } from "../../../stores/store";
 import {
 	Command,
 	CommandGroup,
-	commandGroups,
 	CommandId,
 	commands,
 	commandsById,
@@ -28,14 +36,22 @@ import { firesInTextFields, shortcutsOf } from "../../../commands/commandUtils";
 import { useShortcutDisplay } from "../../../commands/useShortcutDisplay";
 import * as keys from "../../../config/shortcuts";
 
+/** How a row's keys are shown: one per key, or the shared modifiers once with the first and last keys ("Ctrl + 1–3", "Alt + ← →"). */
+type KeyJoin = "list" | "range" | "pair";
+
 interface ShortcutRow {
 	shortcuts: string[];
 	description: string;
 	outsideTextFields?: boolean;
+	join?: KeyJoin;
+	/** Keys every app has (find, zoom), folded away under "Standard". */
+	standard?: boolean;
 }
 
+type SectionTitle = Exclude<CommandGroup, "Find in page" | "Zoom"> | "View";
+
 interface ShortcutSection {
-	title: CommandGroup;
+	title: SectionTitle;
 	note?: string;
 	rows: ShortcutRow[];
 }
@@ -45,6 +61,7 @@ interface CommandRow {
 	commands: CommandId[];
 	/** Defaults to the first command's label. */
 	description?: string;
+	join?: KeyJoin;
 }
 
 interface ContextSection extends Omit<ShortcutSection, "rows"> {
@@ -52,19 +69,36 @@ interface ContextSection extends Omit<ShortcutSection, "rows"> {
 }
 
 // General keys first, then working with content and studying.
-const SECTION_ORDER: Record<CommandGroup, number> = {
+const SECTION_ORDER: Record<SectionTitle, number> = {
 	App: 0,
 	Navigation: 1,
-	"Find in page": 2,
-	Zoom: 3,
-	AI: 4,
-	Elements: 5,
-	Editor: 6,
-	Study: 7,
+	View: 2,
+	AI: 3,
+	Elements: 4,
+	Editor: 5,
+	Study: 6,
 };
 
 // Splits the sections into two columns of roughly equal height.
-const SECOND_COLUMN_START: CommandGroup = "Elements";
+const SECOND_COLUMN_START: SectionTitle = "Elements";
+
+const VIEW_COMMANDS = new Set<CommandId>([
+	"toggle-left-sidebar",
+	"toggle-right-sidebar",
+]);
+
+const STANDARD_COMMANDS = new Set<CommandId>([
+	"find-in-page",
+	"zoom-in",
+	"zoom-out",
+	"reset-zoom",
+]);
+
+function sectionOf(command: Command): SectionTitle {
+	if (command.group === "Find in page" || command.group === "Zoom")
+		return "View";
+	return VIEW_COMMANDS.has(command.id) ? "View" : command.group;
+}
 
 // Keys that aren't commands, filed under the command group they belong with.
 const CONTEXT_SECTIONS: ContextSection[] = [
@@ -83,6 +117,7 @@ const CONTEXT_SECTIONS: ContextSection[] = [
 			{
 				commands: ["go-back", "go-forward"],
 				description: "Go back / forward",
+				join: "pair",
 			},
 			{
 				shortcuts: [
@@ -91,12 +126,13 @@ const CONTEXT_SECTIONS: ContextSection[] = [
 				],
 				description: "Open the next / previous element in the tree",
 				outsideTextFields: true,
+				join: "pair",
 			},
 			{ commands: ["focus-tree"] },
 		],
 	},
 	{
-		title: "Find in page",
+		title: "View",
 		rows: [
 			{
 				shortcuts: [
@@ -104,6 +140,7 @@ const CONTEXT_SECTIONS: ContextSection[] = [
 					keys.FIND_PREVIOUS_SHORTCUT,
 				],
 				description: "Next / previous match",
+				standard: true,
 			},
 		],
 	},
@@ -112,11 +149,13 @@ const CONTEXT_SECTIONS: ContextSection[] = [
 		rows: [
 			{
 				commands: ["set-mark-1", "set-mark-2", "set-mark-3"],
-				description: "Set mark 1 / 2 / 3",
+				description: "Set mark",
+				join: "range",
 			},
 			{
 				commands: ["go-to-mark-1", "go-to-mark-2", "go-to-mark-3"],
-				description: "Go to mark 1 / 2 / 3",
+				description: "Go to mark",
+				join: "range",
 			},
 		],
 	},
@@ -163,6 +202,7 @@ const CONTEXT_SECTIONS: ContextSection[] = [
 				],
 				description: "Again / Hard / Good / Easy",
 				outsideTextFields: true,
+				join: "range",
 			},
 			{
 				shortcuts: [keys.SKIP_LEARNING_ASSET_SHORTCUT],
@@ -224,18 +264,21 @@ function labelOf(command: Command, state: RootState) {
 		: command.label;
 }
 
+/** Only each command's displayed key gets a row; aliases like `mod+=` still work. */
 function rowFor(
 	group: Command[],
 	state: RootState,
 	description = labelOf(group[0], state),
+	join?: KeyJoin,
 ): ShortcutRow {
-	const shortcuts = group.flatMap(shortcutsOf);
 	return {
-		shortcuts,
+		shortcuts: group.flatMap(c => (c.shortcut ? [c.shortcut] : [])),
 		description,
 		outsideTextFields: group.every(
 			c => !shortcutsOf(c).some(s => firesInTextFields(c, s)),
 		),
+		join,
+		standard: group.every(c => STANDARD_COMMANDS.has(c.id)),
 	};
 }
 
@@ -248,21 +291,17 @@ const placedCommands = new Set<CommandId>(
 function commandSections(state: RootState): ShortcutSection[] {
 	// A key shared by several commands (study / edit mode) is listed once.
 	const listed = new Set<string>();
-	return commandGroups.map(group => ({
-		title: group,
-		rows: commands
-			.filter(
-				c =>
-					c.group === group &&
-					c.shortcut &&
-					!placedCommands.has(c.id),
-			)
-			.filter(c => {
-				if (listed.has(c.shortcut!)) return false;
-				listed.add(c.shortcut!);
-				return true;
-			})
-			.map(c => rowFor([c], state)),
+	const rows = commands
+		.filter(c => c.shortcut && !placedCommands.has(c.id))
+		.filter(c => {
+			if (listed.has(c.shortcut!)) return false;
+			listed.add(c.shortcut!);
+			return true;
+		})
+		.map(c => ({ title: sectionOf(c), row: rowFor([c], state) }));
+	return Object.keys(SECTION_ORDER).map(title => ({
+		title: title as SectionTitle,
+		rows: rows.filter(r => r.title === title).map(r => r.row),
 	}));
 }
 
@@ -275,6 +314,7 @@ function contextSections(state: RootState): ShortcutSection[] {
 						row.commands.map(id => commandsById[id]),
 						state,
 						row.description,
+						row.join,
 					)
 				: row,
 		),
@@ -296,8 +336,98 @@ function mergeSections(sections: ShortcutSection[]): ShortcutSection[] {
 		.sort((a, b) => SECTION_ORDER[a.title] - SECTION_ORDER[b.title]);
 }
 
-function ShortcutSectionTable({ section }: { section: ShortcutSection }) {
+type Display = ReturnType<typeof useShortcutDisplay>;
+
+/** The labels a row's keys are shown as, one per `Kbd`. */
+function keyLabels(row: ShortcutRow, display: Display): string[] {
+	const { shortcuts, join = "list" } = row;
+	if (join !== "list" && shortcuts.length > 1) {
+		const first = display(shortcuts[0]);
+		const last = display(shortcuts[shortcuts.length - 1].split("+").pop());
+		if (!first || !last) return [];
+		return [`${first}${join === "range" ? "–" : " "}${last}`];
+	}
+	return shortcuts.flatMap(shortcut => display(shortcut) ?? []);
+}
+
+const squash = (text: string) => text.toLowerCase().replace(/\s+/g, "");
+
+/** Matches the description or any key, ignoring case and spacing ("ctrl+k" finds "Ctrl + K"). */
+function matchesQuery(row: ShortcutRow, query: string, display: Display) {
+	const needle = squash(query);
+	if (!needle) return true;
+	const haystack = [
+		row.description,
+		...keyLabels(row, display),
+		...row.shortcuts.map(shortcut => display(shortcut) ?? ""),
+	];
+	return haystack.some(text => squash(text).includes(needle));
+}
+
+interface ShortcutRowsProps {
+	rows: ShortcutRow[];
+	/** Search text, marked wherever it appears in a description or key. */
+	query: string;
+}
+
+function ShortcutRows({ rows, query }: ShortcutRowsProps) {
 	const display = useShortcutDisplay();
+	const highlight = query.trim();
+
+	return (
+		<Table>
+			<Table.Tbody>
+				{rows.map(row => (
+					<Table.Tr key={row.description}>
+						<Table.Td w="40%">
+							<Group gap={4}>
+								{keyLabels(row, display).map((label, index) => (
+									<Fragment key={label}>
+										{index > 0 && (
+											<Text size="xs" c="dimmed">
+												/
+											</Text>
+										)}
+										<Kbd>
+											<Highlight
+												component="span"
+												inherit
+												highlight={highlight}>
+												{label}
+											</Highlight>
+										</Kbd>
+									</Fragment>
+								))}
+							</Group>
+						</Table.Td>
+						<Table.Td>
+							<Highlight size="sm" highlight={highlight}>
+								{row.description}
+							</Highlight>
+							{row.outsideTextFields && (
+								<Text size="xs" c="dimmed">
+									Outside text fields
+								</Text>
+							)}
+						</Table.Td>
+					</Table.Tr>
+				))}
+			</Table.Tbody>
+		</Table>
+	);
+}
+
+interface ShortcutSectionTableProps {
+	section: ShortcutSection;
+	query: string;
+}
+
+function ShortcutSectionTable({ section, query }: ShortcutSectionTableProps) {
+	const [standardOpened, setStandardOpened] = useState(false);
+	// While searching, matching standard keys show without the toggle.
+	const expandStandard = query.trim() !== "";
+	const ownRows = section.rows.filter(row => !row.standard);
+	const standardRows = section.rows.filter(row => row.standard);
 
 	return (
 		<Stack gap={4} mb="lg">
@@ -307,36 +437,35 @@ function ShortcutSectionTable({ section }: { section: ShortcutSection }) {
 					{section.note}
 				</Text>
 			)}
-			<Table>
-				<Table.Tbody>
-					{section.rows.map(row => (
-						<Table.Tr key={row.description}>
-							<Table.Td w="40%">
-								<Group gap={4}>
-									{row.shortcuts.map((shortcut, index) => (
-										<Fragment key={shortcut}>
-											{index > 0 && (
-												<Text size="xs" c="dimmed">
-													/
-												</Text>
-											)}
-											<Kbd>{display(shortcut)}</Kbd>
-										</Fragment>
-									))}
-								</Group>
-							</Table.Td>
-							<Table.Td>
-								<Text size="sm">{row.description}</Text>
-								{row.outsideTextFields && (
-									<Text size="xs" c="dimmed">
-										Outside text fields
-									</Text>
-								)}
-							</Table.Td>
-						</Table.Tr>
-					))}
-				</Table.Tbody>
-			</Table>
+			{ownRows.length > 0 && (
+				<ShortcutRows rows={ownRows} query={query} />
+			)}
+			{standardRows.length > 0 &&
+				(expandStandard ? (
+					<ShortcutRows rows={standardRows} query={query} />
+				) : (
+					<>
+						<Button
+							variant="subtle"
+							color="gray"
+							size="compact-sm"
+							justify="flex-start"
+							leftSection={
+								standardOpened ? (
+									<CaretDownIcon />
+								) : (
+									<CaretRightIcon />
+								)
+							}
+							aria-expanded={standardOpened}
+							onClick={() => setStandardOpened(o => !o)}>
+							Standard ({standardRows.length})
+						</Button>
+						<Collapse expanded={standardOpened}>
+							<ShortcutRows rows={standardRows} query={query} />
+						</Collapse>
+					</>
+				))}
 		</Stack>
 	);
 }
@@ -345,11 +474,19 @@ function ShortcutsModal() {
 	const opened = useAppSelector(selectIsShortcutsModalOpened);
 	const dispatch = useAppDispatch();
 	const store = useStore<RootState>();
+	const display = useShortcutDisplay();
+	const [query, setQuery] = useState("");
 	// Built even while closed, so the content stays during the close transition.
 	const sections = mergeSections([
 		...commandSections(store.getState()),
 		...contextSections(store.getState()),
-	]);
+	])
+		.map(section => ({
+			...section,
+			rows: section.rows.filter(row => matchesQuery(row, query, display)),
+		}))
+		.filter(section => section.rows.length > 0);
+	// An emptied column is dropped, so a search's matches always start on the left.
 	const columns = [
 		sections.filter(
 			s => SECTION_ORDER[s.title] < SECTION_ORDER[SECOND_COLUMN_START],
@@ -357,30 +494,47 @@ function ShortcutsModal() {
 		sections.filter(
 			s => SECTION_ORDER[s.title] >= SECTION_ORDER[SECOND_COLUMN_START],
 		),
-	];
+	].filter(column => column.length > 0);
 
 	return (
 		<AppModal
 			opened={opened}
 			onClose={() => dispatch(closeShortcutsModal())}
+			onExitTransitionEnd={() => setQuery("")}
 			title="Keyboard shortcuts"
 			size={960}
 			fullScreenOnSmallScreen>
+			<TextInput
+				data-autofocus
+				placeholder="Search shortcuts"
+				aria-label="Search shortcuts"
+				leftSection={<MagnifyingGlassIcon />}
+				value={query}
+				onChange={event => setQuery(event.currentTarget.value)}
+				mb="xs"
+			/>
 			<Text size="sm" c="dimmed" mb="md">
 				Letters work in either case, so S also works as s.
 			</Text>
-			<SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
-				{columns.map(column => (
-					<Box key={column[0]?.title}>
-						{column.map(section => (
-							<ShortcutSectionTable
-								key={section.title}
-								section={section}
-							/>
-						))}
-					</Box>
-				))}
-			</SimpleGrid>
+			{sections.length === 0 ? (
+				<Text size="sm" c="dimmed" ta="center" py="xl">
+					No shortcuts match “{query.trim()}”.
+				</Text>
+			) : (
+				<SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl">
+					{columns.map(column => (
+						<Box key={column[0].title}>
+							{column.map(section => (
+								<ShortcutSectionTable
+									key={section.title}
+									section={section}
+									query={query}
+								/>
+							))}
+						</Box>
+					))}
+				</SimpleGrid>
+			)}
 		</AppModal>
 	);
 }
