@@ -427,7 +427,26 @@ describe("usePdfReadPoint", () => {
 		expect(goToPage).toHaveBeenCalledWith(4);
 	});
 
-	it("Should scroll to the highlight's page when a goto is requested after a highlight is created", async () => {
+	it("Should keep the displayed read point when a highlight is created", async () => {
+		// Arrange
+
+		const { result } = renderPdfReadPoint({
+			initial: { split: 4, block: 0 },
+		});
+
+		// Act
+
+		await act(async () => {
+			result.current.recordExtractReadPoint(9);
+			await vi.runAllTimersAsync();
+		});
+
+		// Assert
+
+		expect(result.current.displayed).toEqual({ split: 4, block: 0 });
+	});
+
+	it("Should scroll to the displayed read point when a goto is requested after a highlight is created", async () => {
 		// Arrange
 
 		const { result } = renderPdfReadPoint({
@@ -446,7 +465,7 @@ describe("usePdfReadPoint", () => {
 
 		// Assert
 
-		expect(goToPage).toHaveBeenLastCalledWith(9);
+		expect(goToPage).toHaveBeenLastCalledWith(4);
 	});
 
 	it("Should persist the read point when a highlight is created", async () => {

@@ -29,7 +29,7 @@ interface Props {
 }
 
 interface ReturnValue {
-	/** The read point shown, moved by a manual set/clear or a highlight but not by scroll-tracking; `null` when there is none. */
+	/** The read point shown, moved only by a manual set/clear; `null` when there is none. */
 	displayed: ReadingPosition | null;
 	/** Moves the read point to page `split` (1-based) after a highlight made there, if nothing outranks it. */
 	recordExtractReadPoint: (split: number) => void;
@@ -82,31 +82,30 @@ export function usePdfReadPoint({
 
 	const [displayed, setDisplayed] = useState(initial);
 
-	// Unlike the text view, a highlight moves the marker too: its page is what the reader just read.
-	const placeShown = useCallback(
-		(readPoint: ReadingPosition, source: "extract" | "manual") => {
-			if (place(readPoint, source)) setDisplayed(readPoint);
+	// As in the text view, a highlight saves the read point without moving the marker.
+	const placeManual = useCallback(
+		(readPoint: ReadingPosition) => {
+			if (place(readPoint, "manual")) setDisplayed(readPoint);
 		},
 		[place],
 	);
 	const recordExtractReadPoint = useCallback(
-		(split: number) => placeShown({ split, block: 0 }, "extract"),
-		[placeShown],
+		(split: number) => {
+			place({ split, block: 0 }, "extract");
+		},
+		[place],
 	);
 	const handleManualSet = useCallback(
 		() =>
-			placeShown(
-				{
-					split: getMenuPage?.() ?? getCurrentPage(),
-					block: 0,
-				},
-				"manual",
-			),
-		[placeShown, getMenuPage, getCurrentPage],
+			placeManual({
+				split: getMenuPage?.() ?? getCurrentPage(),
+				block: 0,
+			}),
+		[placeManual, getMenuPage, getCurrentPage],
 	);
 	const handleManualClear = useCallback(
-		() => placeShown(NO_READ_POINT, "manual"),
-		[placeShown],
+		() => placeManual(NO_READ_POINT),
+		[placeManual],
 	);
 	useReadingCommand("set-read-point", handleManualSet);
 	useReadingCommand("clear-read-point", handleManualClear);
