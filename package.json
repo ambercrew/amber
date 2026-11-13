@@ -96,7 +96,7 @@
 		"@eslint/js": "^9.39.5",
 		"@lexical/eslint-plugin": "^0.53.0",
 		"@rolldown/plugin-babel": "^0.2.4",
-		"@tauri-apps/cli": "3.0.0-alpha.5",
+		"@tauri-apps/cli": "3.0.0-alpha.6",
 		"@testing-library/dom": "^10.4.2",
 		"@testing-library/jest-dom": "^7.0.1",
 		"@testing-library/react": "^16.3.3",

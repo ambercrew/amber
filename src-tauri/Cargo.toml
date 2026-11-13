@@ -83,19 +83,19 @@ image = { version = "0.25.10", default-features = false, features = ["png", "jpe
 # The runtime is its own crate (not a `tauri` feature) since Tauri v3; each
 # feature pulls one in and `lib.rs` selects it on the builder.
 [dependencies.tauri]
-version = "3.0.0-alpha.5"
+version = "3.0.0-alpha.6"
 default-features = false
 features = [
   "test",
 ]
 
 [dependencies.tauri-runtime-wry]
-version = "3.0.0-alpha.5"
+version = "3.0.0-alpha.6"
 default-features = false
 optional = true
 
 [dependencies.tauri-runtime-cef]
-version = "3.0.0-alpha.6"
+version = "3.0.0-alpha.7"
 optional = true
 
 [dev-dependencies]
