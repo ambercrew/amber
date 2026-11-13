@@ -12,6 +12,7 @@ mod image_occlusion;
 mod import;
 mod infrastructure;
 mod local_configurations;
+mod main_window;
 mod saved_searches;
 mod search;
 mod secrets;
@@ -125,6 +126,8 @@ pub async fn run() {
 
     tauri_builder = tauri_builder
         .setup(|app| {
+            main_window::create_config_windows(app)?;
+
             let app_data_dir = app
                 .path()
                 .app_data_dir()

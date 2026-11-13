@@ -16,7 +16,8 @@
                 "title": "Amber",
                 "width": 1200,
                 "height": 1000,
-                "dragDropEnabled": false
+                "dragDropEnabled": false,
+                "create": false
             }
         ],
         "security": {

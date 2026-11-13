@@ -226,9 +226,7 @@ function App() {
 	useWheelZoom();
 
 	useEffect(() => {
-		const contextMenuCb = (e: MouseEvent) => {
-			if (!import.meta.env.DEV) e.preventDefault();
-		};
+		const contextMenuCb = (e: MouseEvent) => e.preventDefault();
 		window.addEventListener("contextmenu", contextMenuCb);
 		return () => window.removeEventListener("contextmenu", contextMenuCb);
 	}, []);
