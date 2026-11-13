@@ -12,6 +12,7 @@ use crate::database::transaction_manager::TransactionManagerError;
 use crate::image_occlusion::services::image_occlusion_service::ImageOcclusionError;
 use crate::import::services::anki_import_service::AnkiImportError;
 use crate::import::services::imported_html_converter::ImportedHtmlConverterError;
+use crate::study::services::card_grading_service::GradeCardError;
 use crate::study::services::profile_resolution_service::ProfileResolutionError;
 use crate::sync::errors::SyncError;
 use crate::trash::services::trash_service::TrashServiceError;
@@ -143,6 +144,9 @@ pub enum AnkiSyncError {
 
     #[error(transparent)]
     ProfileResolution(#[from] ProfileResolutionError),
+
+    #[error(transparent)]
+    Grading(#[from] GradeCardError),
 
     #[error(transparent)]
     Transaction(#[from] TransactionManagerError),

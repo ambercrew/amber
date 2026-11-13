@@ -12,6 +12,7 @@ use crate::elements::dto::create_meta_dto::CreateMetaDto;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::services::element_creation_service::ElementCreationService;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::elements::value_objects::new_card_due::NewCardDue;
 use crate::elements::value_objects::origin::Origin;
 use crate::image_occlusion::dto::create_image_occlusion_dto::CreateImageOcclusionDto;
 use crate::image_occlusion::dto::update_image_occlusion_dto::UpdateImageOcclusionDto;
@@ -100,6 +101,7 @@ impl ImageOcclusionService for DefaultImageOcclusionService {
             contents,
             dto.meta.parent,
             dto.meta.origin,
+            dto.due,
         )
         .await
     }
@@ -159,8 +161,15 @@ impl ImageOcclusionService for DefaultImageOcclusionService {
 
         self.image_occlusion_repository.update(&occlusion).await?;
         // Created before any unlink, so the occlusion never drops to no cards, which would delete it.
-        self.create_target_cards(&occlusion, new_targets, contents, parent, origin)
-            .await?;
+        self.create_target_cards(
+            &occlusion,
+            new_targets,
+            contents,
+            parent,
+            origin,
+            NewCardDue::FromProfile,
+        )
+        .await?;
         // Unlinked too, so a re-added target with the same key gets a fresh card.
         for link in removed.iter().chain(&trashed) {
             self.image_occlusion_repository
@@ -246,6 +255,7 @@ impl DefaultImageOcclusionService {
         mut contents: HashMap<String, OcclusionCardContent>,
         parent: Option<ElementId>,
         origin: Origin,
+        due: NewCardDue,
     ) -> Result<(), ImageOcclusionError> {
         for (index, target_key) in targets {
             let content = contents
@@ -253,16 +263,19 @@ impl DefaultImageOcclusionService {
                 .ok_or(OcclusionCardContentBuilderError::InvalidResponse)?;
             let card_id = Uuid::new_v4();
             self.element_creation_service
-                .create_card(CreateCardDto {
-                    id: card_id,
-                    meta: CreateMetaDto {
-                        name: Some(format!("{} · {}", occlusion.name, index + 1)),
-                        parent,
-                        origin: origin.clone(),
-                    },
-                    front: content.front,
-                    back: content.back,
-                })
+                .create_cards(
+                    vec![CreateCardDto {
+                        id: card_id,
+                        meta: CreateMetaDto {
+                            name: Some(format!("{} · {}", occlusion.name, index + 1)),
+                            parent,
+                            origin: origin.clone(),
+                        },
+                        front: content.front,
+                        back: content.back,
+                    }],
+                    due,
+                )
                 .await?;
             self.image_occlusion_repository
                 .link_card(&ImageOcclusionCardLink {
@@ -499,6 +512,7 @@ mod tests {
             image_height: 480,
             shapes,
             mode: OcclusionMode::HideAllGuessOne,
+            due: NewCardDue::FromProfile,
         }
     }
 

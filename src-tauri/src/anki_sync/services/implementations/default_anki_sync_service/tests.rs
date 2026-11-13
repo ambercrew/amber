@@ -49,6 +49,7 @@ use crate::settings::value_objects::database_location::DatabaseLocation;
 use crate::study::entities::card_review::CardReview;
 use crate::study::entities::card_review_log::CardReviewLog;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
+use crate::study::services::card_grading_service::CardGradingService;
 use crate::study::utils::day_boundary::start_of_day_utc;
 use crate::study::value_objects::card_state::CardState;
 use crate::study::value_objects::rating::Rating;
@@ -485,6 +486,13 @@ impl AnkiConnectClient for FakeAnki {
                     .due_day(&card)
                     .is_some_and(|due| due - ANKI_TODAY >= days);
                 Ok(if found { json!([card]) } else { json!([]) })
+            }
+            "forgetCards" => {
+                let mut schedules = self.schedules.lock().unwrap();
+                for card in params["cards"].as_array().unwrap() {
+                    schedules.remove(&card.as_i64().unwrap());
+                }
+                Ok(Value::Null)
             }
             "setDueDate" => {
                 let days = params["days"].as_str().unwrap().trim_end_matches('!');
@@ -2547,6 +2555,23 @@ async fn card_answered_again_in_amber(anki: Arc<FakeAnki>, good_at: i64) -> (Inj
 
 /// A card paired with Anki's card 7, answered Good at `good_at` and Again 55 minutes later in Amber.
 async fn answer_again_in_amber(injector: &Injector, good_at: i64) -> Uuid {
+    let again_at = good_at + 3_300;
+    let logs = [(good_at, Rating::Good), (again_at, Rating::Again)];
+    paired_reviewed_card(injector, &logs, |card_id| CardReview {
+        due: chrono::Utc::now() + chrono::Duration::minutes(5),
+        state: CardState::Relearning,
+        last_reviewed: DateTime::from_timestamp(again_at, 0),
+        ..replayed(card_id)
+    })
+    .await
+}
+
+/// A card paired with Anki's card 7, holding `logs` (Unix seconds and rating) and the review `review` makes.
+async fn paired_reviewed_card(
+    injector: &Injector,
+    logs: &[(i64, Rating)],
+    review: impl FnOnce(Uuid) -> CardReview,
+) -> Uuid {
     let scope = injector.start_scope();
     let card_id = create_card(&scope).await;
     let links = scope.resolve::<dyn AnkiCardLinkRepository>().await;
@@ -2557,26 +2582,19 @@ async fn answer_again_in_amber(injector: &Injector, good_at: i64) -> Uuid {
         })
         .await
         .unwrap();
-    let now = chrono::Utc::now();
-    let logs = scope.resolve::<dyn CardReviewLogRepository>().await;
-    for (reviewed_at, rating) in [(good_at, Rating::Good), (good_at + 3_300, Rating::Again)] {
+    let log_repository = scope.resolve::<dyn CardReviewLogRepository>().await;
+    for (reviewed_at, rating) in logs {
         let log = CardReviewLog {
             id: Uuid::new_v4(),
             card_id: Some(card_id),
-            reviewed_at: DateTime::from_timestamp(reviewed_at, 0).unwrap(),
-            rating,
+            reviewed_at: DateTime::from_timestamp(*reviewed_at, 0).unwrap(),
+            rating: *rating,
             duration_ms: Some(1000),
         };
-        logs.create(&log).await.unwrap();
+        log_repository.create(&log).await.unwrap();
     }
     let reviews = scope.resolve::<dyn CardReviewRepository>().await;
-    let review = CardReview {
-        due: now + chrono::Duration::minutes(5),
-        state: CardState::Relearning,
-        last_reviewed: DateTime::from_timestamp(good_at + 3_300, 0),
-        ..replayed(card_id)
-    };
-    reviews.upsert(&review).await.unwrap();
+    reviews.upsert(&review(card_id)).await.unwrap();
     scope.save_changes().await.unwrap();
     card_id
 }
@@ -2626,6 +2644,281 @@ async fn sync_card_answered_again_in_amber_answers_it_again_in_anki_and_matches_
     assert!(anki.params_of("setDueDate").is_empty());
     assert_eq!((0, 0), (preview.reviews_to_anki, preview.reviews_to_amber));
     assert_eq!((0, 0), (second.pushed_reviews, second.pulled_reviews));
+}
+
+/// Amber's card paired with Anki's card 7, reviewed Good once at `good_at` and due in 9 days; Anki logged that
+/// review but still holds the card as new, as when its schedule was undone there.
+async fn card_new_in_anki_holding_amber_review(
+    anki: Arc<FakeAnki>,
+    good_at: i64,
+) -> (Injector, Uuid) {
+    let injector = injector(anki, importing_nothing()).await;
+    let today = anki_date(chrono::Utc::now());
+    let card_id = paired_reviewed_card(&injector, &[(good_at, Rating::Good)], |card_id| {
+        CardReview {
+            due: start_of_day_utc(today + chrono::Duration::days(9)),
+            state: CardState::Review,
+            scheduled_days: 9,
+            last_reviewed: DateTime::from_timestamp(good_at, 0),
+            ..replayed(card_id)
+        }
+    })
+    .await;
+    (injector, card_id)
+}
+
+#[tokio::test]
+async fn sync_card_new_in_anki_holding_amber_review_takes_amber_schedule_once() {
+    // Arrange
+
+    let good_at = an_hour_ago();
+    let anki = Arc::new(FakeAnki {
+        reviews: json!({ "7": [{ "id": good_at * 1000, "ease": 3, "time": 1000, "ivl": 0, "type": 0 }] }),
+        ..FakeAnki::new(vec![7])
+    });
+    let (injector, _) = card_new_in_anki_holding_amber_review(anki.clone(), good_at).await;
+
+    // Act
+
+    let preview = previewed(&injector).await;
+    let scope = injector.start_scope();
+    let service = scope.resolve::<dyn AnkiSyncService>().await;
+    let first = service.sync(Vec::new()).await.unwrap();
+    let second = service.sync(Vec::new()).await.unwrap();
+
+    // Assert
+
+    assert_eq!(1, preview.due_dates_to_anki);
+    assert_eq!((1, 0), (first.due_dates_to_anki, first.pushed_reviews));
+    assert_eq!(0, second.due_dates_to_anki);
+    let due_dates = anki.params_of("setDueDate");
+    assert_eq!(vec![json!({ "cards": [7], "days": "9!" })], due_dates);
+}
+
+#[tokio::test]
+async fn sync_card_reset_in_anki_after_its_amber_review_resets_amber_once() {
+    // Arrange
+
+    let good_at = an_hour_ago();
+    let anki = Arc::new(FakeAnki {
+        reviews: json!({ "7": [
+            { "id": good_at * 1000, "ease": 3, "time": 1000, "ivl": 0, "type": 0 },
+            { "id": (good_at + 60) * 1000, "ease": 0, "time": 0, "ivl": 0, "type": 4 },
+        ] }),
+        ..FakeAnki::new(vec![7])
+    });
+    let (injector, card_id) = card_new_in_anki_holding_amber_review(anki.clone(), good_at).await;
+
+    // Act
+
+    let preview = previewed(&injector).await;
+    let scope = injector.start_scope();
+    let service = scope.resolve::<dyn AnkiSyncService>().await;
+    let first = service.sync(Vec::new()).await.unwrap();
+    let second = service.sync(Vec::new()).await.unwrap();
+
+    // Assert
+
+    assert_eq!(1, preview.due_dates_to_amber);
+    assert_eq!(
+        (1, 0),
+        (first.due_dates_to_amber, second.due_dates_to_amber)
+    );
+    let reviews = scope.resolve::<dyn CardReviewRepository>().await;
+    let review = reviews.get_by_card_id(card_id).await.unwrap().unwrap();
+    assert_eq!(CardState::New, review.state);
+    assert_eq!(None, review.last_reviewed);
+    assert!(anki.params_of("setDueDate").is_empty());
+}
+
+#[tokio::test]
+async fn sync_card_reset_then_reviewed_in_anki_replays_the_review_since_the_reset_once() {
+    // Arrange
+
+    let good_at = an_hour_ago();
+    let learning_due = good_at + 720;
+    let anki = Arc::new(FakeAnki {
+        reviews: json!({ "7": [
+            { "id": good_at * 1000, "ease": 3, "time": 1000, "ivl": 0, "type": 0 },
+            { "id": (good_at + 60) * 1000, "ease": 0, "time": 0, "ivl": 0, "type": 4 },
+            { "id": (good_at + 120) * 1000, "ease": 3, "time": 1000, "ivl": -600, "type": 0 },
+        ] }),
+        ..FakeAnki::new(vec![7])
+    });
+    anki.schedules.lock().unwrap().insert(
+        7,
+        json!({ "cardId": 7, "due": learning_due, "queue": 1, "type": 1, "interval": 0 }),
+    );
+    let (injector, card_id) = card_new_in_anki_holding_amber_review(anki.clone(), good_at).await;
+
+    // Act
+
+    let preview = previewed(&injector).await;
+    let scope = injector.start_scope();
+    let service = scope.resolve::<dyn AnkiSyncService>().await;
+    let first = service.sync(Vec::new()).await.unwrap();
+    let second = service.sync(Vec::new()).await.unwrap();
+
+    // Assert
+
+    assert_eq!(
+        (1, 1),
+        (preview.reviews_to_amber, preview.due_dates_to_amber)
+    );
+    assert_eq!((1, 1), (first.pulled_reviews, first.due_dates_to_amber));
+    assert_eq!((0, 0), (second.pulled_reviews, second.due_dates_to_amber));
+    let reviews = scope.resolve::<dyn CardReviewRepository>().await;
+    let review = reviews.get_by_card_id(card_id).await.unwrap().unwrap();
+    assert_eq!(
+        DateTime::from_timestamp(learning_due, 0).unwrap(),
+        review.due
+    );
+    assert!(anki.params_of("setDueDate").is_empty());
+}
+
+#[tokio::test]
+async fn sync_card_lapsed_in_amber_while_new_in_anki_made_due_today_before_answering_again() {
+    // Arrange
+
+    // Anki logged Amber's Good review but holds the card as new, as `insertReviews` leaves it.
+    let good_at = an_hour_ago();
+    let anki = Arc::new(FakeAnki {
+        reviews: json!({ "7": [{ "id": good_at * 1000, "ease": 3, "time": 1000, "ivl": 0, "type": 0 }] }),
+        ..FakeAnki::new(vec![7])
+    });
+    let (injector, _) = card_answered_again_in_amber(anki.clone(), good_at).await;
+
+    // Act
+
+    let preview = previewed(&injector).await;
+    let scope = injector.start_scope();
+    let service = scope.resolve::<dyn AnkiSyncService>().await;
+    let first = service.sync(Vec::new()).await.unwrap();
+    let second = service.sync(Vec::new()).await.unwrap();
+
+    // Assert
+
+    assert_eq!((1, 1), (preview.reviews_to_anki, first.pushed_reviews));
+    assert!(anki.params_of("insertReviews").is_empty());
+    let due_dates = anki.params_of("setDueDate");
+    assert_eq!(vec![json!({ "cards": [7], "days": "0!" })], due_dates);
+    let answered: Vec<(i64, i64)> = anki
+        .answered
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(card, _, ease)| (*card, *ease))
+        .collect();
+    assert_eq!(vec![(7, 1)], answered);
+    let calls = anki.calls.lock().unwrap().clone();
+    let set_due = calls.iter().position(|(action, _)| *action == "setDueDate");
+    let answer = calls.iter().position(|(action, params)| {
+        *action == "multi" && params.to_string().contains("answerCards")
+    });
+    assert!(set_due.is_some() && set_due < answer);
+    assert_eq!((0, 0), (second.pushed_reviews, second.pulled_reviews));
+}
+
+/// Amber's card paired with Anki's card 7, answered Again at `again_at` in both apps and left relearning in
+/// Amber, due ten minutes later; `moved_days` then moves it by hand that many days from today.
+async fn relearning_card(
+    anki: Arc<FakeAnki>,
+    again_at: i64,
+    moved_days: Option<i64>,
+) -> (Injector, Uuid) {
+    let injector = injector(anki, importing_nothing()).await;
+    let reviewed_at = DateTime::from_timestamp(again_at, 0).unwrap();
+    let relearning = |card_id| CardReview {
+        due: reviewed_at + chrono::Duration::minutes(10),
+        state: CardState::Relearning,
+        scheduled_days: 0,
+        last_reviewed: Some(reviewed_at),
+        ..replayed(card_id)
+    };
+    let card_id = paired_reviewed_card(&injector, &[(again_at, Rating::Again)], relearning).await;
+    if let Some(days) = moved_days {
+        // Saved apart from the review, so it counts as a due date moved by hand.
+        let scope = injector.start_scope();
+        let today = anki_date(chrono::Utc::now());
+        let review = CardReview {
+            due: start_of_day_utc(today + chrono::Duration::days(days)),
+            ..relearning(card_id)
+        };
+        let reviews = scope.resolve::<dyn CardReviewRepository>().await;
+        reviews.upsert(&review).await.unwrap();
+        scope.save_changes().await.unwrap();
+    }
+    (injector, card_id)
+}
+
+#[tokio::test]
+async fn sync_relearning_card_due_set_in_anki_moves_amber_due_once() {
+    // Arrange
+
+    let again_at = an_hour_ago();
+    let anki = Arc::new(FakeAnki {
+        reviews: json!({ "7": [
+            { "id": again_at * 1000, "ease": 1, "time": 1000, "ivl": 0, "type": 1 },
+            { "id": (again_at + 3) * 1000, "ease": 0, "time": 0, "ivl": 6, "type": 4 },
+        ] }),
+        ..FakeAnki::new(vec![7])
+    });
+    anki.schedule(7, 6);
+    let (injector, card_id) = relearning_card(anki.clone(), again_at, None).await;
+
+    // Act
+
+    let preview = previewed(&injector).await;
+    let scope = injector.start_scope();
+    let service = scope.resolve::<dyn AnkiSyncService>().await;
+    let first = service.sync(Vec::new()).await.unwrap();
+    let second = service.sync(Vec::new()).await.unwrap();
+
+    // Assert
+
+    assert_eq!(1, preview.due_dates_to_amber);
+    assert_eq!(
+        (1, 0),
+        (first.due_dates_to_amber, second.due_dates_to_amber)
+    );
+    let reviews = scope.resolve::<dyn CardReviewRepository>().await;
+    let review = reviews.get_by_card_id(card_id).await.unwrap().unwrap();
+    let today = anki_date(chrono::Utc::now());
+    assert_eq!(
+        start_of_day_utc(today + chrono::Duration::days(6)),
+        review.due
+    );
+    assert!(anki.params_of("setDueDate").is_empty());
+}
+
+#[tokio::test]
+async fn sync_relearning_card_due_moved_in_amber_moves_anki_due_once() {
+    // Arrange
+
+    let again_at = an_hour_ago();
+    let anki = Arc::new(FakeAnki {
+        reviews: json!({ "7": [{ "id": again_at * 1000, "ease": 1, "time": 1000, "ivl": 0, "type": 2 }] }),
+        ..FakeAnki::new(vec![7])
+    });
+    let learning =
+        json!({ "cardId": 7, "due": again_at + 600, "queue": 1, "type": 3, "interval": 0 });
+    anki.schedules.lock().unwrap().insert(7, learning);
+    let (injector, _) = relearning_card(anki.clone(), again_at, Some(5)).await;
+
+    // Act
+
+    let preview = previewed(&injector).await;
+    let scope = injector.start_scope();
+    let service = scope.resolve::<dyn AnkiSyncService>().await;
+    let first = service.sync(Vec::new()).await.unwrap();
+    let second = service.sync(Vec::new()).await.unwrap();
+
+    // Assert
+
+    assert_eq!(1, preview.due_dates_to_anki);
+    assert_eq!((1, 0), (first.due_dates_to_anki, second.due_dates_to_anki));
+    let due_dates = anki.params_of("setDueDate");
+    assert_eq!(vec![json!({ "cards": [7], "days": "5!" })], due_dates);
 }
 
 #[tokio::test]
@@ -2685,6 +2978,264 @@ async fn preview_due_moved_in_anki_without_a_review_counted_as_the_sync_carries_
 }
 
 /// Moves the card's due date `days` from today in Amber without a review, as the study view does.
+/// An Amber card never reviewed, paired with Anki's card 7, both apps holding it as new at the last sync.
+async fn new_paired_card(anki: Arc<FakeAnki>) -> (Injector, Uuid) {
+    let injector = injector(anki, importing_nothing()).await;
+    let scope = injector.start_scope();
+    let card_id = create_card(&scope).await;
+    let links = scope.resolve::<dyn AnkiCardLinkRepository>().await;
+    links
+        .create(&AnkiCardLink {
+            card_id,
+            anki_card_id: AnkiCardId(7),
+        })
+        .await
+        .unwrap();
+    let review = CardReview {
+        state: CardState::New,
+        last_reviewed: None,
+        scheduled_days: 0,
+        due: due_in_days(1),
+        ..replayed(card_id)
+    };
+    let reviews = scope.resolve::<dyn CardReviewRepository>().await;
+    reviews.upsert(&review).await.unwrap();
+    {
+        // Writing the review isn't a due move made by the user.
+        let tx = scope.resolve::<DbTransaction>().await;
+        let mut guard = tx.lock().await;
+        sqlx::query("UPDATE card_reviews SET due_moved_at = NULL")
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+    }
+    let synced = SyncedSchedule {
+        amber_due: None,
+        anki_due: None,
+    };
+    let repository = scope.resolve::<dyn AnkiSyncRepository>().await;
+    repository
+        .replace_paired_cards(
+            PROFILE,
+            &[pair(card_id, 7)],
+            &HashMap::from([(AnkiCardId(7), synced)]),
+        )
+        .await
+        .unwrap();
+    scope.save_changes().await.unwrap();
+    (injector, card_id)
+}
+
+fn due_in_days(days: i64) -> DateTime<chrono::Utc> {
+    start_of_day_utc(anki_date(chrono::Utc::now()) + chrono::Duration::days(days))
+}
+
+async fn reset_in_amber(injector: &Injector, card_id: Uuid) {
+    let scope = injector.start_scope();
+    let grading = scope.resolve::<dyn CardGradingService>().await;
+    grading.reset(vec![card_id]).await.unwrap();
+    scope.save_changes().await.unwrap();
+}
+
+#[tokio::test]
+async fn sync_card_reset_in_amber_after_its_reviews_forgets_it_in_anki_once() {
+    // Arrange
+
+    let good_at = an_hour_ago();
+    let anki = Arc::new(anki_reviewed_at(good_at));
+    let injector = injector(anki.clone(), importing_nothing()).await;
+    let card_id = paired_reviewed_card(&injector, &[(good_at, Rating::Good)], |card_id| {
+        CardReview {
+            due: due_in_days(3),
+            last_reviewed: DateTime::from_timestamp(good_at, 0),
+            ..replayed(card_id)
+        }
+    })
+    .await;
+    reset_in_amber(&injector, card_id).await;
+
+    // Act
+
+    let preview = previewed(&injector).await;
+    let first = {
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn AnkiSyncService>().await;
+        service.sync(Vec::new()).await.unwrap()
+    };
+    let second = {
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn AnkiSyncService>().await;
+        service.sync(Vec::new()).await.unwrap()
+    };
+
+    // Assert
+
+    assert_eq!(1, preview.due_dates_to_anki);
+    assert_eq!(1, first.due_dates_to_anki);
+    assert_eq!(vec![json!({ "cards": [7] })], anki.params_of("forgetCards"));
+    assert!(anki.params_of("setDueDate").is_empty());
+    assert_eq!(
+        (0, 0),
+        (second.due_dates_to_anki, second.due_dates_to_amber)
+    );
+    let scope = injector.start_scope();
+    let reviews = scope.resolve::<dyn CardReviewRepository>().await;
+    let review = reviews.get_by_card_id(card_id).await.unwrap().unwrap();
+    assert_eq!(CardState::New, review.state);
+}
+
+#[tokio::test]
+async fn sync_card_reset_in_amber_then_reviewed_in_anki_not_forgotten_in_anki() {
+    // Arrange
+
+    let good_at = an_hour_ago();
+    let later = (chrono::Utc::now() + chrono::Duration::minutes(2)).timestamp();
+    let anki = Arc::new(FakeAnki {
+        reviews: json!({ "7": [
+            { "id": good_at * 1000, "ease": 3, "time": 1000, "ivl": 3, "type": 1 },
+            { "id": later * 1000, "ease": 3, "time": 1000, "ivl": 5, "type": 1 },
+        ] }),
+        ..FakeAnki::new(vec![7])
+    });
+    anki.schedule(7, 5);
+    let injector = injector(anki.clone(), importing_nothing()).await;
+    let card_id = paired_reviewed_card(&injector, &[(good_at, Rating::Good)], |card_id| {
+        CardReview {
+            due: due_in_days(3),
+            last_reviewed: DateTime::from_timestamp(good_at, 0),
+            ..replayed(card_id)
+        }
+    })
+    .await;
+    reset_in_amber(&injector, card_id).await;
+    let scope = injector.start_scope();
+    let service = scope.resolve::<dyn AnkiSyncService>().await;
+
+    // Act
+
+    let summary = service.sync(Vec::new()).await.unwrap();
+
+    // Assert
+
+    assert!(anki.params_of("forgetCards").is_empty());
+    assert_eq!(1, summary.pulled_reviews);
+}
+
+#[tokio::test]
+async fn sync_new_card_due_set_in_anki_moves_amber_due_once_and_keeps_it_new() {
+    // Arrange
+
+    let moved_at = (chrono::Utc::now() - chrono::Duration::minutes(1)).timestamp();
+    let anki = Arc::new(FakeAnki {
+        reviews: json!({ "7": [{ "id": moved_at * 1000, "ease": 0, "time": 0, "ivl": 7, "type": 4 }] }),
+        ..FakeAnki::new(vec![7])
+    });
+    anki.schedule(7, 7);
+    let (injector, card_id) = new_paired_card(anki.clone()).await;
+
+    // Act
+
+    let preview = previewed(&injector).await;
+    let scope = injector.start_scope();
+    let service = scope.resolve::<dyn AnkiSyncService>().await;
+    let first = service.sync(Vec::new()).await.unwrap();
+    let second = service.sync(Vec::new()).await.unwrap();
+
+    // Assert
+
+    assert_eq!(1, preview.due_dates_to_amber);
+    assert_eq!(1, first.due_dates_to_amber);
+    assert_eq!(
+        (0, 0),
+        (second.due_dates_to_anki, second.due_dates_to_amber)
+    );
+    assert!(anki.params_of("setDueDate").is_empty());
+    let reviews = scope.resolve::<dyn CardReviewRepository>().await;
+    let review = reviews.get_by_card_id(card_id).await.unwrap().unwrap();
+    assert_eq!(due_in_days(7), review.due);
+    assert_eq!((CardState::New, 0), (review.state, review.scheduled_days));
+}
+
+#[tokio::test]
+async fn sync_new_card_with_a_moved_due_forgotten_in_anki_resets_amber_due_once() {
+    // Arrange
+
+    let forgotten_at = (chrono::Utc::now() + chrono::Duration::minutes(1)).timestamp();
+    let anki = Arc::new(FakeAnki {
+        reviews: json!({ "7": [{ "id": forgotten_at * 1000, "ease": 0, "time": 0, "ivl": 0, "type": 4 }] }),
+        ..FakeAnki::new(vec![7])
+    });
+    let (injector, card_id) = new_paired_card(anki.clone()).await;
+    {
+        let scope = injector.start_scope();
+        let grading = scope.resolve::<dyn CardGradingService>().await;
+        grading.set_due(card_id, due_in_days(7)).await.unwrap();
+        scope.save_changes().await.unwrap();
+    }
+
+    // Act
+
+    let preview = previewed(&injector).await;
+    let scope = injector.start_scope();
+    let service = scope.resolve::<dyn AnkiSyncService>().await;
+    let first = service.sync(Vec::new()).await.unwrap();
+    let second = service.sync(Vec::new()).await.unwrap();
+
+    // Assert
+
+    assert_eq!(1, preview.due_dates_to_amber);
+    assert_eq!(1, first.due_dates_to_amber);
+    assert_eq!(
+        (0, 0),
+        (second.due_dates_to_anki, second.due_dates_to_amber)
+    );
+    let grading = scope.resolve::<dyn CardGradingService>().await;
+    let reset = grading.reset_review(card_id).await.unwrap();
+    let reviews = scope.resolve::<dyn CardReviewRepository>().await;
+    let review = reviews.get_by_card_id(card_id).await.unwrap().unwrap();
+    assert_eq!((CardState::New, reset.due), (review.state, review.due));
+    let moved = reviews.get_due_moved_times().await.unwrap();
+    assert!(!moved.contains_key(&card_id));
+}
+
+#[tokio::test]
+async fn sync_new_card_due_moved_in_amber_sets_anki_due_once() {
+    // Arrange
+
+    let anki = FakeAnki::holding(vec![7]);
+    let (injector, card_id) = new_paired_card(anki.clone()).await;
+    {
+        let scope = injector.start_scope();
+        let grading = scope.resolve::<dyn CardGradingService>().await;
+        grading.set_due(card_id, due_in_days(5)).await.unwrap();
+        scope.save_changes().await.unwrap();
+    }
+
+    // Act
+
+    let preview = previewed(&injector).await;
+    let scope = injector.start_scope();
+    let service = scope.resolve::<dyn AnkiSyncService>().await;
+    let first = service.sync(Vec::new()).await.unwrap();
+    let second = service.sync(Vec::new()).await.unwrap();
+
+    // Assert
+
+    assert_eq!(1, preview.due_dates_to_anki);
+    assert_eq!(1, first.due_dates_to_anki);
+    assert_eq!(
+        (0, 0),
+        (second.due_dates_to_anki, second.due_dates_to_amber)
+    );
+    let due_dates = anki.params_of("setDueDate");
+    assert_eq!(vec![json!({ "cards": [7], "days": "5!" })], due_dates);
+    assert!(
+        anki.params_of("multi")
+            .iter()
+            .all(|batch| !batch.to_string().contains("setSpecificValueOfCard"))
+    );
+}
+
 async fn move_amber_due(injector: &Injector, card_id: Uuid, days: i64) {
     let scope = injector.start_scope();
     let reviews = scope.resolve::<dyn CardReviewRepository>().await;
@@ -3163,6 +3714,7 @@ async fn imported_occlusion_given_a_mask_in_anki() -> (Injector, Arc<FakeAnki>, 
             image_height: imported.image_height,
             shapes: imported.shapes.clone(),
             mode: imported.mode,
+            due: Default::default(),
         })
         .await
         .unwrap();

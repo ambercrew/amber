@@ -65,14 +65,19 @@ impl CardGradingService for DefaultCardGradingService {
         Ok((review, profile))
     }
 
+    async fn reset_review(&self, card_id: Uuid) -> Result<CardReview, GradeCardError> {
+        let profile = self
+            .profile_resolution_service
+            .resolve_profile(Some(ElementId::Card(card_id)))
+            .await?;
+        Ok(CardReview::new_for_profile(card_id, &profile))
+    }
+
     async fn reset(&self, card_ids: Vec<Uuid>) -> Result<(), GradeCardError> {
         for card_id in card_ids {
-            let profile = self
-                .profile_resolution_service
-                .resolve_profile(Some(ElementId::Card(card_id)))
-                .await?;
-            let review = CardReview::new_for_profile(card_id, &profile);
+            let review = self.reset_review(card_id).await?;
             self.card_review_repository.upsert(&review).await?;
+            self.card_review_repository.mark_reset(card_id).await?;
         }
         emit_element_due_changed(&self.event_manager).await;
         Ok(())

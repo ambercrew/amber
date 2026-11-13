@@ -18,6 +18,15 @@ pub trait CardReviewRepository: Send + Sync {
     /// When each card's due date was last moved without a review, for the cards ever moved so.
     async fn get_due_moved_times(&self) -> Result<HashMap<Uuid, DateTime<Utc>>, RepositoryError>;
 
+    /// Forgets that the card's due date was moved, as a reset taken from Anki puts it back on its own.
+    async fn clear_due_moved(&self, card_id: Uuid) -> Result<(), RepositoryError>;
+
+    /// When each card was last reset to new, for the cards ever reset.
+    async fn get_reset_times(&self) -> Result<HashMap<Uuid, DateTime<Utc>>, RepositoryError>;
+
+    /// Records that the card was just reset to new.
+    async fn mark_reset(&self, card_id: Uuid) -> Result<(), RepositoryError>;
+
     /// Creates the review row if it doesn't exist yet, otherwise updates it in place.
     async fn upsert(&self, review: &CardReview) -> Result<(), RepositoryError>;
 

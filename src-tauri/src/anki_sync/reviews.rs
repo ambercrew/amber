@@ -31,6 +31,12 @@ pub fn is_reschedule(review: &AnkiReview) -> bool {
     matches!(review.kind, MANUAL_KIND | RESCHEDULED_KIND)
 }
 
+/// A reset to a new card ("Forget"), which Anki logs as a manual entry without an interval; a due date set by
+/// hand always logs one of a day or more.
+pub fn is_reset(review: &AnkiReview) -> bool {
+    review.kind == MANUAL_KIND && review.ease == 0 && review.ivl == 0
+}
+
 /// What one card needs so both sides hold its whole review history.
 #[derive(Debug, PartialEq)]
 pub struct ReviewMerge {
@@ -93,7 +99,11 @@ impl AnkiNextReview {
             return;
         }
         review.due = self.due;
-        if let Some(days) = self.scheduled_days {
+        // A new card's due date moves alone, as Amber's own `set_due` moves it.
+        if let Some(days) = self
+            .scheduled_days
+            .filter(|_| review.state != CardState::New)
+        {
             review.scheduled_days = days;
         }
     }
@@ -220,21 +230,20 @@ pub fn spread_review_ids(rows: &mut [AnkiReviewRow], taken: impl IntoIterator<It
 #[derive(Debug, PartialEq, Eq)]
 pub struct AnkiSchedule {
     pub due_in_days: i64,
-    pub values: AnkiCardValues,
+    /// None for a card Amber holds as new, whose due date alone was moved.
+    pub values: Option<AnkiCardValues>,
 }
 
-/// None for a card Amber hasn't scheduled yet; `anki_today` is the calendar day Anki counts today as.
-pub fn anki_schedule(review: &CardReview, anki_today: NaiveDate) -> Option<AnkiSchedule> {
-    if review.state == CardState::New {
-        return None;
-    }
-    Some(AnkiSchedule {
+/// Amber's schedule as Anki takes it; `anki_today` is the calendar day Anki counts today as.
+pub fn anki_schedule(review: &CardReview, anki_today: NaiveDate) -> AnkiSchedule {
+    let values = (review.state != CardState::New).then(|| AnkiCardValues {
+        interval_days: Some(i64::from(review.scheduled_days.max(1))),
+        ..anki_counts(review)
+    });
+    AnkiSchedule {
         due_in_days: (local_date(review.due) - anki_today).num_days().max(0),
-        values: AnkiCardValues {
-            interval_days: Some(i64::from(review.scheduled_days.max(1))),
-            ..anki_counts(review)
-        },
-    })
+        values,
+    }
 }
 
 /// The review and lapse counts Amber holds for a card, which Anki's own don't include for logged reviews.
@@ -578,13 +587,13 @@ mod tests {
 
         let expected = AnkiSchedule {
             due_in_days: 5,
-            values: AnkiCardValues {
+            values: Some(AnkiCardValues {
                 interval_days: Some(5),
                 reps: 3,
                 lapses: 1,
-            },
+            }),
         };
-        assert_eq!(Some(expected), schedule);
+        assert_eq!(expected, schedule);
     }
 
     #[test]
@@ -596,7 +605,7 @@ mod tests {
 
         // Act
 
-        let schedule = anki_schedule(&review, local_today).unwrap();
+        let schedule = anki_schedule(&review, local_today);
 
         // Assert
 
@@ -604,11 +613,11 @@ mod tests {
     }
 
     #[test]
-    fn anki_schedule_new_card_returns_none() {
+    fn anki_schedule_new_card_sets_only_its_due_day() {
         // Arrange
 
         let local_today = NaiveDate::from_ymd_opt(2026, 11, 3).unwrap();
-        let review = review(CardState::New, 0, local_today);
+        let review = review(CardState::New, 4, local_today);
 
         // Act
 
@@ -616,6 +625,10 @@ mod tests {
 
         // Assert
 
-        assert_eq!(None, schedule);
+        let expected = AnkiSchedule {
+            due_in_days: 4,
+            values: None,
+        };
+        assert_eq!(expected, schedule);
     }
 }

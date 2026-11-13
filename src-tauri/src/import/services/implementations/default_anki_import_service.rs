@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use chrono::Utc;
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
 
@@ -12,6 +13,7 @@ use crate::elements::dto::create_meta_dto::CreateMetaDto;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::services::element_creation_service::ElementCreationService;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::elements::value_objects::new_card_due::NewCardDue;
 use crate::elements::value_objects::origin::Origin;
 use crate::image_occlusion::dto::create_image_occlusion_dto::CreateImageOcclusionDto;
 use crate::image_occlusion::repositories::image_occlusion_repository::ImageOcclusionRepository;
@@ -29,6 +31,7 @@ use crate::import::services::anki_import_service::{
 use crate::import::services::imported_html_converter::{
     ImportedHtmlConverter, ImportedHtmlConverterError,
 };
+use crate::study::utils::day_boundary::local_date;
 
 /// Both sides of this many cards, so progress moves on a large deck.
 const CONVERSION_BATCH: usize = 100;
@@ -145,6 +148,8 @@ impl DefaultAnkiImportService {
             derived_from: None,
             bibliographical_source_id,
         };
+        // Due today, as Anki shows a new card right away.
+        let due = NewCardDue::On(local_date(Utc::now()));
         let mut first_root = None;
 
         for deck in extraction.decks {
@@ -191,7 +196,9 @@ impl DefaultAnkiImportService {
                 });
             }
             let ids: Vec<Uuid> = dtos.iter().map(|dto| dto.id).collect();
-            self.element_creation_service.create_cards(dtos).await?;
+            self.element_creation_service
+                .create_cards(dtos, due)
+                .await?;
             for (id, card) in ids.into_iter().zip(deck.cards) {
                 // Lets syncing with Anki pair it with its original instead of exporting a copy.
                 self.anki_card_link_repository
@@ -208,7 +215,7 @@ impl DefaultAnkiImportService {
             }
 
             for occlusion in deck.image_occlusions {
-                self.create_occlusion(occlusion, deck_parent, origin())
+                self.create_occlusion(occlusion, deck_parent, origin(), due)
                     .await?;
             }
         }
@@ -220,6 +227,7 @@ impl DefaultAnkiImportService {
         occlusion: AnkiOcclusion,
         parent: Option<ElementId>,
         origin: Origin,
+        due: NewCardDue,
     ) -> Result<(), AnkiImportError> {
         let id = Uuid::new_v4();
         let anki_cards: HashMap<String, AnkiCardId> = occlusion.anki_cards.into_iter().collect();
@@ -236,6 +244,7 @@ impl DefaultAnkiImportService {
                 image_height: occlusion.image_height,
                 shapes: occlusion.shapes,
                 mode: occlusion.mode,
+                due,
             })
             .await?;
         for link in self.image_occlusion_repository.get_links(id).await? {
@@ -295,7 +304,7 @@ mod tests {
                 .push((name, dto.meta.parent, folder));
             Box::pin(async { Ok::<(), ElementCreationError>(()) })
         });
-        mock.expect_create_cards().returning(move |dtos| {
+        mock.expect_create_cards().returning(move |dtos, _| {
             let mut created = created.lock().unwrap();
             for dto in dtos {
                 created.cards.push((dto.meta.parent, dto.front.clone()));

@@ -40,6 +40,7 @@ use crate::elements::value_objects::learning_asset_content::LearningAssetContent
 use crate::elements::value_objects::learning_asset_type::LearningAssetType;
 use crate::elements::value_objects::meta::Meta;
 use crate::elements::value_objects::name_source::NameSource;
+use crate::elements::value_objects::new_card_due::NewCardDue;
 use crate::elements::value_objects::origin::Origin;
 use crate::study::entities::card_review::CardReview;
 use crate::study::entities::learning_asset_review::LearningAssetReview;
@@ -47,7 +48,7 @@ use crate::study::entities::study_profile::StudyProfile;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
-use crate::study::utils::day_boundary::start_of_today_utc;
+use crate::study::utils::day_boundary::{start_of_day_utc, start_of_today_utc};
 
 /// Where a new element comes from, with an inherited origin resolved from its parent.
 struct ResolvedOrigin {
@@ -248,10 +249,14 @@ impl ElementCreationService for DefaultElementCreationService {
     }
 
     async fn create_card(&self, dto: CreateCardDto) -> Result<(), ElementCreationError> {
-        self.create_cards(vec![dto]).await
+        self.create_cards(vec![dto], NewCardDue::FromProfile).await
     }
 
-    async fn create_cards(&self, dtos: Vec<CreateCardDto>) -> Result<(), ElementCreationError> {
+    async fn create_cards(
+        &self,
+        dtos: Vec<CreateCardDto>,
+        due: NewCardDue,
+    ) -> Result<(), ElementCreationError> {
         let mut resolved = Vec::with_capacity(dtos.len());
         for dto in dtos {
             let origin = self
@@ -270,7 +275,8 @@ impl ElementCreationService for DefaultElementCreationService {
             {
                 siblings.push(next);
             }
-            self.create_sibling_cards(key.0, key.1, siblings).await?;
+            self.create_sibling_cards(key.0, key.1, siblings, due)
+                .await?;
         }
         Ok(())
     }
@@ -295,6 +301,7 @@ impl DefaultElementCreationService {
         parent: Option<ElementId>,
         derived_from: Option<ElementId>,
         cards: Vec<(CreateCardDto, ResolvedOrigin)>,
+        due: NewCardDue,
     ) -> Result<(), ElementCreationError> {
         // A new card has no profile of its own, so it studies with its parent's.
         let profile = self
@@ -342,7 +349,7 @@ impl DefaultElementCreationService {
             position = next_position;
             let element = MetaNodeDto::from(card.meta());
             self.card_repository.create(card).await?;
-            self.ensure_card_review(dto.id, &profile).await?;
+            self.ensure_card_review(dto.id, &profile, due).await?;
             if !tags.is_empty() {
                 self.meta_repository
                     .add_tags(element_id, tags.clone())
@@ -465,6 +472,7 @@ impl DefaultElementCreationService {
         &self,
         card_id: Uuid,
         profile: &StudyProfile,
+        due: NewCardDue,
     ) -> Result<(), ElementCreationError> {
         let exists = self
             .card_review_repository
@@ -476,6 +484,13 @@ impl DefaultElementCreationService {
         }
 
         let review = CardReview::new_for_profile(card_id, profile);
+        let review = match due {
+            NewCardDue::FromProfile => review,
+            NewCardDue::On(date) => CardReview {
+                due: start_of_day_utc(date),
+                ..review
+            },
+        };
         self.card_review_repository.upsert(&review).await?;
         Ok(())
     }
@@ -1017,7 +1032,10 @@ mod tests {
 
         // Act
 
-        service.create_cards(dtos).await.unwrap();
+        service
+            .create_cards(dtos, NewCardDue::FromProfile)
+            .await
+            .unwrap();
 
         // Assert
 
@@ -1048,6 +1066,38 @@ mod tests {
                 tags.into_iter().map(|tag| tag.name).collect::<Vec<_>>()
             );
         }
+    }
+
+    #[tokio::test]
+    async fn create_cards_due_on_a_date_due_from_its_start() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile(&scope, 3.0).await;
+        let service = create_service(&scope).await;
+        let id = Uuid::new_v4();
+        let date = chrono::NaiveDate::from_ymd_opt(2027, 3, 4).unwrap();
+        let dto = CreateCardDto {
+            id,
+            meta: dto_meta(None),
+            front: String::new(),
+            back: String::new(),
+        };
+
+        // Act
+
+        service
+            .create_cards(vec![dto], NewCardDue::On(date))
+            .await
+            .unwrap();
+
+        // Assert
+
+        let review_repository = scope.resolve::<dyn CardReviewRepository>().await;
+        let review = review_repository.get_by_card_id(id).await.unwrap().unwrap();
+        assert_eq!(start_of_day_utc(date), review.due);
+        assert_eq!(CardState::New, review.state);
     }
 
     #[tokio::test]

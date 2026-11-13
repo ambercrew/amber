@@ -6,8 +6,8 @@ use uuid::Uuid;
 use super::DefaultAnkiSyncService;
 use super::{FILTERED_CARDS_QUERY, SUSPENDED_CARDS_QUERY};
 use crate::anki_sync::anki_connect::{
-    AnkiReview, AnkiReviewRow, anki_today, answer_cards, card_schedules, insert_reviews,
-    reviews_of_cards, set_cards_values, set_due_date, suspend_cards,
+    AnkiReview, AnkiReviewRow, anki_today, answer_cards, card_schedules, forget_cards,
+    insert_reviews, reviews_of_cards, set_cards_values, set_due_date, suspend_cards,
 };
 use crate::anki_sync::card_decision::{CardDecision, CardSides, decide};
 use crate::anki_sync::entities::anki_card_pair::AnkiCardPair;
@@ -38,6 +38,8 @@ pub(super) struct PulledReviews {
     pub(super) schedules: HashMap<Uuid, CardReview>,
     /// Due dates taken from Anki without replaying, as the card's review state they were applied to and after.
     pub(super) moved: HashMap<Uuid, (CardReview, CardReview)>,
+    /// Cards of `moved` reset from Anki, whose due date no longer counts as moved in Amber.
+    pub(super) resets: HashSet<Uuid>,
 }
 
 /// What each side lacks of the other's reviews, worked out before either is written to.
@@ -50,6 +52,10 @@ pub(super) struct PreparedReviews {
     pub(super) take_amber_schedule: Vec<AnkiCardPair>,
     /// Amber's newest review of each card still (re)learning in Amber, which Anki answers itself.
     pub(super) answer_in_anki: Vec<(AnkiCardPair, AnkiReviewRow)>,
+    /// Cards of `answer_in_anki` made review cards before their Again, so Anki relearns them.
+    pub(super) lapse_in_anki: Vec<AnkiCardId>,
+    /// Cards Amber reset after anything Anki did to them, which Anki forgets.
+    pub(super) forget_in_anki: Vec<AnkiCardId>,
     /// Cards that get Amber's reviews but keep Anki's schedule, whose review counts Anki takes from Amber.
     pub(super) take_amber_counts: Vec<AnkiCardPair>,
     /// Each pair's due days at the last sync.
@@ -85,6 +91,8 @@ pub(super) struct AmberReviewsForAnki<'a> {
     pub(super) replayed: &'a HashMap<Uuid, CardReview>,
     pub(super) pushed: Vec<AnkiReviewRow>,
     pub(super) answer_in_anki: Vec<(AnkiCardPair, AnkiReviewRow)>,
+    pub(super) lapse_in_anki: &'a [AnkiCardId],
+    pub(super) forget_in_anki: &'a [AnkiCardId],
 }
 
 /// Both apps' review state, read once to decide every card.
@@ -98,6 +106,7 @@ struct ReviewInputs {
     amber_histories: CardHistories,
     amber_reviews: HashMap<Uuid, CardReview>,
     due_moved: HashMap<Uuid, DateTime<Utc>>,
+    resets: HashMap<Uuid, DateTime<Utc>>,
 }
 
 impl ReviewInputs {
@@ -111,6 +120,7 @@ impl ReviewInputs {
             anki_reviews: anki_card.and_then(anki).map_or(&[][..], Vec::as_slice),
             amber_review: self.amber_reviews.get(&card_id),
             amber_due_moved_at: self.due_moved.get(&card_id).copied(),
+            amber_reset_at: self.resets.get(&card_id).copied(),
             anki_schedule: anki_card.and_then(|card| self.anki_schedules.get(&card)),
             synced: anki_card.and_then(|card| self.synced.get(&card)),
         }
@@ -162,6 +172,7 @@ impl DefaultAnkiSyncService {
             amber_histories: self.card_histories().await?,
             amber_reviews: self.amber_reviews().await?,
             due_moved: self.card_review_repository.get_due_moved_times().await?,
+            resets: self.card_review_repository.get_reset_times().await?,
         })
     }
 
@@ -184,22 +195,43 @@ impl DefaultAnkiSyncService {
         let mut histories = Vec::new();
         let mut take_amber_schedule = Vec::new();
         let mut answer_in_anki = Vec::new();
+        let mut lapse_in_anki = Vec::new();
+        let mut forget_in_anki = Vec::new();
         let mut take_amber_counts = Vec::new();
         let mut anki_next_reviews = HashMap::new();
         let mut amber_dues = HashMap::new();
         let mut moved = HashMap::new();
+        let mut resets = HashSet::new();
         for pair in pairs {
             let decision = inputs.decide(pair.card_id, Some(pair.anki_card_id));
             counts.add(&decision);
             let review = inputs.amber_reviews.get(&pair.card_id);
             let merge = decision.merge;
+            let reset_at = decision.reset_in_amber;
+            let reviewed_since_reset =
+                reset_at.is_some_and(|at| merge.pulled.iter().any(|log| log.reviewed_at > at));
+            if decision.forget_in_anki {
+                forget_in_anki.push(pair.anki_card_id);
+            }
             if decision.take_amber_schedule {
                 take_amber_schedule.push(*pair);
+            } else if reset_at.is_some() {
+                // A card Anki reviewed since gets its schedule from the replay instead.
+                if let (false, Some(review)) = (reviewed_since_reset, review) {
+                    let reset = self.card_grading_service.reset_review(pair.card_id).await?;
+                    moved.insert(pair.card_id, (review.clone(), reset));
+                    resets.insert(pair.card_id);
+                }
+            } else if decision.forget_in_anki {
+                // Anki keeps its counts through a reset, as Amber's reset clears them.
             } else if !merge.pushed.is_empty() || decision.answer.is_some() {
                 take_amber_counts.push(*pair);
             }
             if let Some(row) = decision.answer {
                 answer_in_anki.push((*pair, row));
+            }
+            if decision.lapse_in_anki {
+                lapse_in_anki.push(pair.anki_card_id);
             }
             if let (true, Some(review)) = (decision.keeps_amber_due, review) {
                 amber_dues.insert(pair.card_id, review.clone());
@@ -215,7 +247,21 @@ impl DefaultAnkiSyncService {
                 }
                 _ => {}
             }
-            if !merge.pulled.is_empty() {
+            if let (Some(reset_at), false) = (reset_at, merge.pulled.is_empty()) {
+                // Reviews before the reset are only logged; those since replay from a new card.
+                if reviewed_since_reset {
+                    let since: Vec<&CardReviewLog> = merge
+                        .pulled
+                        .iter()
+                        .filter(|log| log.reviewed_at > reset_at)
+                        .collect();
+                    histories.push(self.card_history(pair.card_id, None, since).await?);
+                }
+                pulled.insert(pair.card_id, merge.pulled);
+            } else if decision.forget_in_anki && !merge.pulled.is_empty() {
+                // Anki's reviews from before Amber's reset are only logged.
+                pulled.insert(pair.card_id, merge.pulled);
+            } else if !merge.pulled.is_empty() {
                 let amber = inputs
                     .amber_histories
                     .get(&pair.card_id)
@@ -238,11 +284,14 @@ impl DefaultAnkiSyncService {
                 logs: pulled,
                 schedules,
                 moved,
+                resets,
             },
             amber_histories: inputs.amber_histories,
             pushed,
             take_amber_schedule,
             answer_in_anki,
+            lapse_in_anki,
+            forget_in_anki,
             take_amber_counts,
             synced: inputs.synced,
             counts,
@@ -339,6 +388,10 @@ impl DefaultAnkiSyncService {
             let current = self.card_review_repository.get_by_card_id(card_id).await?;
             if current.as_ref() == Some(&read) {
                 self.card_review_repository.upsert(&rescheduled).await?;
+                // After the upsert, whose new due date the trigger records as a move.
+                if pulled.resets.contains(&card_id) {
+                    self.card_review_repository.clear_due_moved(card_id).await?;
+                }
                 kept.insert(card_id, (read, rescheduled));
             }
         }
@@ -355,18 +408,42 @@ impl DefaultAnkiSyncService {
         &self,
         reviews: AmberReviewsForAnki<'_>,
     ) -> Result<usize, AnkiSyncError> {
+        // Before the schedules, so a due date Amber moved after its reset lands on the forgotten card.
+        self.forget_in_anki(reviews.forget_in_anki).await?;
         self.schedule_in_anki(reviews.take_amber_schedule, reviews.replayed)
             .await?;
         if !reviews.pushed.is_empty() {
             insert_reviews(self.client(), &reviews.pushed).await?;
         }
         let answered = reviews.answer_in_anki.len();
+        if !reviews.lapse_in_anki.is_empty() {
+            // Due today, so the Again that follows lapses it.
+            set_due_date(self.client(), reviews.lapse_in_anki, 0).await?;
+        }
         self.answer_in_anki(reviews.answer_in_anki, reviews.replayed)
             .await?;
         // After answering, which counts one review of Anki's own.
         self.counts_in_anki(reviews.take_amber_counts, reviews.replayed)
             .await?;
         Ok(reviews.pushed.len() + answered)
+    }
+
+    /// Resets the cards in Anki, which puts a suspended one back in the queue, so it's suspended again.
+    async fn forget_in_anki(&self, cards: &[AnkiCardId]) -> Result<(), AnkiSyncError> {
+        if cards.is_empty() {
+            return Ok(());
+        }
+        let suspended = self.find_card_set(SUSPENDED_CARDS_QUERY).await?;
+        forget_cards(self.client(), cards).await?;
+        let suspended: Vec<AnkiCardId> = cards
+            .iter()
+            .copied()
+            .filter(|card| suspended.contains(card))
+            .collect();
+        if !suspended.is_empty() {
+            suspend_cards(self.client(), &suspended).await?;
+        }
+        Ok(())
     }
 
     /// Answers each card in Anki for Amber's review, and records which Anki review stands for it. A card
@@ -473,10 +550,20 @@ impl DefaultAnkiSyncService {
             .get_by_card_id(card_id)
             .await?
             .filter(|current| all_newer_than_amber(pulled, amber, current.last_reviewed));
-        let mut reviews: Vec<&CardReviewLog> = match current {
+        let reviews: Vec<&CardReviewLog> = match current {
             Some(_) => pulled.iter().collect(),
             None => amber.iter().chain(pulled).collect(),
         };
+        self.card_history(card_id, current, reviews).await
+    }
+
+    /// `reviews` to replay from `start`, or from a new card.
+    async fn card_history(
+        &self,
+        card_id: Uuid,
+        start: Option<CardReview>,
+        mut reviews: Vec<&CardReviewLog>,
+    ) -> Result<CardHistoryDto, AnkiSyncError> {
         reviews.sort_by_key(|log| log.reviewed_at);
         let profile = self
             .profile_resolution_service
@@ -485,7 +572,7 @@ impl DefaultAnkiSyncService {
         Ok(CardHistoryDto {
             card_id,
             profile: profile.into(),
-            start: current.map(Into::into),
+            start: start.map(Into::into),
             reviews: reviews
                 .iter()
                 .map(|log| HistoryReviewDto {
@@ -545,8 +632,8 @@ impl DefaultAnkiSyncService {
         let mut schedules = Vec::new();
         for pair in cards {
             let review = self.review_after_sync(pair.card_id, replayed).await?;
-            if let Some(schedule) = review.and_then(|r| anki_schedule(&r, anki_today)) {
-                schedules.push((pair.anki_card_id, schedule));
+            if let Some(review) = review {
+                schedules.push((pair.anki_card_id, anki_schedule(&review, anki_today)));
             }
         }
 
@@ -577,9 +664,11 @@ impl DefaultAnkiSyncService {
         // After the due dates, which set the interval to the days until due.
         let values: Vec<_> = schedules
             .iter()
-            .map(|(anki_card, schedule)| (*anki_card, schedule.values))
+            .filter_map(|(anki_card, schedule)| Some((*anki_card, schedule.values?)))
             .collect();
-        set_cards_values(self.client(), &values).await?;
+        if !values.is_empty() {
+            set_cards_values(self.client(), &values).await?;
+        }
         Ok(())
     }
 }

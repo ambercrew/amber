@@ -22,7 +22,7 @@ const NOTES_INFO_BATCH: usize = 500;
 /// Reviews per `insertReviews` request, which Anki checks one by one against its whole log.
 const INSERT_REVIEWS_BATCH: usize = 1000;
 /// Every action the sync uses, so an older add-on is turned away before anything is written.
-const REQUIRED_ACTIONS: [&str; 23] = [
+const REQUIRED_ACTIONS: [&str; 24] = [
     "answerCards",
     "cardsInfo",
     "changeDeck",
@@ -31,6 +31,7 @@ const REQUIRED_ACTIONS: [&str; 23] = [
     "exportPackage",
     "findCards",
     "findNotes",
+    "forgetCards",
     "getActiveProfile",
     "getDecks",
     "getMediaDirPath",
@@ -597,6 +598,17 @@ pub async fn set_due_date(
 ) -> Result<(), AnkiConnectError> {
     let params = json!({ "cards": cards, "days": format!("{days}!") });
     client.invoke("setDueDate", params).await?;
+    Ok(())
+}
+
+/// Resets the cards to new, as Anki's "Forget" does, logging a reset for each.
+pub async fn forget_cards(
+    client: &dyn AnkiConnectClient,
+    cards: &[AnkiCardId],
+) -> Result<(), AnkiConnectError> {
+    client
+        .invoke("forgetCards", json!({ "cards": cards }))
+        .await?;
     Ok(())
 }
 
