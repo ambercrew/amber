@@ -1,5 +1,5 @@
 use rig::DynModel;
-use rig::operation::{Completion, Embedding};
+use rig::operation::Completion;
 
 #[cfg(not(test))]
 use rig::providers::{
@@ -11,8 +11,6 @@ use rig::providers::{
 
 #[cfg(test)]
 use crate::ai_integration::clients::mock_client::MockClient;
-
-pub type EmbeddingModel = DynModel<Embedding>;
 
 /// The client of the provider picked in settings, building its models.
 pub enum MultiClient {
@@ -63,22 +61,6 @@ impl MultiClient {
             Self::Gemini(client) => client.completion(model).erase(),
             #[cfg(test)]
             Self::Mock(client) => client.completion(model),
-        }
-    }
-
-    /// `ndims` overrides the dimensions rig knows the model by, if it knows them at all.
-    pub fn embedding(&self, model: impl Into<String>, ndims: Option<usize>) -> EmbeddingModel {
-        match self {
-            #[cfg(not(test))]
-            Self::Ollama(client) => client.embedding(model, ndims).erase(),
-            #[cfg(not(test))]
-            Self::OpenAI(client) => client.embedding(model, ndims).erase(),
-            #[cfg(not(test))]
-            Self::OpenRouter(client) => client.embedding(model, ndims).erase(),
-            #[cfg(not(test))]
-            Self::Gemini(client) => client.embedding(model, ndims).erase(),
-            #[cfg(test)]
-            Self::Mock(client) => client.embedding(model, ndims),
         }
     }
 

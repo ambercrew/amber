@@ -4,7 +4,7 @@ description: >
     How Amber's AI assistant works and how to extend it. Use this skill when: (1) adding a new
     tool the AI agent can call (e.g. creating, editing or searching elements), (2) making a tool
     require the user's approval or changing what the approval card shows, (3) adding a new AI
-    provider (LLM / embeddings backend) next to Ollama, OpenAI, OpenRouter and Gemini, (4) touching
+    provider (LLM backend) next to Ollama, OpenAI, OpenRouter and Gemini, (4) touching
     the AI chat streaming, tool calls, approvals or document search, or (5) any task involving
     `ai_integration/`, `AppTool`, `AppTools`, `ToolsProvider`, `ApprovalHook`, `MultiClient`,
     `AiProvider`, `rig`, or `src/features/Ai`.
@@ -42,7 +42,7 @@ the existing tool closest to what you need and follow its shape.
 - **Use the app's wording** in names, descriptions and approval text (e.g. "finished", not "done").
 - **Keep calls bounded** and outputs short; running tools are never cancelled (rig only keeps a batch's
   results once every call in it settles, so `StateCancellationHook` stops model calls, never tools). Clamp any size the
-  model picks in `call` (e.g. `search_documents`' `top_k` to `MAX_TOP_K`); a schema hint alone
+  model picks in `call` (e.g. `search_documents`' `max_results` to `MAX_RESULTS`); a schema hint alone
   isn't enforced.
 - Text a tool turns into element content (like card sides) goes through the Markdown-to-Lexical
   bridge, so it's Markdown with TeX math; tell the model so in the guidelines.
@@ -59,7 +59,16 @@ the existing tool closest to what you need and follow its shape.
 Check `rig` 0.45 supports the provider first. A provider touches the `AiProvider` setting,
 `MultiClient` (which hands out rig's type-erased `DynModel`s), the client provider and the AI
 settings tab. Tests only compile the mock client, so build with `cargo build --features wry` and try
-it in `npm run tauri dev`.
+it in `npm run tauri dev`. There are no embeddings: uploaded files and the open element are searched
+by text (`search_documents`, `search_open_element`), so a provider only needs chat completions.
+
+## Uploaded files
+
+An upload stores its text in `ai_documents` (one row per PDF page, or per file), kept on the
+device and not synced. A PDF page's printed lines are joined into paragraphs (`join_lines`), so a
+phrase wrapping onto the next line still matches. `search_documents` matches it exactly with the search module's matcher and
+`TextPrefilter`, like the global search, so tell the model to try other words when nothing comes
+back. Branching a chat copies the files uploaded up to the branch point.
 
 ## Starting a chat from elsewhere in the app
 

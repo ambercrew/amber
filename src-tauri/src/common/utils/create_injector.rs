@@ -17,7 +17,11 @@ use crate::ai_integration::services::ai_streamer::AiStreamer;
 use crate::ai_integration::services::tools_provider::ToolsProvider;
 use crate::ai_integration::services::tool_approval_resolver::ToolApprovalResolver;
 use crate::ai_integration::services::chat_creator::ChatCreator;
+use crate::ai_integration::repositories::ai_document_repository::AiDocumentRepository;
+use crate::ai_integration::services::document_search_service::DocumentSearchService;
 use crate::ai_integration::services::document_uploader::DocumentUploader;
+use crate::ai_integration::services::implementations::default_document_search_service::DefaultDocumentSearchService;
+use crate::infrastructure::repositories::sqlite::sqlite_ai_document_repository::SqliteAiDocumentRepository;
 use crate::ai_integration::services::implementations::default_agent_provider::DefaultAgentProvider;
 use crate::ai_integration::services::implementations::default_ai_client_provider::DefaultAiClientProvider;
 use crate::ai_integration::services::implementations::default_ai_streamer::DefaultAiStreamer;
@@ -511,6 +515,16 @@ pub async fn create_injector<R: tauri::Runtime>(
 
     injector.register_singleton(Arc::new(AiState::default()));
     register_scope!(injector, dyn AiRepository, SqliteAiRepository);
+    register_scope!(
+        injector,
+        dyn AiDocumentRepository,
+        SqliteAiDocumentRepository
+    );
+    register_scope!(
+        injector,
+        dyn DocumentSearchService,
+        DefaultDocumentSearchService
+    );
     register_scope!(injector, dyn AiPromptRepository, SqliteAiPromptRepository);
     register_scope!(injector, dyn AiPromptService, DefaultAiPromptService);
     register_scope!(injector, dyn AiClientProvider, DefaultAiClientProvider);

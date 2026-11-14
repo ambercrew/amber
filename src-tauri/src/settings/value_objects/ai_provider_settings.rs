@@ -4,6 +4,5 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct AiProviderSettings {
     pub model_name: Option<String>,
-    pub embeddings_model_name: Option<String>,
     pub api_key: Option<String>,
 }

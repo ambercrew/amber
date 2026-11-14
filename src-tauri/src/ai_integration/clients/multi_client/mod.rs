@@ -1,3 +1,3 @@
 pub mod multiclient;
 
-pub use multiclient::{EmbeddingModel, MultiClient};
+pub use multiclient::MultiClient;

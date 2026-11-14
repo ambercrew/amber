@@ -3,14 +3,13 @@ use std::sync::Arc;
 use async_stream::stream;
 
 use rig::{
-    DynModel, Model, ProviderError,
+    DynModel, Model,
     completion::{AssistantContent, CompletionRequest, CompletionResponse, Usage},
-    driver::{Exchange, Local, Opened, Opening, Step, Transport},
-    embeddings::{Embedding, EmbeddingResponse},
+    driver::{Exchange, Opened, Opening, Transport},
     message::Origin,
-    operation::{Completion, Embedding as EmbeddingOp},
+    operation::Completion,
     test_utils::{MOCK_API, MOCK_PROVIDER, MockFrame, MockScript, MockStreamEvent},
-    wire::{Capabilities, Mode},
+    wire::Mode,
 };
 
 type CompletionFn = dyn Send + Sync + Fn(CompletionRequest) -> Vec<AssistantContent>;
@@ -18,47 +17,18 @@ type CompletionFn = dyn Send + Sync + Fn(CompletionRequest) -> Vec<AssistantCont
 /// Called once per streamed event until it returns `None`, which ends the reply.
 type StreamFn = dyn Send + Sync + Fn(CompletionRequest) -> Option<MockStreamEvent>;
 
-type EmbedTextsFn = dyn Send + Sync + Fn(Vec<String>) -> Result<Vec<Embedding>, String>;
-
 #[derive(Default, Clone)]
 pub struct MockClient {
     pub model: Option<String>,
     pub completion_fn: Arc<Option<Box<CompletionFn>>>,
     pub stream_fn: Arc<Option<Box<StreamFn>>>,
-
-    pub embeddings_model: Option<String>,
-    pub embeddings_model_dims: Option<usize>,
-    pub embed_texts_fn: Arc<Option<Box<EmbedTextsFn>>>,
 }
-
-pub const DEFAULT_MOCK_EMBEDDINGS_DIMS: usize = 2560;
 
 impl MockClient {
     pub fn completion(&self, model: impl Into<String>) -> DynModel<Completion> {
         let mut client = self.clone();
         client.model = Some(model.into());
         Model::new(MockScript::new(MOCK_PROVIDER), client).erase()
-    }
-
-    pub fn embedding(
-        &self,
-        model: impl Into<String>,
-        ndims: Option<usize>,
-    ) -> DynModel<EmbeddingOp> {
-        let mut client = self.clone();
-        client.embeddings_model = Some(model.into());
-        client.embeddings_model_dims = ndims.or(client.embeddings_model_dims);
-        let ndims = client.ndims();
-        Model::new(
-            Local::new(MOCK_PROVIDER).with_capabilities(Capabilities::embedding(1024, ndims)),
-            client,
-        )
-        .erase()
-    }
-
-    fn ndims(&self) -> usize {
-        self.embeddings_model_dims
-            .unwrap_or(DEFAULT_MOCK_EMBEDDINGS_DIMS)
     }
 }
 
@@ -106,22 +76,5 @@ impl Transport<MockScript> for MockClient {
                 Opening::ready(Opened::new(frames))
             }
         }
-    }
-}
-
-impl Transport<Local<EmbeddingOp>> for MockClient {
-    fn send(&self, texts: Vec<String>, _exchange: Exchange) -> Opening<Step<EmbeddingOp>> {
-        let Some(embed_texts_fn) = &*self.embed_texts_fn else {
-            panic!("No embed texts function provided!");
-        };
-        let step = embed_texts_fn(texts)
-            .map_err(ProviderError::Provider)
-            .map(|embeddings| {
-                Step::End(EmbeddingResponse {
-                    provider: MOCK_PROVIDER.to_owned(),
-                    ..EmbeddingResponse::new(embeddings)
-                })
-            });
-        Opening::ready(Opened::new(tokio_stream::iter([step])))
     }
 }

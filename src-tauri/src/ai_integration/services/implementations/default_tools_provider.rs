@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::ai_integration::services::ai_client_provider::AiClientProvider;
+use crate::ai_integration::services::document_search_service::DocumentSearchService;
 use crate::ai_integration::services::tools_provider::{ToolsProvider, ToolsProviderError};
 use crate::ai_integration::tools::app_tools::AppTools;
 use crate::ai_integration::tools::create_card::CreateCard;
@@ -31,7 +31,7 @@ struct ToolsContext {
 
 #[derive(ScopeInjectable)]
 pub struct DefaultToolsProvider {
-    ai_client_provider: Arc<dyn AiClientProvider>,
+    document_search_service: Arc<dyn DocumentSearchService>,
     meta_repository: Arc<dyn MetaRepository>,
     element_creation_service: Arc<dyn ElementCreationService>,
     lexical_json_converter: Arc<dyn LexicalJsonConverter>,
@@ -70,7 +70,7 @@ impl ToolsProvider for DefaultToolsProvider {
                 element,
             ))
             .tool(SearchDocuments::new(
-                self.ai_client_provider.clone(),
+                self.document_search_service.clone(),
                 context.chat_id,
             ))
             .tool(SearchOpenElement::new(self.content_search_service.clone(), element).await?))

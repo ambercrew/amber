@@ -5,13 +5,11 @@ export type AiProvider = "ollama" | "openAI" | "openRouter" | "gemini";
 
 export interface AiProviderSettings {
 	modelName: string | null;
-	embeddingsModelName: string | null;
 	apiKey?: string | null;
 }
 
 export interface AiProviderSettingsDto {
 	modelName: string | null;
-	embeddingsModelName: string | null;
 	apiKeyIsSet: boolean;
 }
 

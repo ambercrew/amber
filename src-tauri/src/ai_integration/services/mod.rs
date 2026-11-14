@@ -4,6 +4,7 @@ pub mod ai_prompt_service;
 pub mod ai_streamer;
 pub mod chat_brancher;
 pub mod chat_creator;
+pub mod document_search_service;
 pub mod document_uploader;
 pub mod implementations;
 pub mod tool_approval_resolver;

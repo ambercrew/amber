@@ -1,59 +1,70 @@
 use std::sync::Arc;
 
-use rig::sqlite::SqliteSearchFilter;
-use rig::{
-    tool::{Tool, ToolContext},
-    vector_store::{
-        VectorSearchRequest, VectorStoreError, VectorStoreIndex, request::SearchFilter,
-    },
-};
+use rig::tool::{Tool, ToolContext};
 use schemars::schema_for;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::ai_integration::{
-    entities::{
-        document::{CHAT_ID_COLUMN_NAME, Document},
-        message::{Message, MessageContent},
-    },
+    entities::message::{Message, MessageContent},
     prompts::SEARCH_DOCUMENTS_DESCRIPTION,
-    services::ai_client_provider::{AiClientProvider, AiClientProviderError},
-    tools::app_tool::AppTool,
+    services::document_search_service::DocumentSearchService,
+    tools::{app_tool::AppTool, search_open_element::SNIPPET_WINDOW},
 };
+use crate::common::repository_error::RepositoryError;
 
-/// Caps the excerpts one search adds to the context, whatever the model asks for.
-const MAX_TOP_K: u64 = 10;
+/// Caps the matches one search adds to the context, whatever the model asks for.
+pub const MAX_RESULTS: u32 = 20;
 
 #[derive(Deserialize, Debug, Clone, Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchDocumentsArgs {
     #[schemars(
-        description = "The search query or question to find relevant information in the uploaded files."
+        description = "Text to find, matched exactly anywhere in a word and ignoring case; a word or short phrase works best."
     )]
     pub query: String,
-    #[schemars(
-        description = "The maximum number of top matching results to return, usually 3-8; at most 10."
-    )]
-    pub top_k: u64,
+    #[schemars(description = "The maximum number of matches to return, usually 5-10; at most 20.")]
+    pub max_results: u32,
+}
+
+/// One match, with up to `SNIPPET_WINDOW` characters of the text on each side.
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchDocumentsMatch {
+    pub file_name: String,
+    /// The 1-based PDF page; absent for other files.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<u32>,
+    pub before: String,
+    pub text: String,
+    pub after: String,
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchDocumentsOutput {
+    /// In upload order, then reading order.
+    pub matches: Vec<SearchDocumentsMatch>,
+    /// True when the files have more matches than were returned.
+    pub truncated: bool,
 }
 
 #[derive(Error, Debug)]
 pub enum SearchDocumentsError {
-    #[error("Failed to fetch documents from the vector store")]
-    Fetching(#[from] VectorStoreError),
-    #[error(transparent)]
-    AiClientProvider(#[from] AiClientProviderError),
+    #[error("Failed to search the uploaded files")]
+    Search(#[from] RepositoryError),
 }
 
 pub struct SearchDocuments {
     chat_id: Uuid,
-    ai_client_provider: Arc<dyn AiClientProvider>,
+    document_search_service: Arc<dyn DocumentSearchService>,
 }
 
 impl SearchDocuments {
-    pub fn new(ai_client_provider: Arc<dyn AiClientProvider>, chat_id: Uuid) -> Self {
+    pub fn new(document_search_service: Arc<dyn DocumentSearchService>, chat_id: Uuid) -> Self {
         Self {
-            ai_client_provider,
+            document_search_service,
             chat_id,
         }
     }
@@ -64,7 +75,7 @@ impl Tool for SearchDocuments {
 
     type Error = SearchDocumentsError;
     type Args = SearchDocumentsArgs;
-    type Output = Vec<Document>;
+    type Output = SearchDocumentsOutput;
 
     fn description(&self) -> String {
         SEARCH_DOCUMENTS_DESCRIPTION.to_string()
@@ -79,36 +90,26 @@ impl Tool for SearchDocuments {
         _context: &mut ToolContext,
         args: Self::Args,
     ) -> Result<Self::Output, Self::Error> {
-        let client = self.ai_client_provider.get_client().await?;
-        let embed_model = self
-            .ai_client_provider
-            .get_embeddings_model(&client)
+        let max_results = args.max_results.clamp(1, MAX_RESULTS) as usize;
+        let results = self
+            .document_search_service
+            .search(self.chat_id, &args.query, max_results, SNIPPET_WINDOW)
             .await?;
-        let vector_store = self
-            .ai_client_provider
-            .get_vector_store(&embed_model)
-            .await?;
-        let index = vector_store.index(embed_model);
 
-        let filter = SqliteSearchFilter::eq(
-            CHAT_ID_COLUMN_NAME,
-            serde_json::to_value(self.chat_id.to_string()).unwrap(),
-        );
-
-        let req = VectorSearchRequest::builder()
-            .samples(args.top_k.clamp(1, MAX_TOP_K))
-            .query(args.query)
-            .filter(filter)
-            .build();
-
-        let results = index
-            .top_n::<Document>(req)
-            .await?
-            .into_iter()
-            .map(|result| result.document)
-            .collect::<Vec<_>>();
-
-        Ok(results)
+        Ok(SearchDocumentsOutput {
+            matches: results
+                .matches
+                .into_iter()
+                .map(|found| SearchDocumentsMatch {
+                    file_name: found.file_name,
+                    page: found.page,
+                    before: found.snippet.before,
+                    text: found.snippet.text,
+                    after: found.snippet.after,
+                })
+                .collect(),
+            truncated: results.truncated,
+        })
     }
 }
 
@@ -125,180 +126,160 @@ impl AppTool for SearchDocuments {
 
 #[cfg(test)]
 pub mod tests {
-    use std::iter;
-
     use injector::{injector::Injector, register_scope};
-    use rig::embeddings::Embedding;
-    use tokio::sync::Mutex;
 
-    use crate::{
-        ai_integration::{
-            ai_state::AiState,
-            clients::mock_client::{DEFAULT_MOCK_EMBEDDINGS_DIMS, MockClient},
-            services::implementations::default_ai_client_provider::DefaultAiClientProvider,
-        },
-        infrastructure::repositories::disk::disk_settings_repository::DiskSettingsRepository,
-        settings::{
-            entities::settings::Settings, repositories::settings_repository::SettingsRepository,
-            value_objects::settings_profile::SettingsProfile,
-        },
-        test_utils::{create_temp_directory, create_test_injector},
-    };
+    use crate::ai_integration::entities::chat::Chat;
+    use crate::ai_integration::entities::document::Document;
+    use crate::ai_integration::entities::message::DocumentContent;
+    use crate::ai_integration::repositories::ai_document_repository::AiDocumentRepository;
+    use crate::ai_integration::repositories::ai_repository::AiRepository;
+    use crate::ai_integration::services::implementations::default_document_search_service::DefaultDocumentSearchService;
+    use crate::infrastructure::repositories::sqlite::sqlite_ai_document_repository::SqliteAiDocumentRepository;
+    use crate::infrastructure::repositories::sqlite::sqlite_ai_repository::SqliteAiRepository;
+    use crate::test_utils::create_test_injector;
 
     use super::*;
 
-    async fn initialize_test_injector(mock_client: MockClient) -> Injector {
+    async fn initialize_test_injector() -> Injector {
         let mut injector = create_test_injector().await;
-
-        let mut settings = Settings::new(create_temp_directory().await, SettingsProfile::Default);
-        settings.enable_ai = true;
-
-        injector.register_singleton(Arc::new(Mutex::new(settings)));
-        injector.register_singleton(Arc::new(mock_client));
-        injector.register_singleton(Arc::new(AiState::default()));
-
-        register_scope!(injector, dyn SettingsRepository, DiskSettingsRepository);
-        register_scope!(injector, dyn AiClientProvider, DefaultAiClientProvider);
-
+        register_scope!(injector, dyn AiRepository, SqliteAiRepository);
+        register_scope!(
+            injector,
+            dyn AiDocumentRepository,
+            SqliteAiDocumentRepository
+        );
+        register_scope!(
+            injector,
+            dyn DocumentSearchService,
+            DefaultDocumentSearchService
+        );
         injector
     }
 
-    fn create_embedding(chat_id: Uuid, label: &str, x: f64, y: f64) -> (Document, Vec<Embedding>) {
-        (
-            Document {
-                chat_id,
-                id: Uuid::new_v4().to_string(),
-                content: label.to_string(),
-            },
-            vec![Embedding {
-                document: String::new(),
-                vec: [x, y]
-                    .into_iter()
-                    .chain(iter::repeat_n(0f64, DEFAULT_MOCK_EMBEDDINGS_DIMS - 2))
-                    .collect(),
-            }],
+    async fn create_tool(
+        scope: &injector::injector_scope::InjectorScope<'_>,
+        pages: &[&str],
+    ) -> SearchDocuments {
+        let chat = Chat::new(None, "Chat".into());
+        scope
+            .resolve::<dyn AiRepository>()
+            .await
+            .upsert_chat(&chat)
+            .await
+            .unwrap();
+        let documents: Vec<_> = pages
+            .iter()
+            .enumerate()
+            .map(|(index, content)| Document {
+                id: Uuid::new_v4(),
+                chat_id: chat.id(),
+                file_name: "notes.pdf".into(),
+                position: index as u32,
+                page: Some(index as u32 + 1),
+                content: content.to_string(),
+            })
+            .collect();
+        scope
+            .resolve::<dyn AiDocumentRepository>()
+            .await
+            .insert(&documents)
+            .await
+            .unwrap();
+        SearchDocuments::new(
+            scope.resolve::<dyn DocumentSearchService>().await,
+            chat.id(),
         )
     }
 
-    #[tokio::test]
-    pub async fn call_multiple_documents_returned_closest_documents() {
-        // Arrange
-
-        // Query points in the same direction as "same-direction" and forms a
-        // narrower angle with "close-direction" than with "opposite-direction",
-        // so cosine similarity (the vector store's distance metric) ranks them
-        // unambiguously: same-direction, then close-direction, excluding
-        // opposite-direction from the requested top 2.
-        let chat_id = Uuid::new_v4();
-        let mock_client = MockClient {
-            embeddings_model: Some("mock-model".to_string()),
-            embeddings_model_dims: Some(DEFAULT_MOCK_EMBEDDINGS_DIMS),
-            embed_texts_fn: Arc::new(Some(Box::new(move |request| {
-                if request.len() == 1 && request[0] == "request" {
-                    return Ok(vec![
-                        create_embedding(chat_id, "query", 1f64, 1f64).1.remove(0),
-                    ]);
-                }
-                unreachable!()
-            }))),
-            ..Default::default()
-        };
-
-        let injector = initialize_test_injector(mock_client).await;
-        let scope = injector.start_scope();
-        let ai_client_provider = scope.resolve::<dyn AiClientProvider>().await;
-
-        let client = ai_client_provider.get_client().await.unwrap();
-        let embed_model = ai_client_provider
-            .get_embeddings_model(&client)
-            .await
-            .unwrap();
-        let vector_store = ai_client_provider
-            .get_vector_store(&embed_model)
-            .await
-            .unwrap();
-
-        let embeddings: Vec<(Document, Vec<Embedding>)> = vec![
-            create_embedding(chat_id, "close-direction", 1f64, 0f64),
-            create_embedding(chat_id, "same-direction", 2f64, 2f64),
-            create_embedding(chat_id, "opposite-direction", -1f64, -1f64),
-        ];
-        vector_store.add_rows(embeddings).await.unwrap();
-
-        let tool = SearchDocuments::new(ai_client_provider, chat_id);
-
-        // Act
-
-        let actual = tool
-            .call(
-                &mut ToolContext::default(),
-                SearchDocumentsArgs {
-                    query: "request".to_string(),
-                    top_k: 2,
-                },
-            )
-            .await
-            .unwrap();
-
-        // Assert
-
-        assert_eq!(2, actual.len());
-        assert_eq!("same-direction", actual[0].content);
-        assert_eq!("close-direction", actual[1].content);
+    fn args(query: &str, max_results: u32) -> SearchDocumentsArgs {
+        SearchDocumentsArgs {
+            query: query.into(),
+            max_results,
+        }
     }
 
     #[tokio::test]
-    pub async fn call_top_k_above_max_returned_at_most_max_documents() {
+    pub async fn call_matching_pages_returned_matches_with_file_and_page() {
         // Arrange
 
-        let chat_id = Uuid::new_v4();
-        let mock_client = MockClient {
-            embeddings_model: Some("mock-model".to_string()),
-            embeddings_model_dims: Some(DEFAULT_MOCK_EMBEDDINGS_DIMS),
-            embed_texts_fn: Arc::new(Some(Box::new(move |_| {
-                Ok(vec![
-                    create_embedding(chat_id, "query", 1f64, 1f64).1.remove(0),
-                ])
-            }))),
-            ..Default::default()
-        };
-
-        let injector = initialize_test_injector(mock_client).await;
+        let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
-        let ai_client_provider = scope.resolve::<dyn AiClientProvider>().await;
-
-        let client = ai_client_provider.get_client().await.unwrap();
-        let embed_model = ai_client_provider
-            .get_embeddings_model(&client)
-            .await
-            .unwrap();
-        let vector_store = ai_client_provider
-            .get_vector_store(&embed_model)
-            .await
-            .unwrap();
-
-        let embeddings: Vec<(Document, Vec<Embedding>)> = (0..MAX_TOP_K + 2)
-            .map(|i| create_embedding(chat_id, &format!("chunk-{i}"), 1f64, i as f64))
-            .collect();
-        vector_store.add_rows(embeddings).await.unwrap();
-
-        let tool = SearchDocuments::new(ai_client_provider, chat_id);
+        let tool = create_tool(&scope, &["Nothing", "The cell wall is rigid"]).await;
 
         // Act
 
         let actual = tool
-            .call(
-                &mut ToolContext::default(),
-                SearchDocumentsArgs {
-                    query: "request".to_string(),
-                    top_k: 50,
-                },
-            )
+            .call(&mut ToolContext::default(), args("WALL", 5))
             .await
             .unwrap();
 
         // Assert
 
-        assert_eq!(MAX_TOP_K as usize, actual.len());
+        assert_eq!(
+            SearchDocumentsOutput {
+                matches: vec![SearchDocumentsMatch {
+                    file_name: "notes.pdf".into(),
+                    page: Some(2),
+                    before: "The cell ".into(),
+                    text: "wall".into(),
+                    after: " is rigid".into(),
+                }],
+                truncated: false,
+            },
+            actual
+        );
+    }
+
+    #[tokio::test]
+    pub async fn call_max_results_above_cap_clamped_to_cap() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let text = "x ".repeat(MAX_RESULTS as usize + 5);
+        let tool = create_tool(&scope, &[&text]).await;
+
+        // Act
+
+        let actual = tool
+            .call(&mut ToolContext::default(), args("x", 1000))
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(
+            (MAX_RESULTS as usize, true),
+            (actual.matches.len(), actual.truncated)
+        );
+    }
+
+    #[tokio::test]
+    pub async fn is_applicable_chat_with_uploaded_document_returned_true_only_then() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let tool = create_tool(&scope, &[]).await;
+        let chat_id = Uuid::new_v4();
+        let document = Message::new(
+            None,
+            chat_id,
+            MessageContent::Document(DocumentContent {
+                file_name: "notes.pdf".into(),
+            }),
+        );
+        let human = Message::new(None, chat_id, MessageContent::Human("Hi".into()));
+
+        // Act
+
+        let actual = (
+            tool.is_applicable(&[human.clone(), document]),
+            tool.is_applicable(&[human]),
+        );
+
+        // Assert
+
+        assert_eq!((true, false), actual);
     }
 }

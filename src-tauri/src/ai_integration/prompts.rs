@@ -89,16 +89,19 @@ passage, create one card for each.";
 
 /// The `search_documents` tool's description.
 pub(in crate::ai_integration) const SEARCH_DOCUMENTS_DESCRIPTION: &str = "\
-Searches the files the user uploaded to this chat by meaning, returning the excerpts most \
-relevant to the query, not whole documents. Use this when the user asks about their files or \
-refers to their content without attaching it. If nothing relevant comes back, tell the user \
-rather than answering as if it had.";
+Finds text in the files the user uploaded to this chat: every exact occurrence of the query, \
+ignoring case, each with its file, its page for PDFs, and up to 300 characters of the text \
+on either side, line breaks separating paragraphs (`…` marks where the text goes on). Use this when the user asks \
+about their files or refers to their content without attaching it. It matches text, not \
+meaning, so search for words the files likely use, and try a shorter, different or \
+translated word if nothing comes back. If the files still don't mention it, tell the user \
+rather than answering as if they had.";
 
 /// The `search_open_element` tool's description.
 pub(in crate::ai_integration) const SEARCH_OPEN_ELEMENT_DESCRIPTION: &str = "\
 Finds text in the element the user has open, like find in page: every exact occurrence of the \
-query, ignoring case, each with up to 300 characters of its paragraph on either side (`…` \
-marks where the paragraph goes on). Use this when the user asks where or whether their open \
+query, ignoring case, each with up to 300 characters of the text on either side, line breaks \
+separating paragraphs (`…` marks where the text goes on). Use this when the user asks where or whether their open \
 element mentions something, or when you need a passage of it to answer. It matches text, not \
 meaning, so search for words the element likely uses, and try a shorter or different word if \
 nothing comes back. If the element still doesn't mention it, say so rather than answering as \

@@ -8,13 +8,15 @@ use uuid::Uuid;
 
 use crate::ai_integration::entities::chat::Chat;
 use crate::ai_integration::entities::context_snippet::ContextSnippet;
-use crate::ai_integration::entities::message::Message;
+use crate::ai_integration::entities::message::{Message, MessageContent};
+use crate::ai_integration::repositories::ai_document_repository::AiDocumentRepository;
 use crate::ai_integration::repositories::ai_repository::AiRepository;
 use crate::ai_integration::services::chat_brancher::{ChatBrancher, ChatBrancherError};
 
 #[derive(ScopeInjectable)]
 pub struct DefaultChatBrancher {
     ai_repository: Arc<dyn AiRepository>,
+    ai_document_repository: Arc<dyn AiDocumentRepository>,
 }
 
 #[async_trait]
@@ -69,6 +71,20 @@ impl ChatBrancher for DefaultChatBrancher {
             self.ai_repository.upsert_context_snippet(&copy).await?;
         }
 
+        // Only the files uploaded by the branch point come along, so the branch can still search them.
+        let file_names: Vec<String> = copied
+            .iter()
+            .filter_map(|message| match message.content() {
+                MessageContent::Document(document) => Some(document.file_name.clone()),
+                _ => None,
+            })
+            .collect();
+        if !file_names.is_empty() {
+            self.ai_document_repository
+                .copy_to_chat(chat_id, branch.id(), &file_names)
+                .await?;
+        }
+
         Ok(branch)
     }
 }
@@ -81,7 +97,10 @@ mod tests {
         ai_integration::entities::{
             context_snippet::group_snippets_by_message, message::MessageContent,
         },
-        infrastructure::repositories::sqlite::sqlite_ai_repository::SqliteAiRepository,
+        infrastructure::repositories::sqlite::{
+            sqlite_ai_document_repository::SqliteAiDocumentRepository,
+            sqlite_ai_repository::SqliteAiRepository,
+        },
         test_utils::create_test_injector,
     };
 
@@ -90,6 +109,11 @@ mod tests {
     async fn initialize_test_injector() -> Injector {
         let mut injector = create_test_injector().await;
         register_scope!(injector, dyn AiRepository, SqliteAiRepository);
+        register_scope!(
+            injector,
+            dyn AiDocumentRepository,
+            SqliteAiDocumentRepository
+        );
         register_scope!(injector, dyn ChatBrancher, DefaultChatBrancher);
         injector
     }
@@ -244,5 +268,48 @@ mod tests {
         // Assert
 
         assert!(matches!(actual, Err(ChatBrancherError::MessageNotInChat)));
+    }
+    #[tokio::test]
+    async fn branch_chat_after_an_upload_copied_the_files_text_into_the_branch() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let ai_repository = scope.resolve::<dyn AiRepository>().await;
+        let document_repository = scope.resolve::<dyn AiDocumentRepository>().await;
+        let chat = Chat::new(None, "Notes".to_string());
+        ai_repository.upsert_chat(&chat).await.unwrap();
+        let upload = Message::new(
+            None,
+            chat.id(),
+            MessageContent::Document(crate::ai_integration::entities::message::DocumentContent {
+                file_name: "notes.pdf".to_string(),
+            }),
+        );
+        ai_repository.upsert_message(&upload).await.unwrap();
+        document_repository
+            .insert(&[crate::ai_integration::entities::document::Document {
+                id: Uuid::new_v4(),
+                chat_id: chat.id(),
+                file_name: "notes.pdf".to_string(),
+                position: 0,
+                page: Some(1),
+                content: "the cell wall".to_string(),
+            }])
+            .await
+            .unwrap();
+        let brancher = scope.resolve::<dyn ChatBrancher>().await;
+
+        // Act
+
+        let branch = brancher.branch_chat(chat.id(), upload.id()).await.unwrap();
+
+        // Assert
+
+        let copied = document_repository
+            .find_candidates(branch.id(), "cell", false)
+            .await
+            .unwrap();
+        assert_eq!(1, copied.len());
     }
 }

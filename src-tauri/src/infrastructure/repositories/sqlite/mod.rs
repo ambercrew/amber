@@ -1,5 +1,6 @@
 pub mod escape_like;
 pub mod ids_json;
+pub mod sqlite_ai_document_repository;
 pub mod sqlite_ai_prompt_repository;
 pub mod sqlite_ai_repository;
 pub mod sqlite_anki_card_link_repository;
@@ -25,3 +26,4 @@ pub mod sqlite_search_repository;
 pub mod sqlite_statistics_repository;
 pub mod sqlite_study_profile_repository;
 pub mod sqlite_trash_repository;
+pub mod text_prefilter;

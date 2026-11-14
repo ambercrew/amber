@@ -55,10 +55,8 @@ tokio-stream = "0.1.19"
 uuid = { version = "1.29.0", features = [ "v4", "v5", "serde" ] }
 fractional_index = "2.0.2"
 fsrs = "6.6.2"
-rig = { version = "=0.45.0", default-features = false, features = ["pdf", "derive", "native-tls", "reqwest", "sqlite", "agent"] }
+rig = { version = "=0.45.0", default-features = false, features = ["pdf", "derive", "native-tls", "reqwest", "agent"] }
 schemars = "1.2.3"
-text-splitter = "0.33.1"
-sqlite-vec = "0.1.9"
 tokio-rusqlite = "0.6.0"
 fontdb = "0.24.0"
 zip = { version = "9.1.3", default-features = false, features = ["deflate"] }

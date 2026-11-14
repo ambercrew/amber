@@ -1,40 +1,14 @@
-use rig::Embed;
-use rig::sqlite::{Column, ColumnValue, SqliteVectorStoreTable};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub const CHAT_ID_COLUMN_NAME: &str = "chat_id";
-
-#[derive(Embed, Clone, Debug, Serialize, Deserialize)]
+/// The text of one page of a PDF uploaded to a chat, or of a whole file of another kind.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Document {
-    pub id: String,
+    pub id: Uuid,
     pub chat_id: Uuid,
-    #[embed]
+    pub file_name: String,
+    /// Orders a chat's documents: upload order, then page order.
+    pub position: u32,
+    /// The 1-based PDF page, `None` for other files.
+    pub page: Option<u32>,
     pub content: String,
-}
-
-impl SqliteVectorStoreTable for Document {
-    fn name() -> &'static str {
-        "documents"
-    }
-
-    fn schema() -> Vec<Column> {
-        vec![
-            Column::new("id", "TEXT PRIMARY KEY"),
-            Column::new(CHAT_ID_COLUMN_NAME, "TEXT NOT NULL"),
-            Column::new("content", "TEXT"),
-        ]
-    }
-
-    fn id(&self) -> String {
-        self.id.clone()
-    }
-
-    fn column_values(&self) -> Vec<(&'static str, Box<dyn ColumnValue>)> {
-        vec![
-            ("id", Box::new(self.id.clone())),
-            ("content", Box::new(self.content.clone())),
-            (CHAT_ID_COLUMN_NAME, Box::new(self.chat_id.to_string())),
-        ]
-    }
 }

@@ -21,10 +21,7 @@ use crate::ai_integration::entities::message::{
 };
 use crate::ai_integration::prompts::{approval_result_text, with_context_snippets};
 use crate::ai_integration::repositories::ai_repository::AiRepository;
-use crate::ai_integration::services::agent_provider::{
-    AgentProvider, AgentProviderError, AppAgent,
-};
-use crate::ai_integration::services::ai_client_provider::AiClientProviderError;
+use crate::ai_integration::services::agent_provider::{AgentProvider, AppAgent};
 use crate::ai_integration::services::ai_streamer::{
     AiStreamer, AiStreamerError, OnEventCallback, StreamLlmResponseEvent,
 };
@@ -95,19 +92,10 @@ impl AiStreamer for DefaultAiStreamer {
 
         let messages_to_upsert = Arc::new(Mutex::new(vec![human_message]));
 
-        // A cancellation while building the agent (e.g. during the embeddings
-        // dimension probe, which has no hook to check mid-flight) has no
-        // completion to stream — skip straight to persisting what already
-        // exists, same as a mid-stream cancellation falls through below.
-        let agent = match self
+        let agent = self
             .agent_provider
             .get_agent(chat_id, &messages, request.element_id)
-            .await
-        {
-            Ok(agent) => Some(agent),
-            Err(AgentProviderError::AiClientProvider(AiClientProviderError::Cancelled)) => None,
-            Err(err) => return Err(err.into()),
-        };
+            .await?;
 
         // The transaction resolved above (for the initial reads and agent
         // setup) would otherwise stay open — and its snapshot stale — for the
@@ -120,129 +108,127 @@ impl AiStreamer for DefaultAiStreamer {
         let mut failed = false;
         let mut called_tools = false;
 
-        if let Some(AppAgent {
+        let AppAgent {
             agent,
             approval_hook,
             tools_context,
-        }) = agent
-        {
-            let rig_messages: Vec<rig::message::Message> = merge_consecutive_assistant_messages(
-                with_current_approval_statuses(messages)
-                    .into_iter()
-                    .filter_map(|m| {
-                        let snippets = context_snippets_by_message
-                            .get(&m.id())
-                            .cloned()
-                            .unwrap_or_default();
-                        m.try_into_rig_message(&snippets).ok()
-                    })
-                    .collect(),
-            );
-            let mut stream = agent
-                .prompt(with_context_snippets(
-                    &request.prompt,
-                    &request.context_snippets,
-                ))
-                .history(rig_messages)
-                .add_hook(StateCancellationHook::new(self.state.clone()))
-                .add_hook(approval_hook.clone())
-                .stream();
+        } = agent;
+        let rig_messages: Vec<rig::message::Message> = merge_consecutive_assistant_messages(
+            with_current_approval_statuses(messages)
+                .into_iter()
+                .filter_map(|m| {
+                    let snippets = context_snippets_by_message
+                        .get(&m.id())
+                        .cloned()
+                        .unwrap_or_default();
+                    m.try_into_rig_message(&snippets).ok()
+                })
+                .collect(),
+        );
+        let mut stream = agent
+            .prompt(with_context_snippets(
+                &request.prompt,
+                &request.context_snippets,
+            ))
+            .history(rig_messages)
+            .add_hook(StateCancellationHook::new(self.state.clone()))
+            .add_hook(approval_hook.clone())
+            .stream();
 
-            // A running tool may be mid-write, so cancelling only interrupts the wait for the model.
-            let mut running_tools = 0usize;
-            loop {
-                let next = if running_tools > 0 {
-                    stream.next().await
-                } else {
-                    tokio::select! {
-                        next = stream.next() => next,
-                        () = self.state.cancelled() => break,
-                    }
-                };
-                let Some(content) = next else { break };
-                match content {
-                    Ok(content) => {
-                        if let MultiTurnStreamItem::StreamAssistantItem(Item::Event(
-                            StreamEvent::Text { text, .. },
-                        )) = content
+        // A running tool may be mid-write, so cancelling only interrupts the wait for the model.
+        let mut running_tools = 0usize;
+        loop {
+            let next = if running_tools > 0 {
+                stream.next().await
+            } else {
+                tokio::select! {
+                    next = stream.next() => next,
+                    () = self.state.cancelled() => break,
+                }
+            };
+            let Some(content) = next else { break };
+            match content {
+                Ok(content) => {
+                    if let MultiTurnStreamItem::StreamAssistantItem(Item::Event(
+                        StreamEvent::Text { text, .. },
+                    )) = content
+                    {
+                        complete_ai_response = format!("{complete_ai_response}{text}");
+                        on_event(StreamLlmResponseEvent::InProgress { chat_id, text })?;
+                    } else if let MultiTurnStreamItem::ToolCall { tool_call } = content {
+                        log::info!("Tool call: {:#?}", tool_call);
+                        called_tools = true;
+                        running_tools += 1;
+
+                        // rig mints an id for providers that send none (e.g. Ollama).
+                        let mut tool_call_content: ToolCallContent = tool_call.into();
+                        if approval_hook.requires_approval(&tool_call_content.name) {
+                            tool_call_content.approval =
+                                Some(ToolApproval::pending(tools_context.clone()));
+                        }
+
+                        let message = Message::new(
+                            None,
+                            chat_id,
+                            MessageContent::ToolCall(tool_call_content.clone()),
+                        );
+                        let message_id = message.id();
                         {
-                            complete_ai_response = format!("{complete_ai_response}{text}");
-                            on_event(StreamLlmResponseEvent::InProgress { chat_id, text })?;
-                        } else if let MultiTurnStreamItem::ToolCall { tool_call } = content {
-                            log::info!("Tool call: {:#?}", tool_call);
-                            called_tools = true;
-                            running_tools += 1;
-
-                            // rig mints an id for providers that send none (e.g. Ollama).
-                            let mut tool_call_content: ToolCallContent = tool_call.into();
-                            if approval_hook.requires_approval(&tool_call_content.name) {
-                                tool_call_content.approval =
-                                    Some(ToolApproval::pending(tools_context.clone()));
-                            }
-
-                            let message = Message::new(
-                                None,
-                                chat_id,
-                                MessageContent::ToolCall(tool_call_content.clone()),
-                            );
-                            let message_id = message.id();
-                            {
-                                let mut pending = messages_to_upsert.lock().await;
-                                pending.push(message);
-                                self.persist(&mut chat_to_upsert, &mut pending).await?;
-                            }
-                            self.transaction_manager.save_changes().await?;
-
-                            let description = self
-                                .tool_approval_resolver
-                                .describe(&tool_call_content)
-                                .await?;
-                            on_event(StreamLlmResponseEvent::ToolCall {
-                                chat_id,
-                                tool_call: Box::new(tool_call_content),
-                                message_id,
-                                tool_location: description.location,
-                                approval_markdown: description
-                                    .approval
-                                    .map(|markdown| markdown.request),
-                            })?;
-                        } else if let MultiTurnStreamItem::ToolResult { tool_result } = content {
-                            log::info!("Tool result: {:#?}", tool_result);
-                            running_tools = running_tools.saturating_sub(1);
-
-                            let tool_result_content: ToolResultContent = tool_result.into();
-                            on_event(StreamLlmResponseEvent::ToolResult {
-                                chat_id,
-                                tool_result: tool_result_content.clone(),
-                            })?;
-                            messages_to_upsert.lock().await.push(Message::new(
-                                None,
-                                chat_id,
-                                MessageContent::ToolResult(tool_result_content),
-                            ));
-                            self.transaction_manager.save_changes().await?;
+                            let mut pending = messages_to_upsert.lock().await;
+                            pending.push(message);
+                            self.persist(&mut chat_to_upsert, &mut pending).await?;
                         }
-                    }
-                    Err(err) => {
-                        log::error!("Error happened while streaming {:?}", err);
+                        self.transaction_manager.save_changes().await?;
 
-                        if !matches!(err, PromptError::Cancelled { .. }) {
-                            failed = true;
-                            let error_message = match err {
-                                PromptError::Provider(error) => {
-                                    AiStreamerError::from(error.report()).to_string()
-                                }
-                                PromptError::Report(report) => {
-                                    AiStreamerError::from(report).to_string()
-                                }
-                                other => other.to_string(),
-                            };
-                            on_event(StreamLlmResponseEvent::Error(error_message))?;
-                        }
-                        break;
+                        let description = self
+                            .tool_approval_resolver
+                            .describe(&tool_call_content)
+                            .await?;
+                        on_event(StreamLlmResponseEvent::ToolCall {
+                            chat_id,
+                            tool_call: Box::new(tool_call_content),
+                            message_id,
+                            tool_location: description.location,
+                            approval_markdown: description
+                                .approval
+                                .map(|markdown| markdown.request),
+                        })?;
+                    } else if let MultiTurnStreamItem::ToolResult { tool_result } = content {
+                        log::info!("Tool result: {:#?}", tool_result);
+                        running_tools = running_tools.saturating_sub(1);
+
+                        let tool_result_content: ToolResultContent = tool_result.into();
+                        on_event(StreamLlmResponseEvent::ToolResult {
+                            chat_id,
+                            tool_result: tool_result_content.clone(),
+                        })?;
+                        messages_to_upsert.lock().await.push(Message::new(
+                            None,
+                            chat_id,
+                            MessageContent::ToolResult(tool_result_content),
+                        ));
+                        self.transaction_manager.save_changes().await?;
                     }
-                };
-            }
+                }
+                Err(err) => {
+                    log::error!("Error happened while streaming {:?}", err);
+
+                    if !matches!(err, PromptError::Cancelled { .. }) {
+                        failed = true;
+                        let error_message = match err {
+                            PromptError::Provider(error) => {
+                                AiStreamerError::from(error.report()).to_string()
+                            }
+                            PromptError::Report(report) => {
+                                AiStreamerError::from(report).to_string()
+                            }
+                            other => other.to_string(),
+                        };
+                        on_event(StreamLlmResponseEvent::Error(error_message))?;
+                    }
+                    break;
+                }
+            };
         }
 
         if !complete_ai_response.trim().is_empty() {
@@ -448,6 +434,10 @@ pub mod tests {
     };
 
     use super::*;
+    use crate::ai_integration::repositories::ai_document_repository::AiDocumentRepository;
+    use crate::ai_integration::services::document_search_service::DocumentSearchService;
+    use crate::ai_integration::services::implementations::default_document_search_service::DefaultDocumentSearchService;
+    use crate::infrastructure::repositories::sqlite::sqlite_ai_document_repository::SqliteAiDocumentRepository;
     use crate::infrastructure::repositories::sqlite::sqlite_content_search_repository::SqliteContentSearchRepository;
     use crate::search::repositories::content_search_repository::ContentSearchRepository;
     use crate::search::services::content_search_service::ContentSearchService;
@@ -479,6 +469,16 @@ pub mod tests {
         register_scope!(injector, dyn SettingsRepository, DiskSettingsRepository);
         register_scope!(injector, dyn AiRepository, SqliteAiRepository);
         register_scope!(injector, dyn AiClientProvider, DefaultAiClientProvider);
+        register_scope!(
+            injector,
+            dyn AiDocumentRepository,
+            SqliteAiDocumentRepository
+        );
+        register_scope!(
+            injector,
+            dyn DocumentSearchService,
+            DefaultDocumentSearchService
+        );
         register_scope!(injector, dyn ChatCreator, DefaultChatCreator);
         register_scope!(injector, dyn MetaRepository, SqliteMetaRepository);
         register_scope!(
@@ -1205,26 +1205,11 @@ pub mod tests {
                     0 => Some(MockStreamEvent::tool_call(
                         "tc-1".to_string(),
                         "search_documents".to_string(),
-                        serde_json::json!({ "query": "test", "top_k": 3 }),
+                        serde_json::json!({ "query": "test", "maxResults": 3 }),
                     )),
                     2 => Some(MockStreamEvent::text("Final answer".to_string())),
                     _ => None,
                 }
-            }))),
-            embeddings_model_dims: Some(
-                crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS,
-            ),
-            embed_texts_fn: Arc::new(Some(Box::new(|texts| {
-                Ok(texts
-                    .into_iter()
-                    .map(|text| rig::embeddings::Embedding {
-                        document: text,
-                        vec: vec![
-                            0f64;
-                            crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS
-                        ],
-                    })
-                    .collect())
             }))),
             ..Default::default()
         };
@@ -1290,6 +1275,26 @@ pub mod tests {
         }
     }
 
+    /// Stops the generation when the tool searches, as a user stopping while it runs would.
+    struct CancellingSearch(Arc<AiState>);
+
+    #[async_trait::async_trait]
+    impl DocumentSearchService for CancellingSearch {
+        async fn search(
+            &self,
+            _chat_id: Uuid,
+            _query: &str,
+            _max_matches: usize,
+            _window: crate::search::utils::text_matches::SnippetWindow,
+        ) -> Result<
+            crate::ai_integration::services::document_search_service::DocumentSearchResults,
+            crate::common::repository_error::RepositoryError,
+        > {
+            self.0.cancel_generation();
+            Ok(Default::default())
+        }
+    }
+
     #[tokio::test]
     pub async fn stream_cancelled_while_tool_runs_saved_tool_result_without_asking_ai_again() {
         // Arrange
@@ -1305,33 +1310,20 @@ pub mod tests {
                     0 => Some(MockStreamEvent::tool_call(
                         "tc-1",
                         "search_documents",
-                        serde_json::json!({ "query": "test", "top_k": 3 }),
+                        serde_json::json!({ "query": "test", "maxResults": 3 }),
                     )),
                     1 => None,
                     _ => panic!("The AI was asked again after the stop"),
                 }
             }))),
-            embeddings_model_dims: Some(
-                crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS,
-            ),
-            // The user stops while the tool is embedding its query.
-            embed_texts_fn: Arc::new(Some(Box::new(move |texts| {
-                ai_state_clone.cancel_generation();
-                Ok(texts
-                    .into_iter()
-                    .map(|text| rig::embeddings::Embedding {
-                        document: text,
-                        vec: vec![
-                            0f64;
-                            crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS
-                        ],
-                    })
-                    .collect())
-            }))),
             ..Default::default()
         };
 
-        let injector = initialize_test_injector(mock_client, ai_state).await;
+        let mut injector = initialize_test_injector(mock_client, ai_state).await;
+        // The user stops while the tool searches the uploaded files.
+        injector.register_singleton::<dyn DocumentSearchService>(Arc::new(CancellingSearch(
+            ai_state_clone,
+        )));
         let scope = injector.start_scope();
         let service = scope.resolve::<dyn AiStreamer>().await;
         let repository = scope.resolve::<dyn AiRepository>().await;
@@ -1544,26 +1536,11 @@ pub mod tests {
                     0 => Some(MockStreamEvent::tool_call(
                         "tc-1".to_string(),
                         "search_documents".to_string(),
-                        serde_json::json!({ "query": "test", "top_k": 3 }),
+                        serde_json::json!({ "query": "test", "maxResults": 3 }),
                     )),
                     2 => Some(MockStreamEvent::text("Final answer".to_string())),
                     _ => None,
                 }
-            }))),
-            embeddings_model_dims: Some(
-                crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS,
-            ),
-            embed_texts_fn: Arc::new(Some(Box::new(|texts| {
-                Ok(texts
-                    .into_iter()
-                    .map(|text| rig::embeddings::Embedding {
-                        document: text,
-                        vec: vec![
-                            0f64;
-                            crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS
-                        ],
-                    })
-                    .collect())
             }))),
             ..Default::default()
         };

@@ -16,8 +16,8 @@ use crate::search::utils::text_matches::SnippetWindow;
 
 /// Caps the matches one search adds to the context, whatever the model asks for.
 pub const MAX_RESULTS: u32 = 20;
-/// Enough of a match's paragraph to understand it; at the cap, a call stays near 12k characters.
-const SNIPPET_WINDOW: SnippetWindow = SnippetWindow {
+/// Enough of a match's surroundings to understand it; at the cap, a call stays near 12k characters.
+pub const SNIPPET_WINDOW: SnippetWindow = SnippetWindow {
     before: 300,
     after: 300,
 };
@@ -33,7 +33,7 @@ pub struct SearchOpenElementArgs {
     pub max_results: u32,
 }
 
-/// One match, with up to `SNIPPET_WINDOW` characters of its paragraph on each side.
+/// One match, with up to `SNIPPET_WINDOW` characters of the text on each side.
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchOpenElementMatch {

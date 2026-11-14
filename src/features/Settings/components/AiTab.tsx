@@ -22,7 +22,6 @@ import {
 interface ProviderInfo {
 	label: string;
 	modelPlaceholder: string;
-	embeddingsModelPlaceholder: string;
 	requiresApiKey: boolean;
 }
 
@@ -30,25 +29,21 @@ const providers: Record<AiProvider, ProviderInfo> = {
 	ollama: {
 		label: "Ollama",
 		modelPlaceholder: "e.g. gemma4",
-		embeddingsModelPlaceholder: "e.g. nomic-embed-text",
 		requiresApiKey: false,
 	},
 	openAI: {
 		label: "OpenAI",
 		modelPlaceholder: "e.g. gpt-6.1-terra",
-		embeddingsModelPlaceholder: "e.g. text-embedding-3-small",
 		requiresApiKey: true,
 	},
 	openRouter: {
 		label: "OpenRouter",
 		modelPlaceholder: "e.g. openai/gpt-6.1-terra",
-		embeddingsModelPlaceholder: "e.g. openai/text-embedding-3-small",
 		requiresApiKey: true,
 	},
 	gemini: {
 		label: "Gemini",
 		modelPlaceholder: "e.g. gemini-3.8-flash",
-		embeddingsModelPlaceholder: "e.g. gemini-embedding-2",
 		requiresApiKey: true,
 	},
 };
@@ -140,28 +135,6 @@ function AiTab() {
 							onBlur={e =>
 								handleProviderSettingsChange({
 									modelName: e.currentTarget.value || null,
-								})
-							}
-						/>
-					</Stack>
-
-					<Stack gap="xs">
-						<FieldLabel
-							label="Embeddings model name"
-							tooltip="The model used to semantically search documents you upload to a chat. It must be available from the selected provider."
-						/>
-						<TextInput
-							key={`embeddings-${provider}`}
-							placeholder={
-								providerInfo.embeddingsModelPlaceholder
-							}
-							defaultValue={
-								providerSettings.embeddingsModelName ?? ""
-							}
-							onBlur={e =>
-								handleProviderSettingsChange({
-									embeddingsModelName:
-										e.currentTarget.value || null,
 								})
 							}
 						/>

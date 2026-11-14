@@ -205,7 +205,11 @@ pub mod tests {
     use crate::elements::services::element_creation_service::ElementCreationService;
 
     use super::*;
+    use crate::ai_integration::repositories::ai_document_repository::AiDocumentRepository;
+    use crate::ai_integration::services::document_search_service::DocumentSearchService;
+    use crate::ai_integration::services::implementations::default_document_search_service::DefaultDocumentSearchService;
     use crate::elements::entities::extract::Extract;
+    use crate::infrastructure::repositories::sqlite::sqlite_ai_document_repository::SqliteAiDocumentRepository;
     use crate::infrastructure::repositories::sqlite::sqlite_content_search_repository::SqliteContentSearchRepository;
     use crate::search::repositories::content_search_repository::ContentSearchRepository;
     use crate::search::services::content_search_service::ContentSearchService;
@@ -236,6 +240,16 @@ pub mod tests {
 
         register_scope!(injector, dyn SettingsRepository, DiskSettingsRepository);
         register_scope!(injector, dyn AiClientProvider, DefaultAiClientProvider);
+        register_scope!(
+            injector,
+            dyn AiDocumentRepository,
+            SqliteAiDocumentRepository
+        );
+        register_scope!(
+            injector,
+            dyn DocumentSearchService,
+            DefaultDocumentSearchService
+        );
         register_scope!(injector, dyn MetaRepository, SqliteMetaRepository);
         register_scope!(
             injector,
@@ -428,9 +442,6 @@ pub mod tests {
                 );
                 mock_response_with_text("Answer")
             }))),
-            embeddings_model_dims: Some(
-                crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS,
-            ),
             ..Default::default()
         };
 
@@ -464,9 +475,6 @@ pub mod tests {
         // Arrange
 
         let mock_client = MockClient {
-            embeddings_model_dims: Some(
-                crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS,
-            ),
             ..Default::default()
         };
 

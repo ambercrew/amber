@@ -1,19 +1,19 @@
 use std::ops::Range;
 
-/// Characters of a match's line a snippet keeps on each side of it.
+/// Characters of a match's surroundings a snippet keeps on each side of it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SnippetWindow {
     pub before: usize,
     pub after: usize,
 }
 
-/// The global search's, sized for one row: little before the match, the line after cut much later.
+/// The global search's, sized for one row: little before the match, much more after it.
 pub const SEARCH_RESULT_WINDOW: SnippetWindow = SnippetWindow {
     before: 24,
     after: 120,
 };
 
-/// A match with the rest of its line around it, as the global search lists it.
+/// A match with the text around it, as the global search lists it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Snippet {
     pub before: String,
@@ -95,37 +95,52 @@ impl<'a> FoldedText<'a> {
 
 /// The match in `range` with up to a line's worth of `text` around it.
 pub fn snippet(text: &str, range: Range<usize>, window: SnippetWindow) -> Snippet {
-    let line_start = text[..range.start].rfind('\n').map_or(0, |index| index + 1);
-    let line_end = text[range.end..]
-        .find('\n')
-        .map_or(text.len(), |index| range.end + index);
-
-    let before_line = text[line_start..range.start].trim_start();
-    let before_chars = before_line.chars().count();
-    let before = if before_chars > window.before {
-        let skipped: usize = before_line
-            .chars()
-            .take(before_chars - window.before)
-            .map(char::len_utf8)
-            .sum();
-        format!("…{}", before_line[skipped..].trim_start())
-    } else {
-        before_line.to_string()
-    };
-
-    let after_line = text[range.end..line_end].trim_end();
-    let after = if after_line.chars().count() > window.after {
-        let kept: String = after_line.chars().take(window.after).collect();
-        format!("{}…", kept.trim_end())
-    } else {
-        after_line.to_string()
-    };
+    let (before, before_cut) = collapsed_context(text[..range.start].chars().rev(), window.before);
+    let before: String = before.chars().rev().collect();
+    let (after, after_cut) = collapsed_context(text[range.end..].chars(), window.after);
 
     Snippet {
-        before,
+        before: if before_cut {
+            format!("…{}", before.trim_start())
+        } else {
+            before.trim_start().to_string()
+        },
         text: text[range].to_string(),
-        after,
+        after: if after_cut {
+            format!("{}…", after.trim_end())
+        } else {
+            after.trim_end().to_string()
+        },
     }
+}
+
+/// Up to `limit` characters read outward from a match, crossing line breaks: each whitespace run
+/// becomes one line break if it has one, else one space. True when text was left out.
+fn collapsed_context(chars: impl Iterator<Item = char>, limit: usize) -> (String, bool) {
+    let mut context = String::new();
+    let mut count = 0;
+    let mut pending: Option<char> = None;
+    for c in chars {
+        if c.is_whitespace() {
+            pending = Some(if c == '\n' || pending == Some('\n') {
+                '\n'
+            } else {
+                ' '
+            });
+            continue;
+        }
+        let needed = usize::from(pending.is_some()) + 1;
+        if count + needed > limit {
+            return (context, true);
+        }
+        if let Some(separator) = pending.take() {
+            context.push(separator);
+        }
+        context.push(c);
+        count += needed;
+    }
+    // Trailing whitespace is dropped by the caller's trim, so it never counts as left out.
+    (context, false)
 }
 
 #[cfg(test)]
@@ -240,10 +255,10 @@ mod tests {
     }
 
     #[test]
-    fn snippet_match_in_later_line_keeps_only_its_line() {
+    fn snippet_match_between_lines_keeps_neighbouring_lines_with_one_break_each() {
         // Arrange
 
-        let text = "first line\nthe needle here\nlast line";
+        let text = "first line\n\n  the needle here \n last   line";
         let range = find_matches(text, "needle", false)[0].clone();
 
         // Act
@@ -254,12 +269,32 @@ mod tests {
 
         assert_eq!(
             Snippet {
-                before: "the ".into(),
+                before: "first line\nthe ".into(),
                 text: "needle".into(),
-                after: " here".into(),
+                after: " here\nlast line".into(),
             },
             actual
         );
+    }
+
+    #[test]
+    fn snippet_context_cut_in_previous_line_counts_collapsed_characters() {
+        // Arrange
+
+        let text = "abc\n\n\nde needle";
+        let range = find_matches(text, "needle", false)[0].clone();
+        let window = SnippetWindow {
+            before: 6,
+            after: 0,
+        };
+
+        // Act
+
+        let actual = snippet(text, range, window);
+
+        // Assert
+
+        assert_eq!("…bc\nde ", actual.before);
     }
 
     #[test]

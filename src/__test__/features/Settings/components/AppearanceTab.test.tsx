@@ -26,22 +26,18 @@ const settings: SettingsDto = {
 	aiProviders: {
 		ollama: {
 			modelName: null,
-			embeddingsModelName: null,
 			apiKeyIsSet: false,
 		},
 		openAI: {
 			modelName: null,
-			embeddingsModelName: null,
 			apiKeyIsSet: false,
 		},
 		openRouter: {
 			modelName: null,
-			embeddingsModelName: null,
 			apiKeyIsSet: false,
 		},
 		gemini: {
 			modelName: null,
-			embeddingsModelName: null,
 			apiKeyIsSet: false,
 		},
 	},
