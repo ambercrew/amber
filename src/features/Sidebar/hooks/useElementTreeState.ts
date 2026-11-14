@@ -11,12 +11,10 @@ import {
 	PREVIOUS_TREE_ELEMENT_SHORTCUT,
 } from "../../../config/shortcuts";
 import useAppDispatch from "../../../hooks/useAppDispatch";
-import useAppSelector from "../../../hooks/useAppSelector";
 import { useElementParams } from "../../../hooks/useElementParams";
 import { useTauriEvent } from "../../../hooks/useTauriEvent";
 import { paths } from "../../../paths";
 import { addCreatedElementsAction } from "../../../stores/elements/elementsActions";
-import { selectStudyStatus } from "../../../stores/study/studySelectors";
 import {
 	dtosToTreeData,
 	findNodeType,
@@ -36,13 +34,8 @@ export function useElementTreeState(tree: NodeDto[]) {
 	const dispatch = useAppDispatch();
 	const selected = useElementParams();
 	const data = useMemo(() => dtosToTreeData(tree), [tree]);
-	const isStudying = useAppSelector(selectStudyStatus) === "studying";
-	const expansion = useElementTreeExpansion(
-		data,
-		selected?.id ?? null,
-		isStudying,
-	);
-	const { treeController, filteredData, expandNodes } = expansion;
+	const expansion = useElementTreeExpansion(data);
+	const { treeController, filteredData } = expansion;
 
 	function openNode(value: string) {
 		const type = findNodeType(data, value);
@@ -75,10 +68,9 @@ export function useElementTreeState(tree: NodeDto[]) {
 		return created;
 	}
 
+	// Leaves the parents collapsed: extracts and cards are made while reading, away from the tree.
 	function addCreatedBatch() {
-		const created = takeCreatedBatch();
-		void dispatch(addCreatedElementsAction(created));
-		expandNodes(created.flatMap(c => c.parentId ?? []));
+		void dispatch(addCreatedElementsAction(takeCreatedBatch()));
 	}
 
 	useTauriEvent<ElementCreatedEventDto>(ELEMENT_CREATED_EVENT, payload => {
@@ -89,7 +81,6 @@ export function useElementTreeState(tree: NodeDto[]) {
 		);
 	});
 
-	// Doesn't expand the parents, as this closure holds the first render's expanded state.
 	useEffect(
 		() => () => {
 			const created = takeCreatedBatch();

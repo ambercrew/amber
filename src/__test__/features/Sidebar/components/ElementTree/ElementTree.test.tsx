@@ -215,15 +215,8 @@ describe("ElementTree search", () => {
 		);
 	});
 
-	it("Should highlight the parents of the open element when it is nested", () => {
-		// Arrange
-
-		const row = (name: string) =>
-			screen.getByLabelText(name).closest<HTMLElement>("[draggable]")!;
-
-		// Act
-
-		renderWithProviders(
+	function renderAt(initialEntry: string) {
+		return renderWithProviders(
 			<MantineProvider>
 				<Routes>
 					<Route
@@ -232,8 +225,38 @@ describe("ElementTree search", () => {
 					/>
 				</Routes>
 			</MantineProvider>,
-			{ memoryRouterProps: { initialEntries: ["/card/card-1"] } },
+			{ memoryRouterProps: { initialEntries: [initialEntry] } },
 		);
+	}
+
+	it("Should highlight the collapsed parent of the open element without expanding it", () => {
+		// Arrange / Act
+
+		renderAt("/card/card-1");
+
+		// Assert
+
+		expect(
+			screen.queryByLabelText("Impressionism"),
+		).not.toBeInTheDocument();
+		expect(row("Art")).toHaveAttribute("data-active");
+		expect(row("Science")).not.toHaveAttribute("data-active");
+	});
+
+	it("Should highlight the parents of the open element when it is nested", () => {
+		// Arrange
+
+		window.localStorage.setItem(
+			"element-tree-expanded",
+			JSON.stringify({
+				"folder-art": true,
+				"extract-impressionism": true,
+			}),
+		);
+
+		// Act
+
+		renderAt("/card/card-1");
 
 		// Assert
 
@@ -279,7 +302,7 @@ describe("ElementTree search", () => {
 		});
 	});
 
-	it("Should expand a folder when an element is created under it", async () => {
+	it("Should leave a folder collapsed when an element is created under it", async () => {
 		// Arrange
 
 		render();
@@ -307,11 +330,15 @@ describe("ElementTree search", () => {
 			});
 		});
 
-		// Assert — Science is expanded, revealing its child
+		// Assert — Science stays collapsed once the batch lands
 
+		await waitFor(() =>
+			expect(screen.getByLabelText("Science")).toBeInTheDocument(),
+		);
+		await act(() => new Promise(resolve => setTimeout(resolve, 100)));
 		expect(
-			await screen.findByLabelText("Biology Basics"),
-		).toBeInTheDocument();
+			screen.queryByLabelText("Biology Basics"),
+		).not.toBeInTheDocument();
 	});
 
 	it("Should still add a queued element to the tree when the sidebar unmounts", () => {

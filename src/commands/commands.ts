@@ -378,7 +378,7 @@ export const commandsById: Record<CommandId, Command> = {
 	"focus-tree": {
 		id: "focus-tree",
 		group: "Navigation",
-		label: "Focus current element in the tree",
+		label: "Reveal current element in the tree",
 		searchOnly: true,
 		shortcut: FOCUS_TREE_SHORTCUT,
 		icon: createElement(TreeStructureIcon),

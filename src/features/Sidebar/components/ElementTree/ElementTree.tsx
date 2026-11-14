@@ -67,6 +67,7 @@ function ElementTree({ state }: ElementTreeProps) {
 		filteredData,
 		search,
 		handleSearchChange,
+		reveal,
 	} = state;
 
 	const rows = useMemo(
@@ -150,6 +151,7 @@ function ElementTree({ state }: ElementTreeProps) {
 			selectedValue={selected?.id ?? null}
 			renamingValue={renamingTarget?.id ?? null}
 			renderNode={renderNode}
+			onReveal={reveal}
 			onKeyDown={event => {
 				// Mantine's tree moves focus with the arrows; this opens the focused element.
 				const target = event.target as HTMLElement;
