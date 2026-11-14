@@ -185,9 +185,10 @@ function ElementTreeNode({
 				)}
 				{/* Flex, not block: a block wrapper adds line-box space below the button, so it sat high. */}
 				<Box display="flex" style={{ gridArea: "1 / 1" }}>
+					{/* Opens leftwards from the row's right edge, so it never starts past the screen. */}
 					<Menu
 						withinPortal
-						position="bottom-start"
+						position="bottom-end"
 						onOpen={() => setIsMenuOpen(true)}
 						onClose={() => setIsMenuOpen(false)}
 						shadow="lg">

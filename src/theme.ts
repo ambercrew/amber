@@ -9,6 +9,7 @@ import {
 	Fieldset,
 	lighten,
 	Mark,
+	Menu,
 	MultiSelect,
 	Select,
 	CSSVariablesResolver,
@@ -212,6 +213,14 @@ export const theme = createTheme({
 		// full-screen modals flicker on mobile and dropdowns bounce on scroll.
 		Combobox: Combobox.extend({
 			defaultProps: { floatingStrategy: "fixed" },
+		}),
+		// Mantine 9.8 locks a menu's side a frame after opening, often before it flips, so
+		// a submenu stayed on its default right side, off a phone's screen.
+		Menu: Menu.extend({
+			defaultProps: { preventPositionChangeWhenVisible: false },
+		}),
+		MenuSub: Menu.Sub.extend({
+			defaultProps: { preventPositionChangeWhenVisible: false },
 		}),
 		Select: Select.extend({
 			defaultProps: { withAlignedLabels: true },
