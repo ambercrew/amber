@@ -1,4 +1,4 @@
-import { ActionIcon, Group, NavLink } from "@mantine/core";
+import { ActionIcon, Group, NavLink, Text } from "@mantine/core";
 import { ArrowCounterClockwiseIcon, TrashIcon } from "@phosphor-icons/react";
 import { memo, MouseEvent } from "react";
 import { useNavigate } from "react-router";
@@ -34,13 +34,20 @@ function TrashRow({ item, active, retentionDays, onDelete }: TrashRowProps) {
 
 	return (
 		<NavLink
-			label={item.name}
+			label={
+				<AppTooltip label={item.name} multiline maw={320}>
+					<Text size="sm" truncate="end">
+						{item.name}
+					</Text>
+				</AppTooltip>
+			}
 			description={
 				retentionDays > 0
 					? formatTrashCountdown(item.trashedAt, retentionDays)
 					: undefined
 			}
 			active={active}
+			noWrap
 			leftSection={
 				<ElementNodeIcon type={elementId.type} size={ICON_SIZE} />
 			}

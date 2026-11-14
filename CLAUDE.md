@@ -195,7 +195,7 @@ The sidebar renders it with `VirtualElementTree`, which adds drag and drop (`use
 
 ### Study Queue
 
-`study.queue` can hold every due element, so its reducers work on `plainQueue(state)` and assign a new array: array methods on an Immer draft proxy each item they touch, which costs seconds on a long queue. `PriorityQueueList` virtualizes it like the tree, sharing `useVirtualListScroll`; its rows are measured because a title can take two lines, and `getItemKey` runs per row on every remeasure, so keep it allocation-free. `get_due_elements` returns names from the same query; don't look elements up one by one.
+`study.queue` can hold every due element, so its reducers work on `plainQueue(state)` and assign a new array: array methods on an Immer draft proxy each item they touch, which costs seconds on a long queue. `PriorityQueueList` virtualizes it like the tree, sharing `useVirtualListScroll`; each title is truncated to one line, but rows are still measured (font sizes vary), and `getItemKey` runs per row on every remeasure, so keep it allocation-free. `get_due_elements` returns names from the same query; don't look elements up one by one.
 
 ### Search Results
 

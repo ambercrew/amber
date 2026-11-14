@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useNavigate } from "react-router";
 import { DueElementDto } from "../../../api/study/dto/dueElementDto";
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import { useElementParams } from "../../../hooks/useElementParams";
 import { useFocusedRow } from "../../../hooks/useFocusedRow";
 import { useVirtualListScroll } from "../../../hooks/useVirtualListScroll";
@@ -11,8 +12,8 @@ import { paths } from "../../../paths";
 import { StudySessionLocationState } from "../../../types/study/studySessionLocationState";
 
 const ICON_SIZE = 18;
-/** Only a first guess: rows are measured once mounted, and a title may take two lines. */
-const ESTIMATED_ROW_HEIGHT = 58;
+/** Only a first guess: rows are measured once mounted. */
+const ESTIMATED_ROW_HEIGHT = 38;
 const OVERSCAN_ROWS = 10;
 
 function dueElementId(element: DueElementDto) {
@@ -77,19 +78,13 @@ function PriorityQueueList({ queue }: PriorityQueueListProps) {
 						}}>
 						<NavLink
 							label={
-								<Text size="sm" lineClamp={2}>
-									{title}
-								</Text>
+								<AppTooltip label={title} multiline maw={320}>
+									<Text size="sm" truncate="end">
+										{title}
+									</Text>
+								</AppTooltip>
 							}
 							active={isSelected}
-							styles={{
-								root: { alignItems: "flex-start" },
-								section: { marginTop: 2 },
-								label: {
-									whiteSpace: "normal",
-									overflow: "visible",
-								},
-							}}
 							leftSection={
 								<ElementNodeIcon
 									type={elementId.type}

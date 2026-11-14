@@ -8,6 +8,7 @@ import {
 } from "../../../../api/search/dto/searchContentResponseDto";
 import CountBadge from "../../../../components/CountBadge/CountBadge";
 import ElementNodeIcon from "../../../../components/ElementNodeIcon/ElementNodeIcon";
+import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
 import { useVirtualListScroll } from "../../../../hooks/useVirtualListScroll";
 import { SearchResultRow } from "../../utils/flattenSearchResults";
 
@@ -48,9 +49,11 @@ function SearchResultRowView({
 			h="100%"
 			py={0}
 			label={
-				<Text size="sm" fw={500} truncate>
-					{row.element.name}
-				</Text>
+				<AppTooltip label={row.element.name} multiline maw={320}>
+					<Text size="sm" fw={500} truncate="end">
+						{row.element.name}
+					</Text>
+				</AppTooltip>
 			}
 			aria-expanded={!row.collapsed}
 			leftSection={
@@ -76,11 +79,16 @@ function SearchResultRowView({
 			pl={MATCH_INDENT}
 			active={selected}
 			label={
-				<Text size="sm" truncate>
-					{row.match.before}
-					<Mark>{row.match.text}</Mark>
-					{row.match.after}
-				</Text>
+				<AppTooltip
+					label={`${row.match.before}${row.match.text}${row.match.after}`}
+					multiline
+					maw={320}>
+					<Text size="sm" truncate="end">
+						{row.match.before}
+						<Mark>{row.match.text}</Mark>
+						{row.match.after}
+					</Text>
+				</AppTooltip>
 			}
 			onClick={() => onOpenMatch(row.element, row.match)}
 		/>
