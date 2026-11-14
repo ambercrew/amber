@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Button, Group } from "@mantine/core";
 import AppModal from "../../../../components/AppModal/AppModal";
 import AutosizeTextInput from "../../../../components/AutosizeTextInput/AutosizeTextInput";
@@ -15,7 +15,6 @@ function SaveSavedSearchModal({
 	onConfirm,
 }: SaveSavedSearchModalProps) {
 	const [name, setName] = useState("");
-	const inputRef = useRef<HTMLTextAreaElement>(null);
 
 	function handleConfirm() {
 		const trimmed = name.trim();
@@ -28,11 +27,10 @@ function SaveSavedSearchModal({
 			opened={opened}
 			onClose={onClose}
 			title="Save search"
-			onExitTransitionEnd={() => setName("")}
-			onEnterTransitionEnd={() => inputRef.current?.focus()}>
+			onExitTransitionEnd={() => setName("")}>
 			<AutosizeTextInput
-				ref={inputRef}
-				autoFocus
+				// The modal's focus trap focuses it on open.
+				data-autofocus
 				placeholder="Search name"
 				value={name}
 				onChange={e => setName(e.currentTarget.value)}
