@@ -23,7 +23,8 @@ function filterTree(data: TreeNodeData[], query: string) {
 
 /**
  * The tree's expanded nodes. Only the user expands them: by hand, by searching,
- * by creating from a node's menu or by revealing an element, never by opening one.
+ * by creating from a node's menu, by revealing an element or by importing one
+ * (`useTreeRevealRequest`), never by opening one.
  */
 export function useElementTreeExpansion(data: TreeNodeData[]) {
 	const [persistedExpandedState, setPersistedExpandedState] = useLocalStorage<
@@ -74,18 +75,39 @@ export function useElementTreeExpansion(data: TreeNodeData[]) {
 		}
 	}
 
+	function ancestorsExpanded(id: string): Record<string, boolean> | null {
+		const ancestors = getAncestorsOf(data, id) as string[] | null;
+		return ancestors && Object.fromEntries(ancestors.map(a => [a, true]));
+	}
+
 	/** Clears the search and expands `id`'s ancestors; false when `id` isn't in the tree. */
 	function reveal(id: string) {
-		const ancestors = getAncestorsOf(data, id) as string[] | null;
-		if (!ancestors) return false;
+		const extra = ancestorsExpanded(id);
+		if (!extra) return false;
 		const base = search.trim()
 			? (preSearchExpandedState.current ?? {})
 			: treeController.expandedState;
 		setSearch("");
 		preSearchExpandedState.current = null;
-		const extra = Object.fromEntries(ancestors.map(a => [a, true]));
 		setPersistedExpandedState(prev => ({ ...prev, ...extra }));
 		treeController.setExpandedState({ ...base, ...extra });
+		return true;
+	}
+
+	/** Expands `id`'s ancestors, keeping a search (they stay expanded once it's cleared); false when `id` isn't in the tree. */
+	function expandTo(id: string) {
+		const extra = ancestorsExpanded(id);
+		if (!extra) return false;
+		if (preSearchExpandedState.current)
+			preSearchExpandedState.current = {
+				...preSearchExpandedState.current,
+				...extra,
+			};
+		setPersistedExpandedState(prev => ({ ...prev, ...extra }));
+		treeController.setExpandedState({
+			...treeController.expandedState,
+			...extra,
+		});
 		return true;
 	}
 
@@ -95,5 +117,6 @@ export function useElementTreeExpansion(data: TreeNodeData[]) {
 		search,
 		handleSearchChange,
 		reveal,
+		expandTo,
 	};
 }

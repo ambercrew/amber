@@ -1,4 +1,4 @@
-import { paths } from "../../../paths";
+import { openImportedElement } from "../openImportedElement";
 import { getPdfPageCount, PdfProgress } from "../pdf/extract";
 import { pdfFormat } from "../pdf/format";
 import { detectFileFormat } from "../fileFormats";
@@ -37,10 +37,7 @@ export async function runFileImport(
 		onProgress,
 		location,
 	);
-	if (lastCreated !== null) {
-		const { type, id } = lastCreated;
-		await ctx.navigate(paths.element(type, id));
-	}
+	if (lastCreated !== null) await openImportedElement(ctx, lastCreated);
 	return error;
 }
 

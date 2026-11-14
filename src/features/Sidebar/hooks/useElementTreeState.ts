@@ -13,6 +13,7 @@ import {
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { useElementParams } from "../../../hooks/useElementParams";
 import { useTauriEvent } from "../../../hooks/useTauriEvent";
+import { useTreeRevealRequest } from "../../../hooks/useTreeRevealRequest";
 import { paths } from "../../../paths";
 import { addCreatedElementsAction } from "../../../stores/elements/elementsActions";
 import {
@@ -36,6 +37,7 @@ export function useElementTreeState(tree: NodeDto[]) {
 	const data = useMemo(() => dtosToTreeData(tree), [tree]);
 	const expansion = useElementTreeExpansion(data);
 	const { treeController, filteredData } = expansion;
+	useTreeRevealRequest(data, expansion.expandTo);
 
 	function openNode(value: string) {
 		const type = findNodeType(data, value);

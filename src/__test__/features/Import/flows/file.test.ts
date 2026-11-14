@@ -15,6 +15,7 @@ import { createBibliographicalSource } from "../../../../api/bibliographicalSour
 import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { ImportContext } from "../../../../features/Import/importContext";
 import { AppDispatch, RootState } from "../../../../stores/store";
+import { requestTreeReveal } from "../../../../hooks/useTreeRevealRequest";
 
 type Thunk = (dispatch: AppDispatch, getState: () => RootState) => unknown;
 
@@ -24,6 +25,7 @@ vi.mock(import("../../../../features/Import/markdown/extract"));
 vi.mock(import("../../../../features/Import/html/extract"));
 vi.mock(import("../../../../features/Import/text/extract"));
 vi.mock(import("../../../../features/Import/normalize"));
+vi.mock(import("../../../../hooks/useTreeRevealRequest"));
 vi.mock(import("../../../../features/Import/anki/importAnki"));
 vi.mock(import("../../../../features/Import/createImportedLearningAsset"));
 vi.mock(import("../../../../features/Import/createImportedPdfLearningAsset"));
@@ -657,6 +659,7 @@ describe("runFileImport", () => {
 
 		expect(ctx.navigate).toHaveBeenCalledOnce();
 		expect(ctx.navigate).toHaveBeenCalledWith("/learningAsset/second-id");
+		expect(requestTreeReveal).toHaveBeenCalledExactlyOnceWith("second-id");
 	});
 
 	it("Should open the last successfully imported file when a later file fails", async () => {

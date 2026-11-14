@@ -213,6 +213,48 @@ describe("useElementTreeExpansion", () => {
 		});
 	});
 
+	it("Should keep the search and leave the ancestors expanded after it when expanding to an element while searching", async () => {
+		// Arrange
+
+		const { result } = renderHook(() => useElementTreeExpansion(DATA));
+		act(() => result.current.handleSearchChange("art"));
+
+		// Act
+
+		let expanded = false;
+		act(() => {
+			expanded = result.current.expandTo("cell-card");
+		});
+		await flushMicrotasks();
+		act(() => result.current.handleSearchChange(""));
+
+		// Assert
+
+		expect(expanded).toBe(true);
+		expect(result.current.treeController.expandedState).toEqual({
+			"science-folder": true,
+			"biology-learningAsset": true,
+		});
+	});
+
+	it("Should return false and expand nothing when expanding to an element not in the tree", () => {
+		// Arrange
+
+		const { result } = renderHook(() => useElementTreeExpansion(DATA));
+
+		// Act
+
+		let expanded = true;
+		act(() => {
+			expanded = result.current.expandTo("missing");
+		});
+
+		// Assert
+
+		expect(expanded).toBe(false);
+		expect(result.current.treeController.expandedState).toEqual({});
+	});
+
 	it("Should return false and expand nothing when the revealed element is not in the tree", () => {
 		// Arrange
 
