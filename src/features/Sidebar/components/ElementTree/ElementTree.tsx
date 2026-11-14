@@ -125,6 +125,7 @@ function ElementTree({ state }: ElementTreeProps) {
 					contextMenuNode?.type === type
 				}
 				isRenaming={isRenaming}
+				coarsePointer={coarsePointer}
 				onSelect={() => void navigate(paths.element(type, node.value))}
 				onContextMenu={() => {
 					// The context menu itself is disabled for coarse (touch)

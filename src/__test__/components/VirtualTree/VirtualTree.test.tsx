@@ -1,7 +1,7 @@
 import { flattenTreeData, MantineProvider, TreeNodeData } from "@mantine/core";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Range } from "@tanstack/react-virtual";
-import { ComponentProps, createRef } from "react";
+import { ComponentProps, createRef, useMemo } from "react";
 import { useRowIndexes } from "../../../components/VirtualTree/useRowIndexes";
 import VirtualTree, {
 	VirtualTreeHandle,
@@ -66,11 +66,14 @@ function createTree() {
 function Harness({
 	tree,
 	handle,
+	data,
 }: {
 	tree: ComponentProps<typeof VirtualTree>["tree"];
 	handle: React.Ref<VirtualTreeHandle>;
+	data: TreeNodeData[];
 }) {
-	const rows = flattenTreeData(DATA, ALL_EXPANDED);
+	// Kept between renders like the app's, so a rerender alone doesn't change the rows.
+	const rows = useMemo(() => flattenTreeData(data, ALL_EXPANDED), [data]);
 	return (
 		<VirtualTree
 			ref={handle}
@@ -91,13 +94,17 @@ function renderTree(range = FAR_ROWS) {
 	Object.assign(visible, range);
 	const tree = createTree();
 	const handle = createRef<VirtualTreeHandle>();
-	const ui = (
+	const ui = (data: TreeNodeData[]) => (
 		<MantineProvider>
-			<Harness tree={tree} handle={handle} />
+			<Harness tree={tree} handle={handle} data={data} />
 		</MantineProvider>
 	);
-	const { rerender } = render(ui);
-	return { tree, handle, rerenderTree: () => rerender(ui) };
+	const { rerender } = render(ui(DATA));
+	return {
+		tree,
+		handle,
+		rerenderTree: (data = DATA) => rerender(ui(data)),
+	};
 }
 
 function row(value: string) {
@@ -249,5 +256,38 @@ describe("VirtualTree", () => {
 		expect(row("far")).toHaveAttribute("aria-level", "1");
 		expect(row("far")).toHaveAttribute("aria-posinset", "3");
 		expect(row("far")).toHaveAttribute("aria-setsize", "4");
+	});
+
+	it("Should describe a row's place when it mounts as the tree scrolls", () => {
+		// Arrange
+
+		const { handle } = renderTree();
+
+		// Act
+
+		Object.assign(visible, { startIndex: 0, endIndex: 5 });
+		// Re-renders the tree from its own state, as scrolling does.
+		focusKeptRow(handle, "far");
+
+		// Assert
+
+		expect(row("second")).toHaveAttribute("aria-posinset", "2");
+		expect(row("far")).toHaveAttribute("aria-posinset", "3");
+	});
+
+	it("Should update a mounted row's place when a row is added before it", () => {
+		// Arrange
+
+		const { rerenderTree } = renderTree();
+		const added = [...DATA.slice(0, 2), { value: "new", label: "New" }];
+
+		// Act
+
+		rerenderTree([...added, ...DATA.slice(2)]);
+
+		// Assert
+
+		expect(row("far")).toHaveAttribute("aria-posinset", "4");
+		expect(row("far")).toHaveAttribute("aria-setsize", "5");
 	});
 });

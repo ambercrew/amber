@@ -7,10 +7,9 @@ import {
 	RenderTreeNodePayload,
 } from "@mantine/core";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import CountBadge from "../../../../components/CountBadge/CountBadge";
 import ElementNodeIcon from "../../../../components/ElementNodeIcon/ElementNodeIcon";
-import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
 import { ElementNodeProps } from "../../utils/elementTreeUtils";
 import ElementTreeMenuItems from "./ElementTreeMenuItems";
 import RenameElementForm from "./RenameElementForm";
@@ -28,6 +27,8 @@ interface ElementTreeNodeProps {
 	isSelectedAncestor: boolean;
 	isContextMenuOpen: boolean;
 	isRenaming: boolean;
+	/** Read once by the tree, as a media query per row slows scrolling. */
+	coarsePointer: boolean;
 	onSelect: () => void;
 	onContextMenu: () => void;
 	onRenameClick: () => void;
@@ -43,6 +44,7 @@ function ElementTreeNode({
 	isSelectedAncestor,
 	isContextMenuOpen,
 	isRenaming,
+	coarsePointer,
 	onSelect,
 	onContextMenu,
 	onRenameClick,
@@ -55,7 +57,7 @@ function ElementTreeNode({
 	const id = node.value;
 	const label = typeof node.label === "string" ? node.label : node.value;
 	const [isHovered, setIsHovered] = useState(false);
-	const coarsePointer = useIsCoarsePointer();
+	const labelRef = useRef<HTMLDivElement>(null);
 	// Only controls the menu with three dots.
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -123,15 +125,20 @@ function ElementTreeNode({
 					onClose={onRenameClose}
 				/>
 			) : (
-				<AppTooltip label={label}>
+				<>
 					<Highlight
+						ref={labelRef}
 						highlight={search}
 						flex={1}
 						truncate="end"
 						aria-label={label}>
 						{label}
 					</Highlight>
-				</AppTooltip>
+					{/* Mounted beside the name, and only on the hovered row: one per row made scrolling slow. */}
+					{isHovered && (
+						<AppTooltip label={label} target={labelRef} />
+					)}
+				</>
 			)}
 			{coarsePointer && countBadge}
 			{/* The badge and the menu button share one cell, so hovering swaps them without moving anything. */}

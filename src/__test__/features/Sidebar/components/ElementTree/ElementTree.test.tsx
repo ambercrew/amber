@@ -244,6 +244,21 @@ describe("ElementTree search", () => {
 		).toEqual([true, true, true, false, false]);
 	});
 
+	it("Should show the full name in a tooltip when a row's name is hovered", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		render();
+
+		// Act
+
+		await user.hover(screen.getByLabelText("Science"));
+
+		// Assert
+
+		expect(await screen.findByRole("tooltip")).toHaveTextContent("Science");
+	});
+
 	it("Should remember expanded state after unmount and remount", async () => {
 		// Arrange
 
