@@ -160,7 +160,7 @@ function EntryNode({ payload, activeEntry, onSelect }: EntryNodeProps) {
 				current
 					? "var(--selected-row-color)"
 					: onActivePath
-						? "var(--mantine-primary-color-filled)"
+						? "var(--primary-text-color)"
 						: undefined
 			}
 			style={{

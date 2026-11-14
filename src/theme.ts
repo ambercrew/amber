@@ -70,6 +70,7 @@ const red: MantineColorsTuple = [
 ];
 
 // Hand-tuned honey-amber ramp; the brand color, so it was picked by eye.
+// 7 and 8 even out the steps below 6, so a hovered button keeps black text at 5:1.
 const amber: MantineColorsTuple = [
 	"#fdf6e3",
 	"#faecc8",
@@ -78,8 +79,8 @@ const amber: MantineColorsTuple = [
 	"#f2b32e",
 	"#e89b0c",
 	"#cd7f05",
-	"#a86107",
-	"#874d0d",
+	"#b56a00",
+	"#945409",
 	"#6f3f10",
 ];
 
@@ -159,6 +160,7 @@ export const theme = createTheme({
 	primaryColor: "amber",
 	primaryShade: { light: 6, dark: 6 },
 	autoContrast: true,
+	luminanceThreshold: 0.3,
 	defaultRadius: "md",
 
 	components: {
@@ -306,9 +308,10 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--mantine-color-dimmed": "var(--mantine-color-gray-7)",
 		// gray-5 reads ~3.5:1 on a white input.
 		"--mantine-color-placeholder": "var(--mantine-color-gray-6)",
-		// amber-7 reads 4.3:1 on the sidebar; 30% of the way from 8 clears 4.5:1 even on hovered and selected rows.
-		"--mantine-color-anchor":
-			"color-mix(in srgb, var(--mantine-color-amber-7) 30%, var(--mantine-color-amber-8))",
+		// The primary color as text, e.g. the headings above the current one. amber-6 reads 2.9:1 on the
+		// sidebar; amber-8 clears 4.5:1 even on hovered and selected rows.
+		"--primary-text-color": "var(--mantine-color-amber-8)",
+		"--mantine-color-anchor": "var(--primary-text-color)",
 		"--anchor-hover-color": "var(--mantine-color-amber-9)",
 	},
 	dark: {
@@ -331,6 +334,8 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		// Amber softened a fifth toward dimmed text: full amber on every icon button is loud, halfway read khaki.
 		"--subtle-primary-color":
 			"color-mix(in srgb, var(--mantine-color-amber-4) 80%, var(--mantine-color-dimmed))",
+		// amber-6 reads 3.4:1 on hovered rows; amber-5 clears 4.5:1 on them and 6.5:1 on the sidebar.
+		"--primary-text-color": "var(--mantine-color-amber-5)",
 
 		// Mantine's dark defaults are shade 8 of its stock red and teal, ~2:1 on our body.
 		// Shade 4 is dark mode's own tinted text.

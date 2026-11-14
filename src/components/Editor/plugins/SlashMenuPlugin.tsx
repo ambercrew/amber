@@ -92,7 +92,7 @@ export function SlashMenuPlugin() {
 									}
 									c={
 										i === selectedIndex
-											? "white"
+											? "var(--mantine-primary-color-contrast)"
 											: undefined
 									}
 									onClick={() =>

@@ -24,6 +24,8 @@ interface ElementTreeNodeProps {
 	payload: RenderTreeNodePayload;
 	search: string;
 	isSelected: boolean;
+	/** True when the open element is below this one. */
+	isSelectedAncestor: boolean;
 	isContextMenuOpen: boolean;
 	isRenaming: boolean;
 	onSelect: () => void;
@@ -38,6 +40,7 @@ function ElementTreeNode({
 	payload,
 	search,
 	isSelected,
+	isSelectedAncestor,
 	isContextMenuOpen,
 	isRenaming,
 	onSelect,
@@ -92,7 +95,14 @@ function ElementTreeNode({
 						? "var(--mantine-color-gray-light-hover)"
 						: undefined
 			}
-			c={isSelected ? "var(--selected-row-color)" : undefined}
+			c={
+				isSelected
+					? "var(--selected-row-color)"
+					: isSelectedAncestor
+						? "var(--primary-text-color)"
+						: undefined
+			}
+			data-active={isSelected || isSelectedAncestor || undefined}
 			style={{
 				...indentedRowStyle(level),
 				borderRadius: "var(--mantine-radius-default)",

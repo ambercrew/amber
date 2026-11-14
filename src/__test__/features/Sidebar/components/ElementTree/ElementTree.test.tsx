@@ -1,6 +1,7 @@
 import { MantineProvider } from "@mantine/core";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Route, Routes } from "react-router";
 import { listen } from "@tauri-apps/api/event";
 import { NodeDto } from "../../../../../api/elements/dto/nodeDto";
 import ElementTreeHarness from "../../../../test-utils/ElementTreeHarness";
@@ -212,6 +213,35 @@ describe("ElementTree search", () => {
 		expect(screen.getByTestId(LOCATION_DISPLAY_TEST_ID)).toHaveTextContent(
 			"/folder/folder-science",
 		);
+	});
+
+	it("Should highlight the parents of the open element when it is nested", () => {
+		// Arrange
+
+		const row = (name: string) =>
+			screen.getByLabelText(name).closest<HTMLElement>("[draggable]")!;
+
+		// Act
+
+		renderWithProviders(
+			<MantineProvider>
+				<Routes>
+					<Route
+						path="/:type/:id"
+						element={<ElementTreeHarness tree={TREE} />}
+					/>
+				</Routes>
+			</MantineProvider>,
+			{ memoryRouterProps: { initialEntries: ["/card/card-1"] } },
+		);
+
+		// Assert
+
+		expect(
+			["Art", "Impressionism", "Monet", "Renoir", "Science"].map(name =>
+				row(name).hasAttribute("data-active"),
+			),
+		).toEqual([true, true, true, false, false]);
 	});
 
 	it("Should remember expanded state after unmount and remount", async () => {
