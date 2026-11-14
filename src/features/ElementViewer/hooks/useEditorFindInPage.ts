@@ -5,6 +5,7 @@ import {
 	selectSearchCurrentIndex,
 	selectSearchQuery,
 } from "../../../stores/search/searchSelectors";
+import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
 import { scrollToRange } from "../../../components/Editor/plugins/SearchHighlightPlugin/scrollToRange";
 import { searchHighlightRegistry } from "../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
 import { HEADER_AND_FOOTER_HEIGHT } from "../../App/components/App";
@@ -32,9 +33,16 @@ export function useEditorFindInPage(editorKeys: string[]): ReturnValue {
 	const query = useAppSelector(selectSearchQuery);
 	const caseSensitive = useAppSelector(selectSearchCaseSensitive);
 	const currentIndex = useAppSelector(selectSearchCurrentIndex);
+	const elementId = useAppSelector(
+		state => selectCurrentElement(state)?.data.meta.elementId.id,
+	);
 
-	const { onMatches, totalMatches, resolveMatchTarget } =
-		useSingleEditorSearch(editorKeys);
+	// Counts from another element or query must not place a requested match.
+	const { onMatches, totalMatches, countsComplete, resolveMatchTarget } =
+		useSingleEditorSearch(
+			editorKeys,
+			JSON.stringify([elementId, query, caseSensitive]),
+		);
 
 	const handleNavigate = useCallback((target: MatchTarget) => {
 		const range = searchHighlightRegistry.getRanges(target.editorKey)?.[
@@ -69,6 +77,7 @@ export function useEditorFindInPage(editorKeys: string[]): ReturnValue {
 		resolveMatchTarget,
 		onNavigate: handleNavigate,
 		resolveInitialIndex,
+		countsComplete,
 	});
 
 	const currentTarget =

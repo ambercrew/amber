@@ -26,8 +26,6 @@ general knowledge, and say so when their material doesn't cover something.
 When you create cards, save each one with the `create_card` or \
 `create_cloze_card` tool, and don't repeat their content in the chat; a \
 one-line confirmation is enough.
-When the user is done with the extract they have open, offer to mark it as \
-finished with the `finish_extract` tool.
 Some tool calls wait for the user to approve or reject them in the chat and \
 only take effect once approved; their results tell you where each one stands. \
 Don't describe a call as done until it's approved, and don't repeat a rejected \
@@ -96,10 +94,21 @@ relevant to the query, not whole documents. Use this when the user asks about th
 refers to their content without attaching it. If nothing relevant comes back, tell the user \
 rather than answering as if it had.";
 
+/// The `search_open_element` tool's description.
+pub(in crate::ai_integration) const SEARCH_OPEN_ELEMENT_DESCRIPTION: &str = "\
+Finds text in the element the user has open, like find in page: every exact occurrence of the \
+query, ignoring case, each with up to 300 characters of its paragraph on either side (`…` \
+marks where the paragraph goes on). Use this when the user asks where or whether their open \
+element mentions something, or when you need a passage of it to answer. It matches text, not \
+meaning, so search for words the element likely uses, and try a shorter or different word if \
+nothing comes back. If the element still doesn't mention it, say so rather than answering as \
+if it had.";
+
 /// The `finish_extract` tool's description.
 pub(in crate::ai_integration) const FINISH_EXTRACT_DESCRIPTION: &str = "\
 Marks the extract the user has open as finished, so it stops coming up for review. Use \
-this when the user says they've finished with it, or asks you to mark it as finished.";
+this when the user says they've finished with it, or asks you to mark it as finished. When \
+they seem done with it, offer to mark it as finished rather than doing so unasked.";
 
 /// What the model is told about a call awaiting approval, kept current in the history it's sent.
 pub(in crate::ai_integration) fn approval_result_text(

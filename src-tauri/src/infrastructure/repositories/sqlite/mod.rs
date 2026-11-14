@@ -1,3 +1,4 @@
+pub mod escape_like;
 pub mod ids_json;
 pub mod sqlite_ai_prompt_repository;
 pub mod sqlite_ai_repository;
@@ -8,6 +9,7 @@ pub mod sqlite_bibliographical_source_repository;
 pub mod sqlite_card_repository;
 pub mod sqlite_card_review_log_repository;
 pub mod sqlite_card_review_repository;
+pub mod sqlite_content_search_repository;
 pub mod sqlite_extract_repository;
 pub mod sqlite_folder_repository;
 pub mod sqlite_image_occlusion_repository;

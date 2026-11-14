@@ -30,6 +30,8 @@ the existing tool closest to what you need and follow its shape.
   It's built from the call's saved context, which today only calls awaiting approval have.
 - **Applicability:** offer a tool only where it makes sense (e.g. only when an extract is open) via
   `is_applicable`, rather than registering it conditionally.
+  When deciding needs a lookup (e.g. `search_open_element` skips PDFs, which have no stored
+  text), do it in an async constructor awaited in `get_tools`, since `is_applicable` is sync.
 - **Go through services**, never repositories, so events, sync and UI refreshes still happen.
 - **The open element comes from the context**, not from the model's arguments, so the model can't
   act on something else.

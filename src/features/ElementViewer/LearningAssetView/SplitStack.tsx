@@ -1,7 +1,7 @@
 import { PropsWithChildren } from "react";
 import { Container } from "@mantine/core";
 import { FloatingMenuItem } from "../../../components/Editor/plugins/FloatingMenuPlugin";
-import { useLineWidthContainerProps } from "../hooks/useLineWidthContainerProps";
+import { useLineWidthContainerProps } from "../../../hooks/useLineWidthContainerProps";
 import { useReaderCore } from "./core/readerCoreContext";
 import { useSplitStackWiring } from "./core/splitStackContext";
 import { LearningAssetPlugin } from "./plugins/types";

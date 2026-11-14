@@ -131,6 +131,7 @@ const SEARCH_CLOSED: SearchState = {
 	caseSensitive: false,
 	currentIndex: -1,
 	totalMatches: 0,
+	pendingMatch: null,
 };
 
 function renderView({

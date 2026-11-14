@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useSyncExternalStore } from "react";
 
-export type FocusTarget = "tree" | "aiChat";
+export type FocusTarget = "tree" | "aiChat" | "globalSearch";
 
 // A focus shortcut's target may not be mounted yet, so its request waits here until it is.
 let pending: FocusTarget | null = null;

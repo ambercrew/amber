@@ -11,6 +11,7 @@ use crate::common::repository_error::RepositoryError;
 use crate::elements::extensions::into_element_id_ext::IntoElementIdExt;
 use crate::elements::services::priority_service::{PriorityError, PriorityInfo, PriorityService};
 use crate::elements::value_objects::element_id::ElementId;
+use crate::infrastructure::repositories::sqlite::escape_like::escape_like;
 use crate::infrastructure::repositories::sqlite::ids_json::ids_json;
 use crate::infrastructure::repositories::sqlite::sqlite_rows::search_row::SearchRow;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
@@ -548,13 +549,6 @@ fn element_type_string(node_type: &ElementNodeType) -> String {
         ElementNodeType::Extract => "extract".into(),
         ElementNodeType::Card => "card".into(),
     }
-}
-
-fn escape_like(value: &str) -> String {
-    value
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
 }
 
 #[cfg(test)]

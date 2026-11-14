@@ -28,6 +28,7 @@ async function renderSearch(mountedSeqs: Set<number>) {
 			caseSensitive: false,
 			currentIndex: -1,
 			totalMatches: 0,
+			pendingMatch: null,
 		},
 	});
 	const rendered = renderHook(

@@ -23,6 +23,8 @@ interface ReturnValue {
 	onSplitMatches: (splitId: string, count: number) => void;
 	/** Total matches across every split, mounted or not. */
 	totalMatches: number;
+	/** Whether every split has been counted, which unmounted ones aren't until their texts load. */
+	countsComplete: boolean;
 	/** Per-split match counts, in `splits` order — used for initial-result resolution. */
 	countsBySeq: Map<number, number>;
 	/** Resolves a global match index to the split (and local index within it) that owns it. */
@@ -175,6 +177,7 @@ export function useLearningAssetSearch({
 	return {
 		onSplitMatches,
 		totalMatches,
+		countsComplete: textsLoaded,
 		countsBySeq,
 		resolveMatchTarget,
 		toGlobalIndex,

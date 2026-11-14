@@ -27,11 +27,15 @@ import { SearchSortDto } from "../../../api/search/dto/searchSortDto";
 import ElementFilters from "../../../components/ElementFilters/ElementFilters";
 import SavedSearchSelector from "./SavedSearch/SavedSearchSelector";
 import SearchResultsTable from "../../../components/SearchResultsTable/SearchResultsTable";
+import { useLineWidthContainerProps } from "../../../hooks/useLineWidthContainerProps";
 import BulkActionsBar from "./BulkActions/BulkActionsBar";
 
 export default function ElementsBrowser() {
 	const location = useLocation();
 	const navigate = useNavigate();
+	// Follows the line width, but a table of six columns needs Medium's room even on Narrow.
+	const lineWidthSize = useLineWidthContainerProps().size;
+	const containerSize = lineWidthSize === "sm" ? "md" : lineWidthSize;
 	const locationState = location.state as ElementsBrowserLocationState | null;
 
 	const [filters, setFilters] = useState<ElementFilter[]>(
@@ -134,7 +138,7 @@ export default function ElementsBrowser() {
 	);
 
 	return (
-		<Container size="md" py="lg">
+		<Container size={containerSize} py="lg">
 			<Paper withBorder p="md">
 				<Stack gap="sm">
 					<PageTitle

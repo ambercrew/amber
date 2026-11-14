@@ -201,6 +201,10 @@ The sidebar renders it with `VirtualElementTree`, which adds drag and drop (`use
 
 `SearchResultsTable` (the Browser and the study query modal) can list every element, so `SearchResultRows` virtualizes it with spacer rows, keeping it a real table. `useFocusedRow` keeps its focused row mounted, as it does in `TrashList`, which virtualizes the trash like the queue. Columns need fixed widths, or they'd shift as rows mount; `Table.ScrollContainer` is `type="native"` so `useVirtualListScroll` finds the outer scroll area. Pass id lists to SQLite through `ids_json`: a bind per id fails past 32,766 ids. `search_elements` sends tag names only, and `get_priority_info_batch` reads ids only, as both run on every search.
 
+### Global Search
+
+The sidebar's Search tab (`features/Sidebar/components/GlobalSearch/`, `mod+shift+F`) finds a substring in every live element's stored plain text (`content_text`, `front_text`/`back_text`) through `search_content`. There's no index: SQL prefilters with `LIKE`/`instr` (`sqlite_content_search_repository.rs`) and `search/utils/text_matches.rs` matches exactly, overlapping and case-folded like `findMatches.ts`, so each match's `index` is the one find in page gives it. Keep the two in step: a click opens the element through `openSearchAtMatch`, and `useSyncSearchMatches` starts on that index. A newer search supersedes a running one (`LatestContentSearch`, checked between batches of texts), which then returns `null`. PDFs have no stored text and aren't searched.
+
 ### Rich Text (Lexical)
 
 The editor uses **Lexical**, built via its extension system (`@lexical/extension`'s `defineExtension`/`buildEditorFromExtensions`), not the older plugin-array API. `src/components/Editor/editorExtension.ts` exports the shared `editorNodes`, `editorExtensionDependencies`, and static `editorTheme` used by **both**:

@@ -16,6 +16,7 @@ export const GO_FORWARD_SHORTCUT = "alt+ArrowRight";
 export const NEXT_TREE_ELEMENT_SHORTCUT = "alt+ArrowDown";
 export const PREVIOUS_TREE_ELEMENT_SHORTCUT = "alt+ArrowUp";
 export const FOCUS_TREE_SHORTCUT = "mod+shift+E";
+export const SEARCH_ALL_ELEMENTS_SHORTCUT = "mod+shift+F";
 export const OPEN_FOCUSED_TREE_ELEMENT_SHORTCUT = "Enter";
 
 // Find in page

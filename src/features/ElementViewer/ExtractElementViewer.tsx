@@ -10,7 +10,7 @@ import { FloatingMenuItem } from "../../components/Editor/plugins/FloatingMenuPl
 import { HighlightCreatedPayload } from "../../components/Editor/plugins/HighlightPlugin/highlightCommands";
 import { ElementId } from "../../types/elements/elementId";
 import { useEditorFindInPage } from "./hooks/useEditorFindInPage";
-import { useLineWidthContainerProps } from "./hooks/useLineWidthContainerProps";
+import { useLineWidthContainerProps } from "../../hooks/useLineWidthContainerProps";
 
 const EXTRACT_EDITOR_KEYS = ["extract"];
 

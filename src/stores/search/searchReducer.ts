@@ -1,4 +1,11 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { ElementId } from "../../types/elements/elementId";
+
+/** A match find in page should start on, once its element's matches are counted. */
+export interface PendingSearchMatch {
+	elementId: ElementId;
+	index: number;
+}
 
 export interface SearchState {
 	opened: boolean;
@@ -6,6 +13,7 @@ export interface SearchState {
 	caseSensitive: boolean;
 	currentIndex: number;
 	totalMatches: number;
+	pendingMatch: PendingSearchMatch | null;
 }
 
 const initialState: SearchState = {
@@ -14,6 +22,7 @@ const initialState: SearchState = {
 	caseSensitive: false,
 	currentIndex: -1,
 	totalMatches: 0,
+	pendingMatch: null,
 };
 
 const searchSlice = createSlice({
@@ -28,6 +37,25 @@ const searchSlice = createSlice({
 			state.query = "";
 			state.currentIndex = -1;
 			state.totalMatches = 0;
+			state.pendingMatch = null;
+		},
+		/** Opens find in page on one match, e.g. a global search result. */
+		openSearchAtMatch: (
+			state,
+			action: PayloadAction<
+				PendingSearchMatch & { query: string; caseSensitive: boolean }
+			>,
+		) => {
+			const { query, caseSensitive, elementId, index } = action.payload;
+			state.opened = true;
+			state.query = query;
+			state.caseSensitive = caseSensitive;
+			state.currentIndex = -1;
+			state.totalMatches = 0;
+			state.pendingMatch = { elementId, index };
+		},
+		clearPendingSearchMatch: state => {
+			state.pendingMatch = null;
 		},
 		setSearchQuery: (state, action: PayloadAction<string>) => {
 			state.query = action.payload;
@@ -64,6 +92,8 @@ export default searchSlice.reducer;
 export const {
 	openSearch,
 	closeSearch,
+	openSearchAtMatch,
+	clearPendingSearchMatch,
 	setSearchQuery,
 	setSearchCaseSensitive,
 	setSearchMatchCounts,

@@ -79,6 +79,7 @@ function AiPanel() {
 		activeChatIdRef,
 		refreshChats,
 		callApi,
+		clearErrorMessage,
 		currentElementId,
 		contextSnippets,
 	});

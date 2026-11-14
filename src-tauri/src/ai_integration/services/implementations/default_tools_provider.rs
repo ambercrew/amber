@@ -13,10 +13,12 @@ use crate::ai_integration::tools::create_card::CreateCard;
 use crate::ai_integration::tools::create_cloze_card::CreateClozeCard;
 use crate::ai_integration::tools::finish_extract::FinishExtract;
 use crate::ai_integration::tools::search_documents::SearchDocuments;
+use crate::ai_integration::tools::search_open_element::SearchOpenElement;
 use crate::common::services::lexical_json_converter::LexicalJsonConverter;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::services::element_creation_service::ElementCreationService;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::search::services::content_search_service::ContentSearchService;
 use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
 
 /// What the tools need from the conversation they were given in.
@@ -34,6 +36,7 @@ pub struct DefaultToolsProvider {
     element_creation_service: Arc<dyn ElementCreationService>,
     lexical_json_converter: Arc<dyn LexicalJsonConverter>,
     learning_asset_scheduling_service: Arc<dyn LearningAssetSchedulingService>,
+    content_search_service: Arc<dyn ContentSearchService>,
 }
 
 #[async_trait]
@@ -69,7 +72,8 @@ impl ToolsProvider for DefaultToolsProvider {
             .tool(SearchDocuments::new(
                 self.ai_client_provider.clone(),
                 context.chat_id,
-            )))
+            ))
+            .tool(SearchOpenElement::new(self.content_search_service.clone(), element).await?))
     }
 }
 

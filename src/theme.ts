@@ -187,7 +187,8 @@ export const theme = createTheme({
 		Mark: Mark.extend({
 			styles: {
 				root: {
-					backgroundColor: "var(--search-match-bg)",
+					backgroundColor: "var(--search-mark-bg)",
+					color: "var(--search-mark-color)",
 				},
 			},
 		}),
@@ -282,8 +283,12 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 	light: {
 		"--selected-row-bg": SELECTED_ROW_COLORS.background.light,
 		"--selected-row-color": SELECTED_ROW_COLORS.text.light,
+		// Find in page's boxes are multiplied onto the surface: black text reads 11.7:1 on others, 4.6:1 on the current.
 		"--search-match-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-2)`,
-		"--search-match-current-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-4)`,
+		"--search-match-current-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-5)`,
+		// The sidebar's highlighted text, drawn as a plain background.
+		"--search-mark-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-2)`,
+		"--search-mark-color": "var(--mantine-color-black)",
 		"--mantine-color-body": lighten("var(--mantine-color-gray-0)", 0.8),
 		"--sidebar-bg": lighten("var(--mantine-color-gray-0)", 0.3),
 		"--editor-surface-bg": "var(--sidebar-bg)",
@@ -309,8 +314,11 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 	dark: {
 		"--selected-row-bg": SELECTED_ROW_COLORS.background.dark,
 		"--selected-row-color": SELECTED_ROW_COLORS.text.dark,
-		"--search-match-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-9)`,
-		"--search-match-current-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-6)`,
+		// Screen blending lightens text along with its box, so both are dimmed: text reads 7.3:1 on others, 4.6:1 on the current.
+		"--search-match-bg": `color-mix(in srgb, var(--mantine-color-${SEARCH_MATCH_COLOR}-9) 35%, black)`,
+		"--search-match-current-bg": `color-mix(in srgb, var(--mantine-color-${SEARCH_MATCH_COLOR}-7) 68%, black)`,
+		"--search-mark-bg": `var(--mantine-color-${SEARCH_MATCH_COLOR}-9)`,
+		"--search-mark-color": "var(--mantine-color-white)",
 		"--mantine-color-body": "#201e1b",
 		"--sidebar-bg": "#2a2723",
 		"--editor-surface-bg": "var(--sidebar-bg)",
@@ -320,9 +328,9 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--sidebar-hover-bg": "var(--mantine-color-dark-5)",
 		// One step above Spotlight's own dark-6, which sits 1.27:1 on the body.
 		"--spotlight-hover-bg": "var(--mantine-color-dark-5)",
-		// Link amber muted halfway to dimmed text: full amber on every icon button is too loud.
+		// Amber softened a fifth toward dimmed text: full amber on every icon button is loud, halfway read khaki.
 		"--subtle-primary-color":
-			"color-mix(in srgb, var(--mantine-color-anchor), var(--mantine-color-dimmed))",
+			"color-mix(in srgb, var(--mantine-color-amber-4) 80%, var(--mantine-color-dimmed))",
 
 		// Mantine's dark defaults are shade 8 of its stock red and teal, ~2:1 on our body.
 		// Shade 4 is dark mode's own tinted text.

@@ -11,8 +11,19 @@
 	}
 }
 
+/* Sits in a host's scrolled content with no height, so its boxes scroll along with the text. */
+.scrollLayer {
+	position: relative;
+	height: 0;
+	pointer-events: none;
+	mix-blend-mode: multiply;
+
+	@mixin dark {
+		mix-blend-mode: screen;
+	}
+}
+
 .box {
-	position: fixed;
 	border-radius: 2px;
 }
 

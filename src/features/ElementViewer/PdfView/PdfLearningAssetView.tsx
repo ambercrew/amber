@@ -54,7 +54,7 @@ const plugins = [
 		// The text view's match colors, in their light shades in both schemes: PDF pages stay white paper.
 		highlight: {
 			color: `var(--mantine-color-${SEARCH_MATCH_COLOR}-2)`,
-			activeColor: `var(--mantine-color-${SEARCH_MATCH_COLOR}-4)`,
+			activeColor: `var(--mantine-color-${SEARCH_MATCH_COLOR}-5)`,
 			blendMode: "multiply",
 		},
 	}),

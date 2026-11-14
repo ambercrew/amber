@@ -12,3 +12,6 @@ export const selectSearchCurrentIndex = (state: RootState) =>
 
 export const selectSearchTotalMatches = (state: RootState) =>
 	state.search.totalMatches;
+
+export const selectSearchPendingMatch = (state: RootState) =>
+	state.search.pendingMatch;

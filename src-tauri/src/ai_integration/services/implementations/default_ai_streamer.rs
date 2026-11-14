@@ -448,6 +448,10 @@ pub mod tests {
     };
 
     use super::*;
+    use crate::infrastructure::repositories::sqlite::sqlite_content_search_repository::SqliteContentSearchRepository;
+    use crate::search::repositories::content_search_repository::ContentSearchRepository;
+    use crate::search::services::content_search_service::ContentSearchService;
+    use crate::search::services::implementations::default_content_search_service::DefaultContentSearchService;
 
     struct MockLexicalJsonConverter;
 
@@ -537,6 +541,16 @@ pub mod tests {
             injector,
             dyn LearningAssetSchedulingService,
             DefaultLearningAssetSchedulingService
+        );
+        register_scope!(
+            injector,
+            dyn ContentSearchRepository,
+            SqliteContentSearchRepository
+        );
+        register_scope!(
+            injector,
+            dyn ContentSearchService,
+            DefaultContentSearchService
         );
         register_scope!(injector, dyn ToolsProvider, DefaultToolsProvider);
         register_scope!(

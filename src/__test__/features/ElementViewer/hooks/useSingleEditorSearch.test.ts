@@ -148,4 +148,30 @@ describe("useSingleEditorSearch", () => {
 
 		expect(result.current.totalMatches).toBe(1);
 	});
+	it("Should ignore counts reported for another count key when the key changes", () => {
+		// Arrange
+
+		const { result, rerender } = renderHook(
+			({ countKey }) =>
+				useSingleEditorSearch(["front", "back"], countKey),
+			{ initialProps: { countKey: "card-a" } },
+		);
+		act(() => {
+			result.current.onMatches("front", 5);
+			result.current.onMatches("back", 1);
+		});
+
+		// Act
+
+		rerender({ countKey: "card-b" });
+		act(() => {
+			result.current.onMatches("front", 2);
+		});
+
+		// Assert
+
+		expect(result.current.totalMatches).toBe(2);
+		expect(result.current.countsComplete).toBe(false);
+		expect(result.current.resolveMatchTarget(3)).toBeNull();
+	});
 });

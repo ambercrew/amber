@@ -76,6 +76,7 @@ import { useOcclusionCardContentsBridge } from "../../ImageOcclusion/hooks/useOc
 import { useImportedHtmlConversionBridge } from "../../Import/hooks/useImportedHtmlConversionBridge";
 import { useAnkiSyncBridge } from "../../AnkiSync/hooks/useAnkiSyncBridge";
 import { MainScrollContext } from "../context/mainScrollContext.ts";
+import { searchHighlightHostProps } from "../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightHost";
 import { HeadroomOverrideContext } from "../context/headroomOverrideContext.ts";
 import {
 	chromeInsets,
@@ -364,6 +365,7 @@ function App() {
 									scrollbars="y"
 									viewportRef={setMainElement}
 									viewportProps={{
+										...searchHighlightHostProps,
 										style: {
 											// Opaque, so Chromium scrolls it on the compositor; otherwise it repaints every frame (slow with many equations).
 											backgroundColor:

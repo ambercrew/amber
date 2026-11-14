@@ -108,6 +108,7 @@ use crate::image_occlusion::services::implementations::tauri_occlusion_card_cont
 use crate::image_occlusion::services::occlusion_card_content_builder::OcclusionCardContentBuilder;
 use crate::image_occlusion::services::implementations::default_image_occlusion_service::DefaultImageOcclusionService;
 use crate::infrastructure::repositories::sqlite::sqlite_statistics_repository::SqliteStatisticsRepository;
+use crate::infrastructure::repositories::sqlite::sqlite_content_search_repository::SqliteContentSearchRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_search_repository::SqliteSearchRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_study_profile_repository::SqliteStudyProfileRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_trash_repository::SqliteTrashRepository;
@@ -133,7 +134,10 @@ use crate::saved_searches::services::saved_search_service::SavedSearchService;
 use crate::statistics::repositories::statistics_repository::StatisticsRepository;
 use crate::statistics::services::implementations::default_statistics_service::DefaultStatisticsService;
 use crate::statistics::services::statistics_service::StatisticsService;
+use crate::search::repositories::content_search_repository::ContentSearchRepository;
 use crate::search::repositories::search_repository::SearchRepository;
+use crate::search::services::content_search_service::ContentSearchService;
+use crate::search::services::implementations::default_content_search_service::DefaultContentSearchService;
 use crate::search::services::implementations::default_search_service::DefaultSearchService;
 use crate::search::services::search_service::SearchService;
 use crate::study::repositories::card_review_log_repository::CardReviewLogRepository;
@@ -288,6 +292,9 @@ pub async fn create_injector<R: tauri::Runtime>(
         crate::sync::implementations::sqlite_sync_store::SqliteSyncStore
     );
     injector.register_singleton(Arc::new(crate::sync::sync_lock::SyncLock::default()));
+    injector.register_singleton(Arc::new(
+        crate::search::latest_content_search::LatestContentSearch::default(),
+    ));
     injector.register_singleton(Arc::new(
         crate::anki_sync::anki_sync_lock::AnkiSyncLock::default(),
     ));
@@ -460,6 +467,16 @@ pub async fn create_injector<R: tauri::Runtime>(
 
     register_scope!(injector, dyn SearchRepository, SqliteSearchRepository);
     register_scope!(injector, dyn SearchService, DefaultSearchService);
+    register_scope!(
+        injector,
+        dyn ContentSearchRepository,
+        SqliteContentSearchRepository
+    );
+    register_scope!(
+        injector,
+        dyn ContentSearchService,
+        DefaultContentSearchService
+    );
 
     // Statistics
 

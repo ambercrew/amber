@@ -16,7 +16,7 @@ import { selectElementRefreshCount } from "../../stores/sync/syncSelector";
 import { ElementId } from "../../types/elements/elementId";
 import { useEditorFindInPage } from "./hooks/useEditorFindInPage";
 import { useIsCardSyncedFromAnki } from "./hooks/useIsCardSyncedFromAnki";
-import { useLineWidthContainerProps } from "./hooks/useLineWidthContainerProps";
+import { useLineWidthContainerProps } from "../../hooks/useLineWidthContainerProps";
 
 interface CardElementViewerProps {
 	elementId: ElementId;

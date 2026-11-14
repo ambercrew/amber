@@ -1,5 +1,10 @@
 import { AppShell, Box, Group } from "@mantine/core";
-import { CompassIcon, QueueIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+	CompassIcon,
+	MagnifyingGlassIcon,
+	QueueIcon,
+	TrashIcon,
+} from "@phosphor-icons/react";
 import { useWindowEvent } from "@mantine/hooks";
 import CollapsibleSidebar from "../../../components/CollapsibleSidebar/CollapsibleSidebar";
 import { useSidebarTab } from "../../../components/CollapsibleSidebar/useSidebarTab";
@@ -7,6 +12,7 @@ import { useFocusRequested } from "../../../hooks/useFocusRequest";
 import { TOGGLE_LEFT_SIDEBAR_REQUESTED } from "../../../types/events/toggleLeftSidebarRequestedEvent";
 import { SHOW_LEFT_SIDEBAR_TAB_REQUESTED } from "../../../types/events/showLeftSidebarTabRequestedEvent";
 import AccountMenu from "./AccountMenu";
+import GlobalSearchPanel from "./GlobalSearch/GlobalSearchPanel";
 import NavigatorPanel from "./NavigatorPanel";
 import PriorityQueuePanel from "./PriorityQueuePanel";
 import SyncButton from "./SyncButton";
@@ -39,6 +45,10 @@ function Sidebar({ onCollapse, onExpand, onToggle }: SidebarProps) {
 		onExpand();
 		setTab("tree");
 	});
+	useFocusRequested("globalSearch", () => {
+		onExpand();
+		setTab("search");
+	});
 
 	return (
 		<>
@@ -60,6 +70,14 @@ function Sidebar({ onCollapse, onExpand, onToggle }: SidebarProps) {
 						icon: <QueueIcon size={16} />,
 						panel: <PriorityQueuePanel />,
 						padded: false,
+					},
+					{
+						value: "search",
+						title: "Search - find text in all your elements",
+						icon: <MagnifyingGlassIcon size={16} />,
+						panel: <GlobalSearchPanel />,
+						padded: false,
+						scrollable: false,
 					},
 					{
 						value: "trash",

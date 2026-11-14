@@ -1,11 +1,9 @@
 import { PropsWithChildren } from "react";
 import { renderHook } from "@testing-library/react";
 import { Provider } from "react-redux";
-import { useLineWidthContainerProps } from "../../../../features/ElementViewer/hooks/useLineWidthContainerProps";
-import SettingsDto, {
-	LineWidth,
-} from "../../../../api/settings/dto/settingsDto";
-import { setupStore } from "../../../../stores/store";
+import { useLineWidthContainerProps } from "../../hooks/useLineWidthContainerProps";
+import SettingsDto, { LineWidth } from "../../api/settings/dto/settingsDto";
+import { setupStore } from "../../stores/store";
 
 function renderWithLineWidth(lineWidth: LineWidth | null) {
 	const settings = lineWidth === null ? null : ({ lineWidth } as SettingsDto);

@@ -8,6 +8,7 @@ import LearningAssetView from "./LearningAssetView/LearningAssetView";
 import PdfLearningAssetView from "./PdfView/PdfLearningAssetView";
 import SearchHighlightOverlay from "../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightOverlay";
 import useAppSelector from "../../hooks/useAppSelector";
+import { useElementParams } from "../../hooks/useElementParams";
 import { selectCurrentElement } from "../../stores/elements/elementsSelectors";
 import { updateCard, updateExtract } from "../../api/elements/api/elementsApi";
 import { useElementViewerButtons } from "./hooks/useElementViewerButtons";
@@ -16,6 +17,7 @@ import { useHighlightCreatedHandler } from "./hooks/useHighlightCreatedHandler";
 export default function ElementViewer() {
 	const currentElement = useAppSelector(selectCurrentElement);
 	const elementId = currentElement?.data?.meta?.elementId;
+	const routeElementId = useElementParams();
 	const {
 		buttons,
 		pendingHighlightRemoval,
@@ -67,6 +69,9 @@ export default function ElementViewer() {
 		},
 		[elementId],
 	);
+
+	// Arriving from a page with no element (e.g. the browser), the route's element is still loading.
+	if (routeElementId && !currentElement) return null;
 
 	if (!currentElement || !elementId || currentElement.type === "folder") {
 		return <FolderView />;

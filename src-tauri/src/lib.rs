@@ -284,6 +284,7 @@ pub async fn run() {
             delete_saved_search,
             // Search
             search_elements,
+            search_content,
             // Import
             fetch_page,
             fetch_image,

@@ -2,8 +2,16 @@ import { PropsWithChildren } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { AppStore, RootState, setupStore } from "../../../../stores/store";
-import { useSyncSearchMatches } from "../../../../features/ElementViewer/hooks/useSyncSearchMatches";
-import { setSearchMatchCounts } from "../../../../stores/search/searchReducer";
+import { AnyElementDto } from "../../../../api/elements/dto/anyElementDto";
+import { setCurrentElement } from "../../../../stores/elements/elementsReducer";
+import {
+	openSearchAtMatch,
+	setSearchMatchCounts,
+} from "../../../../stores/search/searchReducer";
+import {
+	PENDING_MATCH_TIMEOUT_IN_MILLISECONDS,
+	useSyncSearchMatches,
+} from "../../../../features/ElementViewer/hooks/useSyncSearchMatches";
 
 interface Target {
 	key: string;
@@ -19,6 +27,7 @@ function preloadedSearchState(
 			caseSensitive: false,
 			currentIndex: -1,
 			totalMatches: 0,
+			pendingMatch: null,
 			...overrides,
 		},
 	};
@@ -31,6 +40,7 @@ function renderSync(
 		resolveMatchTarget?: (globalIndex: number) => Target | null;
 		onNavigate?: (target: Target) => void;
 		resolveInitialIndex?: () => number;
+		countsComplete?: boolean;
 	},
 ) {
 	const resolveMatchTarget =
@@ -44,18 +54,27 @@ function renderSync(
 	}
 
 	return renderHook(
-		({ totalMatches }: { totalMatches: number }) =>
+		({ totalMatches, countsComplete }: SyncRenderProps) =>
 			useSyncSearchMatches({
 				totalMatches,
 				resolveMatchTarget,
 				onNavigate,
 				resolveInitialIndex,
+				countsComplete,
 			}),
 		{
 			wrapper: Wrapper,
-			initialProps: { totalMatches: props.totalMatches },
+			initialProps: {
+				totalMatches: props.totalMatches,
+				countsComplete: props.countsComplete,
+			} as SyncRenderProps,
 		},
 	);
+}
+
+interface SyncRenderProps {
+	totalMatches: number;
+	countsComplete?: boolean;
 }
 
 describe("useSyncSearchMatches", () => {
@@ -249,5 +268,132 @@ describe("useSyncSearchMatches", () => {
 		// Assert
 
 		expect(onNavigate).toHaveBeenCalledWith({ key: "1" });
+	});
+
+	describe("with a pending match", () => {
+		const ELEMENT_ID = { type: "extract", id: "extract-1" } as const;
+
+		function storeOnElement() {
+			const store = setupStore(preloadedSearchState({ opened: false }));
+			store.dispatch(
+				setCurrentElement({
+					type: "extract",
+					data: { meta: { elementId: ELEMENT_ID } },
+				} as unknown as AnyElementDto),
+			);
+			return store;
+		}
+
+		function requestMatch(store: AppStore, elementId: typeof ELEMENT_ID) {
+			store.dispatch(
+				openSearchAtMatch({
+					query: "needle",
+					caseSensitive: false,
+					elementId,
+					index: 2,
+				}),
+			);
+		}
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it("Should start on the pending match when its element counts enough matches", () => {
+			// Arrange
+
+			const store = storeOnElement();
+			const resolveInitialIndex = vi.fn(() => 0);
+			requestMatch(store, ELEMENT_ID);
+
+			// Act
+
+			renderSync(store, { totalMatches: 4, resolveInitialIndex });
+
+			// Assert
+
+			expect(resolveInitialIndex).not.toHaveBeenCalled();
+			expect(store.getState().search.currentIndex).toBe(2);
+			expect(store.getState().search.pendingMatch).toBeNull();
+		});
+
+		it("Should wait for more matches when fewer than the pending index are counted", () => {
+			// Arrange
+
+			const store = storeOnElement();
+			requestMatch(store, ELEMENT_ID);
+			const { rerender } = renderSync(store, { totalMatches: 1 });
+
+			// Act
+
+			const waiting = store.getState().search.currentIndex;
+			rerender({ totalMatches: 3 });
+
+			// Assert
+
+			expect(waiting).toBe(-1);
+			expect(store.getState().search.currentIndex).toBe(2);
+		});
+
+		it("Should wait for complete counts when enough matches are counted early", () => {
+			// Arrange
+
+			const store = storeOnElement();
+			requestMatch(store, ELEMENT_ID);
+			const { rerender } = renderSync(store, {
+				totalMatches: 5,
+				countsComplete: false,
+			});
+
+			// Act
+
+			const waiting = store.getState().search.currentIndex;
+			rerender({ totalMatches: 8, countsComplete: true });
+
+			// Assert
+
+			expect(waiting).toBe(-1);
+			expect(store.getState().search.currentIndex).toBe(2);
+			expect(store.getState().search.pendingMatch).toBeNull();
+		});
+
+		it("Should settle on the last match when counting never reaches the pending index", () => {
+			// Arrange
+
+			vi.useFakeTimers();
+			const store = storeOnElement();
+			requestMatch(store, ELEMENT_ID);
+			renderSync(store, { totalMatches: 1 });
+
+			// Act
+
+			act(() => {
+				vi.advanceTimersByTime(PENDING_MATCH_TIMEOUT_IN_MILLISECONDS);
+			});
+
+			// Assert
+
+			expect(store.getState().search.currentIndex).toBe(0);
+			expect(store.getState().search.pendingMatch).toBeNull();
+		});
+
+		it("Should ignore the pending match when it belongs to another element", () => {
+			// Arrange
+
+			const store = storeOnElement();
+			requestMatch(store, { type: "extract", id: "other" } as never);
+
+			// Act
+
+			renderSync(store, {
+				totalMatches: 4,
+				resolveInitialIndex: () => 1,
+			});
+
+			// Assert
+
+			expect(store.getState().search.currentIndex).toBe(1);
+			expect(store.getState().search.pendingMatch).not.toBeNull();
+		});
 	});
 });

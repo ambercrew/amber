@@ -1,5 +1,6 @@
 import {
 	ActionIcon,
+	Box,
 	Group,
 	Highlight,
 	Menu,
@@ -7,6 +8,7 @@ import {
 } from "@mantine/core";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react";
 import { useState } from "react";
+import CountBadge from "../../../../components/CountBadge/CountBadge";
 import ElementNodeIcon from "../../../../components/ElementNodeIcon/ElementNodeIcon";
 import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
 import { ElementNodeProps } from "../../utils/elementTreeUtils";
@@ -49,13 +51,22 @@ function ElementTreeNode({
 	const { type, childrenCount } = node.nodeProps as ElementNodeProps;
 	const id = node.value;
 	const label = typeof node.label === "string" ? node.label : node.value;
-	const labelWithCount = `${label} (${childrenCount})`;
 	const [isHovered, setIsHovered] = useState(false);
 	const coarsePointer = useIsCoarsePointer();
 	// Only controls the menu with three dots.
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 
 	const { onClick: toggleExpanded, ...restElementProps } = elementProps;
+	// There is no hover with a coarse (touch) pointer, so the menu has to stay visible.
+	const showMenuButton =
+		coarsePointer || isHovered || isMenuOpen || isContextMenuOpen;
+	const countBadge = childrenCount > 0 && (
+		<CountBadge
+			count={childrenCount}
+			aria-hidden
+			style={{ pointerEvents: "none" }}
+		/>
+	);
 
 	function handleCaretClick(e: React.MouseEvent) {
 		e.stopPropagation();
@@ -66,6 +77,7 @@ function ElementTreeNode({
 		<Group
 			gap={6}
 			py={2}
+			pr={4}
 			{...restElementProps}
 			draggable
 			onClick={onSelect}
@@ -101,53 +113,73 @@ function ElementTreeNode({
 					onClose={onRenameClose}
 				/>
 			) : (
-				<AppTooltip label={labelWithCount}>
+				<AppTooltip label={label}>
 					<Highlight
 						highlight={search}
 						flex={1}
 						truncate="end"
 						aria-label={label}>
-						{labelWithCount}
+						{label}
 					</Highlight>
 				</AppTooltip>
 			)}
-			<Menu
-				withinPortal
-				position="bottom-start"
-				onOpen={() => setIsMenuOpen(true)}
-				onClose={() => setIsMenuOpen(false)}
-				shadow="lg">
-				<Menu.Target>
-					<ActionIcon
-						variant="subtle"
-						aria-label="Open actions menu"
+			{coarsePointer && countBadge}
+			{/* The badge and the menu button share one cell, so hovering swaps them without moving anything. */}
+			<Box
+				display="grid"
+				style={{
+					flexShrink: 0,
+					justifyItems: "end",
+					alignItems: "center",
+				}}>
+				{!coarsePointer && (
+					<Box
+						display="flex"
 						style={{
-							// There is no hover with a coarse (touch)
-							// pointer, so the menu has to stay visible.
-							visibility:
-								coarsePointer ||
-								isHovered ||
-								isMenuOpen ||
-								isContextMenuOpen
-									? "visible"
-									: "hidden",
-						}}
-						onClick={e => e.stopPropagation()}>
-						<DotsThreeVerticalIcon size={ICON_SIZE} weight="bold" />
-					</ActionIcon>
-				</Menu.Target>
-				{/* React events bubble out of the portal into the row, so
+							gridArea: "1 / 1",
+							visibility: showMenuButton ? "hidden" : "visible",
+						}}>
+						{countBadge}
+					</Box>
+				)}
+				{/* Flex, not block: a block wrapper adds line-box space below the button, so it sat high. */}
+				<Box display="flex" style={{ gridArea: "1 / 1" }}>
+					<Menu
+						withinPortal
+						position="bottom-start"
+						onOpen={() => setIsMenuOpen(true)}
+						onClose={() => setIsMenuOpen(false)}
+						shadow="lg">
+						<Menu.Target>
+							<ActionIcon
+								variant="subtle"
+								aria-label="Open actions menu"
+								style={{
+									visibility: showMenuButton
+										? "visible"
+										: "hidden",
+								}}
+								onClick={e => e.stopPropagation()}>
+								<DotsThreeVerticalIcon
+									size={ICON_SIZE}
+									weight="bold"
+								/>
+							</ActionIcon>
+						</Menu.Target>
+						{/* React events bubble out of the portal into the row, so
 					    without this every menu click would also select the
 					    element — and selecting closes the sidebar on mobile. */}
-				<Menu.Dropdown onClick={e => e.stopPropagation()}>
-					<ElementTreeMenuItems
-						elementId={{ type, id }}
-						onRenameClick={onRenameClick}
-						onTrashClick={onTrashClick}
-						onAfterCreate={onAfterCreate}
-					/>
-				</Menu.Dropdown>
-			</Menu>
+						<Menu.Dropdown onClick={e => e.stopPropagation()}>
+							<ElementTreeMenuItems
+								elementId={{ type, id }}
+								onRenameClick={onRenameClick}
+								onTrashClick={onTrashClick}
+								onAfterCreate={onAfterCreate}
+							/>
+						</Menu.Dropdown>
+					</Menu>
+				</Box>
+			</Box>
 		</Group>
 	);
 }
