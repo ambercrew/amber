@@ -1,4 +1,4 @@
-import { FileFormat, hasExtension } from "./fileFormat";
+import { FileFormat, hasExtension, matchesFile } from "./fileFormat";
 import { pdfFormat } from "./pdf/format";
 import { epubFormat } from "./epub/format";
 import { markdownFormat } from "./markdown/format";
@@ -29,6 +29,11 @@ export function detectFileFormat(
 		FILE_FORMATS.find(format => format.mimeTypes.includes(file.type)) ??
 		null
 	);
+}
+
+/** Matches by name or reported type only, for labelling a file before its bytes are read. */
+export function detectFileFormatByName(file: File): FileFormat | null {
+	return FILE_FORMATS.find(format => matchesFile(format, file)) ?? null;
 }
 
 // MIME types where the OS knows them: Linux pickers list bare extensions as unlabeled filters like "*.pdf ()".

@@ -197,6 +197,9 @@ impl ElementCreationService for DefaultElementCreationService {
         self.ensure_learning_asset_review(element_id, profile)
             .await?;
         self.copy_parent_tags(parent, element_id).await?;
+        if !dto.tags.is_empty() {
+            self.meta_repository.add_tags(element_id, dto.tags).await?;
+        }
         self.emit_element_created(parent, element).await;
         Ok(())
     }
@@ -702,6 +705,7 @@ mod tests {
             pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_position: None,
+            tags: Vec::new(),
         };
         let element_id = ElementId::LearningAsset(dto.id);
 
@@ -737,6 +741,7 @@ mod tests {
             pdf_page_count: Some(0),
             splits: Vec::new(),
             initial_priority_position: None,
+            tags: Vec::new(),
         };
 
         // Act
@@ -771,6 +776,7 @@ mod tests {
             pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_position: None,
+            tags: Vec::new(),
         };
         service.create_learning_asset(existing_dto).await.unwrap();
 
@@ -782,6 +788,7 @@ mod tests {
             pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_position: Some(2),
+            tags: Vec::new(),
         };
         let element_id = ElementId::LearningAsset(dto.id);
 
@@ -963,6 +970,7 @@ mod tests {
             pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_position: None,
+            tags: Vec::new(),
         };
         let learning_asset_id = dto.id;
 
@@ -1149,6 +1157,44 @@ mod tests {
             pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_position: None,
+            tags: Vec::new(),
+        };
+        let element_id = ElementId::LearningAsset(dto.id);
+
+        // Act
+
+        service.create_learning_asset(dto).await.unwrap();
+
+        // Assert
+
+        let tags = scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .get_tags(element_id)
+            .await
+            .unwrap();
+        let tag_names: Vec<String> = tags.into_iter().map(|tag| tag.name).collect();
+        assert_eq!(vec!["a".to_string(), "b".to_string()], tag_names);
+    }
+
+    #[tokio::test]
+    async fn create_learning_asset_with_tags_adds_them_after_parent_tags() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        create_test_profile(&scope, 1.0).await;
+        let parent_id = create_tagged_parent_folder(&scope, vec!["a".into()]).await;
+        let service = create_service(&scope).await;
+        let dto = CreateLearningAssetDto {
+            id: Uuid::new_v4(),
+            meta: dto_meta(Some(parent_id)),
+            r#type: LearningAssetType::Extracted,
+            pdf_bytes_base64: None,
+            pdf_page_count: None,
+            splits: Vec::new(),
+            initial_priority_position: None,
+            tags: vec!["a".into(), "b".into()],
         };
         let element_id = ElementId::LearningAsset(dto.id);
 

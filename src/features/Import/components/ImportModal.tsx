@@ -1,74 +1,72 @@
-import { ClipboardEvent, SyntheticEvent, useRef, useState } from "react";
+import {
+	ClipboardEvent,
+	KeyboardEvent,
+	SyntheticEvent,
+	useRef,
+	useState,
+} from "react";
 import { useNavigate } from "react-router";
 import {
-	ActionIcon,
-	Anchor,
 	Button,
 	Group,
 	Loader,
 	Progress,
 	Stack,
+	TagsInput,
 	Text,
 } from "@mantine/core";
 import { Dropzone } from "@mantine/dropzone";
-import { addPendingFiles, fileKey } from "../pendingFiles";
-import { ArrowsInSimpleIcon, FileIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowsInSimpleIcon } from "@phosphor-icons/react";
 import AppModal from "../../../components/AppModal/AppModal";
 import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
+import ElementSelect from "../../../components/ElementSelect/ElementSelect";
 import useAppSelector from "../../../hooks/useAppSelector";
 import useAppDispatch from "../../../hooks/useAppDispatch";
-import errorToString from "../../../utils/errorToString";
 import { selectIsImportModalOpened } from "../../../stores/app/appSelectors";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
 import { closeImportModal } from "../../../stores/app/appReducer";
+import { ElementId } from "../../../types/elements/elementId";
+import { ElementNodeType } from "../../../types/elements/elementNodeType";
 import { asUrl, classifyPaste } from "../classify";
-import { PastedContent, runContentImport } from "../flows/content";
-import { importRawPage, runUrlImport, UrlImportError } from "../flows/url";
-import { FileImportError, runFileImport } from "../flows/file";
-import { isPdfFile } from "../pdf/format";
-import {
-	FILE_FORMATS_ACCEPT,
-	SUPPORTED_FORMATS_ALL,
-	SUPPORTED_FORMATS_ANY,
-} from "../fileFormats";
+import { FILE_FORMATS_ACCEPT, SUPPORTED_FORMATS_ALL } from "../fileFormats";
 import { PdfProgress } from "../pdf/extract";
 import { ImportContext } from "../importContext";
+import { openImportedElement } from "../openImportedElement";
+import {
+	addContent,
+	addFiles,
+	addUrl,
+	ImportItem,
+	ImportItemError,
+	runImportItem,
+} from "../importItems";
 import ImportPrioritySection from "./ImportPrioritySection";
-import ImportPdfExtractionSection from "./ImportPdfExtractionSection";
+import ImportItemList from "./ImportItemList";
+import ImportFilePicker from "./ImportFilePicker";
+import ImportField from "./ImportField";
 import { useImportPriority } from "../hooks/useImportPriority";
 
+// Dropzone turns off pointer events on its contents, so the form turns them back on.
 const CLICKABLE_STYLE = { pointerEvents: "all" as const };
+
+const PARENT_TYPES: ElementNodeType[] = ["folder", "learningAsset", "extract"];
 
 type Phase =
 	| { kind: "idle" }
-	| { kind: "importing"; label: string; progress?: PdfProgress }
-	| { kind: "error"; message: string; rawHtml?: string; sourceUrl?: string };
+	| {
+			kind: "importing";
+			label: string;
+			progress?: PdfProgress;
+	  }
+	/** `key` is the item that failed; an error typing a link has none. */
+	| { kind: "error"; key: string | null; error: ImportItemError };
 
-function describeError(error: UrlImportError | FileImportError): {
-	message: string;
-	rawHtml?: string;
-	sourceUrl?: string;
-} {
-	switch (error.kind) {
-		case "fetch-failed":
-			return { message: error.message };
-		case "no-article":
-			return {
-				message: "Couldn't extract an article from this page.",
-				rawHtml: error.rawHtml,
-				sourceUrl: error.sourceUrl,
-			};
-		case "unsupported-file":
-			return {
-				message: `Only ${SUPPORTED_FORMATS_ALL} files are supported.`,
-			};
-		case "no-text-layer":
-			return { message: "This PDF has no selectable text." };
-		case "no-content":
-			return { message: "This file has no readable content." };
-		case "extraction-failed":
-			return { message: error.message };
-	}
+function defaultParent(current: ElementId | null): ElementId | null {
+	return current && PARENT_TYPES.includes(current.type) ? current : null;
+}
+
+function itemsLabel(count: number): string {
+	return count === 1 ? "1 item" : `${count} items`;
 }
 
 function ImportModal() {
@@ -78,29 +76,24 @@ function ImportModal() {
 	const navigate = useNavigate();
 
 	const [value, setValue] = useState("");
-	const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
-	const [extractPdfContent, setExtractPdfContent] = useState(false);
+	const [items, setItems] = useState<ImportItem[]>([]);
+	const [tags, setTags] = useState<string[]>([]);
+	// `undefined` until the user picks, so it follows the open element.
+	const [pickedParent, setPickedParent] = useState<ElementId | null>();
 	const [phase, setPhase] = useState<Phase>({ kind: "idle" });
-	const parent = currentElement?.data.meta.elementId ?? null;
+	const parent =
+		pickedParent === undefined
+			? defaultParent(currentElement?.data.meta.elementId ?? null)
+			: pickedParent;
 	const priority = useImportPriority(opened, parent);
 	const openRef = useRef<() => void>(null);
 	const cancelledRef = useRef(false);
 
-	const isPdf = pendingFiles?.some(isPdfFile) ?? false;
-
-	async function context(): Promise<ImportContext> {
-		return {
-			dispatch,
-			navigate,
-			parent,
-			priorityPosition: await priority.resolvePosition(),
-		};
-	}
-
 	function reset() {
 		setValue("");
-		setPendingFiles(null);
-		setExtractPdfContent(false);
+		setItems([]);
+		setTags([]);
+		setPickedParent(undefined);
 		setPhase({ kind: "idle" });
 		priority.reset();
 	}
@@ -111,120 +104,164 @@ function ImportModal() {
 		dispatch(closeImportModal());
 	}
 
-	function handleSuccess() {
+	function updateItems(update: (items: ImportItem[]) => ImportItem[]) {
+		setItems(update);
+		setPhase({ kind: "idle" });
+	}
+
+	/** Stages the typed link; resolves to the staged items, or `null` if the text isn't a link. */
+	function stageTypedLink(): ImportItem[] | null {
+		const trimmed = value.trim();
+		if (!trimmed) return items;
+
+		const url = asUrl(trimmed);
+		if (url === null) {
+			setPhase({
+				kind: "error",
+				key: null,
+				error: { message: "Enter a link." },
+			});
+			return null;
+		}
+
+		const staged = addUrl(items, url);
+		setItems(staged);
+		setValue("");
+		return staged;
+	}
+
+	async function importAll(toImport: ImportItem[]) {
+		if (toImport.length === 0) return;
+		cancelledRef.current = false;
+		// Pinned, so opening an imported element doesn't move a retry's parent.
+		setPickedParent(parent);
+
+		const ctx: ImportContext = {
+			dispatch,
+			parent,
+			priorityPosition: await priority.resolvePosition(),
+			tags,
+		};
+		// Each element takes the next position, keeping the batch in order.
+		let placed = 0;
+		let lastCreated: ElementId | null = null;
+
+		for (const [index, item] of toImport.entries()) {
+			const label =
+				toImport.length > 1
+					? `Importing ${index + 1} of ${toImport.length}…`
+					: "Importing…";
+			setPhase({ kind: "importing", label });
+
+			const result = await runImportItem(
+				item,
+				{ ...ctx, priorityPosition: ctx.priorityPosition + placed },
+				progress => {
+					if (cancelledRef.current) return;
+					setPhase({ kind: "importing", label, progress });
+				},
+			);
+			if (result.ok && result.created) {
+				lastCreated = result.created;
+				placed++;
+			}
+			if (cancelledRef.current) return;
+
+			if (!result.ok) {
+				// Keep only what's left, so a retry doesn't import anything twice.
+				setItems(toImport.slice(index));
+				setPhase({ kind: "error", key: item.key, error: result.error });
+				if (placed > 0) priority.advance(ctx.priorityPosition, placed);
+				if (lastCreated)
+					await openImportedElement(navigate, lastCreated);
+				return;
+			}
+		}
+
+		if (lastCreated) await openImportedElement(navigate, lastCreated);
 		reset();
 		dispatch(closeImportModal());
 	}
 
-	async function startUrlImport(url: string) {
-		cancelledRef.current = false;
-		setPhase({ kind: "importing", label: "Fetching…" });
-
-		const error = await runUrlImport(url, await context());
-		if (cancelledRef.current) return;
-
-		if (error) {
-			setPhase({ kind: "error", ...describeError(error) });
-			return;
-		}
-
-		handleSuccess();
-	}
-
-	async function startContentImport(input: PastedContent) {
-		cancelledRef.current = false;
-		setPhase({ kind: "importing", label: "Importing…" });
-
-		try {
-			await runContentImport(input, await context());
-			if (cancelledRef.current) return;
-			handleSuccess();
-		} catch (err) {
-			if (cancelledRef.current) return;
-			setPhase({ kind: "error", message: errorToString(err) });
-		}
-	}
-
-	async function startFileImport(files: File[]) {
-		cancelledRef.current = false;
-		const willExtract = !isPdf || extractPdfContent;
-		setPhase({
-			kind: "importing",
-			label: willExtract ? "Extracting…" : "Importing…",
-		});
-
-		const error = await runFileImport(
-			files,
-			await context(),
-			extractPdfContent,
-			progress => {
-				if (cancelledRef.current) return;
-				setPhase({ kind: "importing", label: "Extracting…", progress });
-			},
-		);
-		if (cancelledRef.current) return;
-
-		if (error) {
-			setPhase({ kind: "error", ...describeError(error) });
-			return;
-		}
-
-		handleSuccess();
-	}
-
-	async function startRawImport(rawHtml: string, sourceUrl: string) {
-		cancelledRef.current = false;
-		setPhase({ kind: "importing", label: "Importing…" });
-
-		try {
-			await importRawPage(rawHtml, sourceUrl, await context());
-			if (cancelledRef.current) return;
-			handleSuccess();
-		} catch (err) {
-			if (cancelledRef.current) return;
-			setPhase({ kind: "error", message: errorToString(err) });
-		}
-	}
-
 	function handleSubmit(e: SyntheticEvent<HTMLFormElement>) {
 		e.preventDefault();
+		const staged = stageTypedLink();
+		if (staged) void importAll(staged);
+	}
 
-		if (pendingFiles) {
-			void startFileImport(pendingFiles);
-			return;
-		}
+	function handleImportRawPage(key: string) {
+		if (phase.kind !== "error" || !phase.error.rawPage) return;
+		const { rawHtml, sourceUrl } = phase.error.rawPage;
+		void importAll(
+			items.map(item =>
+				item.key === key
+					? { kind: "raw", key, rawHtml, sourceUrl }
+					: item,
+			),
+		);
+	}
 
-		const trimmed = value.trim();
-		if (!trimmed) return;
-
-		const url = asUrl(trimmed);
-		if (url === null) {
-			setPhase({ kind: "error", message: "Enter a link." });
-			return;
-		}
-
-		void startUrlImport(url);
+	function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+		if (e.key !== "Enter") return;
+		// Enter stages a typed link, and imports once there's nothing left to stage.
+		if (value.trim()) stageTypedLink();
+		else e.currentTarget.form?.requestSubmit();
 	}
 
 	function handlePaste(e: ClipboardEvent<HTMLTextAreaElement>) {
 		const input = classifyPaste(e.clipboardData);
 		switch (input.kind) {
-			case "url":
 			case "ambiguous":
 				return;
 			case "file":
+				// Staged here, so the Dropzone around the form doesn't stage them again.
 				e.preventDefault();
-				setPendingFiles(pending =>
-					addPendingFiles(pending, input.files),
-				);
+				e.stopPropagation();
+				updateItems(staged => addFiles(staged, input.files));
+				return;
+			case "url":
+				e.preventDefault();
+				updateItems(staged => addUrl(staged, input.url));
 				return;
 			case "content":
 				e.preventDefault();
-				void startContentImport(input);
+				updateItems(staged =>
+					addContent(staged, input.html, input.text),
+				);
 		}
 	}
 
 	const isImporting = phase.kind === "importing";
+	const inputError =
+		phase.kind === "error" && phase.key === null
+			? phase.error.message
+			: null;
+	const itemError =
+		phase.kind === "error" && phase.key !== null
+			? { key: phase.key, ...phase.error }
+			: null;
+	const count = items.length + (value.trim() ? 1 : 0);
+
+	const input = (
+		<AutosizeTextInput
+			placeholder={
+				items.length > 0
+					? "Paste another link or content"
+					: "Paste a link or content"
+			}
+			aria-label="Link or content"
+			variant={items.length > 0 ? "unstyled" : "default"}
+			data-autofocus
+			value={value}
+			error={inputError}
+			onKeyDown={handleKeyDown}
+			onPaste={handlePaste}
+			onChange={e => {
+				setValue(e.currentTarget.value);
+				if (inputError) setPhase({ kind: "idle" });
+			}}
+		/>
+	);
 
 	return (
 		<AppModal
@@ -240,13 +277,14 @@ function ImportModal() {
 				activateOnClick={false}
 				disabled={isImporting}
 				openRef={openRef}
-				onDrop={files =>
-					setPendingFiles(pending => addPendingFiles(pending, files))
-				}
+				onDrop={files => updateItems(staged => addFiles(staged, files))}
 				onReject={() =>
 					setPhase({
 						kind: "error",
-						message: `Only ${SUPPORTED_FORMATS_ALL} files are supported.`,
+						key: null,
+						error: {
+							message: `Only ${SUPPORTED_FORMATS_ALL} files are supported.`,
+						},
 					})
 				}
 				p={0}
@@ -272,138 +310,85 @@ function ImportModal() {
 						)}
 					</Stack>
 				) : (
-					<form onSubmit={handleSubmit}>
-						<Stack gap="xs">
-							{pendingFiles ? (
-								<Stack gap={4}>
-									{pendingFiles.map((file, index) => (
-										<Group
-											key={fileKey(file)}
-											justify="space-between"
-											wrap="nowrap"
-											px="sm"
-											py="xs"
-											gap="xs"
-											bd="1px solid var(--mantine-color-default-border)"
-											style={{
-												...CLICKABLE_STYLE,
-												borderRadius:
-													"var(--mantine-radius-sm)",
-											}}>
-											<Group
-												gap="xs"
-												wrap="nowrap"
-												miw={0}>
-												<FileIcon size={16} />
-												<Text size="sm" truncate>
-													{file.name}
-												</Text>
-											</Group>
-											<ActionIcon
-												variant="subtle"
-												color="gray"
-												size="sm"
-												aria-label={`Remove ${file.name}`}
-												onClick={() =>
-													setPendingFiles(
-														pendingFiles &&
-															pendingFiles.length >
-																1
-															? pendingFiles.filter(
-																	(_, i) =>
-																		i !==
-																		index,
-																)
-															: null,
-													)
-												}>
-												<XIcon size={14} />
-											</ActionIcon>
-										</Group>
-									))}
-								</Stack>
+					<form onSubmit={handleSubmit} style={CLICKABLE_STYLE}>
+						<Stack gap="md">
+							{items.length > 0 ? (
+								<ImportItemList
+									items={items}
+									error={itemError}
+									onRemove={key =>
+										updateItems(staged =>
+											staged.filter(
+												item => item.key !== key,
+											),
+										)
+									}
+									onExtractPdfChange={(key, extractPdf) =>
+										updateItems(staged =>
+											staged.map(item =>
+												item.key === key &&
+												item.kind === "file"
+													? { ...item, extractPdf }
+													: item,
+											),
+										)
+									}
+									onImportRawPage={handleImportRawPage}
+									onBrowse={() => openRef.current?.()}
+									addInput={input}
+								/>
 							) : (
-								<AutosizeTextInput
-									placeholder="Paste a link or content"
-									data-autofocus
-									value={value}
-									onKeyDown={e => {
-										// The field is a textarea, so Enter does
-										// not submit implicitly.
-										if (e.key === "Enter")
-											e.currentTarget.form?.requestSubmit();
-									}}
-									error={
-										phase.kind === "error"
-											? phase.message
-											: null
-									}
-									style={CLICKABLE_STYLE}
-									onPaste={handlePaste}
-									onChange={e => {
-										setValue(e.currentTarget.value);
-										setPhase({ kind: "idle" });
-									}}
-								/>
+								<Stack gap="xs">
+									{input}
+									<ImportFilePicker
+										onBrowse={() => openRef.current?.()}
+									/>
+								</Stack>
 							)}
-							{pendingFiles && phase.kind === "error" && (
+							{items.length > 0 && inputError && (
 								<Text size="sm" c="red">
-									{phase.message}
+									{inputError}
 								</Text>
 							)}
-							{phase.kind === "error" &&
-								phase.rawHtml &&
-								phase.sourceUrl && (
-									<Anchor
-										size="sm"
-										component="button"
-										type="button"
-										style={CLICKABLE_STYLE}
-										onClick={() =>
-											void startRawImport(
-												phase.rawHtml!,
-												phase.sourceUrl!,
-											)
-										}>
-										Import raw page
-									</Anchor>
-								)}
-							{!pendingFiles && (
-								<Text size="sm" c="dimmed">
-									or drop a {SUPPORTED_FORMATS_ANY} file
-									anywhere here —{" "}
-									<Anchor
-										size="sm"
-										component="button"
-										type="button"
-										style={CLICKABLE_STYLE}
-										onClick={() => openRef.current?.()}>
-										browse
-									</Anchor>
-								</Text>
-							)}
-							<div style={CLICKABLE_STYLE}>
-								<ImportPdfExtractionSection
-									isPdf={isPdf}
-									extract={extractPdfContent}
-									onExtractChange={setExtractPdfContent}
+							<ImportField label="Import into">
+								<ElementSelect
+									value={parent}
+									onChange={setPickedParent}
+									types={PARENT_TYPES}
+									placeholder="Top level"
+									clearable
 								/>
-							</div>
-							<div style={CLICKABLE_STYLE}>
-								<ImportPrioritySection
-									total={priority.total}
-									position={priority.position}
-									onPositionChange={
-										priority.handlePositionChange
+							</ImportField>
+							<ImportField
+								label="Tags"
+								description={
+									count > 1 && tags.length > 0
+										? `Applied to all ${itemsLabel(count)}`
+										: undefined
+								}>
+								<TagsInput
+									placeholder={
+										tags.length > 0 ? undefined : "Add tag"
 									}
+									aria-label="Tags"
+									value={tags}
+									onChange={setTags}
 								/>
-							</div>
-							<Group justify="flex-end">
-								<Button
-									type="submit"
-									disabled={!pendingFiles && !value.trim()}
-									style={CLICKABLE_STYLE}>
-									Import
+							</ImportField>
+							<ImportPrioritySection
+								total={priority.total}
+								position={priority.position}
+								count={count}
+								onPositionChange={priority.handlePositionChange}
+							/>
+							<Group justify="flex-end" gap="sm">
+								<Button variant="default" onClick={handleClose}>
+									Cancel
+								</Button>
+								<Button type="submit" disabled={count === 0}>
+									{count > 1
+										? `Import ${itemsLabel(count)}`
+										: "Import"}
 								</Button>
 							</Group>
 						</Stack>

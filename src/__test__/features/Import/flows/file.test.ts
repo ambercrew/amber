@@ -15,7 +15,6 @@ import { createBibliographicalSource } from "../../../../api/bibliographicalSour
 import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
 import { ImportContext } from "../../../../features/Import/importContext";
 import { AppDispatch, RootState } from "../../../../stores/store";
-import { requestTreeReveal } from "../../../../hooks/useTreeRevealRequest";
 
 type Thunk = (dispatch: AppDispatch, getState: () => RootState) => unknown;
 
@@ -25,7 +24,6 @@ vi.mock(import("../../../../features/Import/markdown/extract"));
 vi.mock(import("../../../../features/Import/html/extract"));
 vi.mock(import("../../../../features/Import/text/extract"));
 vi.mock(import("../../../../features/Import/normalize"));
-vi.mock(import("../../../../hooks/useTreeRevealRequest"));
 vi.mock(import("../../../../features/Import/anki/importAnki"));
 vi.mock(import("../../../../features/Import/createImportedLearningAsset"));
 vi.mock(import("../../../../features/Import/createImportedPdfLearningAsset"));
@@ -58,7 +56,6 @@ function makeCtx(): ImportContext {
 	) as unknown as AppDispatch;
 	return {
 		dispatch,
-		navigate: vi.fn() as unknown as ImportContext["navigate"],
 		parent: null,
 		priorityPosition: 5,
 	};
@@ -102,11 +99,14 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([unsupportedFile()], ctx, true);
+		const actual = await runFileImport(unsupportedFile(), ctx, true);
 
 		// Assert
 
-		expect(actual).toEqual({ kind: "unsupported-file" });
+		expect(actual).toEqual({
+			ok: false,
+			error: { kind: "unsupported-file" },
+		});
 		expect(extractPdf).not.toHaveBeenCalled();
 	});
 
@@ -120,11 +120,11 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([pdfFile("report.pdf")], ctx, false);
+		const actual = await runFileImport(pdfFile("report.pdf"), ctx, false);
 
 		// Assert
 
-		expect(actual).toBeNull();
+		expect(actual.ok).toBe(true);
 		expect(extractPdf).not.toHaveBeenCalled();
 		expect(createImportedPdfLearningAsset).toHaveBeenCalledWith(
 			ctx,
@@ -146,11 +146,11 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([file], ctx, false);
+		const actual = await runFileImport(file, ctx, false);
 
 		// Assert
 
-		expect(actual).toBeNull();
+		expect(actual.ok).toBe(true);
 		expect(createImportedPdfLearningAsset).toHaveBeenCalled();
 	});
 
@@ -171,11 +171,11 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([pdfFile()], ctx, true);
+		const actual = await runFileImport(pdfFile(), ctx, true);
 
 		// Assert
 
-		expect(actual).toBeNull();
+		expect(actual.ok).toBe(true);
 		expect(normalize).toHaveBeenCalledWith("<p>pdf content</p>", {
 			baseUrl: null,
 		});
@@ -210,7 +210,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		await runFileImport([pdfFile("report.pdf")], ctx, true);
+		await runFileImport(pdfFile("report.pdf"), ctx, true);
 
 		// Assert
 
@@ -238,7 +238,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		await runFileImport([pdfFile("myfile.pdf")], ctx, true);
+		await runFileImport(pdfFile("myfile.pdf"), ctx, true);
 
 		// Assert
 
@@ -259,11 +259,11 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([pdfFile()], ctx, true);
+		const actual = await runFileImport(pdfFile(), ctx, true);
 
 		// Assert
 
-		expect(actual).toEqual({ kind: "no-text-layer" });
+		expect(actual).toEqual({ ok: false, error: { kind: "no-text-layer" } });
 	});
 
 	it("Should return extraction-failed with the error message when extraction rejects with any other error", async () => {
@@ -274,13 +274,16 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([pdfFile()], ctx, true);
+		const actual = await runFileImport(pdfFile(), ctx, true);
 
 		// Assert
 
 		expect(actual).toEqual({
-			kind: "extraction-failed",
-			message: "corrupt file",
+			ok: false,
+			error: {
+				kind: "extraction-failed",
+				message: "corrupt file",
+			},
 		});
 	});
 
@@ -304,7 +307,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		await runFileImport([pdfFile()], ctx, true, onProgress);
+		await runFileImport(pdfFile(), ctx, true, onProgress);
 
 		// Assert
 
@@ -328,11 +331,11 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([epubFile()], ctx, true);
+		const actual = await runFileImport(epubFile(), ctx, true);
 
 		// Assert
 
-		expect(actual).toBeNull();
+		expect(actual.ok).toBe(true);
 		expect(extractPdf).not.toHaveBeenCalled();
 		expect(normalize).toHaveBeenCalledWith("<p>epub content</p>", {
 			baseUrl: null,
@@ -345,7 +348,7 @@ describe("runFileImport", () => {
 		);
 	});
 
-	it("Should import the decks and open the returned folder when given an Anki package", async () => {
+	it("Should import the decks and resolve to the returned folder when given an Anki package", async () => {
 		// Arrange
 
 		vi.mocked(createBibliographicalSource).mockResolvedValue(
@@ -359,18 +362,21 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([ankiFile()], ctx, true);
+		const actual = await runFileImport(ankiFile(), ctx, true);
 
 		// Assert
 
-		expect(actual).toBeNull();
+		expect(actual.ok).toBe(true);
 		expect(importAnki).toHaveBeenCalledWith(
 			expect.any(ArrayBuffer),
 			ctx,
 			"source-1",
 		);
 		expect(createImportedLearningAsset).not.toHaveBeenCalled();
-		expect(ctx.navigate).toHaveBeenCalledWith("/folder/deck-id");
+		expect(actual).toEqual({
+			ok: true,
+			created: { type: "folder", id: "deck-id" },
+		});
 	});
 
 	it("Should return no-content when an Anki package has no cards", async () => {
@@ -382,12 +388,11 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([ankiFile()], ctx, true);
+		const actual = await runFileImport(ankiFile(), ctx, true);
 
 		// Assert
 
-		expect(actual).toEqual({ kind: "no-content" });
-		expect(ctx.navigate).not.toHaveBeenCalled();
+		expect(actual).toEqual({ ok: false, error: { kind: "no-content" } });
 	});
 
 	it("Should return no-content when epub extraction rejects with that specific error", async () => {
@@ -399,11 +404,11 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([epubFile()], ctx, true);
+		const actual = await runFileImport(epubFile(), ctx, true);
 
 		// Assert
 
-		expect(actual).toEqual({ kind: "no-content" });
+		expect(actual).toEqual({ ok: false, error: { kind: "no-content" } });
 	});
 
 	it("Should return extraction-failed with the error message when epub extraction rejects with any other error", async () => {
@@ -414,13 +419,16 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([epubFile()], ctx, true);
+		const actual = await runFileImport(epubFile(), ctx, true);
 
 		// Assert
 
 		expect(actual).toEqual({
-			kind: "extraction-failed",
-			message: "corrupt epub",
+			ok: false,
+			error: {
+				kind: "extraction-failed",
+				message: "corrupt epub",
+			},
 		});
 	});
 
@@ -440,11 +448,11 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([markdownFile()], ctx, true);
+		const actual = await runFileImport(markdownFile(), ctx, true);
 
 		// Assert
 
-		expect(actual).toBeNull();
+		expect(actual.ok).toBe(true);
 		expect(extractPdf).not.toHaveBeenCalled();
 		expect(extractEpub).not.toHaveBeenCalled();
 		expect(normalize).toHaveBeenCalledWith("<p>markdown content</p>", {
@@ -474,7 +482,7 @@ describe("runFileImport", () => {
 		// Act
 
 		await runFileImport(
-			[markdownFile()],
+			markdownFile(),
 			ctx,
 			true,
 			undefined,
@@ -501,11 +509,11 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([markdownFile()], ctx, true);
+		const actual = await runFileImport(markdownFile(), ctx, true);
 
 		// Assert
 
-		expect(actual).toEqual({ kind: "no-content" });
+		expect(actual).toEqual({ ok: false, error: { kind: "no-content" } });
 	});
 
 	it("Should return extraction-failed with the error message when markdown extraction throws any other error", async () => {
@@ -518,13 +526,16 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([markdownFile()], ctx, true);
+		const actual = await runFileImport(markdownFile(), ctx, true);
 
 		// Assert
 
 		expect(actual).toEqual({
-			kind: "extraction-failed",
-			message: "bad markdown",
+			ok: false,
+			error: {
+				kind: "extraction-failed",
+				message: "bad markdown",
+			},
 		});
 	});
 
@@ -543,11 +554,11 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([htmlFile()], ctx, true);
+		const actual = await runFileImport(htmlFile(), ctx, true);
 
 		// Assert
 
-		expect(actual).toBeNull();
+		expect(actual.ok).toBe(true);
 		expect(extractMarkdown).not.toHaveBeenCalled();
 		expect(normalize).toHaveBeenCalledWith("<p>html content</p>", {
 			baseUrl: null,
@@ -575,11 +586,11 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([textFile("notes.txt")], ctx, true);
+		const actual = await runFileImport(textFile("notes.txt"), ctx, true);
 
 		// Assert
 
-		expect(actual).toBeNull();
+		expect(actual.ok).toBe(true);
 		expect(createImportedLearningAsset).toHaveBeenCalledWith(
 			ctx,
 			"notes",
@@ -603,7 +614,7 @@ describe("runFileImport", () => {
 
 		// Act
 
-		await runFileImport([textFile("notes.md")], ctx, true);
+		await runFileImport(textFile("notes.md"), ctx, true);
 
 		// Assert
 
@@ -621,75 +632,16 @@ describe("runFileImport", () => {
 
 		// Act
 
-		const actual = await runFileImport([htmlFile()], ctx, true);
+		const actual = await runFileImport(htmlFile(), ctx, true);
 
 		// Assert
 
 		expect(actual).toEqual({
-			kind: "extraction-failed",
-			message: "bad html",
+			ok: false,
+			error: {
+				kind: "extraction-failed",
+				message: "bad html",
+			},
 		});
-	});
-
-	it("Should open only the last imported file when importing multiple files", async () => {
-		// Arrange
-
-		vi.mocked(extractHtml).mockReturnValue({
-			title: null,
-			authors: null,
-			publicationDate: null,
-			html: "<p>content</p>",
-		});
-		vi.mocked(normalize).mockResolvedValue("<p>content</p>");
-		vi.mocked(createBibliographicalSource).mockResolvedValue(makeSource());
-		vi.mocked(createImportedLearningAsset)
-			.mockResolvedValueOnce("first-id")
-			.mockResolvedValueOnce("second-id");
-		const ctx = makeCtx();
-
-		// Act
-
-		await runFileImport(
-			[htmlFile("a.html"), htmlFile("b.html")],
-			ctx,
-			true,
-		);
-
-		// Assert
-
-		expect(ctx.navigate).toHaveBeenCalledOnce();
-		expect(ctx.navigate).toHaveBeenCalledWith("/learningAsset/second-id");
-		expect(requestTreeReveal).toHaveBeenCalledExactlyOnceWith("second-id");
-	});
-
-	it("Should open the last successfully imported file when a later file fails", async () => {
-		// Arrange
-
-		vi.mocked(extractHtml).mockReturnValue({
-			title: null,
-			authors: null,
-			publicationDate: null,
-			html: "<p>content</p>",
-		});
-		vi.mocked(normalize).mockResolvedValue("<p>content</p>");
-		vi.mocked(createBibliographicalSource).mockResolvedValue(makeSource());
-		vi.mocked(createImportedLearningAsset).mockResolvedValueOnce(
-			"first-id",
-		);
-		const ctx = makeCtx();
-
-		// Act
-
-		const actual = await runFileImport(
-			[htmlFile("a.html"), unsupportedFile()],
-			ctx,
-			true,
-		);
-
-		// Assert
-
-		expect(actual).toEqual({ kind: "unsupported-file" });
-		expect(ctx.navigate).toHaveBeenCalledOnce();
-		expect(ctx.navigate).toHaveBeenCalledWith("/learningAsset/first-id");
 	});
 });

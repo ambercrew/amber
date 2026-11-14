@@ -22,6 +22,7 @@ export async function createImportedLearningAsset(
 			type: "extracted",
 			splits: splitContent(content).map(html => htmlToLexicalJson(html)),
 			initialPriorityPosition: ctx.priorityPosition,
+			tags: ctx.tags,
 		}),
 	);
 	return id;

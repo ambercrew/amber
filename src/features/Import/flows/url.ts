@@ -3,13 +3,14 @@ import { fetchPage } from "../../../api/import/api/importApi";
 import { createBibliographicalSourceAction } from "../../../stores/bibliographicalSources/bibliographicalSourcesActions";
 import errorToString from "../../../utils/errorToString";
 import { base64ToArrayBuffer } from "../../../utils/base64ToArrayBuffer";
-import { openImportedElement } from "../openImportedElement";
 import { normalize } from "../normalize";
 import { hydrateLazyImages } from "../normalize/hydrateLazyImages";
 import { hasContent } from "../html/extract";
 import { deriveTitle } from "../deriveTitle";
 import { createImportedLearningAsset } from "../createImportedLearningAsset";
 import { ImportContext } from "../importContext";
+import { ImportResult } from "../importResult";
+import { ElementId } from "../../../types/elements/elementId";
 import { runFileImport, FileImportError } from "./file";
 import { FileFormat, hasExtension } from "../fileFormat";
 import { pdfFormat } from "../pdf/format";
@@ -24,12 +25,15 @@ export type UrlImportError =
 export async function runUrlImport(
 	url: string,
 	ctx: ImportContext,
-): Promise<UrlImportError | null> {
+): Promise<ImportResult<UrlImportError>> {
 	let page;
 	try {
 		page = await fetchPage(url);
 	} catch (err) {
-		return { kind: "fetch-failed", message: errorToString(err) };
+		return {
+			ok: false,
+			error: { kind: "fetch-failed", message: errorToString(err) },
+		};
 	}
 
 	const resolvedUrl = page.finalUrl || url;
@@ -43,18 +47,22 @@ export async function runUrlImport(
 		);
 		// URL-imported PDFs have no import-modal toggle to opt out of extraction,
 		// so they always convert to an editable document as before.
-		return runFileImport([file], ctx, true, undefined, resolvedUrl);
+		return runFileImport(file, ctx, true, undefined, resolvedUrl);
 	}
 
 	if (page.kind === "markdown") {
 		const file = asFile(page.text, resolvedUrl, markdownFormat);
-		return runFileImport([file], ctx, true, undefined, resolvedUrl);
+		return runFileImport(file, ctx, true, undefined, resolvedUrl);
 	}
 
 	if (page.kind === "other") {
 		return {
-			kind: "fetch-failed",
-			message: "This link isn't an article, PDF, EPUB or Markdown file.",
+			ok: false,
+			error: {
+				kind: "fetch-failed",
+				message:
+					"This link isn't an article, PDF, EPUB or Markdown file.",
+			},
 		};
 	}
 
@@ -78,10 +86,13 @@ export async function runUrlImport(
 	}).parse();
 	const content = article.content?.trim() ?? "";
 	if (!hasContent(content)) {
-		return { kind: "no-article", rawHtml, sourceUrl: resolvedUrl };
+		return {
+			ok: false,
+			error: { kind: "no-article", rawHtml, sourceUrl: resolvedUrl },
+		};
 	}
 
-	await importArticleHtml(
+	const created = await importArticleHtml(
 		content,
 		article.title || null,
 		resolvedUrl,
@@ -89,15 +100,15 @@ export async function runUrlImport(
 		article.author || null,
 		article.published || null,
 	);
-	return null;
+	return { ok: true, created };
 }
 
 export async function importRawPage(
 	rawHtml: string,
 	sourceUrl: string,
 	ctx: ImportContext,
-): Promise<void> {
-	await importArticleHtml(rawHtml, null, sourceUrl, ctx);
+): Promise<ElementId> {
+	return importArticleHtml(rawHtml, null, sourceUrl, ctx);
 }
 
 async function importArticleHtml(
@@ -107,7 +118,7 @@ async function importArticleHtml(
 	ctx: ImportContext,
 	authors: string | null = null,
 	publicationDate: string | null = null,
-): Promise<void> {
+): Promise<ElementId> {
 	const content = await normalize(html, { baseUrl });
 	const trimmedTitle = title?.trim();
 	const finalTitle =
@@ -131,7 +142,7 @@ async function importArticleHtml(
 		content,
 		bibliographicalSource.id,
 	);
-	await openImportedElement(ctx, { type: "learningAsset", id });
+	return { type: "learningAsset", id };
 }
 
 /** Names the fetched file after the URL's last path segment, so runFileImport can title it and detect its type. */

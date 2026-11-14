@@ -6,6 +6,27 @@ import { getPriorityNeighbors } from "../../../../api/elements/api/elementsApi";
 vi.mock(import("../../../../api/elements/api/elementsApi.ts"));
 
 describe("ImportPrioritySection", () => {
+	it("Should summarize the percentile and position when collapsed", () => {
+		// Arrange
+
+		// Act
+
+		renderWithProviders(
+			<ImportPrioritySection
+				total={10}
+				position={5}
+				count={1}
+				onPositionChange={vi.fn()}
+			/>,
+		);
+
+		// Assert
+
+		expect(
+			screen.getByRole("button", { name: /44\.44% · position 5 of 10/ }),
+		).toBeInTheDocument();
+	});
+
 	it("Should keep the slider hidden while collapsed", () => {
 		// Arrange
 
@@ -15,6 +36,7 @@ describe("ImportPrioritySection", () => {
 			<ImportPrioritySection
 				total={10}
 				position={5}
+				count={1}
 				onPositionChange={vi.fn()}
 			/>,
 		);
@@ -33,10 +55,11 @@ describe("ImportPrioritySection", () => {
 			<ImportPrioritySection
 				total={null}
 				position={null}
+				count={1}
 				onPositionChange={vi.fn()}
 			/>,
 		);
-		fireEvent.click(screen.getByText("Priority"));
+		fireEvent.click(screen.getByRole("button", { name: /Change/ }));
 
 		// Assert
 
@@ -50,13 +73,14 @@ describe("ImportPrioritySection", () => {
 			<ImportPrioritySection
 				total={10}
 				position={5}
+				count={1}
 				onPositionChange={vi.fn()}
 			/>,
 		);
 
 		// Act
 
-		fireEvent.click(screen.getByText("Priority"));
+		fireEvent.click(screen.getByRole("button", { name: /Change/ }));
 
 		// Assert
 
@@ -73,10 +97,11 @@ describe("ImportPrioritySection", () => {
 			<ImportPrioritySection
 				total={10}
 				position={5}
+				count={1}
 				onPositionChange={onPositionChange}
 			/>,
 		);
-		fireEvent.click(screen.getByText("Priority"));
+		fireEvent.click(screen.getByRole("button", { name: /Change/ }));
 		const positionInput = await screen.findByLabelText("Position");
 
 		// Act
@@ -96,10 +121,11 @@ describe("ImportPrioritySection", () => {
 			<ImportPrioritySection
 				total={10}
 				position={5}
+				count={1}
 				onPositionChange={onPositionChange}
 			/>,
 		);
-		fireEvent.click(screen.getByText("Priority"));
+		fireEvent.click(screen.getByRole("button", { name: /Change/ }));
 		const percentileInput = await screen.findByLabelText("Percentile");
 
 		// Act
@@ -128,13 +154,14 @@ describe("ImportPrioritySection", () => {
 			<ImportPrioritySection
 				total={10}
 				position={5}
+				count={1}
 				onPositionChange={vi.fn()}
 			/>,
 		);
 
 		// Act
 
-		fireEvent.click(screen.getByText("Priority"));
+		fireEvent.click(screen.getByRole("button", { name: /Change/ }));
 
 		// Assert
 
@@ -142,5 +169,26 @@ describe("ImportPrioritySection", () => {
 		expect(screen.getByText("Later card")).toBeInTheDocument();
 		expect(screen.getByText("This import")).toBeInTheDocument();
 		expect(getPriorityNeighbors).toHaveBeenCalledWith(null, 5);
+	});
+
+	it("Should summarize the range of positions when several items are imported", () => {
+		// Arrange
+
+		// Act
+
+		renderWithProviders(
+			<ImportPrioritySection
+				total={10}
+				position={5}
+				count={3}
+				onPositionChange={vi.fn()}
+			/>,
+		);
+
+		// Assert
+
+		expect(
+			screen.getByRole("button", { name: /positions 5–7 of 12/ }),
+		).toBeInTheDocument();
 	});
 });

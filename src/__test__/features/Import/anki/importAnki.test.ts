@@ -7,14 +7,14 @@ vi.mock(import("../../../../api/import/api/importApi"));
 function makeCtx(): ImportContext {
 	return {
 		dispatch: vi.fn() as unknown as ImportContext["dispatch"],
-		navigate: vi.fn() as unknown as ImportContext["navigate"],
 		parent: { type: "folder", id: "parent-id" },
 		priorityPosition: 0,
+		tags: ["jq"],
 	};
 }
 
 describe("importAnki", () => {
-	it("Should import the package under the parent in one call when given a package", async () => {
+	it("Should import the package under the parent with the tags in one call when given a package", async () => {
 		// Arrange
 
 		vi.mocked(importAnkiPackage).mockResolvedValue({
@@ -37,6 +37,7 @@ describe("importAnki", () => {
 			bytesBase64: "UEs=",
 			parent: { type: "folder", id: "parent-id" },
 			bibliographicalSourceId: "source-1",
+			tags: ["jq"],
 		});
 		expect(actual).toEqual({ type: "folder", id: "deck-id" });
 	});

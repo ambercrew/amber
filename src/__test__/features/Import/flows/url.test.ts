@@ -48,7 +48,6 @@ function makeCtx(): ImportContext {
 	) as unknown as AppDispatch;
 	return {
 		dispatch,
-		navigate: vi.fn() as unknown as ImportContext["navigate"],
 		parent: null,
 		priorityPosition: 5,
 	};
@@ -74,8 +73,11 @@ describe("runUrlImport", () => {
 		// Assert
 
 		expect(actual).toEqual({
-			kind: "fetch-failed",
-			message: "network down",
+			ok: false,
+			error: {
+				kind: "fetch-failed",
+				message: "network down",
+			},
 		});
 	});
 
@@ -96,8 +98,12 @@ describe("runUrlImport", () => {
 		// Assert
 
 		expect(actual).toEqual({
-			kind: "fetch-failed",
-			message: "This link isn't an article, PDF, EPUB or Markdown file.",
+			ok: false,
+			error: {
+				kind: "fetch-failed",
+				message:
+					"This link isn't an article, PDF, EPUB or Markdown file.",
+			},
 		});
 	});
 
@@ -110,7 +116,7 @@ describe("runUrlImport", () => {
 			finalUrl: "https://example.com/doc.pdf",
 			bytesBase64: base64,
 		});
-		vi.mocked(runFileImport).mockResolvedValue(null);
+		vi.mocked(runFileImport).mockResolvedValue({ ok: true, created: null });
 		const ctx = makeCtx();
 
 		// Act
@@ -119,11 +125,11 @@ describe("runUrlImport", () => {
 
 		// Assert
 
-		expect(actual).toBeNull();
+		expect(actual.ok).toBe(true);
 		expect(runFileImport).toHaveBeenCalledTimes(1);
-		const [files, passedCtx, , , location] =
+		const [file, passedCtx, , , location] =
 			vi.mocked(runFileImport).mock.calls[0];
-		expect(files[0].name).toBe("doc.pdf");
+		expect(file.name).toBe("doc.pdf");
 		expect(passedCtx).toBe(ctx);
 		expect(location).toBe("https://example.com/doc.pdf");
 	});
@@ -137,7 +143,7 @@ describe("runUrlImport", () => {
 			finalUrl: "",
 			bytesBase64: base64,
 		});
-		vi.mocked(runFileImport).mockResolvedValue(null);
+		vi.mocked(runFileImport).mockResolvedValue({ ok: true, created: null });
 		const ctx = makeCtx();
 
 		// Act
@@ -158,7 +164,7 @@ describe("runUrlImport", () => {
 			finalUrl: "https://example.com/books/1.epub?download=1",
 			bytesBase64: btoa("PK\x03\x04fake"),
 		});
-		vi.mocked(runFileImport).mockResolvedValue(null);
+		vi.mocked(runFileImport).mockResolvedValue({ ok: true, created: null });
 		const ctx = makeCtx();
 
 		// Act
@@ -167,9 +173,9 @@ describe("runUrlImport", () => {
 
 		// Assert
 
-		expect(actual).toBeNull();
-		const [files, , , , location] = vi.mocked(runFileImport).mock.calls[0];
-		expect(files[0].name).toBe("1.epub");
+		expect(actual.ok).toBe(true);
+		const [file, , , , location] = vi.mocked(runFileImport).mock.calls[0];
+		expect(file.name).toBe("1.epub");
 		expect(location).toBe("https://example.com/books/1.epub?download=1");
 	});
 
@@ -181,7 +187,7 @@ describe("runUrlImport", () => {
 			finalUrl: "https://example.com/docs/Read%20Me.markdown",
 			text: "# Title",
 		});
-		vi.mocked(runFileImport).mockResolvedValue(null);
+		vi.mocked(runFileImport).mockResolvedValue({ ok: true, created: null });
 		const ctx = makeCtx();
 
 		// Act
@@ -193,10 +199,10 @@ describe("runUrlImport", () => {
 
 		// Assert
 
-		expect(actual).toBeNull();
-		const [files, , , , location] = vi.mocked(runFileImport).mock.calls[0];
-		expect(files[0].name).toBe("Read Me.markdown");
-		expect(await files[0].text()).toBe("# Title");
+		expect(actual.ok).toBe(true);
+		const [file, , , , location] = vi.mocked(runFileImport).mock.calls[0];
+		expect(file.name).toBe("Read Me.markdown");
+		expect(await file.text()).toBe("# Title");
 		expect(location).toBe("https://example.com/docs/Read%20Me.markdown");
 	});
 
@@ -208,7 +214,7 @@ describe("runUrlImport", () => {
 			finalUrl: "https://example.com/notes",
 			text: "# Title",
 		});
-		vi.mocked(runFileImport).mockResolvedValue(null);
+		vi.mocked(runFileImport).mockResolvedValue({ ok: true, created: null });
 		const ctx = makeCtx();
 
 		// Act
@@ -217,8 +223,8 @@ describe("runUrlImport", () => {
 
 		// Assert
 
-		const [files] = vi.mocked(runFileImport).mock.calls[0];
-		expect(files[0].name).toBe("notes.md");
+		const [file] = vi.mocked(runFileImport).mock.calls[0];
+		expect(file.name).toBe("notes.md");
 	});
 
 	it("Should hydrate lazy images before parsing the article", async () => {
@@ -259,9 +265,12 @@ describe("runUrlImport", () => {
 		// Assert
 
 		expect(actual).toEqual({
-			kind: "no-article",
-			rawHtml: "",
-			sourceUrl: "https://example.com/empty",
+			ok: false,
+			error: {
+				kind: "no-article",
+				rawHtml: "",
+				sourceUrl: "https://example.com/empty",
+			},
 		});
 	});
 
@@ -282,9 +291,12 @@ describe("runUrlImport", () => {
 		// Assert
 
 		expect(actual).toEqual({
-			kind: "no-article",
-			rawHtml: "",
-			sourceUrl: "https://example.com/empty",
+			ok: false,
+			error: {
+				kind: "no-article",
+				rawHtml: "",
+				sourceUrl: "https://example.com/empty",
+			},
 		});
 	});
 
@@ -307,7 +319,7 @@ describe("runUrlImport", () => {
 
 		// Assert
 
-		expect(actual).toBeNull();
+		expect(actual.ok).toBe(true);
 		expect(normalize).toHaveBeenCalledWith(expect.any(String), {
 			baseUrl: "https://example.com/article",
 		});
