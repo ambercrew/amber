@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NodeDto } from "../../../../../api/elements/dto/nodeDto";
 import ElementTreeHarness from "../../../../test-utils/ElementTreeHarness";
@@ -50,6 +50,22 @@ describe("ElementTree rename", () => {
 				screen.getByRole("textbox", { name: "Rename element" }),
 			).toHaveFocus();
 		});
+	});
+
+	it("Should not start renaming when the actions menu button is double-clicked", async () => {
+		// Arrange
+
+		render();
+
+		// Act
+
+		fireEvent.doubleClick(screen.getByLabelText("Open actions menu"));
+
+		// Assert
+
+		expect(
+			screen.queryByRole("textbox", { name: "Rename element" }),
+		).toBeNull();
 	});
 
 	it("Should dispatch renameElementAction with the new name when submitted", async () => {

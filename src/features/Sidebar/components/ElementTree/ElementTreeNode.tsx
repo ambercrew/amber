@@ -7,7 +7,7 @@ import {
 	RenderTreeNodePayload,
 } from "@mantine/core";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import CountBadge from "../../../../components/CountBadge/CountBadge";
 import ElementNodeIcon from "../../../../components/ElementNodeIcon/ElementNodeIcon";
 import { ElementNodeProps } from "../../utils/elementTreeUtils";
@@ -62,9 +62,29 @@ function ElementTreeNode({
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 
 	const { onClick: toggleExpanded, ...restElementProps } = elementProps;
+	const rowRef = useRef<HTMLDivElement>(null);
+	// Focus on the tree item or inside it, so the menu button can be reached with Tab.
+	const [hasFocus, setHasFocus] = useState(false);
+	useEffect(() => {
+		const item = rowRef.current?.closest<HTMLElement>("[role=treeitem]");
+		if (!item) return;
+		const onFocusIn = () => setHasFocus(true);
+		const onFocusOut = (event: FocusEvent) =>
+			setHasFocus(item.contains(event.relatedTarget as Node | null));
+		item.addEventListener("focusin", onFocusIn);
+		item.addEventListener("focusout", onFocusOut);
+		return () => {
+			item.removeEventListener("focusin", onFocusIn);
+			item.removeEventListener("focusout", onFocusOut);
+		};
+	}, []);
 	// There is no hover with a coarse (touch) pointer, so the menu has to stay visible.
 	const showMenuButton =
-		coarsePointer || isHovered || isMenuOpen || isContextMenuOpen;
+		coarsePointer ||
+		isHovered ||
+		hasFocus ||
+		isMenuOpen ||
+		isContextMenuOpen;
 	const countBadge = childrenCount > 0 && (
 		<CountBadge
 			count={childrenCount}
@@ -84,9 +104,9 @@ function ElementTreeNode({
 			py={2}
 			pr={4}
 			{...restElementProps}
+			ref={rowRef}
 			draggable
 			onClick={onSelect}
-			onDoubleClick={onRenameClick}
 			onContextMenu={onContextMenu}
 			onMouseEnter={() => setIsHovered(true)}
 			onMouseLeave={() => setIsHovered(false)}
@@ -114,6 +134,8 @@ function ElementTreeNode({
 				size="xs"
 				c="inherit"
 				aria-label={expanded ? "Collapse" : "Expand"}
+				// The arrow keys expand and collapse, so the caret isn't a Tab stop in every row.
+				tabIndex={-1}
 				onClick={handleCaretClick}>
 				<DisclosureCaret opened={expanded} size={ICON_SIZE} />
 			</ActionIcon>
@@ -128,6 +150,8 @@ function ElementTreeNode({
 				<>
 					<Highlight
 						ref={labelRef}
+						// Only the name: a double click on the row's buttons shouldn't rename it.
+						onDoubleClick={onRenameClick}
 						highlight={search}
 						flex={1}
 						truncate="end"
@@ -171,10 +195,16 @@ function ElementTreeNode({
 							<ActionIcon
 								variant="subtle"
 								aria-label="Open actions menu"
+								// Only the focused row's, so Tab goes from a row to its menu and then out of the tree.
+								tabIndex={hasFocus ? 0 : -1}
 								style={{
 									visibility: showMenuButton
 										? "visible"
 										: "hidden",
+								}}
+								// Space would otherwise reach the row, which expands on it instead of opening the menu.
+								onKeyDown={e => {
+									if (e.code === "Space") e.stopPropagation();
 								}}
 								onClick={e => e.stopPropagation()}>
 								<DotsThreeVerticalIcon
@@ -183,10 +213,11 @@ function ElementTreeNode({
 								/>
 							</ActionIcon>
 						</Menu.Target>
-						{/* React events bubble out of the portal into the row, so
-					    without this every menu click would also select the
-					    element — and selecting closes the sidebar on mobile. */}
-						<Menu.Dropdown onClick={e => e.stopPropagation()}>
+						{/* React events bubble out of the portal into the row: clicks would select the element
+					    (closing the sidebar on mobile) and arrow keys would move through the tree. */}
+						<Menu.Dropdown
+							onClick={e => e.stopPropagation()}
+							onKeyDown={e => e.stopPropagation()}>
 							<ElementTreeMenuItems
 								elementId={{ type, id }}
 								onRenameClick={onRenameClick}
