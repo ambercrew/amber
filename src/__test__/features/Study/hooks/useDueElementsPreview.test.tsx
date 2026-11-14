@@ -22,6 +22,10 @@ function studyStateFor(status: "editing" | "studying") {
 		counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 		summary: null,
 		studyScope: null,
+		away: false,
+		timedElementId: null,
+		timeSpent: {},
+		startedAt: null,
 	};
 }
 

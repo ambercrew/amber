@@ -47,6 +47,10 @@ const STUDYING_STATE: StudyState = {
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
 	studyScope: null,
+	away: false,
+	timedElementId: { type: "card", id: "1" },
+	timeSpent: {},
+	startedAt: null,
 };
 
 function cardReview(due: string): CardReviewDto {

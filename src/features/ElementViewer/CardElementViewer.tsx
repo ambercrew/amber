@@ -10,8 +10,9 @@ import { HighlightCreatedPayload } from "../../components/Editor/plugins/Highlig
 import useAppSelector from "../../hooks/useAppSelector";
 import {
 	selectStudyCardPhase,
-	selectStudyStatus,
+	selectStudySessionElement,
 } from "../../stores/study/studySelectors";
+import { isSameElement } from "../../utils/elementKey";
 import { selectElementRefreshCount } from "../../stores/sync/syncSelector";
 import { ElementId } from "../../types/elements/elementId";
 import { useEditorFindInPage } from "./hooks/useEditorFindInPage";
@@ -35,9 +36,12 @@ export default function CardElementViewer({
 	onBackChange,
 	onHighlightCreated,
 }: CardElementViewerProps) {
-	const status = useAppSelector(selectStudyStatus);
+	const sessionElement = useAppSelector(selectStudySessionElement);
 	const cardPhase = useAppSelector(selectStudyCardPhase);
-	const answerHidden = status === "studying" && cardPhase === "question";
+	// Only the card being reviewed hides its answer, not one opened mid-session.
+	const inReview =
+		sessionElement !== null && isSameElement(sessionElement, elementId);
+	const answerHidden = inReview && cardPhase === "question";
 	// Remounts the editors once a sync reloads the card, as they only read their content on mount.
 	const refreshCount = useAppSelector(selectElementRefreshCount);
 	const fromAnki = useIsCardSyncedFromAnki(elementId.id);
@@ -53,7 +57,7 @@ export default function CardElementViewer({
 	return (
 		<Container {...containerProps} py="lg">
 			<Stack key={`card-${elementId.id}-${refreshCount}`} gap="xl">
-				{fromAnki && status !== "studying" && (
+				{fromAnki && !inReview && (
 					<Alert variant="light" icon={<InfoIcon />} p="xs">
 						<Text size="sm">
 							Imported from Anki. Edit this card in Anki: changes

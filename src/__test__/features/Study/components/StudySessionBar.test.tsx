@@ -1,8 +1,12 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ModalsProvider } from "@mantine/modals";
+import { Route, Routes } from "react-router";
 import StudySessionBar from "../../../../features/Study/components/StudySessionBar";
-import { renderWithProviders } from "../../../test-utils/renderWithProviders";
+import {
+	LOCATION_DISPLAY_TEST_ID,
+	renderWithProviders,
+} from "../../../test-utils/renderWithProviders";
 import {
 	getCardScheduling,
 	previewNextLearningAsset,
@@ -70,6 +74,10 @@ const BASE_STUDY_STATE = {
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
 	studyScope: null,
+	away: false,
+	timedElementId: null,
+	timeSpent: {},
+	startedAt: null,
 };
 
 function elementsStateFor(currentElement: AnyElementDto) {
@@ -144,6 +152,7 @@ describe("StudySessionBar", () => {
 					study: {
 						...BASE_STUDY_STATE,
 						queue: [cardQueueItem],
+						timedElementId: cardElementId,
 						cardPhase: "answer",
 					},
 					elements: elementsStateFor(cardCurrentElement),
@@ -192,6 +201,7 @@ describe("StudySessionBar", () => {
 					study: {
 						...BASE_STUDY_STATE,
 						queue: [cardQueueItem],
+						timedElementId: cardElementId,
 						cardPhase: "answer",
 					},
 					elements: elementsStateFor(cardCurrentElement),
@@ -226,6 +236,7 @@ describe("StudySessionBar", () => {
 					study: {
 						...BASE_STUDY_STATE,
 						queue: [learningAssetQueueItem],
+						timedElementId: learningAssetElementId,
 						cardPhase: "question",
 					},
 					elements: elementsStateFor(learningAssetCurrentElement),
@@ -261,6 +272,7 @@ describe("StudySessionBar", () => {
 					study: {
 						...BASE_STUDY_STATE,
 						queue: [learningAssetQueueItem],
+						timedElementId: learningAssetElementId,
 						cardPhase: "question",
 					},
 					elements: elementsStateFor(learningAssetCurrentElement),
@@ -274,5 +286,180 @@ describe("StudySessionBar", () => {
 		const tooltip = await screen.findByRole("tooltip");
 		expect(tooltip).not.toHaveTextContent(formatRelativeDueDate(due));
 		expect(tooltip).toHaveTextContent("Won't repeat (F)");
+	});
+
+	it("Should show nothing when editing even though the viewed element is in the preview queue", () => {
+		// Arrange
+
+		const preloadedState = {
+			study: {
+				...BASE_STUDY_STATE,
+				status: "editing" as const,
+				queue: [learningAssetQueueItem],
+				cardPhase: "question" as const,
+			},
+			elements: elementsStateFor(learningAssetCurrentElement),
+		};
+
+		// Act
+
+		renderWithProviders(
+			<ModalsProvider>
+				<StudySessionBar />
+			</ModalsProvider>,
+			{ preloadedState },
+		);
+
+		// Assert
+
+		expect(
+			screen.queryByRole("button", { name: "Next" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("Should offer to return to or end the session when the user is away", () => {
+		// Arrange
+
+		const preloadedState = {
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [learningAssetQueueItem],
+				cardPhase: "question" as const,
+				away: true,
+				timedElementId: learningAssetElementId,
+			},
+			elements: elementsStateFor(learningAssetCurrentElement),
+		};
+
+		// Act
+
+		renderWithProviders(
+			<ModalsProvider>
+				<StudySessionBar />
+			</ModalsProvider>,
+			{ preloadedState },
+		);
+
+		// Assert
+
+		expect(screen.getByRole("button", { name: "Return" })).toBeVisible();
+		expect(
+			screen.getByRole("button", { name: "End session" }),
+		).toBeVisible();
+		expect(
+			screen.queryByRole("button", { name: "Next" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("Should go back to the element left when Return is clicked", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ModalsProvider>
+				<StudySessionBar />
+			</ModalsProvider>,
+			{
+				preloadedState: {
+					study: {
+						...BASE_STUDY_STATE,
+						queue: [learningAssetQueueItem],
+						cardPhase: "question",
+						away: true,
+						timedElementId: learningAssetElementId,
+					},
+					elements: elementsStateFor(learningAssetCurrentElement),
+				},
+			},
+		);
+
+		// Act
+
+		await user.click(screen.getByRole("button", { name: "Return" }));
+
+		// Assert
+
+		expect(screen.getByTestId(LOCATION_DISPLAY_TEST_ID)).toHaveTextContent(
+			"/learningAsset/learningAsset-1",
+		);
+	});
+
+	it("Should offer to review a queued element visited from elsewhere and switch to it when Review is clicked", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		vi.mocked(previewNextLearningAsset).mockResolvedValue(inMs(0));
+		const { store } = renderWithProviders(
+			<ModalsProvider>
+				<Routes>
+					<Route path=":type/:id" element={<StudySessionBar />} />
+				</Routes>
+			</ModalsProvider>,
+			{
+				preloadedState: {
+					study: {
+						...BASE_STUDY_STATE,
+						queue: [cardQueueItem, learningAssetQueueItem],
+						totalCount: 2,
+						cardPhase: "question",
+						away: true,
+						timedElementId: cardElementId,
+					},
+					elements: elementsStateFor(learningAssetCurrentElement),
+				},
+				memoryRouterProps: {
+					initialEntries: ["/learningAsset/learningAsset-1"],
+				},
+			},
+		);
+
+		// Act
+
+		await user.click(screen.getByRole("button", { name: "Review" }));
+
+		// Assert
+
+		const { study } = store.getState();
+		expect(study.away).toBe(false);
+		expect(study.timedElementId).toEqual(learningAssetElementId);
+		expect(screen.getByRole("button", { name: "Next" })).toBeVisible();
+	});
+
+	it("Should not offer Review when the visited element isn't in the queue", () => {
+		// Arrange
+
+		const preloadedState = {
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem],
+				cardPhase: "question" as const,
+				away: true,
+				timedElementId: cardElementId,
+			},
+			elements: elementsStateFor(learningAssetCurrentElement),
+		};
+
+		// Act
+
+		renderWithProviders(
+			<ModalsProvider>
+				<Routes>
+					<Route path=":type/:id" element={<StudySessionBar />} />
+				</Routes>
+			</ModalsProvider>,
+			{
+				preloadedState,
+				memoryRouterProps: {
+					initialEntries: ["/learningAsset/learningAsset-1"],
+				},
+			},
+		);
+
+		// Assert
+
+		expect(screen.getByRole("button", { name: "Return" })).toBeVisible();
+		expect(
+			screen.queryByRole("button", { name: "Review" }),
+		).not.toBeInTheDocument();
 	});
 });

@@ -12,7 +12,7 @@ import useAppSelector from "../../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
 import {
 	selectStudyCardPhase,
-	selectStudyStatus,
+	selectStudySessionElement,
 } from "../../../stores/study/studySelectors";
 import { assetIdFromSrc } from "../../../utils/assetUrl";
 import { openImageOcclusionEditor } from "../editor/openImageOcclusionEditor";
@@ -23,10 +23,11 @@ import { openImageOcclusionEditor } from "../editor/openImageOcclusionEditor";
  */
 export function useImageOcclusionMenuItems() {
 	const currentElement = useAppSelector(selectCurrentElement);
-	const status = useAppSelector(selectStudyStatus);
+	const sessionElement = useAppSelector(selectStudySessionElement);
 	const cardPhase = useAppSelector(selectStudyCardPhase);
 	// The mask editor shows every answer, so keep it out of reach mid-question.
-	const answerHidden = status === "studying" && cardPhase === "question";
+	const answerHidden =
+		sessionElement?.type === "card" && cardPhase === "question";
 	const parent =
 		currentElement && currentElement.type !== "card"
 			? currentElement.data.meta.elementId

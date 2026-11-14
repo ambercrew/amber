@@ -1,8 +1,5 @@
 import { AnkiSyncResponseDto } from "../../api/ankiSync/dto/ankiSyncResponseDto";
-
-function count(value: number, noun: string): string {
-	return `${value} ${noun}${value === 1 ? "" : "s"}`;
-}
+import { countNoun as count } from "../../utils/countNoun";
 
 /** Only what changed, or that nothing did. */
 export function describeAnkiSync(summary: AnkiSyncResponseDto): string {

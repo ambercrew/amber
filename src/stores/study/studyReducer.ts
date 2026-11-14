@@ -16,6 +16,12 @@ export interface StudyCounts {
 	finished: number;
 }
 
+// `endedEarly`: the user ended the session before its queue ran out.
+export type SessionSummary = StudyCounts & {
+	endedEarly: boolean;
+	durationMs: number;
+};
+
 export interface StudyState {
 	status: StudyStatus;
 	queue: DueElementDto[];
@@ -23,10 +29,19 @@ export interface StudyState {
 	// total"; it only shrinks when a pending element is suspended.
 	totalCount: number;
 	cardPhase: CardPhase;
+	// When the timed element's clock started, backdated by its earlier visits.
 	shownAt: number | null;
+	// The element the clock runs for: the session element shown last, even while away.
+	timedElementId: ElementId | null;
+	// Time already spent on elements left before their review, by `elementKey`.
+	timeSpent: Record<string, number>;
 	counts: StudyCounts;
-	summary: StudyCounts | null;
+	summary: SessionSummary | null;
 	studyScope: StudyScopeDto | null;
+	// The user is away from the session's elements; the clock keeps running.
+	away: boolean;
+	// When the session started, for the summary's total time.
+	startedAt: number | null;
 }
 
 // How far into the session (in queue slots) an Again-rated card is
@@ -39,9 +54,13 @@ const initialState: StudyState = {
 	totalCount: 0,
 	cardPhase: "question",
 	shownAt: null,
+	timedElementId: null,
+	timeSpent: {},
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
 	studyScope: loadStudyScope(),
+	away: false,
+	startedAt: null,
 };
 
 /** The queue before this reducer ran: array methods on a draft proxy each item they touch, too slow for a long queue. */
@@ -63,6 +82,8 @@ const studySlice = createSlice({
 			state.totalCount = action.payload.length;
 			state.cardPhase = "question";
 			state.shownAt = Date.now();
+			state.timedElementId = action.payload[0]?.elementId ?? null;
+			state.timeSpent = {};
 			state.counts = {
 				cards: 0,
 				learningAssets: 0,
@@ -70,12 +91,15 @@ const studySlice = createSlice({
 				finished: 0,
 			};
 			state.summary = null;
+			state.away = false;
+			state.startedAt = Date.now();
 		},
 		answerShown: state => {
 			state.cardPhase = "answer";
 		},
 		cardGraded: state => {
 			state.counts.cards += 1;
+			restartClock(state);
 		},
 		// Repositions an element that still needs revisiting later this
 		// session, rather than removing it from the pending queue.
@@ -150,6 +174,7 @@ const studySlice = createSlice({
 			);
 			state.totalCount -= queue.length - remaining.length;
 			state.queue = remaining;
+			for (const key of dropped) delete state.timeSpent[key];
 		},
 		learningAssetAdvanced: (
 			state,
@@ -160,6 +185,7 @@ const studySlice = createSlice({
 			} else {
 				state.counts.learningAssets += 1;
 			}
+			restartClock(state);
 		},
 		// Moves a learning asset/extract to the end of the queue when the user
 		// isn't ready to review it yet, without marking it done.
@@ -187,6 +213,7 @@ const studySlice = createSlice({
 				state.counts.learningAssets += 1;
 			}
 			state.counts.finished += 1;
+			restartClock(state);
 		},
 		// Removes the reviewed element (if any — a requeued card isn't done
 		// yet, so it isn't passed here) and moves on to whichever pending
@@ -194,31 +221,41 @@ const studySlice = createSlice({
 		// just-reviewed element used to sit.
 		sessionAdvanced: (
 			state,
-			action: PayloadAction<{ completedElementId: ElementId | null }>,
+			action: PayloadAction<{
+				completedElementId: ElementId | null;
+				nextElementId: ElementId | null;
+			}>,
 		) => {
-			const { completedElementId } = action.payload;
+			const { completedElementId, nextElementId } = action.payload;
+			let queue = plainQueue(state);
 			if (completedElementId) {
-				const queue = plainQueue(state);
 				const index = indexOfElement(queue, completedElementId);
-				if (index !== -1)
-					state.queue = [
+				if (index !== -1) {
+					queue = [
 						...queue.slice(0, index),
 						...queue.slice(index + 1),
 					];
+					state.queue = queue;
+				}
 			}
 
-			if (state.queue.length === 0) {
-				state.summary = { ...state.counts };
+			if (queue.length === 0 || !nextElementId) {
+				state.summary = summarize(state, false);
 				resetSession(state);
-			} else {
-				state.cardPhase = "question";
-				state.shownAt = Date.now();
+				return;
 			}
+			switchClock(state, nextElementId, queue);
+			// Its review logged its time, so none of it is kept.
+			if (completedElementId)
+				delete state.timeSpent[elementKey(completedElementId)];
+			state.cardPhase = "question";
 		},
 		// Keeps the remaining queue (still due) so the sidebar preview doesn't
 		// blank out before its refresh replaces it.
 		sessionStopped: state => {
-			const { queue } = state;
+			const { queue, counts } = state;
+			if (counts.cards + counts.learningAssets + counts.extracts > 0)
+				state.summary = summarize(state, true);
 			resetSession(state);
 			state.queue = queue;
 		},
@@ -230,23 +267,67 @@ const studySlice = createSlice({
 		queueLoaded: (state, action: PayloadAction<DueElementDto[]>) => {
 			state.queue = action.payload;
 		},
-		// Restarts the shown-answer/timer state whenever the displayed
-		// element changes for any reason (session advance, or an
-		// out-of-order jump via the priority queue), so the footer timer
-		// and the review-duration measurement never carry over from a
-		// previously viewed element.
 		studyScopeChanged: (
 			state,
 			action: PayloadAction<StudyScopeDto | null>,
 		) => {
 			state.studyScope = action.payload;
 		},
-		elementShown: state => {
+		// The user left the session's elements for one outside it, or another page.
+		sessionLeft: state => {
+			if (state.status !== "studying" || !state.timedElementId) return;
+			state.away = true;
+		},
+		// A session element is on screen. Returning to the timed one keeps its
+		// answer; another resumes its own clock and asks its question afresh.
+		sessionElementShown: (
+			state,
+			action: PayloadAction<{ elementId: ElementId }>,
+		) => {
+			if (state.status !== "studying") return;
+			state.away = false;
+			const { elementId } = action.payload;
+			if (
+				state.timedElementId &&
+				isSameElement(state.timedElementId, elementId)
+			)
+				return;
+			switchClock(state, elementId, plainQueue(state));
 			state.cardPhase = "question";
-			state.shownAt = Date.now();
 		},
 	},
 });
+
+// A review just logged the time so far, so later time counts towards the next one.
+function restartClock(state: StudyState) {
+	state.shownAt = Date.now();
+}
+
+// Banks the timed element's time (unless it has left `queue`) and resumes `next`'s from its earlier visits.
+function switchClock(
+	state: StudyState,
+	next: ElementId,
+	queue: DueElementDto[],
+) {
+	const now = Date.now();
+	const left = state.timedElementId;
+	if (left && state.shownAt !== null && indexOfElement(queue, left) !== -1) {
+		const key = elementKey(left);
+		state.timeSpent[key] = Math.max(now - state.shownAt, 0);
+	}
+	const nextKey = elementKey(next);
+	state.shownAt = now - (state.timeSpent[nextKey] ?? 0);
+	delete state.timeSpent[nextKey];
+	state.timedElementId = next;
+}
+
+function summarize(state: StudyState, endedEarly: boolean): SessionSummary {
+	const durationMs =
+		state.startedAt === null
+			? 0
+			: Math.max(Date.now() - state.startedAt, 0);
+	return { ...state.counts, endedEarly, durationMs };
+}
 
 function resetSession(state: StudyState) {
 	state.status = "editing";
@@ -254,6 +335,10 @@ function resetSession(state: StudyState) {
 	state.totalCount = 0;
 	state.cardPhase = "question";
 	state.shownAt = null;
+	state.timedElementId = null;
+	state.timeSpent = {};
+	state.away = false;
+	state.startedAt = null;
 }
 
 export default studySlice.reducer;
@@ -272,6 +357,7 @@ export const {
 	sessionStopped,
 	summaryDismissed,
 	queueLoaded,
-	elementShown,
+	sessionLeft,
+	sessionElementShown,
 	studyScopeChanged,
 } = studySlice.actions;

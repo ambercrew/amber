@@ -93,10 +93,10 @@ pub async fn run() {
     #[cfg(desktop)]
     {
         tauri_builder = tauri_builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            let _ = app
-                .get_webview_window("main")
-                .expect("no main window")
-                .set_focus();
+            // A launch announced before `main_window` builds the window has nothing to focus yet.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
         }));
     }
 

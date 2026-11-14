@@ -1,6 +1,9 @@
 import { notifications } from "@mantine/notifications";
 import { NavigateFunction } from "react-router";
-import { RootState, setupStore } from "../../../stores/store";
+import {
+	RootState,
+	setupStore as setupPlainStore,
+} from "../../../stores/store";
 import {
 	finishLearningAssetAction,
 	gradeCardAction,
@@ -14,9 +17,14 @@ import {
 import {
 	selectStudyCurrentElement,
 	selectStudyIndex,
+	selectStudySessionElement,
 } from "../../../stores/study/studySelectors";
 import { STUDY_SESSION_FINISHED } from "../../../types/events/studySessionFinishedEvent";
-import { StudyState } from "../../../stores/study/studyReducer";
+import { REVIEW_NAVIGATION_STATE } from "../../../types/study/reviewNavigationState";
+import {
+	sessionElementShown,
+	StudyState,
+} from "../../../stores/study/studyReducer";
 import {
 	finishLearningAsset,
 	getCardReview,
@@ -163,7 +171,23 @@ const BASE_STUDY_STATE: StudyState = {
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
 	studyScope: null,
+	away: false,
+	timedElementId: null,
+	timeSpent: {},
+	startedAt: null,
 };
+
+// A running session reviews the element on screen, unless the test picks one.
+function setupStore(preloadedState?: Partial<RootState>) {
+	const study = preloadedState?.study;
+	const shown = preloadedState?.elements?.currentElement?.data.meta.elementId;
+	if (!study || study.timedElementId || !shown)
+		return setupPlainStore(preloadedState);
+	return setupPlainStore({
+		...preloadedState,
+		study: { ...study, timedElementId: shown },
+	});
+}
 
 function elementsStateFor(currentElement: AnyElementDto): ElementsState {
 	return {
@@ -218,10 +242,9 @@ describe("startStudySession", () => {
 		expect(started).toBe(true);
 		expect(store.getState().study.status).toBe("studying");
 		expect(store.getState().study.queue).toEqual(queue);
-		expect(navigate).toHaveBeenCalledWith(
-			"/card/1",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/card/1", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 });
 
@@ -256,10 +279,9 @@ describe("gradeCardAction", () => {
 		const state = store.getState().study;
 		expect(state.counts.cards).toBe(1);
 		expect(state.queue.map(item => item.elementId.id)).toEqual(["2", "3"]);
-		expect(navigate).toHaveBeenCalledWith(
-			"/card/2",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/card/2", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should load the next element into currentElement, and never leave currentElement unmatched against the queue while advancing", async () => {
@@ -308,6 +330,53 @@ describe("gradeCardAction", () => {
 				expect(selectStudyCurrentElement(state)).not.toBeNull();
 			}
 		}
+	});
+
+	it("Should make the next element the one under review in the same tick as it's shown", async () => {
+		// Arrange
+
+		vi.mocked(registerCardReview).mockResolvedValue(
+			makeCardReview(IN_TWO_DAYS()),
+		);
+		vi.mocked(elementExists).mockResolvedValue(true);
+		vi.mocked(getElementById).mockImplementation(id =>
+			Promise.resolve(elementFor(id)),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [learningAssetQueueItem("1"), cardQueueItem("2")],
+			},
+			elements: elementsStateFor(learningAssetElement("1")),
+		});
+
+		// A render would follow in a microtask, so that's when the state must agree.
+		const underReviewWhenShown: (ElementId | null)[] = [];
+		let shown = store.getState().elements.currentElement;
+		store.subscribe(() => {
+			const current = store.getState().elements.currentElement;
+			if (current === shown) return;
+			shown = current;
+			queueMicrotask(() =>
+				underReviewWhenShown.push(
+					selectStudySessionElement(store.getState()),
+				),
+			);
+		});
+
+		// Act
+
+		await store.dispatch(
+			nextLearningAssetAction(
+				{ type: "learningAsset", id: "1" },
+				navigate,
+			),
+		);
+
+		// Assert
+
+		expect(underReviewWhenShown).toEqual([{ type: "card", id: "2" }]);
 	});
 
 	it("Should not fire STUDY_SESSION_FINISHED when other elements remain in the queue", async () => {
@@ -365,10 +434,9 @@ describe("gradeCardAction", () => {
 		const state = store.getState().study;
 		expect(state.queue).toHaveLength(10);
 		expect(state.queue.map(item => item.elementId.id)).toContain("0");
-		expect(navigate).toHaveBeenCalledWith(
-			"/card/1",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/card/1", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should wrap around to the front of the queue when the last element is completed and others remain", async () => {
@@ -400,10 +468,9 @@ describe("gradeCardAction", () => {
 
 		const state = store.getState().study;
 		expect(state.queue.map(item => item.elementId.id)).toEqual(["1", "2"]);
-		expect(navigate).toHaveBeenCalledWith(
-			"/card/1",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/card/1", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should end the session and set the summary once the last pending element is completed", async () => {
@@ -434,6 +501,8 @@ describe("gradeCardAction", () => {
 			learningAssets: 0,
 			extracts: 0,
 			finished: 0,
+			endedEarly: false,
+			durationMs: 0,
 		});
 		expect(navigate).not.toHaveBeenCalled();
 	});
@@ -523,10 +592,9 @@ describe("nextLearningAssetAction", () => {
 		expect(state.counts.learningAssets).toBe(1);
 		expect(state.counts.extracts).toBe(0);
 		expect(state.queue.map(item => item.elementId.id)).toEqual(["2"]);
-		expect(navigate).toHaveBeenCalledWith(
-			"/learningAsset/2",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/learningAsset/2", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should send the time spent reading when advancing a learning asset", async () => {
@@ -559,6 +627,46 @@ describe("nextLearningAssetAction", () => {
 
 		const durationMs = vi.mocked(nextLearningAsset).mock.lastCall?.[1];
 		expect(durationMs).toBeGreaterThanOrEqual(5000);
+	});
+
+	it("Should send the time from an earlier visit too when a learning asset left before is advanced", async () => {
+		// Arrange
+
+		vi.mocked(nextLearningAsset).mockResolvedValue(LEARNING_ASSET_REVIEW);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [
+					learningAssetQueueItem("1"),
+					learningAssetQueueItem("2"),
+				],
+				shownAt: Date.now() - 5000,
+				timedElementId: { type: "learningAsset", id: "1" },
+				timeSpent: { "learningAsset:2": 30_000 },
+			},
+			elements: elementsStateFor(learningAssetElement("2")),
+		});
+		store.dispatch(
+			sessionElementShown({
+				elementId: { type: "learningAsset", id: "2" },
+			}),
+		);
+
+		// Act
+
+		await store.dispatch(
+			nextLearningAssetAction(
+				{ type: "learningAsset", id: "2" },
+				navigate,
+			),
+		);
+
+		// Assert
+
+		const durationMs = vi.mocked(nextLearningAsset).mock.lastCall?.[1];
+		expect(durationMs).toBeGreaterThanOrEqual(30_000);
+		expect(durationMs).toBeLessThan(35_000);
 	});
 
 	it("Should send zero time spent when the clock moved back since the element was shown", async () => {
@@ -617,10 +725,9 @@ describe("nextLearningAssetAction", () => {
 		expect(state.counts.extracts).toBe(1);
 		expect(state.counts.learningAssets).toBe(0);
 		expect(state.queue.map(item => item.elementId.id)).toEqual(["2"]);
-		expect(navigate).toHaveBeenCalledWith(
-			"/extract/2",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/extract/2", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 });
 
@@ -660,10 +767,9 @@ describe("skipLearningAssetAction", () => {
 		]);
 		expect(state.counts.learningAssets).toBe(0);
 		expect(state.counts.finished).toBe(0);
-		expect(navigate).toHaveBeenCalledWith(
-			"/learningAsset/2",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/learningAsset/2", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should keep the session active and revisit the same element when skipping the only learning asset in the queue", async () => {
@@ -692,10 +798,9 @@ describe("skipLearningAssetAction", () => {
 		const state = store.getState().study;
 		expect(state.status).toBe("studying");
 		expect(state.queue.map(item => item.elementId.id)).toEqual(["1"]);
-		expect(navigate).toHaveBeenCalledWith(
-			"/learningAsset/1",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/learningAsset/1", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should wrap around to the front of the queue when the last learning asset in the queue is skipped", async () => {
@@ -725,10 +830,9 @@ describe("skipLearningAssetAction", () => {
 
 		// Assert
 
-		expect(navigate).toHaveBeenCalledWith(
-			"/learningAsset/1",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/learningAsset/1", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 });
 
@@ -764,10 +868,9 @@ describe("finishLearningAssetAction", () => {
 		expect(state.counts.finished).toBe(1);
 		expect(state.counts.learningAssets).toBe(1);
 		expect(state.queue.map(item => item.elementId.id)).toEqual(["2"]);
-		expect(navigate).toHaveBeenCalledWith(
-			"/learningAsset/2",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/learningAsset/2", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should include the finished element in the session summary when it is the last element in the queue", async () => {
@@ -798,11 +901,71 @@ describe("finishLearningAssetAction", () => {
 			learningAssets: 0,
 			extracts: 1,
 			finished: 1,
+			endedEarly: false,
+			durationMs: 0,
 		});
 	});
 });
 
 describe("applyScheduleChangeAction", () => {
+	it("Should drop a visited queued element without moving on when it was rescheduled while away", async () => {
+		// Arrange
+
+		vi.mocked(getCardReview).mockResolvedValue(
+			makeCardReview(IN_TWO_DAYS()),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("1"), cardQueueItem("2")],
+				totalCount: 2,
+				away: true,
+				timedElementId: { type: "card", id: "1" },
+			},
+			elements: elementsStateFor(cardElement("2")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.queue.map(item => item.elementId.id)).toEqual(["1"]);
+		expect(state.totalCount).toBe(1);
+		expect(state.timedElementId).toEqual({ type: "card", id: "1" });
+		expect(navigate).not.toHaveBeenCalled();
+	});
+
+	it("Should keep a visited queued element when it's still due within the session while away", async () => {
+		// Arrange
+
+		vi.mocked(getCardReview).mockResolvedValue(
+			makeCardReview(IN_ONE_MINUTE()),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("1"), cardQueueItem("2")],
+				away: true,
+				timedElementId: { type: "card", id: "1" },
+			},
+			elements: elementsStateFor(cardElement("2")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.queue.map(item => item.elementId.id)).toEqual(["1", "2"]);
+	});
+
 	it("Should drop the current element and move forward when it was rescheduled beyond the session", async () => {
 		// Arrange
 
@@ -826,10 +989,9 @@ describe("applyScheduleChangeAction", () => {
 
 		const state = store.getState().study;
 		expect(state.queue.map(item => item.elementId.id)).toEqual(["2"]);
-		expect(navigate).toHaveBeenCalledWith(
-			"/card/2",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/card/2", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should keep the current element in the queue but move on when it was rescheduled within the session", async () => {
@@ -864,10 +1026,9 @@ describe("applyScheduleChangeAction", () => {
 			"3",
 			"1",
 		]);
-		expect(navigate).toHaveBeenCalledWith(
-			"/card/2",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/card/2", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should drop the current element and move forward when it was finished", async () => {
@@ -896,10 +1057,9 @@ describe("applyScheduleChangeAction", () => {
 		expect(
 			store.getState().study.queue.map(item => item.elementId.id),
 		).toEqual(["2"]);
-		expect(navigate).toHaveBeenCalledWith(
-			"/card/2",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/card/2", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should finish the session when the rescheduled element was the last one in the queue", async () => {
@@ -1010,10 +1170,9 @@ describe("applyScheduleChangeAction", () => {
 			"2",
 			"3",
 		]);
-		expect(navigate).toHaveBeenCalledWith(
-			"/card/1",
-			expect.objectContaining({ state: { studySessionNav: true } }),
-		);
+		expect(navigate).toHaveBeenCalledWith("/card/1", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should show a notification and leave the session untouched when reading the schedule fails", async () => {
@@ -1074,6 +1233,37 @@ describe("applyScheduleChangeAction", () => {
 	});
 });
 
+describe("applyScheduleChangeAction while away", () => {
+	it("Should not move the session on when the user is away from a rescheduled element", async () => {
+		// Arrange
+
+		vi.mocked(getCardReview).mockResolvedValue(
+			makeCardReview(IN_TWO_DAYS()),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("1"), cardQueueItem("2")],
+				away: true,
+				timedElementId: { type: "card", id: "1" },
+			},
+			// Still loaded from before the user left for a page without an element.
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(applyScheduleChangeAction(navigate));
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.queue.map(item => item.elementId.id)).toEqual(["1", "2"]);
+		expect(navigate).not.toHaveBeenCalled();
+	});
+});
+
 describe("dropSuspendedElementsAction", () => {
 	it("Should drop the current element and move on when it was suspended", async () => {
 		// Arrange
@@ -1099,10 +1289,43 @@ describe("dropSuspendedElementsAction", () => {
 		const state = store.getState().study;
 		expect(state.queue.map(item => item.elementId.id)).toEqual(["2"]);
 		expect(state.totalCount).toBe(2);
-		expect(navigate).toHaveBeenCalledWith(
-			"/card/2",
-			expect.objectContaining({ state: { studySessionNav: true } }),
+		expect(navigate).toHaveBeenCalledWith("/card/2", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
+	});
+
+	it("Should move on when the element under review is suspended before it has loaded", async () => {
+		// Arrange
+
+		vi.mocked(elementExists).mockResolvedValue(true);
+		vi.mocked(getElementById).mockImplementation(id =>
+			Promise.resolve(elementFor(id)),
 		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("2"), cardQueueItem("3")],
+				totalCount: 3,
+				timedElementId: { type: "card", id: "2" },
+			},
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(
+			dropSuspendedElementsAction([{ type: "card", id: "2" }], navigate),
+		);
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.queue.map(item => item.elementId.id)).toEqual(["3"]);
+		expect(state.timedElementId).toEqual({ type: "card", id: "3" });
+		expect(navigate).toHaveBeenCalledWith("/card/3", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
 	});
 
 	it("Should remove queued elements without moving on when other elements were suspended", async () => {
@@ -1167,5 +1390,38 @@ describe("dropSuspendedElementsAction", () => {
 		expect(state.queue.map(item => item.elementId.id)).toEqual(["1"]);
 		expect(state.totalCount).toBe(1);
 		expect(navigate).not.toHaveBeenCalled();
+	});
+
+	it("Should end the session when it loses its whole queue while the user is away", async () => {
+		// Arrange
+
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const listener = vi.fn();
+		window.addEventListener(STUDY_SESSION_FINISHED, listener);
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [cardQueueItem("1")],
+				totalCount: 1,
+				away: true,
+				timedElementId: { type: "card", id: "1" },
+			},
+			elements: elementsStateFor(cardElement("9")),
+		});
+
+		// Act
+
+		await store.dispatch(
+			dropSuspendedElementsAction([{ type: "card", id: "1" }], navigate),
+		);
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.status).toBe("editing");
+		expect(state.away).toBe(false);
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(navigate).not.toHaveBeenCalled();
+		window.removeEventListener(STUDY_SESSION_FINISHED, listener);
 	});
 });

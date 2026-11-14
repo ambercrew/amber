@@ -31,7 +31,7 @@ import { useElementRenamedSync } from "../../../hooks/useElementRenamedSync";
 import { usePostSyncRefresh } from "../../../hooks/usePostSyncRefresh";
 import { useCloseSidebarOnSmallScreenNavigation } from "../../../hooks/useCloseSidebarOnSmallScreenNavigation";
 import { useSessionScheduleChanges } from "../../Study/hooks/useSessionScheduleChanges";
-import { useStudySessionGuard } from "../../Study/hooks/useStudySessionGuard";
+import { useStudySessionAway } from "../../Study/hooks/useStudySessionAway";
 import { useStudySessionSummaryToast } from "../../Study/hooks/useStudySessionSummaryToast";
 import Updater from "../../Updater/components/Updater";
 import CommandPalette from "../../../commands/CommandPalette";
@@ -217,7 +217,7 @@ function App() {
 	useElementDueChangedRefresh();
 	useElementRenamedSync();
 	usePostSyncRefresh();
-	useStudySessionGuard();
+	useStudySessionAway();
 	useSessionScheduleChanges();
 	useStudySessionSummaryToast();
 	useLexicalConversionBridge();

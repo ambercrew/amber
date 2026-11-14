@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
 
+/** Seconds since `startedAt`, ticking each second; derived from it, so a remount never restarts it. */
 export function useElapsedSeconds(startedAt: number | null): number {
-	const [trackedStart, setTrackedStart] = useState(startedAt);
-	const [elapsed, setElapsed] = useState(0);
+	const [now, setNow] = useState(() => Date.now());
+	const [measuredFor, setMeasuredFor] = useState(startedAt);
 
-	if (startedAt !== trackedStart) {
-		setTrackedStart(startedAt);
-		setElapsed(0);
+	// The last tick may be long past (or never came), so a new start reads the time afresh.
+	if (startedAt !== measuredFor) {
+		setMeasuredFor(startedAt);
+		setNow(() => Date.now());
 	}
 
 	useEffect(() => {
-		if (!startedAt) return;
-		const interval = setInterval(() => setElapsed(prev => prev + 1), 1000);
+		if (startedAt === null) return;
+		const interval = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(interval);
 	}, [startedAt]);
 
-	return startedAt ? elapsed : 0;
+	if (startedAt === null) return 0;
+	return Math.max(Math.floor((now - startedAt) / 1000), 0);
 }

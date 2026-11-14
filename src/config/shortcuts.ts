@@ -46,6 +46,7 @@ export const OPEN_DUE_DATE_SHORTCUT = "mod+shift+D";
 
 // Study session
 export const TOGGLE_STUDY_SESSION_SHORTCUT = "mod+shift+L";
+export const RETURN_TO_STUDY_SESSION_SHORTCUT = "mod+shift+S";
 export const SHOW_ANSWER_SHORTCUT = "space";
 export const GRADE_AGAIN_SHORTCUT = "1";
 export const GRADE_HARD_SHORTCUT = "2";

@@ -5,6 +5,7 @@ import {
 	ArrowCounterClockwiseIcon,
 	ArrowLeftIcon,
 	ArrowRightIcon,
+	ArrowUUpLeftIcon,
 	ArrowsClockwiseIcon,
 	ArrowsDownUpIcon,
 	BookOpenIcon,
@@ -20,7 +21,7 @@ import {
 	MagnifyingGlassPlusIcon,
 	MapPinIcon,
 	MoonIcon,
-	PencilSimpleIcon,
+	SignOutIcon,
 	QueueIcon,
 	SidebarSimpleIcon,
 	SlidersIcon,
@@ -44,7 +45,10 @@ import {
 	startStudySession,
 	stopStudySessionAction,
 } from "../stores/study/studyActions";
-import { selectStudyStatus } from "../stores/study/studySelectors";
+import {
+	selectStudyReturnItem,
+	selectStudyStatus,
+} from "../stores/study/studySelectors";
 import { saveSettings } from "../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../api/settings/dto/updateSettingsRequestDto";
 import { selectSettings } from "../stores/settings/settingsSelector";
@@ -93,6 +97,7 @@ import {
 	SYNC_SHORTCUT,
 	TOGGLE_LEFT_SIDEBAR_SHORTCUT,
 	TOGGLE_RIGHT_SIDEBAR_SHORTCUT,
+	RETURN_TO_STUDY_SESSION_SHORTCUT,
 	TOGGLE_STUDY_SESSION_SHORTCUT,
 	ZOOM_IN_ALT_SHORTCUT,
 	ZOOM_IN_SHORTCUT,
@@ -105,6 +110,7 @@ import { createCardAction } from "../stores/elements/elementsActions";
 import { hasDue } from "../utils/elementDue";
 import { newCardDto } from "../features/Sidebar/components/ElementTree/elementTreeUtils";
 import { paths } from "../paths";
+import { REVIEW_NAVIGATION_STATE } from "../types/study/reviewNavigationState";
 import {
 	AiPromptLibraryIcon,
 	AnkiIcon,
@@ -124,6 +130,7 @@ import {
 export const commandIds = [
 	"enter-study-mode",
 	"enter-edit-mode",
+	"return-to-study-session",
 	"open-study-session-settings",
 	"manage-study-profiles",
 	"import",
@@ -204,8 +211,8 @@ export const commandsById: Record<CommandId, Command> = {
 	"enter-study-mode": {
 		id: "enter-study-mode",
 		group: "Study",
-		label: "Enter study mode",
-		shortcutLabel: "Switch between study and edit mode",
+		label: "Start study session",
+		shortcutLabel: "Start or end a study session",
 		shortcut: TOGGLE_STUDY_SESSION_SHORTCUT,
 		icon: createElement(BookOpenIcon),
 		enabled: state => selectStudyStatus(state) !== "studying",
@@ -218,11 +225,27 @@ export const commandsById: Record<CommandId, Command> = {
 	"enter-edit-mode": {
 		id: "enter-edit-mode",
 		group: "Study",
-		label: "Enter edit mode",
+		label: "End study session",
 		shortcut: TOGGLE_STUDY_SESSION_SHORTCUT,
-		icon: createElement(PencilSimpleIcon),
+		icon: createElement(SignOutIcon),
 		enabled: state => selectStudyStatus(state) === "studying",
 		execute: dispatch => dispatch(stopStudySessionAction()),
+	},
+	"return-to-study-session": {
+		id: "return-to-study-session",
+		group: "Study",
+		label: "Return to study session",
+		shortcut: RETURN_TO_STUDY_SESSION_SHORTCUT,
+		icon: createElement(ArrowUUpLeftIcon),
+		enabled: state => selectStudyReturnItem(state) !== null,
+		execute: (_dispatch, getState, navigate) => {
+			const item = selectStudyReturnItem(getState());
+			if (!item) return;
+			const { type, id } = item.elementId;
+			void navigate(paths.element(type, id), {
+				state: REVIEW_NAVIGATION_STATE,
+			});
+		},
 	},
 	"open-study-session-settings": {
 		id: "open-study-session-settings",

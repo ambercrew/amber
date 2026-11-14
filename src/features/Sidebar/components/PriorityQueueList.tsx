@@ -9,7 +9,9 @@ import { useElementParams } from "../../../hooks/useElementParams";
 import { useFocusedRow } from "../../../hooks/useFocusedRow";
 import { useVirtualListScroll } from "../../../hooks/useVirtualListScroll";
 import { paths } from "../../../paths";
-import { StudySessionLocationState } from "../../../types/study/studySessionLocationState";
+import useAppSelector from "../../../hooks/useAppSelector";
+import { selectStudyReviewedElement } from "../../../stores/study/studySelectors";
+import { REVIEW_NAVIGATION_STATE } from "../../../types/study/reviewNavigationState";
 
 const ICON_SIZE = 18;
 /** Only a first guess: rows are measured once mounted. */
@@ -30,7 +32,10 @@ function PriorityQueueList({ queue }: PriorityQueueListProps) {
 	"use no memo";
 
 	const navigate = useNavigate();
-	const selected = useElementParams();
+	// In a session, the element under review, whatever page is open.
+	const reviewed = useAppSelector(selectStudyReviewedElement);
+	const openElement = useElementParams();
+	const selected = reviewed ?? openElement;
 	const [root, setRoot] = useState<HTMLDivElement | null>(null);
 	const { viewport, scrollMargin } = useVirtualListScroll(root);
 	const { focusProps, rangeExtractor } = useFocusedRow(queue, dueElementId);
@@ -91,15 +96,12 @@ function PriorityQueueList({ queue }: PriorityQueueListProps) {
 									size={ICON_SIZE}
 								/>
 							}
-							onClick={() => {
-								const state: StudySessionLocationState = {
-									studySessionNav: true,
-								};
+							onClick={() =>
 								void navigate(
 									paths.element(elementId.type, elementId.id),
-									{ state },
-								);
-							}}
+									{ state: REVIEW_NAVIGATION_STATE },
+								)
+							}
 						/>
 					</div>
 				);
