@@ -3,7 +3,16 @@ import { getCardScheduling } from "../../../api/study/api/studyApi";
 import { CardSchedulingDto } from "../../../api/study/dto/cardSchedulingDto";
 import { CardReviewDto } from "../../../api/study/dto/cardReviewDto";
 import { Rating } from "../../../types/study/rating";
-import { scheduleAllRatings } from "../utils/cardScheduling";
+import {
+	CardScheduler,
+	createScheduler,
+	scheduleAllRatings,
+} from "../utils/cardScheduling";
+
+interface LoadedScheduling {
+	review: CardReviewDto;
+	scheduler: CardScheduler;
+}
 
 export interface CardScheduling {
 	preview: Record<Rating, CardReviewDto> | null;
@@ -19,7 +28,7 @@ export function useCardScheduling(
 	cardId: string | null,
 	shownAt: number | null,
 ): CardScheduling {
-	const [inputs, setInputs] = useState<CardSchedulingDto | null>(null);
+	const [loaded, setLoaded] = useState<LoadedScheduling | null>(null);
 	const loadKey = cardId ? `${cardId}:${String(shownAt)}` : null;
 	const [trackedKey, setTrackedKey] = useState(loadKey);
 
@@ -27,16 +36,21 @@ export function useCardScheduling(
 	// so no preview is ever shown for the wrong card while the next load runs.
 	if (loadKey !== trackedKey) {
 		setTrackedKey(loadKey);
-		setInputs(null);
+		setLoaded(null);
 	}
 
 	useEffect(() => {
 		if (!cardId) return;
 
 		let cancelled = false;
-		void getCardScheduling(cardId).then(loaded => {
-			if (!cancelled) setInputs(loaded);
-		});
+		void getCardScheduling(cardId)
+			.then(async ({ profile, review }: CardSchedulingDto) => ({
+				review,
+				scheduler: await createScheduler(profile),
+			}))
+			.then(next => {
+				if (!cancelled) setLoaded(next);
+			});
 
 		return () => {
 			cancelled = true;
@@ -45,20 +59,26 @@ export function useCardScheduling(
 
 	const preview = useMemo(
 		() =>
-			inputs
-				? scheduleAllRatings(inputs.profile, inputs.review, new Date())
+			loaded
+				? scheduleAllRatings(
+						loaded.scheduler,
+						loaded.review,
+						new Date(),
+					)
 				: null,
-		[inputs],
+		[loaded],
 	);
 
 	const schedule = useCallback(
 		(rating: Rating) =>
-			inputs
-				? scheduleAllRatings(inputs.profile, inputs.review, new Date())[
-						rating
-					]
+			loaded
+				? scheduleAllRatings(
+						loaded.scheduler,
+						loaded.review,
+						new Date(),
+					)[rating]
 				: null,
-		[inputs],
+		[loaded],
 	);
 
 	return { preview, schedule };

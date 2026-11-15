@@ -3,6 +3,7 @@ import reducer, {
 	goToNextMatch,
 	goToPreviousMatch,
 	openSearch,
+	openSearchAtMatch,
 	SearchState,
 	setSearchCaseSensitive,
 	setSearchMatchCounts,
@@ -16,6 +17,7 @@ function makeState(overrides: Partial<SearchState> = {}): SearchState {
 		caseSensitive: false,
 		currentIndex: -1,
 		totalMatches: 0,
+		pendingMatch: null,
 		...overrides,
 	};
 }
@@ -57,6 +59,7 @@ describe("searchReducer", () => {
 				query: "",
 				currentIndex: -1,
 				totalMatches: 0,
+				pendingMatch: null,
 			}),
 		);
 	});
@@ -193,5 +196,59 @@ describe("searchReducer", () => {
 
 			expect(actual.currentIndex).toBe(-1);
 		});
+	});
+
+	it("Should open on the given query and match when openSearchAtMatch is dispatched", () => {
+		// Arrange
+
+		const state = makeState({
+			query: "old",
+			currentIndex: 3,
+			totalMatches: 5,
+		});
+		const elementId = { type: "card", id: "card-1" } as const;
+
+		// Act
+
+		const actual = reducer(
+			state,
+			openSearchAtMatch({
+				query: "new",
+				caseSensitive: true,
+				elementId,
+				index: 4,
+			}),
+		);
+
+		// Assert
+
+		expect(actual).toEqual(
+			makeState({
+				opened: true,
+				query: "new",
+				caseSensitive: true,
+				pendingMatch: { elementId, index: 4 },
+			}),
+		);
+	});
+
+	it("Should drop the pending match when closeSearch is dispatched", () => {
+		// Arrange
+
+		const state = makeState({
+			opened: true,
+			pendingMatch: {
+				elementId: { type: "card", id: "card-1" },
+				index: 1,
+			},
+		});
+
+		// Act
+
+		const actual = reducer(state, closeSearch());
+
+		// Assert
+
+		expect(actual.pendingMatch).toBeNull();
 	});
 });

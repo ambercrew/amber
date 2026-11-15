@@ -10,6 +10,7 @@ use crate::elements::dto::create_folder_dto::CreateFolderDto;
 use crate::elements::dto::create_learning_asset_dto::CreateLearningAssetDto;
 use crate::elements::services::element_move_error::ElementMoveError;
 use crate::elements::services::priority_service::PriorityError;
+use crate::elements::value_objects::new_card_due::NewCardDue;
 use crate::study::services::profile_resolution_service::ProfileResolutionError;
 
 /// Creates folders, learning_assets, extracts and cards. Beyond persisting the element
@@ -26,9 +27,13 @@ pub trait ElementCreationService: Send + Sync {
     ) -> Result<(), ElementCreationError>;
     async fn create_extract(&self, dto: CreateExtractDto) -> Result<(), ElementCreationError>;
     async fn create_card(&self, dto: CreateCardDto) -> Result<(), ElementCreationError>;
-    /// Like `create_card` for each, in order; siblings are placed together, in one pass
-    /// rather than one per card.
-    async fn create_cards(&self, dtos: Vec<CreateCardDto>) -> Result<(), ElementCreationError>;
+    /// Like `create_card` for each, in order, each first due as `due` says; siblings are placed
+    /// together, in one pass rather than one per card.
+    async fn create_cards(
+        &self,
+        dtos: Vec<CreateCardDto>,
+        due: NewCardDue,
+    ) -> Result<(), ElementCreationError>;
 }
 
 #[derive(Debug, Error)]

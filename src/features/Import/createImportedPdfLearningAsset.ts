@@ -23,6 +23,7 @@ export async function createImportedPdfLearningAsset(
 			pdfPageCount,
 			splits: [],
 			initialPriorityPosition: ctx.priorityPosition,
+			tags: ctx.tags,
 		}),
 	);
 	return id;

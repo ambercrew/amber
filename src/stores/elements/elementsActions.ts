@@ -40,14 +40,19 @@ import {
 // specific element right away (a route change, a study-session advance, a
 // post-sync refresh) rather than a later effect catching up to it. Resolves
 // to whether the element existed and was actually loaded.
-export function loadCurrentElementAction(elementId: ElementId) {
+/** `onShown` runs in the same tick as the element is set, so its dispatches render together with it. */
+export function loadCurrentElementAction(
+	elementId: ElementId,
+	onShown?: () => void,
+) {
 	return async (dispatch: AppDispatch): Promise<boolean> => {
 		const exists = await elementExists(elementId);
 		if (!exists) return false;
 		await Promise.all([
-			getElementById(elementId).then(element =>
-				dispatch(setCurrentElement(element)),
-			),
+			getElementById(elementId).then(element => {
+				dispatch(setCurrentElement(element));
+				onShown?.();
+			}),
 			dispatch(loadElementDetailsAction(elementId)),
 		]);
 		return true;

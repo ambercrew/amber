@@ -8,6 +8,8 @@ import studyReducer, {
 	learningAssetAdvanced,
 	learningAssetFinished,
 	sessionAdvanced,
+	sessionElementShown,
+	sessionLeft,
 	sessionStarted,
 	sessionStopped,
 	summaryDismissed,
@@ -28,6 +30,10 @@ const BASE_STATE: StudyState = {
 	counts: { cards: 0, learningAssets: 0, extracts: 0, finished: 0 },
 	summary: null,
 	studyScope: null,
+	away: false,
+	timedElementId: null,
+	timeSpent: {},
+	startedAt: null,
 };
 
 describe("studyReducer", () => {
@@ -46,6 +52,7 @@ describe("studyReducer", () => {
 		expect(actual.queue).toEqual(queue);
 		expect(actual.cardPhase).toBe("question");
 		expect(actual.shownAt).not.toBeNull();
+		expect(actual.startedAt).toBe(actual.shownAt);
 		expect(actual.counts).toEqual({
 			cards: 0,
 			learningAssets: 0,
@@ -61,7 +68,14 @@ describe("studyReducer", () => {
 		const state: StudyState = {
 			...BASE_STATE,
 			counts: { cards: 4, learningAssets: 1, extracts: 1, finished: 2 },
-			summary: { cards: 4, learningAssets: 1, extracts: 1, finished: 2 },
+			summary: {
+				cards: 4,
+				learningAssets: 1,
+				extracts: 1,
+				finished: 2,
+				endedEarly: false,
+				durationMs: 0,
+			},
 		};
 		const queue = [queueItem("card", "1")];
 
@@ -392,6 +406,7 @@ describe("studyReducer", () => {
 				state,
 				sessionAdvanced({
 					completedElementId: { type: "card", id: "1" },
+					nextElementId: { type: "card", id: "2" },
 				}),
 			);
 
@@ -418,7 +433,10 @@ describe("studyReducer", () => {
 
 			const actual = studyReducer(
 				state,
-				sessionAdvanced({ completedElementId: null }),
+				sessionAdvanced({
+					completedElementId: null,
+					nextElementId: { type: "card", id: "2" },
+				}),
 			);
 
 			// Assert
@@ -449,6 +467,7 @@ describe("studyReducer", () => {
 				state,
 				sessionAdvanced({
 					completedElementId: { type: "card", id: "1" },
+					nextElementId: null,
 				}),
 			);
 
@@ -461,8 +480,59 @@ describe("studyReducer", () => {
 				learningAssets: 1,
 				extracts: 1,
 				finished: 2,
+				endedEarly: false,
+				durationMs: 0,
 			});
 		});
+	});
+
+	it("Should record a summary marked as ended early, with the session's length, when sessionStopped is dispatched after reviews", () => {
+		// Arrange
+
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date("2026-01-01T10:00:00Z"));
+		const state: StudyState = {
+			...BASE_STATE,
+			status: "studying",
+			queue: [queueItem("card", "1")],
+			counts: { cards: 2, learningAssets: 0, extracts: 1, finished: 0 },
+			startedAt: Date.now() - 18 * 60_000,
+		};
+
+		// Act
+
+		const actual = studyReducer(state, sessionStopped());
+
+		// Assert
+
+		expect(actual.summary).toEqual({
+			cards: 2,
+			learningAssets: 0,
+			extracts: 1,
+			finished: 0,
+			endedEarly: true,
+			durationMs: 18 * 60_000,
+		});
+		expect(actual.startedAt).toBeNull();
+		vi.useRealTimers();
+	});
+
+	it("Should not record a summary when sessionStopped is dispatched before any review", () => {
+		// Arrange
+
+		const state: StudyState = {
+			...BASE_STATE,
+			status: "studying",
+			queue: [queueItem("card", "1")],
+		};
+
+		// Act
+
+		const actual = studyReducer(state, sessionStopped());
+
+		// Assert
+
+		expect(actual.summary).toBeNull();
 	});
 
 	it("Should reset the session state but keep the queue when sessionStopped is dispatched", () => {
@@ -488,12 +558,232 @@ describe("studyReducer", () => {
 		expect(actual.shownAt).toBeNull();
 	});
 
+	describe("session clock", () => {
+		const CARD_1 = { type: "card" as const, id: "1" };
+		const CARD_2 = { type: "card" as const, id: "2" };
+		const NOW = new Date("2026-01-01T10:00:00Z").getTime();
+		const STUDYING: StudyState = {
+			...BASE_STATE,
+			status: "studying",
+			queue: [queueItem("card", "1"), queueItem("card", "2")],
+			shownAt: NOW - 10_000,
+			timedElementId: CARD_1,
+		};
+
+		beforeEach(() => {
+			vi.useFakeTimers({ toFake: ["Date"] });
+			vi.setSystemTime(NOW);
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		it("Should mark the session away without stopping the clock when sessionLeft is dispatched", () => {
+			// Arrange
+
+			const state = STUDYING;
+
+			// Act
+
+			const actual = studyReducer(state, sessionLeft());
+
+			// Assert
+
+			expect(actual.away).toBe(true);
+			expect(actual.shownAt).toBe(NOW - 10_000);
+		});
+
+		it("Should not mark the session away when sessionLeft is dispatched while not studying", () => {
+			// Arrange
+
+			const state = { ...STUDYING, status: "editing" as const };
+
+			// Act
+
+			const actual = studyReducer(state, sessionLeft());
+
+			// Assert
+
+			expect(actual.away).toBe(false);
+		});
+
+		it("Should keep the answer and the running clock when returning to the timed element", () => {
+			// Arrange
+
+			const state: StudyState = {
+				...STUDYING,
+				away: true,
+				cardPhase: "answer",
+			};
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				sessionElementShown({ elementId: CARD_1 }),
+			);
+
+			// Assert
+
+			expect(actual.away).toBe(false);
+			expect(actual.cardPhase).toBe("answer");
+			expect(actual.shownAt).toBe(NOW - 10_000);
+		});
+
+		it("Should bank the time spent and ask afresh when shown another element", () => {
+			// Arrange
+
+			const state: StudyState = { ...STUDYING, cardPhase: "answer" };
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				sessionElementShown({ elementId: CARD_2 }),
+			);
+
+			// Assert
+
+			expect(actual.timeSpent).toEqual({ "card:1": 10_000 });
+			expect(actual.timedElementId).toEqual(CARD_2);
+			expect(actual.shownAt).toBe(NOW);
+			expect(actual.cardPhase).toBe("question");
+		});
+
+		it("Should resume an element's banked time when shown it again", () => {
+			// Arrange
+
+			const state: StudyState = {
+				...STUDYING,
+				timedElementId: CARD_2,
+				timeSpent: { "card:1": 7_000 },
+			};
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				sessionElementShown({ elementId: CARD_1 }),
+			);
+
+			// Assert
+
+			expect(actual.shownAt).toBe(NOW - 7_000);
+			expect(actual.timeSpent).toEqual({ "card:2": 10_000 });
+		});
+
+		it("Should bank a skipped element's time when sessionAdvanced moves on without completing it", () => {
+			// Arrange
+
+			const state = STUDYING;
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				sessionAdvanced({
+					completedElementId: null,
+					nextElementId: CARD_2,
+				}),
+			);
+
+			// Assert
+
+			expect(actual.timeSpent).toEqual({ "card:1": 10_000 });
+			expect(actual.timedElementId).toEqual(CARD_2);
+		});
+
+		it("Should drop a completed element's time when sessionAdvanced moves on", () => {
+			// Arrange
+
+			const state = STUDYING;
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				sessionAdvanced({
+					completedElementId: CARD_1,
+					nextElementId: CARD_2,
+				}),
+			);
+
+			// Assert
+
+			expect(actual.timeSpent).toEqual({});
+		});
+
+		it("Should not bank time for the timed element when it has left the queue", () => {
+			// Arrange
+
+			const state: StudyState = {
+				...STUDYING,
+				away: true,
+				queue: [queueItem("card", "2")],
+			};
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				sessionElementShown({ elementId: CARD_2 }),
+			);
+
+			// Assert
+
+			expect(actual.timeSpent).toEqual({});
+			expect(actual.timedElementId).toEqual(CARD_2);
+		});
+
+		it("Should restart the clock when cardGraded logs the time so far", () => {
+			// Arrange
+
+			const state = STUDYING;
+
+			// Act
+
+			const actual = studyReducer(state, cardGraded());
+
+			// Assert
+
+			expect(actual.shownAt).toBe(NOW);
+		});
+
+		it("Should clear being away and the banked time when sessionStopped is dispatched", () => {
+			// Arrange
+
+			const state: StudyState = {
+				...STUDYING,
+				away: true,
+				timeSpent: { "card:2": 3_000 },
+			};
+
+			// Act
+
+			const actual = studyReducer(state, sessionStopped());
+
+			// Assert
+
+			expect(actual.away).toBe(false);
+			expect(actual.timeSpent).toEqual({});
+			expect(actual.timedElementId).toBeNull();
+		});
+	});
+
 	it("Should clear the summary when summaryDismissed is dispatched", () => {
 		// Arrange
 
 		const state: StudyState = {
 			...BASE_STATE,
-			summary: { cards: 1, learningAssets: 0, extracts: 0, finished: 0 },
+			summary: {
+				cards: 1,
+				learningAssets: 0,
+				extracts: 0,
+				finished: 0,
+				endedEarly: false,
+				durationMs: 0,
+			},
 		};
 
 		// Act

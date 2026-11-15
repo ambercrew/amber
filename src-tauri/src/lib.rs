@@ -12,6 +12,7 @@ mod image_occlusion;
 mod import;
 mod infrastructure;
 mod local_configurations;
+mod main_window;
 mod saved_searches;
 mod search;
 mod secrets;
@@ -92,10 +93,10 @@ pub async fn run() {
     #[cfg(desktop)]
     {
         tauri_builder = tauri_builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            let _ = app
-                .get_webview_window("main")
-                .expect("no main window")
-                .set_focus();
+            // A launch announced before `main_window` builds the window has nothing to focus yet.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
         }));
     }
 
@@ -125,6 +126,8 @@ pub async fn run() {
 
     tauri_builder = tauri_builder
         .setup(|app| {
+            main_window::create_config_windows(app)?;
+
             let app_data_dir = app
                 .path()
                 .app_data_dir()
@@ -281,6 +284,7 @@ pub async fn run() {
             delete_saved_search,
             // Search
             search_elements,
+            search_content,
             // Import
             fetch_page,
             fetch_image,

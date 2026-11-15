@@ -7,16 +7,8 @@ import {
 	Text,
 	TextInput,
 } from "@mantine/core";
-import {
-	CursorTextIcon,
-	HandIcon,
-	MinusIcon,
-	PlusIcon,
-} from "@phosphor-icons/react";
-import { useZoom } from "@embedpdf/plugin-zoom/react";
-import { useScroll } from "@embedpdf/plugin-scroll/react";
-import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
-import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
+import { MinusIcon, PlusIcon } from "@phosphor-icons/react";
+import { useStage, useStageState } from "@embedpdf/react/stage";
 import { SAFE_AREA_BOTTOM } from "../../../../utils/safeArea";
 import { useChromeInsets } from "../../../App/context/chromeInsetsContext";
 import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
@@ -33,29 +25,25 @@ import {
 import { usePdfCore } from "../core/pdfCoreContext";
 
 interface PdfToolbarProps {
-	documentId: string;
 	pinned: boolean;
 }
 
-export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
-	const { state: zoomState, provides: zoom } = useZoom(documentId);
-	const { state: scrollState } = useScroll(documentId);
+export default function PdfToolbar({ pinned }: PdfToolbarProps) {
+	const zoom = useStage();
+	const zoomLevel = useStageState(state => state.zoomLevel);
+	const currentPage = useStageState(state => state.currentPageIndex + 1);
+	const totalPages = useStageState(state => state.pageCount);
 	const { goToPage } = usePdfCore();
-	const { state: interactionState, provides: interactionManager } =
-		useInteractionManager(documentId);
-	// Activated directly: the pan plugin's own toggle falls back to the default mode, which "mobile" makes pan for good.
-	const isPanning = interactionState.activeMode === "panMode";
-	const isCoarsePointer = useIsCoarsePointer();
 
 	// Floats above the study session footer while it's shown, instead of behind it.
 	const insets = useChromeInsets();
 
 	useAppHotkeys(
 		[
-			[ZOOM_IN_SHORTCUT, () => zoom?.zoomIn()],
-			[ZOOM_IN_ALT_SHORTCUT, () => zoom?.zoomIn()],
-			[ZOOM_OUT_SHORTCUT, () => zoom?.zoomOut()],
-			[RESET_ZOOM_SHORTCUT, () => zoom?.requestZoom(1)],
+			[ZOOM_IN_SHORTCUT, () => zoom.zoomIn()],
+			[ZOOM_IN_ALT_SHORTCUT, () => zoom.zoomIn()],
+			[ZOOM_OUT_SHORTCUT, () => zoom.zoomOut()],
+			[RESET_ZOOM_SHORTCUT, () => zoom.zoomTo(1)],
 		] satisfies AppHotkeyItem[],
 		[],
 		true,
@@ -67,10 +55,7 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 	function commitPageInput() {
 		const pageNumber = Number(pageInput);
 		if (Number.isInteger(pageNumber)) {
-			const clamped = Math.min(
-				Math.max(pageNumber, 1),
-				scrollState.totalPages,
-			);
+			const clamped = Math.min(Math.max(pageNumber, 1), totalPages);
 			goToPage(clamped, { behavior: "instant" });
 		}
 		setEditingPage(false);
@@ -78,12 +63,12 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 
 	const [zoomInput, setZoomInput] = useState("");
 	const [editingZoom, setEditingZoom] = useState(false);
-	const currentZoomPercentage = Math.round(zoomState.currentZoomLevel * 100);
+	const currentZoomPercentage = Math.round(zoomLevel * 100);
 
 	function commitZoomInput() {
 		const zoomPercentage = Number(zoomInput);
 		if (Number.isFinite(zoomPercentage) && zoomPercentage > 0) {
-			zoom?.requestZoom(zoomPercentage / 100);
+			zoom.zoomTo(zoomPercentage / 100);
 		}
 		setEditingZoom(false);
 	}
@@ -123,15 +108,11 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 						size="xs"
 						w={36}
 						styles={{ input: { textAlign: "center", padding: 0 } }}
-						value={
-							editingPage
-								? pageInput
-								: String(scrollState.currentPage)
-						}
+						value={editingPage ? pageInput : String(currentPage)}
 						onChange={e => setPageInput(e.currentTarget.value)}
 						onFocus={e => {
 							setEditingPage(true);
-							setPageInput(String(scrollState.currentPage));
+							setPageInput(String(currentPage));
 							e.currentTarget.select();
 						}}
 						onBlur={commitPageInput}
@@ -140,7 +121,7 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 						}}
 					/>
 					<Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap" }}>
-						/ {scrollState.totalPages}
+						/ {totalPages}
 					</Text>
 				</Group>
 				<Divider orientation="vertical" />
@@ -149,7 +130,7 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 						<ActionIcon
 							variant="subtle"
 							size="lg"
-							onClick={() => zoom?.zoomOut()}>
+							onClick={() => zoom.zoomOut()}>
 							<MinusIcon size={18} />
 						</ActionIcon>
 					</AppTooltip>
@@ -175,33 +156,11 @@ export default function PdfToolbar({ documentId, pinned }: PdfToolbarProps) {
 						<ActionIcon
 							variant="subtle"
 							size="lg"
-							onClick={() => zoom?.zoomIn()}>
+							onClick={() => zoom.zoomIn()}>
 							<PlusIcon size={18} />
 						</ActionIcon>
 					</AppTooltip>
 				</Group>
-				{isCoarsePointer && (
-					<>
-						<Divider orientation="vertical" />
-						<AppTooltip
-							label={isPanning ? "Select text" : "Pan to scroll"}>
-							<ActionIcon
-								variant={isPanning ? "light" : "subtle"}
-								size="lg"
-								onClick={() =>
-									interactionManager?.activate(
-										isPanning ? "pointerMode" : "panMode",
-									)
-								}>
-								{isPanning ? (
-									<HandIcon size={18} />
-								) : (
-									<CursorTextIcon size={18} />
-								)}
-							</ActionIcon>
-						</AppTooltip>
-					</>
-				)}
 			</Group>
 		</div>
 	);

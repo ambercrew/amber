@@ -12,7 +12,9 @@ const ANKI_ROLLOVER_HOURS: i64 = 4;
 const LEARNING_QUEUE: i64 = 1;
 const REVIEW_QUEUE: i64 = 2;
 const DAY_LEARNING_QUEUE: i64 = 3;
+const NEW_TYPE: i64 = 0;
 const REVIEW_TYPE: i64 = 2;
+const RELEARNING_TYPE: i64 = 3;
 
 /// A card's place in Anki's schedule, from `cardsInfo`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -36,9 +38,19 @@ impl AnkiCardSchedule {
         by_day.then_some(self.due)
     }
 
+    /// A card never scheduled in Anki, suspended or not.
+    pub fn is_new(&self) -> bool {
+        self.kind == NEW_TYPE
+    }
+
     /// A graduated card, not a new or (re)learning one.
     pub fn is_review(&self) -> bool {
         self.kind == REVIEW_TYPE
+    }
+
+    /// A review or relearning card, which Again lapses rather than sends back to the new-card steps.
+    pub fn has_graduated(&self) -> bool {
+        matches!(self.kind, REVIEW_TYPE | RELEARNING_TYPE)
     }
 
     /// Answering a suspended or buried card would bring it back into Anki's queue.
@@ -85,6 +97,16 @@ impl AnkiToday {
 /// The calendar day Anki counts `time` in: before its rollover, it's still the day before.
 pub fn anki_date(time: DateTime<Utc>) -> NaiveDate {
     (time.with_timezone(&Local) - Duration::hours(ANKI_ROLLOVER_HOURS)).date_naive()
+}
+
+/// The day Anki counts a due time in: one at local midnight is due by the day, so it keeps its date, while
+/// one due at a time of day before Anki's rollover still falls on the day before.
+pub fn anki_due_date(due: DateTime<Utc>) -> NaiveDate {
+    if due == start_of_day_utc(local_date(due)) {
+        local_date(due)
+    } else {
+        anki_date(due)
+    }
 }
 
 /// The day an Amber card is due on, for cards scheduled at least a day ahead.

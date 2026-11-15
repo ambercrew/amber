@@ -18,3 +18,24 @@
 		background-color: var(--sidebar-hover-bg);
 	}
 }
+
+/* From `--spotlight-hover-bg` in theme.ts; like NavLink, Spotlight's hover is a literal shade. */
+@media (hover: hover) {
+	.mantine-Spotlight-action:not([data-selected]):hover {
+		background-color: var(--spotlight-hover-bg);
+	}
+}
+
+@media (hover: none) {
+	.mantine-Spotlight-action:not([data-selected]):active {
+		background-color: var(--spotlight-hover-bg);
+	}
+}
+
+/* From `--anchor-hover-color` in theme.ts: links shift a shade on hover, not only underline. */
+@media (hover: hover) {
+	.mantine-Anchor-root:hover,
+	.mantine-Typography-root a:hover {
+		color: var(--anchor-hover-color);
+	}
+}

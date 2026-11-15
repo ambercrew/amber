@@ -182,9 +182,11 @@ impl AnkiSyncRepository for SqliteAnkiSyncRepository {
 
         let row = sqlx::query!(
             r#"SELECT EXISTS(
-                SELECT 1 FROM anki_paired_cards p
-                JOIN anki_card_links l ON l.card_id = p.card_id AND l.anki_card_id = p.anki_card_id
-                WHERE p.card_id = $1
+                SELECT 1 FROM anki_card_links l
+                WHERE l.card_id = $1
+                  AND (l.synced = 1 OR EXISTS(
+                    SELECT 1 FROM anki_paired_cards p
+                    WHERE p.card_id = l.card_id AND p.anki_card_id = l.anki_card_id))
             ) as "synced: bool""#,
             card_id.hyphenated()
         )
@@ -259,6 +261,14 @@ impl AnkiSyncRepository for SqliteAnkiSyncRepository {
             FROM json_each($2)"#,
             profile,
             pairs_json,
+        )
+        .execute(&mut *tx)
+        .await?;
+        // Marks the links on the synced table, as the pairs stay on this device.
+        sqlx::query!(
+            "UPDATE anki_card_links SET synced = 1
+            WHERE synced = 0 AND card_id IN (SELECT card_id FROM anki_paired_cards WHERE profile = $1)",
+            profile,
         )
         .execute(&mut *tx)
         .await?;

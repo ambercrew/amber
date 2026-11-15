@@ -5,3 +5,4 @@ pub mod create_cloze_card;
 pub mod element_reference;
 pub mod finish_extract;
 pub mod search_documents;
+pub mod search_open_element;

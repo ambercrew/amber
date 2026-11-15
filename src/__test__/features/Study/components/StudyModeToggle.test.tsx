@@ -13,7 +13,7 @@ vi.mock(import("../../../../api/elements/api/elementsApi.ts"));
 vi.mock(import("@mantine/notifications"));
 
 describe("StudyModeToggle", () => {
-	it("Should show unchecked switch with editing tooltip when not studying", () => {
+	it("Should show unchecked switch when not studying", () => {
 		// Arrange & Act
 
 		renderWithProviders(<StudyModeToggle />);
@@ -21,6 +21,23 @@ describe("StudyModeToggle", () => {
 		// Assert
 
 		expect(screen.getByRole("switch")).not.toBeChecked();
+	});
+
+	it("Should offer to start a study session in the tooltip when not studying", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		renderWithProviders(<StudyModeToggle />);
+
+		// Act
+
+		await user.hover(screen.getByRole("switch"));
+
+		// Assert
+
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"Start study session",
+		);
 	});
 
 	it("Should show checked switch when a study session is active", () => {
@@ -47,6 +64,10 @@ describe("StudyModeToggle", () => {
 					},
 					summary: null,
 					studyScope: null,
+					away: false,
+					timedElementId: null,
+					timeSpent: {},
+					startedAt: null,
 				},
 			},
 		});
@@ -126,6 +147,10 @@ describe("StudyModeToggle", () => {
 					},
 					summary: null,
 					studyScope: null,
+					away: false,
+					timedElementId: null,
+					timeSpent: {},
+					startedAt: null,
 				},
 			},
 		});

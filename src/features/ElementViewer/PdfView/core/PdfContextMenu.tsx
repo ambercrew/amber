@@ -1,15 +1,16 @@
 import { ReactNode } from "react";
 import { Menu } from "@mantine/core";
+import { useDocuments } from "@embedpdf/react/runtime";
+import { useStage } from "@embedpdf/react/stage";
 import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
 import ReadingMenuItems from "../../marks/ReadingMenuItems";
 import { usePdfCore } from "./pdfCoreContext";
 
-/** Marks the element holding one page, so a right-click can tell which page it landed on. */
-export const PDF_PAGE_ATTRIBUTE = "data-pdf-page";
-
 /** The PDF's right-click menu, matching the text view's (marks and read point); notes which page it opened on. */
 export default function PdfContextMenu({ children }: { children: ReactNode }) {
 	const { setMenuPage } = usePdfCore();
+	const stage = useStage();
+	const documents = useDocuments();
 	// The floating selection menu covers touch, as it does in the text view.
 	const coarsePointer = useIsCoarsePointer();
 
@@ -19,17 +20,19 @@ export default function PdfContextMenu({ children }: { children: ReactNode }) {
 				<div
 					style={{ width: "100%", height: "100%" }}
 					onContextMenuCapture={event => {
-						const page =
-							event.target instanceof Element
-								? event.target.closest(
-										`[${PDF_PAGE_ATTRIBUTE}]`,
-									)
-								: null;
-						setMenuPage(
-							page
-								? Number(page.getAttribute(PDF_PAGE_ATTRIBUTE))
-								: null,
-						);
+						// Measures the Stage itself (the only child), which sits below the safe area on mobile.
+						const stageElement =
+							event.currentTarget.firstElementChild ??
+							event.currentTarget;
+						const box = stageElement.getBoundingClientRect();
+						const hit = stage.getPageAt({
+							x: event.clientX - box.left,
+							y: event.clientY - box.top,
+						});
+						const pageIndex = hit
+							? documents.getPageIndex(hit.ref)
+							: -1;
+						setMenuPage(pageIndex >= 0 ? pageIndex + 1 : null);
 					}}>
 					{children}
 				</div>

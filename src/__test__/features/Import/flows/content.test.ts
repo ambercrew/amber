@@ -11,7 +11,6 @@ vi.mock(import("../../../../features/Import/createImportedLearningAsset"));
 function makeCtx(): ImportContext {
 	return {
 		dispatch: vi.fn() as unknown as ImportContext["dispatch"],
-		navigate: vi.fn() as unknown as ImportContext["navigate"],
 		parent: null,
 		priorityPosition: 5,
 	};

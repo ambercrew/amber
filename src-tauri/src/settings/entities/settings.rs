@@ -204,9 +204,9 @@ mod tests {
             "zoomPercentage": 100.0,
             "autoSync": true,
             "aiProvider": "openRouter",
-            "ollama": { "modelName": "llama3.1", "embeddingsModelName": null, "apiKey": null },
-            "openai": { "modelName": "gpt-4o", "embeddingsModelName": null, "apiKey": null },
-            "openrouter": { "modelName": "openai/gpt-4o-mini", "embeddingsModelName": null, "apiKey": null }
+            "ollama": { "modelName": "llama3.1", "apiKey": null },
+            "openai": { "modelName": "gpt-4o", "apiKey": null },
+            "openrouter": { "modelName": "openai/gpt-4o-mini", "apiKey": null }
         }"#;
 
         // Act

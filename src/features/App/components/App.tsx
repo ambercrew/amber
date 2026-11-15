@@ -31,7 +31,7 @@ import { useElementRenamedSync } from "../../../hooks/useElementRenamedSync";
 import { usePostSyncRefresh } from "../../../hooks/usePostSyncRefresh";
 import { useCloseSidebarOnSmallScreenNavigation } from "../../../hooks/useCloseSidebarOnSmallScreenNavigation";
 import { useSessionScheduleChanges } from "../../Study/hooks/useSessionScheduleChanges";
-import { useStudySessionGuard } from "../../Study/hooks/useStudySessionGuard";
+import { useStudySessionAway } from "../../Study/hooks/useStudySessionAway";
 import { useStudySessionSummaryToast } from "../../Study/hooks/useStudySessionSummaryToast";
 import Updater from "../../Updater/components/Updater";
 import CommandPalette from "../../../commands/CommandPalette";
@@ -76,11 +76,13 @@ import { useOcclusionCardContentsBridge } from "../../ImageOcclusion/hooks/useOc
 import { useImportedHtmlConversionBridge } from "../../Import/hooks/useImportedHtmlConversionBridge";
 import { useAnkiSyncBridge } from "../../AnkiSync/hooks/useAnkiSyncBridge";
 import { MainScrollContext } from "../context/mainScrollContext.ts";
+import { searchHighlightHostProps } from "../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightHost";
 import { HeadroomOverrideContext } from "../context/headroomOverrideContext.ts";
 import {
 	chromeInsets,
 	ChromeInsetsContext,
 } from "../context/chromeInsetsContext.ts";
+import { VisibleAreaContext } from "../../../components/FloatingMenuBar/visibleAreaContext.ts";
 import { useElementHeadroom } from "../../../hooks/useElementHeadroom.ts";
 import { useWheelZoom } from "../../../hooks/useWheelZoom.ts";
 
@@ -96,6 +98,8 @@ const PANEL_COLLAPSE_AT = 120;
 
 function App() {
 	const [mainElement, setMainElement] = useState<HTMLElement | null>(null);
+	const [visibleAreaElement, setVisibleAreaElement] =
+		useState<HTMLElement | null>(null);
 	const { pinned: mainScrollPinned } = useElementHeadroom({
 		element: mainElement,
 		fixedAt: HEADROOM_FIXED_AT,
@@ -213,7 +217,7 @@ function App() {
 	useElementDueChangedRefresh();
 	useElementRenamedSync();
 	usePostSyncRefresh();
-	useStudySessionGuard();
+	useStudySessionAway();
 	useSessionScheduleChanges();
 	useStudySessionSummaryToast();
 	useLexicalConversionBridge();
@@ -223,9 +227,7 @@ function App() {
 	useWheelZoom();
 
 	useEffect(() => {
-		const contextMenuCb = (e: MouseEvent) => {
-			if (!import.meta.env.DEV) e.preventDefault();
-		};
+		const contextMenuCb = (e: MouseEvent) => e.preventDefault();
 		window.addEventListener("contextmenu", contextMenuCb);
 		return () => window.removeEventListener("contextmenu", contextMenuCb);
 	}, []);
@@ -240,161 +242,178 @@ function App() {
 		<MainScrollContext value={mainElement}>
 			<HeadroomOverrideContext value={setPinnedOverride}>
 				<ChromeInsetsContext value={insets}>
-					<AppShell
-						resize={resize}
-						mode="fixed"
-						layout="alt"
-						h="100dvh"
-						style={{
-							overflow: "hidden",
-							"--app-shell-transition-duration":
-								"calc(200ms * 2)",
-						}}
-						navbar={{
-							width: SIDEBAR_DEFAULT,
-							breakpoint: SMALL_SCREEN_BREAKPOINT,
-							collapsed: {
-								desktop: !sidebarExpanded,
-								mobile: !sidebarExpanded,
-							},
-						}}
-						aside={{
-							width: ASIDE_DEFAULT,
-							breakpoint: SMALL_SCREEN_BREAKPOINT,
-							collapsed: {
-								desktop: !asideExpanded,
-								mobile: !asideExpanded,
-							},
-						}}
-						header={{
-							height: mobile
-								? `calc(${HEADER_AND_FOOTER_HEIGHT}px + ${SAFE_AREA_TOP}${
-										isCurrentElementTrashed
-											? ` + ${TRASHED_ELEMENT_BANNER_HEIGHT}px`
-											: ""
-									})`
-								: HEADER_AND_FOOTER_HEIGHT +
-									(isCurrentElementTrashed
-										? TRASHED_ELEMENT_BANNER_HEIGHT
-										: 0),
-							offset: false,
-						}}
-						footer={{
-							height: HEADER_AND_FOOTER_HEIGHT,
-							collapsed: !studying,
-							offset: false,
-						}}
-						padding="md">
-						{!mobile && <Updater />}
-						<CommandPalette />
-						<ImageLightbox />
-						<ImportModal />
-						<StudyProfileModal />
-						<SettingsModal />
-						<AnkiSyncReviewModal />
-						<PriorityModal />
-						<DueDateModal />
-						<ShortcutsModal />
-						<AiPromptLibraryModal />
-						<StudySessionSettingsModal />
-						<AuthModal />
-						<VerifyEmailModal />
-						<ManageAccountModal />
-						<SyncingModal />
-						<Notifications
-							classNames={notificationsClasses}
-							// Bottom notifications sit above the study session footer while it's shown.
-							// Portaled outside the AppShell, so its scoped --app-shell-footer-height isn't visible here.
-							style={
-								{
-									"--notifications-chrome-bottom": `calc(${
-										footerCollapsed
-											? "0px"
-											: rem(HEADER_AND_FOOTER_HEIGHT)
-									} + ${SAFE_AREA_BOTTOM})`,
-								} as CSSProperties
-							}
-						/>
-						<SafeAreaTopBackdrop />
-
-						<AppShell.Header style={headerStyle}>
-							<Box h={HEADER_AND_FOOTER_HEIGHT}>
-								<AppHeader
-									onToggleSidebar={() =>
-										setSidebarExpanded(v => !v)
-									}
-									onToggleAside={() =>
-										setAsideExpanded(v => !v)
-									}
-								/>
-							</Box>
-							<TrashedElementBanner />
-						</AppShell.Header>
-
-						<AppShell.Footer style={footerStyle}>
-							<StudySessionBar />
-						</AppShell.Footer>
-
-						<AppShell.Navbar style={safeAreaTop}>
-							<Sidebar
-								onCollapse={() => setSidebarExpanded(false)}
-								onExpand={() => setSidebarExpanded(true)}
-								onToggle={() => setSidebarExpanded(v => !v)}
-							/>
-						</AppShell.Navbar>
-
-						<AppShell.Main
-							p={0}
+					<VisibleAreaContext value={visibleAreaElement}>
+						<AppShell
+							resize={resize}
+							mode="fixed"
+							layout="alt"
+							h="100dvh"
 							style={{
-								position: "fixed",
-								minHeight: 0,
-								top: 0,
-								bottom: 0,
-								insetInlineStart:
-									"var(--app-shell-navbar-offset, 0rem)",
-								insetInlineEnd:
-									"var(--app-shell-aside-offset, 0rem)",
-								transitionProperty:
-									"inset-inline-start, inset-inline-end",
-							}}>
-							<ScrollArea
-								h="100%"
-								scrollbars="y"
-								viewportRef={setMainElement}
-								viewportProps={{
-									style: {
-										// Opaque, so Chromium scrolls it on the compositor; otherwise it repaints every frame (slow with many equations).
-										backgroundColor:
-											"var(--mantine-color-body)",
-										paddingInline:
-											"var(--app-shell-padding)",
-										paddingTop: `calc(${headerSpace} + var(--app-shell-padding))`,
-										paddingBottom: `calc(${footerSpace} + var(--app-shell-padding))`,
-										scrollPaddingTop: headerSpace,
-										scrollPaddingBottom: footerSpace,
-									},
-								}}
-								styles={{
-									scrollbar: {
+								overflow: "hidden",
+								"--app-shell-transition-duration":
+									"calc(200ms * 2)",
+							}}
+							navbar={{
+								width: SIDEBAR_DEFAULT,
+								breakpoint: SMALL_SCREEN_BREAKPOINT,
+								collapsed: {
+									desktop: !sidebarExpanded,
+									mobile: !sidebarExpanded,
+								},
+							}}
+							aside={{
+								width: ASIDE_DEFAULT,
+								breakpoint: SMALL_SCREEN_BREAKPOINT,
+								collapsed: {
+									desktop: !asideExpanded,
+									mobile: !asideExpanded,
+								},
+							}}
+							header={{
+								height: mobile
+									? `calc(${HEADER_AND_FOOTER_HEIGHT}px + ${SAFE_AREA_TOP}${
+											isCurrentElementTrashed
+												? ` + ${TRASHED_ELEMENT_BANNER_HEIGHT}px`
+												: ""
+										})`
+									: HEADER_AND_FOOTER_HEIGHT +
+										(isCurrentElementTrashed
+											? TRASHED_ELEMENT_BANNER_HEIGHT
+											: 0),
+								offset: false,
+							}}
+							footer={{
+								height: HEADER_AND_FOOTER_HEIGHT,
+								collapsed: !studying,
+								offset: false,
+							}}
+							padding="md">
+							{!mobile && <Updater />}
+							<CommandPalette />
+							<ImageLightbox />
+							<ImportModal />
+							<StudyProfileModal />
+							<SettingsModal />
+							<AnkiSyncReviewModal />
+							<PriorityModal />
+							<DueDateModal />
+							<ShortcutsModal />
+							<AiPromptLibraryModal />
+							<StudySessionSettingsModal />
+							<AuthModal />
+							<VerifyEmailModal />
+							<ManageAccountModal />
+							<SyncingModal />
+							<Notifications
+								classNames={notificationsClasses}
+								// Bottom notifications sit above the study session footer while it's shown.
+								// Portaled outside the AppShell, so its scoped --app-shell-footer-height isn't visible here.
+								style={
+									{
+										"--notifications-chrome-bottom": `calc(${
+											footerCollapsed
+												? "0px"
+												: rem(HEADER_AND_FOOTER_HEIGHT)
+										} + ${SAFE_AREA_BOTTOM})`,
+									} as CSSProperties
+								}
+							/>
+							<SafeAreaTopBackdrop />
+
+							<AppShell.Header style={headerStyle}>
+								<Box h={HEADER_AND_FOOTER_HEIGHT}>
+									<AppHeader
+										onToggleSidebar={() =>
+											setSidebarExpanded(v => !v)
+										}
+										onToggleAside={() =>
+											setAsideExpanded(v => !v)
+										}
+									/>
+								</Box>
+								<TrashedElementBanner />
+							</AppShell.Header>
+
+							<AppShell.Footer style={footerStyle}>
+								<StudySessionBar />
+							</AppShell.Footer>
+
+							<AppShell.Navbar style={safeAreaTop}>
+								<Sidebar
+									onCollapse={() => setSidebarExpanded(false)}
+									onExpand={() => setSidebarExpanded(true)}
+									onToggle={() => setSidebarExpanded(v => !v)}
+								/>
+							</AppShell.Navbar>
+
+							<AppShell.Main
+								p={0}
+								style={{
+									position: "fixed",
+									minHeight: 0,
+									top: 0,
+									bottom: 0,
+									insetInlineStart:
+										"var(--app-shell-navbar-offset, 0rem)",
+									insetInlineEnd:
+										"var(--app-shell-aside-offset, 0rem)",
+									transitionProperty:
+										"inset-inline-start, inset-inline-end",
+								}}>
+								<ScrollArea
+									h="100%"
+									scrollbars="y"
+									viewportRef={setMainElement}
+									viewportProps={{
+										...searchHighlightHostProps,
+										style: {
+											// Opaque, so Chromium scrolls it on the compositor; otherwise it repaints every frame (slow with many equations).
+											backgroundColor:
+												"var(--mantine-color-body)",
+											paddingInline:
+												"var(--app-shell-padding)",
+											paddingTop: `calc(${headerSpace} + var(--app-shell-padding))`,
+											paddingBottom: `calc(${footerSpace} + var(--app-shell-padding))`,
+											scrollPaddingTop: headerSpace,
+											scrollPaddingBottom: footerSpace,
+										},
+									}}
+									styles={{
+										scrollbar: {
+											top: insets.top,
+											bottom: insets.bottom,
+											// Keeps Mantine's own hover fade alongside the inset animation.
+											transition: `${insets.transition}, background-color 150ms ease, opacity 150ms ease`,
+										},
+										content: { display: "block" },
+									}}>
+									<Outlet />
+								</ScrollArea>
+								{/* What the header and footer leave visible, for floating menus to stay inside. */}
+								<div
+									ref={setVisibleAreaElement}
+									aria-hidden
+									style={{
+										position: "absolute",
+										insetInline: 0,
 										top: insets.top,
 										bottom: insets.bottom,
-										// Keeps Mantine's own hover fade alongside the inset animation.
-										transition: `${insets.transition}, background-color 150ms ease, opacity 150ms ease`,
-									},
-									content: { display: "block" },
-								}}>
-								<Outlet />
-							</ScrollArea>
-						</AppShell.Main>
+										transition: insets.transition,
+										visibility: "hidden",
+										pointerEvents: "none",
+									}}
+								/>
+							</AppShell.Main>
 
-						<AppShell.Aside style={safeAreaVertical}>
-							<Aside
-								onCollapse={() => setAsideExpanded(false)}
-								onExpand={() => setAsideExpanded(true)}
-								onToggle={() => setAsideExpanded(v => !v)}
-							/>
-						</AppShell.Aside>
-					</AppShell>
+							<AppShell.Aside style={safeAreaVertical}>
+								<Aside
+									onCollapse={() => setAsideExpanded(false)}
+									onExpand={() => setAsideExpanded(true)}
+									onToggle={() => setAsideExpanded(v => !v)}
+								/>
+							</AppShell.Aside>
+						</AppShell>
+					</VisibleAreaContext>
 				</ChromeInsetsContext>
 			</HeadroomOverrideContext>
 		</MainScrollContext>

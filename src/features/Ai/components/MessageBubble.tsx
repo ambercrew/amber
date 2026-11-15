@@ -200,7 +200,6 @@ function MessageBubble({
 				onBranch={onBranch}>
 				<Paper
 					withBorder
-					radius="md"
 					p="sm"
 					maw="90%"
 					bg="var(--mantine-primary-color-filled)"
@@ -225,7 +224,7 @@ function MessageBubble({
 		if (content.value === "") {
 			return (
 				<Group justify="flex-start">
-					<Paper withBorder radius="md" p="sm">
+					<Paper withBorder p="sm">
 						<Loader type="dots" size="sm" />
 					</Paper>
 				</Group>
@@ -239,12 +238,7 @@ function MessageBubble({
 				showActions={!isStreaming}
 				onBranch={onBranch}
 				style={{ minWidth: 0 }}>
-				<Paper
-					withBorder
-					radius="md"
-					p="sm"
-					maw="90%"
-					style={{ minWidth: 0 }}>
+				<Paper withBorder p="sm" maw="90%" style={{ minWidth: 0 }}>
 					<AiMarkdown markdown={content.value} />
 					{isStreaming && (
 						<Group justify="flex-end" mt={4}>
@@ -259,7 +253,7 @@ function MessageBubble({
 	if (content.type === "document") {
 		return (
 			<Group justify="flex-end">
-				<Paper withBorder radius="md" p="xs" maw="90%">
+				<Paper withBorder p="xs" maw="90%">
 					<Group gap="xs" wrap="nowrap">
 						{isStreaming ? (
 							<Loader size={16} />

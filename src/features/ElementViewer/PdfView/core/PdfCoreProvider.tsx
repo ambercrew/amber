@@ -7,8 +7,12 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useDocumentState } from "@embedpdf/core/react";
-import { useScrollCapability } from "@embedpdf/plugin-scroll/react";
+import { useLinkEvent } from "@embedpdf/react/link";
+import {
+	StageCapability,
+	useStage,
+	useStageState,
+} from "@embedpdf/react/stage";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import {
 	PdfArrivalContext,
@@ -16,7 +20,8 @@ import {
 	PdfScrollPaceContext,
 } from "./pdfCoreContext";
 import { usePdfNavigator } from "./usePdfNavigator";
-import { usePdfScrollPace } from "./usePdfScrollPace";
+import { useStageHost } from "./stageScroll";
+import { usePdfScrollPaceTracker } from "./usePdfScrollPaceTracker";
 import { usePdfZoomPersistence } from "./usePdfZoomPersistence";
 
 interface PdfCoreProviderProps extends PropsWithChildren {
@@ -25,38 +30,55 @@ interface PdfCoreProviderProps extends PropsWithChildren {
 	initialReadPoint: ReadingPosition;
 }
 
+/** Whether the Stage has measured its viewport and placed the pages, so a jump lands where it should. */
+function isLayoutReady(stage: StageCapability) {
+	return stage.getViewportSize().height > 0 && stage.getPageBox(0) !== null;
+}
+
 export default function PdfCoreProvider({
 	learningAssetId,
 	documentId,
 	initialReadPoint,
 	children,
 }: PdfCoreProviderProps) {
-	const { provides: scroll } = useScrollCapability();
-	const { goToPage, hideRequests } = usePdfNavigator(documentId);
-	const pageCount = useDocumentState(documentId)?.document?.pageCount ?? 0;
+	const stage = useStage();
+	const { goToPage, announceJump, hideRequests } = usePdfNavigator(stage);
+	// Following a link inside the PDF is a jump too.
+	useLinkEvent(
+		link => link.onActivated,
+		({ activation }) => {
+			if (activation.status === "revealed") announceJump();
+		},
+	);
+	const pageCount = useStageState(state => state.pageCount);
 
-	// The zoom applies within the layout-ready event, so a restoring jump made after it can't be undone by its re-centering.
-	const { restoreZoom } = usePdfZoomPersistence(documentId, learningAssetId);
-	const [layoutReadyDocumentId, setLayoutReadyDocumentId] = useState<
-		string | null
-	>(null);
+	// The zoom applies before the layout counts as ready, so a restoring jump made after it lands at the right scale.
+	const { restoreZoom } = usePdfZoomPersistence(stage, learningAssetId);
+	// The Viewer remounts per document, so this only turns true once.
+	const [layoutReady, setLayoutReady] = useState(false);
 	const handleInitialLayout = useEffectEvent(() => {
 		restoreZoom();
-		setLayoutReadyDocumentId(documentId);
+		setLayoutReady(true);
 	});
-	useEffect(
-		() =>
-			scroll?.onLayoutReady(event => {
-				if (event.documentId === documentId && event.isInitial)
-					handleInitialLayout();
-			}),
-		[scroll, documentId],
-	);
-	const layoutReady = layoutReadyDocumentId === documentId;
+	useEffect(() => {
+		let handled = false;
+		const check = () => {
+			if (handled || !isLayoutReady(stage)) return;
+			handled = true;
+			handleInitialLayout();
+		};
+		const unsubscribeViewport = stage.onViewportChanged(check);
+		const unsubscribeCamera = stage.onCameraChanged(check);
+		check();
+		return () => {
+			unsubscribeViewport();
+			unsubscribeCamera();
+		};
+	}, [stage]);
 
 	const getCurrentPage = useCallback(
-		() => scroll?.forDocument(documentId).getCurrentPage() ?? 1,
-		[scroll, documentId],
+		() => stage.getCurrentPageIndex() + 1,
+		[stage],
 	);
 	const menuPageRef = useRef<number | null>(null);
 	const getMenuPage = useCallback(() => menuPageRef.current, []);
@@ -72,6 +94,7 @@ export default function PdfCoreProvider({
 			pageCount,
 			layoutReady,
 			goToPage,
+			announceJump,
 			getCurrentPage,
 			getMenuPage,
 			setMenuPage,
@@ -83,13 +106,14 @@ export default function PdfCoreProvider({
 			pageCount,
 			layoutReady,
 			goToPage,
+			announceJump,
 			getCurrentPage,
 			getMenuPage,
 			setMenuPage,
 		],
 	);
 	const arrival = useMemo(() => ({ hideRequests }), [hideRequests]);
-	const { flying } = usePdfScrollPace(documentId);
+	const { flying } = usePdfScrollPaceTracker(useStageHost());
 	const scrollPace = useMemo(() => ({ flying }), [flying]);
 
 	return (

@@ -1,20 +1,12 @@
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use rig::{
-    embeddings::{EmbedError, EmbeddingError},
-    loaders::file::FileLoaderError,
-    loaders::pdf::PdfLoaderError,
-    vector_store::VectorStoreError,
-};
+use rig::loaders::{file::FileLoaderError, pdf::PdfLoaderError};
 use serde::Serialize;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::{
-    SourceError, ai_integration::services::ai_client_provider::AiClientProviderError,
-    common::repository_error::RepositoryError,
-};
+use crate::{SourceError, common::repository_error::RepositoryError};
 
 #[derive(Error, Debug)]
 pub enum DocumentUploaderError {
@@ -26,14 +18,6 @@ pub enum DocumentUploaderError {
     FileLoader(#[from] FileLoaderError),
     #[error("Failed to load the PDF file")]
     PdfLoader(#[from] PdfLoaderError),
-    #[error("Failed to embed content")]
-    Embed(#[from] EmbedError),
-    #[error("Failed to generate embeddings")]
-    Embedding(#[from] EmbeddingError),
-    #[error(transparent)]
-    VectorStore(#[from] VectorStoreError),
-    #[error(transparent)]
-    AiClientProvider(#[from] AiClientProviderError),
 }
 
 impl From<String> for DocumentUploaderError {

@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+/** What the headroom observes: a scrolling element, or anything that scrolls like one and fires `scroll`. */
+export interface HeadroomScroller extends EventTarget {
+	readonly scrollTop: number;
+	readonly scrollHeight: number;
+}
+
 export interface UseElementHeadroomInput {
 	/** Scroll container to observe; stays pinned while it is null. */
-	element: HTMLElement | null;
+	element: HeadroomScroller | null;
 	/** Number in px at which the element should be fixed. */
 	fixedAt?: number;
 	/** Number of px to scroll to fully reveal or hide the element. */
@@ -26,7 +32,7 @@ const HIDE_QUIET_MS = 150;
 const HIDE_SCROLL_WAIT_MS = 1000;
 
 /** Hides the chrome observing `element` after a jump, unless the jump landed within `fixedAt` of the top. */
-export function hideHeadroom(element: HTMLElement) {
+export function hideHeadroom(element: HeadroomScroller) {
 	element.dispatchEvent(new Event(HEADROOM_HIDE_EVENT));
 }
 

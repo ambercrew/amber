@@ -11,6 +11,8 @@ export interface PdfCoreValue {
 	/** Set once the first layout is ready and the saved zoom applied, so a restoring jump lands at the right scale. */
 	layoutReady: boolean;
 	goToPage: GoToPage;
+	/** Hides the header for a jump made without `goToPage`, as `goToPage` does. */
+	announceJump: () => void;
 	/** The 1-based page in view. */
 	getCurrentPage: () => number;
 	/** The 1-based page right-clicked to open the context menu, or `null` while it's closed. */

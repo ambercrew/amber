@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
-use rig::client::AgentClientExt;
-use rig::completion::PromptError;
-use rig::extractor::ExtractionError;
+use rig::AgentBuilder;
+use rig::completion::{PromptError, StructuredOutputError};
+use rig::extractor::ExtractorBuilder;
 
 use crate::ai_integration::ai_state::AiState;
 use crate::ai_integration::entities::chat::Chat;
@@ -23,14 +23,17 @@ pub struct DefaultChatCreator {
 #[async_trait]
 impl ChatCreator for DefaultChatCreator {
     async fn create_chat(&self, prompt: &str) -> Result<Chat, ChatCreatorError> {
-        let extractor = self
+        let model = self
             .ai_client_provider
             .get_client()
             .await?
-            .extractor::<GenerateTitle>(self.ai_client_provider.get_completion_model_name().await?)
-            .preamble(PREAMBLE_GENERATE_TITLE)
-            .add_hook(StateCancellationHook::new(self.state.clone()))
-            .build();
+            .completion(self.ai_client_provider.get_completion_model_name().await?);
+        let extractor = ExtractorBuilder::<GenerateTitle>::from_agent_builder(
+            AgentBuilder::new(model)
+                .preamble(PREAMBLE_GENERATE_TITLE)
+                .add_hook(StateCancellationHook::new(self.state.clone())),
+        )
+        .build();
         let extraction = extractor.extract(format!("User message: {}", prompt));
         let result = tokio::select! {
             result = extraction => result,
@@ -38,33 +41,33 @@ impl ChatCreator for DefaultChatCreator {
         };
         let response = match result {
             Ok(response) => response,
-            Err(ExtractionError::CompletionError(completion_err)) => {
-                return Err(ChatCreatorError::try_from(completion_err)
-                    .unwrap_or_else(|e| ChatCreatorError::CreateChat(Box::new(e))));
+            Err(StructuredOutputError::Prompt(PromptError::Provider(error))) => {
+                return Err(error.report().into());
             }
-            Err(ExtractionError::PromptError(PromptError::PromptCancelled { .. })) => {
+            Err(StructuredOutputError::Prompt(PromptError::Report(report))) => {
+                return Err(report.into());
+            }
+            Err(StructuredOutputError::Prompt(PromptError::Cancelled { .. })) => {
                 return Err(ChatCreatorError::Cancelled);
             }
             Err(err) => return Err(ChatCreatorError::CreateChat(Box::new(err))),
         };
 
-        log::info!("Generated title for chat is '{}'.", response.title);
-        Ok(Chat::new(None, response.title))
+        let title = response.output.title;
+        log::info!("Generated title for chat is '{title}'.");
+        Ok(Chat::new(None, title))
     }
 }
 
 #[cfg(test)]
 pub mod tests {
     use injector::{injector::Injector, register_scope};
-    use rig::{
-        completion::{CompletionResponse, Usage},
-        message::{AssistantContent, Message as RigMessage, UserContent},
-    };
+    use rig::message::{AssistantContent, Message as RigMessage, ToolName, UserContent};
     use tokio::sync::Mutex;
 
     use crate::{
         ai_integration::{
-            clients::mock_client::{MOCK_PROVIDER, MockClient},
+            clients::mock_client::MockClient,
             services::implementations::default_ai_client_provider::DefaultAiClientProvider,
         },
         infrastructure::repositories::disk::disk_settings_repository::DiskSettingsRepository,
@@ -100,23 +103,20 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(|request| {
-                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                if let Some(RigMessage::User { content }) =
+                    request.chat_history.last().map(Arc::as_ref)
                     && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User message: User prompt"
                 {
                     let tool_call = AssistantContent::tool_call(
                         "id",
-                        "submit",
+                        ToolName::new("submit").unwrap(),
                         serde_json::to_value(GenerateTitle {
                             title: "Chat title".to_string(),
                         })
                         .unwrap(),
                     );
-                    return CompletionResponse::new(
-                        vec![tool_call],
-                        Usage::default(),
-                        MOCK_PROVIDER,
-                    );
+                    return vec![tool_call];
                 }
 
                 panic!()

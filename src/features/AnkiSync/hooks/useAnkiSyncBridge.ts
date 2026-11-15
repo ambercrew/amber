@@ -8,6 +8,6 @@ import { replayCardReviews } from "../answerAnkiSyncRequests";
 export function useAnkiSyncBridge() {
 	useFrontendRequestBridge<ReplayCardReviewsEventDto>(
 		REPLAY_CARD_REVIEWS_EVENT,
-		event => JSON.stringify(replayCardReviews(event)),
+		async event => JSON.stringify(await replayCardReviews(event)),
 	);
 }

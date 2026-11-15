@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
-use rig::client::AgentClientExt;
+use rig::AgentBuilder;
 use uuid::Uuid;
 
 use crate::ai_integration::entities::message::Message;
@@ -16,6 +16,7 @@ use crate::ai_integration::tools::element_reference::element_reference;
 use crate::bibliographical_sources::services::bibliographical_source_service::BibliographicalSourceService;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::search::services::content_search_service::ContentSearchService;
 
 const DEFAULT_TEMPERATURE: f64 = 0.5;
 const DEFAULT_MAX_TURN: usize = 16;
@@ -26,13 +27,14 @@ pub struct DefaultAgentProvider {
     meta_repository: Arc<dyn MetaRepository>,
     bibliographical_source_service: Arc<dyn BibliographicalSourceService>,
     tools_provider: Arc<dyn ToolsProvider>,
+    content_search_service: Arc<dyn ContentSearchService>,
 }
 
 impl DefaultAgentProvider {
     /// Builds the "**Context:**" section of the preamble: the name of the
-    /// element the user is currently viewing, if relevant the bibliographical
-    /// source (title + authors) it was derived from. Snippets travel with the
-    /// message they were attached to instead.
+    /// element the user is currently viewing, how the model can see its content, and
+    /// if relevant the bibliographical source (title + authors) it was derived from.
+    /// Snippets travel with the message they were attached to instead.
     async fn build_context(
         &self,
         element_id: Option<ElementId>,
@@ -47,6 +49,19 @@ impl DefaultAgentProvider {
                 meta.name,
                 element_reference(element_id)
             ));
+            // Otherwise it may answer from the name alone; folders have no content to see.
+            if !matches!(element_id, ElementId::Folder(_)) {
+                let searchable = self
+                    .content_search_service
+                    .has_searchable_text(element_id)
+                    .await?;
+                lines.push(if searchable {
+                    "- You can't see its content, only what you search for or the user attaches."
+                        .to_string()
+                } else {
+                    "- You can't see its content, only what the user attaches.".to_string()
+                });
+            }
 
             if let Some(bibliographical_source_id) = meta.bibliographical_source_id {
                 let source = self
@@ -83,9 +98,11 @@ impl AgentProvider for DefaultAgentProvider {
         let completion_model_name = self.ai_client_provider.get_completion_model_name().await?;
         let context = self.build_context(element_id).await?;
 
-        let builder = client
-            .agent(&completion_model_name)
-            .temperature(DEFAULT_TEMPERATURE)
+        let mut builder = AgentBuilder::new(client.completion(&completion_model_name));
+        if client.supports_temperature() {
+            builder = builder.temperature(DEFAULT_TEMPERATURE);
+        }
+        let builder = builder
             .name("Amber Tutor")
             .default_max_turns(DEFAULT_MAX_TURN)
             .preamble(preamble(context.as_deref()).as_str());
@@ -117,17 +134,14 @@ pub mod tests {
     use chrono::Utc;
     use fractional_index::FractionalIndex;
     use injector::{injector::Injector, register_scope};
-    use rig::{
-        completion::{CompletionResponse, Prompt, Usage},
-        message::{AssistantContent, Message as RigMessage},
-    };
+    use rig::message::{AssistantContent, Message as RigMessage};
     use tokio::sync::Mutex;
     use uuid::Uuid;
 
     use crate::{
         ai_integration::{
             ai_state::AiState,
-            clients::mock_client::{MOCK_PROVIDER, MockClient},
+            clients::mock_client::MockClient,
             entities::message::{DocumentContent, Message, MessageContent},
             services::implementations::default_ai_client_provider::DefaultAiClientProvider,
         },
@@ -191,6 +205,15 @@ pub mod tests {
     use crate::elements::services::element_creation_service::ElementCreationService;
 
     use super::*;
+    use crate::ai_integration::repositories::ai_document_repository::AiDocumentRepository;
+    use crate::ai_integration::services::document_search_service::DocumentSearchService;
+    use crate::ai_integration::services::implementations::default_document_search_service::DefaultDocumentSearchService;
+    use crate::elements::entities::extract::Extract;
+    use crate::infrastructure::repositories::sqlite::sqlite_ai_document_repository::SqliteAiDocumentRepository;
+    use crate::infrastructure::repositories::sqlite::sqlite_content_search_repository::SqliteContentSearchRepository;
+    use crate::search::repositories::content_search_repository::ContentSearchRepository;
+    use crate::search::services::content_search_service::ContentSearchService;
+    use crate::search::services::implementations::default_content_search_service::DefaultContentSearchService;
 
     struct MockLexicalJsonConverter;
 
@@ -217,6 +240,16 @@ pub mod tests {
 
         register_scope!(injector, dyn SettingsRepository, DiskSettingsRepository);
         register_scope!(injector, dyn AiClientProvider, DefaultAiClientProvider);
+        register_scope!(
+            injector,
+            dyn AiDocumentRepository,
+            SqliteAiDocumentRepository
+        );
+        register_scope!(
+            injector,
+            dyn DocumentSearchService,
+            DefaultDocumentSearchService
+        );
         register_scope!(injector, dyn MetaRepository, SqliteMetaRepository);
         register_scope!(
             injector,
@@ -277,18 +310,24 @@ pub mod tests {
             dyn LearningAssetSchedulingService,
             DefaultLearningAssetSchedulingService
         );
+        register_scope!(
+            injector,
+            dyn ContentSearchRepository,
+            SqliteContentSearchRepository
+        );
+        register_scope!(
+            injector,
+            dyn ContentSearchService,
+            DefaultContentSearchService
+        );
         register_scope!(injector, dyn ToolsProvider, DefaultToolsProvider);
         register_scope!(injector, dyn AgentProvider, DefaultAgentProvider);
 
         injector
     }
 
-    fn mock_response_with_text(text: &str) -> CompletionResponse {
-        CompletionResponse::new(
-            vec![AssistantContent::text(text)],
-            Usage::default(),
-            MOCK_PROVIDER,
-        )
+    fn mock_response_with_text(text: &str) -> Vec<AssistantContent> {
+        vec![AssistantContent::text(text)]
     }
 
     #[tokio::test]
@@ -403,9 +442,6 @@ pub mod tests {
                 );
                 mock_response_with_text("Answer")
             }))),
-            embeddings_model_dims: Some(
-                crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS,
-            ),
             ..Default::default()
         };
 
@@ -439,9 +475,6 @@ pub mod tests {
         // Arrange
 
         let mock_client = MockClient {
-            embeddings_model_dims: Some(
-                crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS,
-            ),
             ..Default::default()
         };
 
@@ -496,7 +529,7 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(move |request| {
-                let has_context = request.chat_history.iter().any(|message| {
+                let has_context = request.chat_history.iter().map(Arc::as_ref).any(|message| {
                     matches!(
                         message,
                         RigMessage::System { content } if content.contains("**Context:**")
@@ -533,7 +566,7 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(move |request| {
-                let has_context = request.chat_history.iter().any(|message| {
+                let has_context = request.chat_history.iter().map(Arc::as_ref).any(|message| {
                     matches!(
                         message,
                         RigMessage::System { content }
@@ -587,5 +620,91 @@ pub mod tests {
         // Assert
 
         assert!(found_context.load(Ordering::Relaxed));
+    }
+    /// The system messages the agent sends for one prompt with `element_id` open, once `create` made it.
+    async fn system_text_for(
+        element_id: ElementId,
+        create: impl AsyncFnOnce(&injector::injector_scope::InjectorScope<'_>),
+    ) -> String {
+        let system_text = Arc::new(std::sync::Mutex::new(String::new()));
+        let system_text_clone = system_text.clone();
+        let mock_client = MockClient {
+            completion_fn: Arc::new(Some(Box::new(move |request| {
+                let text: String = request
+                    .chat_history
+                    .iter()
+                    .filter_map(|message| match message.as_ref() {
+                        RigMessage::System { content } => Some(content.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                *system_text_clone.lock().unwrap() = text;
+                mock_response_with_text("Answer")
+            }))),
+            ..Default::default()
+        };
+        let injector = initialize_test_injector(mock_client).await;
+        let scope = injector.start_scope();
+        create(&scope).await;
+        let service = scope.resolve::<dyn AgentProvider>().await;
+
+        let agent = service
+            .get_agent(Uuid::new_v4(), &[], Some(element_id))
+            .await
+            .unwrap();
+        agent.agent.prompt("Hello").await.unwrap();
+
+        system_text.lock().unwrap().clone()
+    }
+
+    #[tokio::test]
+    pub async fn get_agent_open_element_with_text_said_content_is_searchable() {
+        // Arrange
+
+        let element_id = ElementId::Extract(Uuid::new_v4());
+
+        // Act
+
+        let actual = system_text_for(element_id, async |scope| {
+            scope
+                .resolve::<dyn ExtractRepository>()
+                .await
+                .create(Extract {
+                    meta: make_meta(element_id, None),
+                    content: String::new(),
+                    interval_multiplier: 1.2,
+                })
+                .await
+                .unwrap();
+        })
+        .await;
+
+        // Assert
+
+        assert!(actual.contains("only what you search for or the user attaches"));
+    }
+
+    #[tokio::test]
+    pub async fn get_agent_open_element_without_text_said_only_attachments_are_visible() {
+        // Arrange
+
+        // A learning asset with no splits, like a PDF.
+        let element_id = ElementId::LearningAsset(Uuid::new_v4());
+
+        // Act
+
+        let actual = system_text_for(element_id, async |scope| {
+            scope
+                .resolve::<dyn MetaRepository>()
+                .await
+                .create_meta(&make_meta(element_id, None))
+                .await
+                .unwrap();
+        })
+        .await;
+
+        // Assert
+
+        assert!(actual.contains("You can't see its content, only what the user attaches."));
     }
 }

@@ -44,7 +44,8 @@ function ChatSelectMenu({
 	onSelect,
 	onNewChat,
 }: ChatSelectMenuProps) {
-	const isNewChat = selectedChatId === null;
+	// An id missing from the list (e.g. a chat deleted elsewhere) would leave the input blank.
+	const isNewChat = !chats.some(chat => chat.id === selectedChatId);
 	return (
 		<Select
 			data={[
@@ -57,7 +58,7 @@ function ChatSelectMenu({
 					})),
 				})),
 			]}
-			value={selectedChatId ?? NEW_CHAT_VALUE}
+			value={isNewChat ? NEW_CHAT_VALUE : selectedChatId}
 			onChange={value => {
 				if (!value) return;
 				if (value === NEW_CHAT_VALUE) onNewChat();

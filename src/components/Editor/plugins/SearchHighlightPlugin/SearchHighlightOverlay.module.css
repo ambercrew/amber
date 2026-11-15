@@ -11,21 +11,26 @@
 	}
 }
 
+/* Sits in a host's scrolled content with no height, so its boxes scroll along with the text. */
+.scrollLayer {
+	position: relative;
+	height: 0;
+	pointer-events: none;
+	mix-blend-mode: multiply;
+
+	@mixin dark {
+		mix-blend-mode: screen;
+	}
+}
+
 .box {
-	position: fixed;
 	border-radius: 2px;
 }
 
 .all {
-	background-color: light-dark(
-		var(--mantine-color-violet-2),
-		var(--mantine-color-violet-9)
-	);
+	background-color: var(--search-match-bg);
 }
 
 .current {
-	background-color: light-dark(
-		var(--mantine-color-violet-4),
-		var(--mantine-color-violet-6)
-	);
+	background-color: var(--search-match-current-bg);
 }

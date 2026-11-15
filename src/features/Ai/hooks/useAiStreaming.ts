@@ -35,6 +35,8 @@ interface UseAiStreamingParams {
 	activeChatIdRef: RefObject<string | null>;
 	refreshChats: () => Promise<void>;
 	callApi: CallApiFn;
+	/** Clears the chat's shared error, which a new prompt makes stale. */
+	clearErrorMessage: () => void;
 	currentElementId: ElementId | null;
 	contextSnippets: string[];
 }
@@ -48,6 +50,7 @@ export default function useAiStreaming({
 	activeChatIdRef,
 	refreshChats,
 	callApi,
+	clearErrorMessage,
 	currentElementId,
 	contextSnippets,
 }: UseAiStreamingParams) {
@@ -76,6 +79,7 @@ export default function useAiStreaming({
 	const sendPrompt = useCallback(
 		async (prompt: string) => {
 			setStreamError(null);
+			clearErrorMessage();
 			setPendingHumanText(prompt);
 			setPendingContextSnippets(contextSnippets);
 			setStreamingAssistantText("");
@@ -181,6 +185,7 @@ export default function useAiStreaming({
 			activeChatIdRef,
 			aiContextSnippets,
 			callApi,
+			clearErrorMessage,
 			contextSnippets,
 			currentElementId,
 			dispatch,

@@ -1,37 +1,32 @@
 import {
-	PdfAnnotationBorderStyle,
-	PdfAnnotationSubtype,
-	PdfBlendMode,
-	PdfSquareAnnoObject,
-} from "@embedpdf/models";
-import { AnnotationDocumentState } from "@embedpdf/plugin-annotation";
-import {
 	buildHighlightAnnotations,
 	findFirstHighlightedElement,
 	findHighlightsUnderSelection,
-	flattenHighlightRects,
-	getActivePdfHighlights,
 	isPdfHighlightAnnotation,
+	parseStoredHighlights,
+	serializeHighlights,
+	toPageRect,
+	toStoredRect,
 } from "../../../../../features/ElementViewer/PdfView/highlights/pdfHighlightAnnotations";
 
-const RECT_1 = { origin: { x: 1, y: 2 }, size: { width: 3, height: 4 } };
-const RECT_2 = { origin: { x: 0, y: 0 }, size: { width: 2, height: 2 } };
-const RECT_3 = { origin: { x: 9, y: 10 }, size: { width: 11, height: 12 } };
+const RECT_1 = { x: 1, y: 2, width: 3, height: 4 };
+const RECT_2 = { x: 0, y: 0, width: 2, height: 2 };
+const RECT_3 = { x: 9, y: 10, width: 11, height: 12 };
 
 describe("buildHighlightAnnotations", () => {
 	it("Should build one annotation per page, grouping that page's rects into segmentRects", () => {
 		// Arrange
 
-		const boundingRects = [
-			{ page: 0, rect: RECT_1 },
-			{ page: 0, rect: RECT_2 },
-			{ page: 1, rect: RECT_3 },
+		const lineRects = [
+			{ pageIndex: 0, rect: RECT_1 },
+			{ pageIndex: 0, rect: RECT_2 },
+			{ pageIndex: 1, rect: RECT_3 },
 		];
 
 		// Act
 
 		const annotations = buildHighlightAnnotations(
-			boundingRects,
+			lineRects,
 			"element-1",
 			"extract",
 			"#FFCD45",
@@ -42,20 +37,44 @@ describe("buildHighlightAnnotations", () => {
 		expect(annotations).toHaveLength(2);
 		const [page0, page1] = annotations;
 		expect(page0.pageIndex).toBe(0);
-		expect(page0.segmentRects).toEqual([RECT_1, RECT_2]);
+		expect(page0.segmentRects).toEqual([
+			toStoredRect(RECT_1),
+			toStoredRect(RECT_2),
+		]);
 		expect(page1.pageIndex).toBe(1);
-		expect(page1.segmentRects).toEqual([RECT_3]);
+		expect(page1.segmentRects).toEqual([toStoredRect(RECT_3)]);
 	});
 
-	it("Should set the annotation type, color and blend mode for a text highlight", () => {
+	it("Should store rects in embedpdf 2's origin and size shape when building a highlight", () => {
 		// Arrange
 
-		const boundingRects = [{ page: 0, rect: RECT_1 }];
+		const lineRects = [{ pageIndex: 0, rect: RECT_1 }];
 
 		// Act
 
 		const [annotation] = buildHighlightAnnotations(
-			boundingRects,
+			lineRects,
+			"element-1",
+			"extract",
+			"#FFCD45",
+		);
+
+		// Assert
+
+		expect(annotation.segmentRects).toEqual([
+			{ origin: { x: 1, y: 2 }, size: { width: 3, height: 4 } },
+		]);
+	});
+
+	it("Should keep embedpdf 2's highlight type, color, blend mode and flags when building a highlight", () => {
+		// Arrange
+
+		const lineRects = [{ pageIndex: 0, rect: RECT_1 }];
+
+		// Act
+
+		const [annotation] = buildHighlightAnnotations(
+			lineRects,
 			"element-1",
 			"card",
 			"#4DABF7",
@@ -63,71 +82,46 @@ describe("buildHighlightAnnotations", () => {
 
 		// Assert
 
-		expect(annotation.type).toBe(PdfAnnotationSubtype.HIGHLIGHT);
+		expect(annotation.type).toBe(9);
 		expect(annotation.strokeColor).toBe("#4DABF7");
-		expect(annotation.opacity).toBe(1);
-		expect(annotation.blendMode).toBe(PdfBlendMode.Multiply);
-	});
-
-	it("Should mark the annotation read-only so it doesn't intercept clicks/selection", () => {
-		// Arrange
-
-		const boundingRects = [{ page: 0, rect: RECT_1 }];
-
-		// Act
-
-		const [annotation] = buildHighlightAnnotations(
-			boundingRects,
-			"element-1",
-			"extract",
-			"#FFCD45",
-		);
-
-		// Assert
-
+		expect(annotation.blendMode).toBe(1);
 		expect(annotation.flags).toEqual(["print", "readOnly"]);
 	});
 
 	it("Should attach the element id and type via the custom field so it can be found later", () => {
 		// Arrange
 
-		const boundingRects = [
-			{ page: 0, rect: RECT_1 },
-			{ page: 1, rect: RECT_3 },
-		];
+		const lineRects = [{ pageIndex: 0, rect: RECT_1 }];
 
 		// Act
 
-		const annotations = buildHighlightAnnotations(
-			boundingRects,
+		const [annotation] = buildHighlightAnnotations(
+			lineRects,
 			"element-42",
 			"card",
-			"#FFCD45",
+			"#4DABF7",
 		);
 
 		// Assert
 
-		expect(
-			annotations.every(
-				annotation =>
-					annotation.custom.elementId === "element-42" &&
-					annotation.custom.elementType === "card",
-			),
-		).toBe(true);
+		expect(annotation.custom).toEqual({
+			elementId: "element-42",
+			elementType: "card",
+		});
 	});
 
 	it("Should give each page's annotation its own unique id", () => {
 		// Arrange
 
-		const boundingRects = [
-			{ page: 0, rect: RECT_1 },
-			{ page: 1, rect: RECT_3 },
+		const lineRects = [
+			{ pageIndex: 0, rect: RECT_1 },
+			{ pageIndex: 1, rect: RECT_3 },
 		];
 
 		// Act
 
-		const [first, second] = buildHighlightAnnotations(
-			boundingRects,
+		const [page0, page1] = buildHighlightAnnotations(
+			lineRects,
 			"element-1",
 			"extract",
 			"#FFCD45",
@@ -135,21 +129,21 @@ describe("buildHighlightAnnotations", () => {
 
 		// Assert
 
-		expect(first.id).not.toBe(second.id);
+		expect(page0.id).not.toBe(page1.id);
 	});
 
 	it("Should compute the bounding rect as the union of a page's segment rects", () => {
 		// Arrange
 
-		const boundingRects = [
-			{ page: 0, rect: RECT_1 },
-			{ page: 0, rect: RECT_2 },
+		const lineRects = [
+			{ pageIndex: 0, rect: RECT_1 },
+			{ pageIndex: 0, rect: RECT_2 },
 		];
 
 		// Act
 
 		const [annotation] = buildHighlightAnnotations(
-			boundingRects,
+			lineRects,
 			"element-1",
 			"extract",
 			"#FFCD45",
@@ -157,13 +151,15 @@ describe("buildHighlightAnnotations", () => {
 
 		// Assert
 
-		expect(annotation.rect).toEqual({
-			origin: { x: 0, y: 0 },
-			size: { width: 4, height: 6 },
+		expect(toPageRect(annotation.rect)).toEqual({
+			x: 0,
+			y: 0,
+			width: 4,
+			height: 6,
 		});
 	});
 
-	it("Should return an empty array when there are no bounding rects", () => {
+	it("Should return an empty array when there are no line rects", () => {
 		// Act
 
 		const annotations = buildHighlightAnnotations(
@@ -179,42 +175,12 @@ describe("buildHighlightAnnotations", () => {
 	});
 });
 
-describe("flattenHighlightRects", () => {
-	it("Should flatten each page's rect list into individual page/rect entries", () => {
-		// Arrange
-
-		const rectsByPage = { 0: [RECT_1, RECT_2], 1: [RECT_3] };
-
-		// Act
-
-		const flattened = flattenHighlightRects(rectsByPage);
-
-		// Assert
-
-		expect(flattened).toEqual([
-			{ page: 0, rect: RECT_1 },
-			{ page: 0, rect: RECT_2 },
-			{ page: 1, rect: RECT_3 },
-		]);
-	});
-
-	it("Should return an empty array when there are no pages", () => {
-		// Act
-
-		const flattened = flattenHighlightRects({});
-
-		// Assert
-
-		expect(flattened).toEqual([]);
-	});
-});
-
 describe("isPdfHighlightAnnotation", () => {
-	it("Should return true for a highlight annotation carrying an elementId", () => {
+	it("Should return true for a highlight carrying an elementId", () => {
 		// Arrange
 
 		const [annotation] = buildHighlightAnnotations(
-			[{ page: 0, rect: RECT_1 }],
+			[{ pageIndex: 0, rect: RECT_1 }],
 			"element-1",
 			"extract",
 			"#FFCD45",
@@ -229,29 +195,150 @@ describe("isPdfHighlightAnnotation", () => {
 		expect(actual).toBe(true);
 	});
 
-	it("Should return false for a non-highlight annotation", () => {
+	it("Should return false for an annotation of another type", () => {
 		// Arrange
 
-		const squareAnnotation: PdfSquareAnnoObject = {
-			id: "1",
-			type: PdfAnnotationSubtype.SQUARE,
+		const square = {
+			type: 5,
 			pageIndex: 0,
-			rect: RECT_1,
-			flags: [],
-			color: "#000000",
-			opacity: 1,
-			strokeWidth: 1,
-			strokeColor: "#000000",
-			strokeStyle: PdfAnnotationBorderStyle.SOLID,
+			segmentRects: [],
+			custom: { elementId: "element-1", elementType: "extract" },
 		};
 
 		// Act
 
-		const actual = isPdfHighlightAnnotation(squareAnnotation);
+		const actual = isPdfHighlightAnnotation(square);
 
 		// Assert
 
 		expect(actual).toBe(false);
+	});
+
+	it("Should return false for a highlight without an element", () => {
+		// Arrange
+
+		const pdfOwnHighlight = { type: 9, pageIndex: 0, segmentRects: [] };
+
+		// Act
+
+		const actual = isPdfHighlightAnnotation(pdfOwnHighlight);
+
+		// Assert
+
+		expect(actual).toBe(false);
+	});
+});
+
+describe("parseStoredHighlights", () => {
+	it("Should read back what serializeHighlights wrote", () => {
+		// Arrange
+
+		const highlights = buildHighlightAnnotations(
+			[
+				{ pageIndex: 0, rect: RECT_1 },
+				{ pageIndex: 2, rect: RECT_3 },
+			],
+			"element-1",
+			"extract",
+			"#FFCD45",
+		);
+
+		// Act
+
+		const actual = parseStoredHighlights(serializeHighlights(highlights));
+
+		// Assert
+
+		expect(actual).toEqual(highlights);
+	});
+
+	it("Should read highlights saved by embedpdf 2's annotation plugin", () => {
+		// Arrange
+
+		const savedByV2 = JSON.stringify([
+			{
+				annotation: {
+					id: "highlight-1",
+					type: 9,
+					pageIndex: 3,
+					rect: {
+						origin: { x: 1, y: 2 },
+						size: { width: 3, height: 4 },
+					},
+					segmentRects: [
+						{
+							origin: { x: 1, y: 2 },
+							size: { width: 3, height: 4 },
+						},
+					],
+					strokeColor: "#FFCD45",
+					opacity: 1,
+					blendMode: 1,
+					flags: ["print", "readOnly"],
+					custom: { elementId: "element-1", elementType: "extract" },
+					created: "2026-01-01T00:00:00.000Z",
+				},
+			},
+		]);
+
+		// Act
+
+		const [actual] = parseStoredHighlights(savedByV2);
+
+		// Assert
+
+		expect(actual.id).toBe("highlight-1");
+		expect(actual.pageIndex).toBe(3);
+		expect(actual.custom.elementId).toBe("element-1");
+	});
+
+	it("Should skip items that aren't our highlights", () => {
+		// Arrange
+
+		const json = JSON.stringify([
+			{ annotation: { type: 2, pageIndex: 0 } },
+			{ unrelated: true },
+			null,
+		]);
+
+		// Act
+
+		const actual = parseStoredHighlights(json);
+
+		// Assert
+
+		expect(actual).toEqual([]);
+	});
+
+	it("Should return no highlights when the JSON isn't a list", () => {
+		// Act
+
+		const actual = parseStoredHighlights("{}");
+
+		// Assert
+
+		expect(actual).toEqual([]);
+	});
+});
+
+describe("serializeHighlights", () => {
+	it("Should wrap each highlight in embedpdf 2's transfer item so older builds can read it", () => {
+		// Arrange
+
+		const highlights = buildHighlightAnnotations(
+			[{ pageIndex: 0, rect: RECT_1 }],
+			"element-1",
+			"extract",
+			"#FFCD45",
+		);
+
+		// Act
+
+		const actual = JSON.parse(serializeHighlights(highlights)) as unknown;
+
+		// Assert
+
+		expect(actual).toEqual([{ annotation: highlights[0] }]);
 	});
 });
 
@@ -260,26 +347,26 @@ describe("findFirstHighlightedElement", () => {
 		// Arrange
 
 		const first = buildHighlightAnnotations(
-			[{ page: 0, rect: RECT_1 }],
+			[{ pageIndex: 0, rect: RECT_1 }],
 			"element-1",
 			"extract",
 			"#FFCD45",
 		);
 		const second = buildHighlightAnnotations(
-			[{ page: 1, rect: RECT_3 }],
+			[{ pageIndex: 1, rect: RECT_3 }],
 			"element-2",
 			"card",
 			"#4DABF7",
 		);
 		const selectionRects = [
-			{ page: 0, rect: RECT_1 },
-			{ page: 1, rect: RECT_3 },
+			{ pageIndex: 1, rect: RECT_3 },
+			{ pageIndex: 0, rect: RECT_1 },
 		];
 
 		// Act
 
 		const actual = findFirstHighlightedElement(
-			[...first, ...second],
+			[...second, ...first],
 			selectionRects,
 		);
 
@@ -292,58 +379,52 @@ describe("findFirstHighlightedElement", () => {
 	});
 
 	it("Should prefer the topmost-then-leftmost highlight regardless of selection rect order", () => {
-		// Arrange — RECT_1 (y: 2) sits above RECT_3 (y: 10) on the same page,
+		// Arrange
 
-		// but the selection rects list them in the opposite order (as a
-
-		// bottom-to-top drag would produce).
-
-		const topLeft = buildHighlightAnnotations(
-			[{ page: 0, rect: RECT_1 }],
-			"element-1",
-			"extract",
-			"#FFCD45",
-		);
-		const bottomRight = buildHighlightAnnotations(
-			[{ page: 0, rect: RECT_3 }],
-			"element-2",
+		const lower = buildHighlightAnnotations(
+			[{ pageIndex: 0, rect: RECT_3 }],
+			"element-lower",
 			"card",
 			"#4DABF7",
 		);
+		const upper = buildHighlightAnnotations(
+			[{ pageIndex: 0, rect: RECT_1 }],
+			"element-upper",
+			"extract",
+			"#FFCD45",
+		);
 		const selectionRects = [
-			{ page: 0, rect: RECT_3 },
-			{ page: 0, rect: RECT_1 },
+			{ pageIndex: 0, rect: RECT_3 },
+			{ pageIndex: 0, rect: RECT_1 },
 		];
 
 		// Act
 
 		const actual = findFirstHighlightedElement(
-			[...bottomRight, ...topLeft],
+			[...lower, ...upper],
 			selectionRects,
 		);
 
 		// Assert
 
-		expect(actual).toEqual({
-			elementId: "element-1",
-			elementType: "extract",
-		});
+		expect(actual?.elementId).toBe("element-upper");
 	});
 
 	it("Should skip highlights on a different page than the selection", () => {
 		// Arrange
 
 		const highlights = buildHighlightAnnotations(
-			[{ page: 5, rect: RECT_1 }],
+			[{ pageIndex: 1, rect: RECT_1 }],
 			"element-1",
 			"extract",
 			"#FFCD45",
 		);
-		const selectionRects = [{ page: 0, rect: RECT_1 }];
 
 		// Act
 
-		const actual = findFirstHighlightedElement(highlights, selectionRects);
+		const actual = findFirstHighlightedElement(highlights, [
+			{ pageIndex: 0, rect: RECT_1 },
+		]);
 
 		// Assert
 
@@ -354,16 +435,17 @@ describe("findFirstHighlightedElement", () => {
 		// Arrange
 
 		const highlights = buildHighlightAnnotations(
-			[{ page: 0, rect: RECT_3 }],
+			[{ pageIndex: 0, rect: RECT_3 }],
 			"element-1",
 			"extract",
 			"#FFCD45",
 		);
-		const selectionRects = [{ page: 0, rect: RECT_1 }];
 
 		// Act
 
-		const actual = findFirstHighlightedElement(highlights, selectionRects);
+		const actual = findFirstHighlightedElement(highlights, [
+			{ pageIndex: 0, rect: RECT_2 },
+		]);
 
 		// Assert
 
@@ -371,9 +453,18 @@ describe("findFirstHighlightedElement", () => {
 	});
 
 	it("Should return null when there are no selection rects", () => {
+		// Arrange
+
+		const highlights = buildHighlightAnnotations(
+			[{ pageIndex: 0, rect: RECT_1 }],
+			"element-1",
+			"extract",
+			"#FFCD45",
+		);
+
 		// Act
 
-		const actual = findFirstHighlightedElement([], []);
+		const actual = findFirstHighlightedElement(highlights, []);
 
 		// Assert
 
@@ -386,163 +477,84 @@ describe("findHighlightsUnderSelection", () => {
 		// Arrange
 
 		const highlights = buildHighlightAnnotations(
-			[{ page: 0, rect: RECT_1 }],
+			[{ pageIndex: 0, rect: RECT_1 }],
 			"element-1",
 			"extract",
 			"#FFCD45",
 		);
-		const selectionRects = [{ page: 0, rect: RECT_1 }];
 
 		// Act
 
-		const actual = findHighlightsUnderSelection(highlights, selectionRects);
+		const actual = findHighlightsUnderSelection(highlights, [
+			{ pageIndex: 0, rect: RECT_1 },
+		]);
 
 		// Assert
 
-		expect(actual).toEqual([{ pageIndex: 0, id: highlights[0].id }]);
+		expect(actual).toEqual([highlights[0].id]);
 	});
 
 	it("Should not include a highlight on a different page of the same element", () => {
-		// Arrange — one highlight spans two pages (a single extract crossing a
-
-		// page boundary), but the selection only touches page 0.
+		// Arrange
 
 		const highlights = buildHighlightAnnotations(
 			[
-				{ page: 0, rect: RECT_1 },
-				{ page: 1, rect: RECT_3 },
+				{ pageIndex: 0, rect: RECT_1 },
+				{ pageIndex: 1, rect: RECT_1 },
 			],
 			"element-1",
 			"extract",
 			"#FFCD45",
 		);
-		const selectionRects = [{ page: 0, rect: RECT_1 }];
 
 		// Act
 
-		const actual = findHighlightsUnderSelection(highlights, selectionRects);
+		const actual = findHighlightsUnderSelection(highlights, [
+			{ pageIndex: 0, rect: RECT_1 },
+		]);
 
 		// Assert
 
-		expect(actual).toEqual([{ pageIndex: 0, id: highlights[0].id }]);
+		expect(actual).toEqual([highlights[0].id]);
 	});
 
-	it("Should not include a highlight belonging to a different element that the selection doesn't touch", () => {
-		// Arrange
-
-		const own = buildHighlightAnnotations(
-			[{ page: 0, rect: RECT_1 }],
-			"element-1",
-			"extract",
-			"#FFCD45",
-		);
-		const other = buildHighlightAnnotations(
-			[{ page: 0, rect: RECT_3 }],
-			"element-2",
-			"extract",
-			"#FFCD45",
-		);
-		const selectionRects = [{ page: 0, rect: RECT_1 }];
-
-		// Act
-
-		const actual = findHighlightsUnderSelection(
-			[...own, ...other],
-			selectionRects,
-		);
-
-		// Assert
-
-		expect(actual).toEqual([{ pageIndex: 0, id: own[0].id }]);
-	});
-
-	it("Should not return duplicate entries when multiple selection rects overlap the same highlight", () => {
+	it("Should not return duplicate ids when multiple selection rects overlap the same highlight", () => {
 		// Arrange
 
 		const highlights = buildHighlightAnnotations(
-			[{ page: 0, rect: RECT_1 }],
+			[{ pageIndex: 0, rect: RECT_1 }],
 			"element-1",
 			"extract",
 			"#FFCD45",
 		);
-		const selectionRects = [
-			{ page: 0, rect: RECT_1 },
-			{ page: 0, rect: RECT_1 },
-		];
 
 		// Act
 
-		const actual = findHighlightsUnderSelection(highlights, selectionRects);
+		const actual = findHighlightsUnderSelection(highlights, [
+			{ pageIndex: 0, rect: RECT_1 },
+			{ pageIndex: 0, rect: { x: 2, y: 3, width: 1, height: 1 } },
+		]);
 
 		// Assert
 
-		expect(actual).toEqual([{ pageIndex: 0, id: highlights[0].id }]);
+		expect(actual).toEqual([highlights[0].id]);
 	});
 
 	it("Should return an empty array when nothing overlaps", () => {
-		// Act
-
-		const actual = findHighlightsUnderSelection([], []);
-
-		// Assert
-
-		expect(actual).toEqual([]);
-	});
-});
-
-describe("getActivePdfHighlights", () => {
-	it("Should return a highlight when its commit state is synced", () => {
 		// Arrange
 
-		const [highlight] = buildHighlightAnnotations(
-			[{ page: 0, rect: RECT_1 }],
+		const highlights = buildHighlightAnnotations(
+			[{ pageIndex: 0, rect: RECT_3 }],
 			"element-1",
 			"extract",
 			"#FFCD45",
 		);
-		const state = {
-			byUid: {
-				[highlight.id]: { commitState: "synced", object: highlight },
-			},
-		} as unknown as AnnotationDocumentState;
 
 		// Act
 
-		const actual = getActivePdfHighlights(state);
-
-		// Assert
-
-		expect(actual).toEqual([highlight]);
-	});
-
-	it("Should drop a highlight when its commit state is deleted", () => {
-		// Arrange
-
-		const [highlight] = buildHighlightAnnotations(
-			[{ page: 0, rect: RECT_1 }],
-			"element-1",
-			"extract",
-			"#FFCD45",
-		);
-		const state = {
-			byUid: {
-				[highlight.id]: { commitState: "deleted", object: highlight },
-			},
-		} as unknown as AnnotationDocumentState;
-
-		// Act
-
-		const actual = getActivePdfHighlights(state);
-
-		// Assert
-
-		expect(actual).toEqual([]);
-	});
-
-	it("Should return an empty array when the state is null", () => {
-		// Act
-
-		const actual = getActivePdfHighlights(null);
+		const actual = findHighlightsUnderSelection(highlights, [
+			{ pageIndex: 0, rect: RECT_2 },
+		]);
 
 		// Assert
 

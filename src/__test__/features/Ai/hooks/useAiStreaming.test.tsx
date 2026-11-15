@@ -681,4 +681,29 @@ describe("useAiStreaming", () => {
 		expect(result.current.isStreaming).toBe(false);
 		expect(result.current.pendingHumanText).toBeNull();
 	});
+	it("Should clear an earlier error when sending a new prompt", async () => {
+		// Arrange
+
+		vi.mocked(getChatMessagesOrdered).mockRejectedValueOnce(
+			new Error("Failed to load"),
+		);
+		vi.mocked(streamAiResponse).mockResolvedValue(undefined);
+		const { result } = renderHook(() => useTestHarness(), {
+			wrapper: makeWrapper(makeStore()),
+		});
+		await act(async () => {
+			await result.current.openChat("chat-1");
+		});
+		expect(result.current.errorMessage).not.toBeNull();
+
+		// Act
+
+		await act(async () => {
+			void result.current.sendPrompt("hello");
+		});
+
+		// Assert
+
+		expect(result.current.errorMessage).toBeNull();
+	});
 });

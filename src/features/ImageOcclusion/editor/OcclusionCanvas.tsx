@@ -6,8 +6,8 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Box, Center, isLightColor, useMantineTheme } from "@mantine/core";
-import { useElementSize } from "@mantine/hooks";
+import { ActionIcon, Box, isLightColor, useMantineTheme } from "@mantine/core";
+import { useElementSize, useMergedRef } from "@mantine/hooks";
 import Konva from "konva";
 import {
 	Ellipse,
@@ -29,8 +29,20 @@ import {
 	LABEL_FONT_FAMILY,
 	LABEL_LINE_HEIGHT,
 } from "../utils/occlusionLabelFont";
+import {
+	MagnifyingGlassMinusIcon,
+	MagnifyingGlassPlusIcon,
+} from "@phosphor-icons/react";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import {
+	RESET_ZOOM_SHORTCUT,
+	ZOOM_IN_SHORTCUT,
+	ZOOM_OUT_SHORTCUT,
+} from "../../../config/shortcuts";
+import { MAX_ZOOM, MIN_ZOOM } from "../utils/canvasViewport";
 import { OcclusionEditorAction, OcclusionTool } from "./occlusionEditorReducer";
 import LabelTextEditor from "./LabelTextEditor";
+import { useCanvasViewport } from "./useCanvasViewport";
 
 const MIN_DRAW_SIZE = 4;
 const DEFAULT_FONT_SIZE = 0.04;
@@ -64,10 +76,11 @@ export default function OcclusionCanvas({
 }: OcclusionCanvasProps) {
 	const theme = useMantineTheme();
 	const accent = theme.colors[theme.primaryColor][6];
-	const { ref: containerRef, width, height } = useElementSize();
+	const { ref: sizeRef, width, height } = useElementSize();
+	const containerRef = useRef<HTMLDivElement>(null);
+	const mergedContainerRef = useMergedRef(sizeRef, containerRef);
 	const iw = image.naturalWidth;
 	const ih = image.naturalHeight;
-	const scale = width && height ? Math.min(width / iw, height / ih) : 0;
 
 	const nodeRefs = useRef(new Map<string, Konva.Node>());
 	const stageRef = useRef<Konva.Stage>(null);
@@ -76,12 +89,27 @@ export default function OcclusionCanvas({
 	const dragPending = useRef(false);
 	const [draft, setDraft] = useState<Draft | null>(null);
 	const [editingId, setEditingId] = useState<string | null>(null);
+	const [panning, setPanning] = useState(false);
 	const editing = shapes.find(
 		(shape): shape is TextShape =>
 			shape.id === editingId && shape.kind === "text",
 	);
 
 	const keys = useMemo(() => targetKeys(shapes), [shapes]);
+
+	// A pinch takes over the gesture, so whatever its first finger started is undone.
+	const cancelGestures = () => {
+		setDraft(null);
+		stageRef.current?.stopDrag();
+		nodeRefs.current.forEach(node => node.stopDrag());
+		transformerRef.current?.stopTransform();
+	};
+	const viewport = useCanvasViewport(
+		{ width, height, iw, ih },
+		containerRef,
+		cancelGestures,
+	);
+	const { view, scale } = viewport;
 
 	useEffect(() => {
 		const nodes = selectedIds
@@ -94,17 +122,23 @@ export default function OcclusionCanvas({
 	}, [selectedIds, shapes, scale, tool, editingId]);
 
 	const pointerInImage = (stage: Konva.Stage) => {
-		const pointer = stage.getPointerPosition();
+		const pointer = stage.getRelativePointerPosition();
 		if (!pointer) return null;
 		return {
-			x: Math.min(Math.max(pointer.x / scale, 0), iw),
-			y: Math.min(Math.max(pointer.y / scale, 0), ih),
+			x: Math.min(Math.max(pointer.x, 0), iw),
+			y: Math.min(Math.max(pointer.y, 0), ih),
 		};
 	};
 
 	const handlePointerDown = (event: Konva.KonvaEventObject<PointerEvent>) => {
 		const stage = event.target.getStage();
-		if (!stage) return;
+		// A second finger is the start of a pinch, never a click.
+		if (!stage || !event.evt.isPrimary) return;
+		// The middle button pans with any tool, and over shapes too.
+		if (event.evt.button === 1) {
+			stage.startDrag(event);
+			return;
+		}
 		const point = pointerInImage(stage);
 		if (!point) return;
 
@@ -270,6 +304,20 @@ export default function OcclusionCanvas({
 		rotation: shape.rotation,
 		draggable: tool === "select",
 		onPointerDown: (event: Konva.KonvaEventObject<PointerEvent>) => {
+			// Left to the stage, which ignores a pinch's second finger.
+			if (!event.evt.isPrimary) return;
+			if (event.evt.button === 1) {
+				// Stops Konva from dragging the shape along while the stage pans.
+				const node = nodeRefs.current.get(shape.id);
+				if (node?.draggable()) {
+					node.draggable(false);
+					const restore = () => node.draggable(true);
+					window.addEventListener("pointerup", restore, {
+						once: true,
+					});
+				}
+				return;
+			}
 			// The text tool edits the label it lands on instead of stacking a new one.
 			if (tool === "text" && shape.kind === "text") {
 				event.cancelBubble = true;
@@ -288,22 +336,42 @@ export default function OcclusionCanvas({
 	});
 
 	return (
-		<Center
-			ref={containerRef}
+		<Box
+			ref={mergedContainerRef}
+			pos="relative"
 			w="100%"
 			h="100%"
-			style={{ overflow: "hidden" }}>
+			style={{ overflow: "hidden", touchAction: "none" }}
+			// Stops the browser's middle-click autoscroll from starting over the pan.
+			onMouseDown={event => event.button === 1 && event.preventDefault()}>
 			{scale > 0 && (
-				<Box pos="relative">
+				<>
 					<Stage
 						ref={stageRef}
-						width={iw * scale}
-						height={ih * scale}
+						width={width}
+						height={height}
+						x={view.x}
+						y={view.y}
 						scaleX={scale}
 						scaleY={scale}
 						style={{
-							cursor: TOOL_CURSORS[tool],
-							touchAction: "none",
+							cursor: panning ? "grabbing" : TOOL_CURSORS[tool],
+						}}
+						// Dragging empty space pans; a shape under the pointer drags itself instead.
+						draggable={tool === "select"}
+						dragBoundFunc={viewport.clampPosition}
+						// Shapes' drag events bubble up here too, so only the stage's own count.
+						onDragStart={event =>
+							event.target === event.target.getStage() &&
+							setPanning(true)
+						}
+						onDragEnd={event =>
+							event.target === event.target.getStage() &&
+							setPanning(false)
+						}
+						onDragMove={event => {
+							if (event.target === event.target.getStage())
+								viewport.setPosition(event.target.position());
 						}}
 						onPointerDown={handlePointerDown}>
 						<Layer>
@@ -362,29 +430,72 @@ export default function OcclusionCanvas({
 						</Layer>
 					</Stage>
 					{editing && (
-						<LabelTextEditor
-							key={editing.id}
-							shape={editing}
-							iw={iw}
-							ih={ih}
-							scale={scale}
-							accent={accent}
-							onCommit={text =>
-								dispatch({
-									type: "update",
-									shapes: [{ ...editing, text }],
-								})
-							}
-							onClose={() =>
-								setEditingId(current =>
-									current === editing.id ? null : current,
-								)
-							}
-						/>
+						// Offset like the stage, as the editor places itself from the image's corner.
+						<Box pos="absolute" left={view.x} top={view.y}>
+							<LabelTextEditor
+								key={editing.id}
+								shape={editing}
+								iw={iw}
+								ih={ih}
+								scale={scale}
+								accent={accent}
+								onCommit={text =>
+									dispatch({
+										type: "update",
+										shapes: [{ ...editing, text }],
+									})
+								}
+								onClose={() =>
+									setEditingId(current =>
+										current === editing.id ? null : current,
+									)
+								}
+							/>
+						</Box>
 					)}
-				</Box>
+					<ActionIcon.Group
+						pos="absolute"
+						right="var(--mantine-spacing-xs)"
+						bottom="var(--mantine-spacing-xs)">
+						<AppTooltip
+							label="Zoom out"
+							shortcut={ZOOM_OUT_SHORTCUT}>
+							<ActionIcon
+								size="lg"
+								variant="default"
+								aria-label="Zoom out"
+								disabled={view.zoom <= MIN_ZOOM}
+								onClick={viewport.zoomOut}>
+								<MagnifyingGlassMinusIcon size={18} />
+							</ActionIcon>
+						</AppTooltip>
+						<AppTooltip
+							label="Fit to screen"
+							shortcut={RESET_ZOOM_SHORTCUT}>
+							<ActionIcon
+								size="lg"
+								w={56}
+								fz="sm"
+								variant="default"
+								aria-label="Fit to screen"
+								onClick={viewport.resetZoom}>
+								{Math.round(view.zoom * 100)}%
+							</ActionIcon>
+						</AppTooltip>
+						<AppTooltip label="Zoom in" shortcut={ZOOM_IN_SHORTCUT}>
+							<ActionIcon
+								size="lg"
+								variant="default"
+								aria-label="Zoom in"
+								disabled={view.zoom >= MAX_ZOOM}
+								onClick={viewport.zoomIn}>
+								<MagnifyingGlassPlusIcon size={18} />
+							</ActionIcon>
+						</AppTooltip>
+					</ActionIcon.Group>
+				</>
 			)}
-		</Center>
+		</Box>
 	);
 }
 

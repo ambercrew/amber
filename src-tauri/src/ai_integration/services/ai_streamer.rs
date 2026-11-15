@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use rig::{completion::CompletionError, http_client::Error as HttpClientError};
+use rig::ErrorReport;
 use serde::Serialize;
 use thiserror::Error;
 use uuid::Uuid;
@@ -36,7 +36,7 @@ pub enum StreamLlmResponseEvent {
     },
     ToolCall {
         chat_id: Uuid,
-        tool_call: ToolCallContent,
+        tool_call: Box<ToolCallContent>,
         /// Already persisted, so a call awaiting approval can be resolved mid-stream.
         message_id: Uuid,
         /// Where the call's change lands; never stored.
@@ -84,28 +84,27 @@ pub enum AiStreamerError {
     ToolApprovalResolver(#[from] ToolApprovalResolverError),
 }
 
-impl TryFrom<CompletionError> for AiStreamerError {
-    type Error = CompletionError;
-
-    fn try_from(err: CompletionError) -> Result<Self, Self::Error> {
-        match err {
-            CompletionError::HttpError(HttpClientError::InvalidStatusCodeWithMessage(
-                status,
-                body,
-            )) => {
-                let message = serde_json::from_str::<serde_json::Value>(&body)
-                    .ok()
-                    .and_then(|v| v["error"]["message"].as_str().map(String::from))
-                    .unwrap_or(body);
-                Ok(AiStreamerError::ProviderHttpError {
-                    status: status.as_u16(),
-                    message,
-                })
-            }
-            CompletionError::ProviderError(message) => Ok(AiStreamerError::ProviderError(message)),
-            other => Err(other),
+impl From<ErrorReport> for AiStreamerError {
+    fn from(report: ErrorReport) -> Self {
+        match provider_failure(&report) {
+            (Some(status), message) => AiStreamerError::ProviderHttpError { status, message },
+            (None, message) => AiStreamerError::ProviderError(message),
         }
     }
+}
+
+/// A failed provider call's HTTP status and the provider's own message, e.g. OpenAI's `error.message`.
+pub fn provider_failure(report: &ErrorReport) -> (Option<u16>, String) {
+    let body = report
+        .provider_response
+        .as_ref()
+        .map(|response| &response.body);
+    let message = body
+        .and_then(|body| serde_json::from_str::<serde_json::Value>(body).ok())
+        .and_then(|value| value["error"]["message"].as_str().map(String::from))
+        .or_else(|| body.filter(|body| !body.is_empty()).cloned())
+        .unwrap_or_else(|| report.message.clone());
+    (report.http_status, message)
 }
 
 #[async_trait]

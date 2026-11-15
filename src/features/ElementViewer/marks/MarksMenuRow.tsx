@@ -20,7 +20,7 @@ import {
 	findMark,
 	goToMarkLabel,
 	MARK_COLORS,
-	markFillColor,
+	markButtonVars,
 	setMarkLabel,
 } from "./markLogic";
 import { useMarksContext } from "./marksContext";
@@ -50,6 +50,7 @@ function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
 }
 
 interface MarkButtonProps {
+	slot: MarkSlot;
 	/** Labels the button; `null` for the second half of an unset mark, which repeats the first and is skipped by keyboard and screen readers. */
 	label: string | null;
 	command: CommandId;
@@ -65,6 +66,7 @@ interface MarkButtonProps {
 
 /** One half of a mark's split button, navigable and closing the menu like a `Menu.Item`. */
 function MarkButton({
+	slot,
 	label,
 	command,
 	children,
@@ -84,6 +86,7 @@ function MarkButton({
 			radius="xl"
 			variant={variant}
 			color={color}
+			vars={() => ({ root: markButtonVars(slot, variant === "filled") })}
 			rightSection={rightSection}
 			styles={{ section: { marginInlineStart: 4 } }}
 			aria-label={label ?? undefined}
@@ -128,18 +131,20 @@ function MarkSplitButton({ slot }: { slot: MarkSlot }) {
 		return (
 			<Button.Group aria-label={`Mark ${slot}`}>
 				<MarkButton
+					slot={slot}
 					label={goToMarkLabel(slot, true, progress)}
 					shortcut={commandsById[`go-to-mark-${slot}`].shortcut}
 					withTooltip
 					command={`go-to-mark-${slot}`}
 					variant="filled"
-					color={markFillColor(slot)}
+					color={color}
 					rightSection={arrow}
 					// A full-width seam, matching the divider an unset mark draws there.
 					style={{ borderInlineEndWidth: 1 }}>
 					{slot}
 				</MarkButton>
 				<MarkButton
+					slot={slot}
 					label={setLabel}
 					shortcut={setShortcut}
 					withTooltip
@@ -157,6 +162,7 @@ function MarkSplitButton({ slot }: { slot: MarkSlot }) {
 		<AppTooltip label={setLabel} shortcut={setShortcut}>
 			<Button.Group aria-label={`Mark ${slot}`}>
 				<MarkButton
+					slot={slot}
 					label={setLabel}
 					command={setCommand}
 					variant="light"
@@ -175,6 +181,7 @@ function MarkSplitButton({ slot }: { slot: MarkSlot }) {
 					</Center>
 				</MarkButton>
 				<MarkButton
+					slot={slot}
 					label={null}
 					command={setCommand}
 					variant="light"

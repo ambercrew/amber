@@ -28,6 +28,9 @@ pub trait CardGradingService: Send + Sync {
         card_id: Uuid,
     ) -> Result<(CardReview, StudyProfile), GradeCardError>;
 
+    /// The card's review as resetting it leaves it, without saving it.
+    async fn reset_review(&self, card_id: Uuid) -> Result<CardReview, GradeCardError>;
+
     // Resets the cards review as if it was newly created.
     async fn reset(&self, card_ids: Vec<Uuid>) -> Result<(), GradeCardError>;
 

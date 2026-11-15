@@ -1,7 +1,14 @@
 import { flattenTreeData, MantineProvider, TreeNodeData } from "@mantine/core";
-import { createEvent, fireEvent, render, screen } from "@testing-library/react";
-import { ComponentProps } from "react";
+import {
+	act,
+	createEvent,
+	fireEvent,
+	render,
+	screen,
+} from "@testing-library/react";
+import { ComponentProps, useState } from "react";
 import VirtualElementTree from "../../../../../features/Sidebar/components/ElementTree/VirtualElementTree";
+import { requestFocus } from "../../../../../hooks/useFocusRequest";
 
 const DATA: TreeNodeData[] = [
 	{
@@ -16,15 +23,25 @@ const DATA: TreeNodeData[] = [
 const ROW_TOP = 0;
 const ROW_HEIGHT = 40;
 
+const tree = {
+	isNodeLoading: () => false,
+	getNodeLoadError: () => null,
+	selectedState: [],
+	toggleExpanded: vi.fn(),
+	expand: vi.fn(),
+	collapse: vi.fn(),
+} as unknown as ComponentProps<typeof VirtualElementTree>["tree"];
+
+const renderNode: ComponentProps<typeof VirtualElementTree>["renderNode"] = ({
+	node,
+	elementProps,
+}) => (
+	<div {...elementProps} draggable>
+		{node.value}
+	</div>
+);
+
 function renderTree(onMove = vi.fn(), expandedState = { folder: true }) {
-	const tree = {
-		isNodeLoading: () => false,
-		getNodeLoadError: () => null,
-		selectedState: [],
-		toggleExpanded: vi.fn(),
-		expand: vi.fn(),
-		collapse: vi.fn(),
-	} as unknown as ComponentProps<typeof VirtualElementTree>["tree"];
 	render(
 		<MantineProvider>
 			<VirtualElementTree
@@ -33,11 +50,8 @@ function renderTree(onMove = vi.fn(), expandedState = { folder: true }) {
 				selectedValue={null}
 				renamingValue={null}
 				onMove={onMove}
-				renderNode={({ node, elementProps }) => (
-					<div {...elementProps} draggable>
-						{node.value}
-					</div>
-				)}
+				onReveal={vi.fn()}
+				renderNode={renderNode}
 			/>
 		</MantineProvider>,
 	);
@@ -149,6 +163,43 @@ describe("VirtualElementTree", () => {
 
 		expect(child).not.toHaveAttribute("data-drag-over");
 		expect(onMove).not.toHaveBeenCalled();
+	});
+
+	it("Should reveal and focus the selected row when focus is requested while its folder is collapsed", () => {
+		// Arrange
+
+		function RevealingTree() {
+			const [expandedState, setExpandedState] = useState({});
+			return (
+				<VirtualElementTree
+					rows={flattenTreeData(DATA, expandedState)}
+					tree={tree}
+					selectedValue="child"
+					renamingValue={null}
+					onMove={vi.fn()}
+					onReveal={() => {
+						setExpandedState({ folder: true });
+						return true;
+					}}
+					renderNode={renderNode}
+				/>
+			);
+		}
+		render(
+			<MantineProvider>
+				<RevealingTree />
+			</MantineProvider>,
+		);
+
+		// Act
+
+		act(() => requestFocus("tree"));
+
+		// Assert
+
+		expect(
+			screen.getByText("child").closest("[role=treeitem]"),
+		).toHaveFocus();
 	});
 
 	it("Should clear the drag marks when the drag ends", () => {

@@ -57,6 +57,13 @@ export function useImportPriority(opened: boolean, parent: ElementId | null) {
 		return (await fetchDefault()).position;
 	}
 
+	/** Moves past `by` elements just imported, so the next import lands after them. */
+	function advance(from: number, by: number) {
+		customizedRef.current = true;
+		setTotal(current => (current === null ? null : current + by));
+		setPosition(from + by);
+	}
+
 	function reset() {
 		setTotal(null);
 		setPosition(null);
@@ -64,5 +71,12 @@ export function useImportPriority(opened: boolean, parent: ElementId | null) {
 		defaultRef.current = null;
 	}
 
-	return { total, position, handlePositionChange, resolvePosition, reset };
+	return {
+		total,
+		position,
+		handlePositionChange,
+		resolvePosition,
+		advance,
+		reset,
+	};
 }

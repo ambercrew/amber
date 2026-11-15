@@ -55,6 +55,27 @@ describe("useElapsedSeconds", () => {
 		vi.useRealTimers();
 	});
 
+	it("Should count from the current time when a backdated startedAt arrives long after the last tick", () => {
+		// Arrange
+
+		vi.useFakeTimers();
+		const { result, rerender } = renderHook(
+			({ startedAt }) => useElapsedSeconds(startedAt),
+			{ initialProps: { startedAt: null as number | null } },
+		);
+		vi.setSystemTime(Date.now() + 5 * 60_000);
+
+		// Act
+
+		rerender({ startedAt: Date.now() - 30_000 });
+
+		// Assert
+
+		expect(result.current).toBe(30);
+
+		vi.useRealTimers();
+	});
+
 	it("Should stop incrementing after startedAt becomes null", () => {
 		// Arrange
 
@@ -73,6 +94,44 @@ describe("useElapsedSeconds", () => {
 		// Assert
 
 		expect(result.current).toBe(0);
+
+		vi.useRealTimers();
+	});
+
+	it("Should count from startedAt rather than from mounting when startedAt is in the past", () => {
+		// Arrange
+
+		vi.useFakeTimers();
+		const startedAt = Date.now() - 90_000;
+
+		// Act
+
+		const { result } = renderHook(() => useElapsedSeconds(startedAt));
+		void act(() => vi.advanceTimersByTime(1000));
+
+		// Assert
+
+		expect(result.current).toBe(91);
+
+		vi.useRealTimers();
+	});
+
+	it("Should keep counting from startedAt when remounted", () => {
+		// Arrange
+
+		vi.useFakeTimers();
+		const startedAt = Date.now();
+		const first = renderHook(() => useElapsedSeconds(startedAt));
+		void act(() => vi.advanceTimersByTime(5000));
+		first.unmount();
+
+		// Act
+
+		const { result } = renderHook(() => useElapsedSeconds(startedAt));
+
+		// Assert
+
+		expect(result.current).toBe(5);
 
 		vi.useRealTimers();
 	});

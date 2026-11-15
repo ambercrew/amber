@@ -1,30 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Text } from "@mantine/core";
-import { useDocumentState } from "@embedpdf/core/react";
-import { useActiveDocument } from "@embedpdf/plugin-document-manager/react";
-import { Viewport } from "@embedpdf/plugin-viewport/react";
-import { Scroller } from "@embedpdf/plugin-scroll/react";
-import { ZoomGestureWrapper } from "@embedpdf/plugin-zoom/react";
-import { useChromeInsets } from "../../App/context/chromeInsetsContext";
+import { DocumentGate, useDocumentId } from "@embedpdf/react/runtime";
+import { SelectionHandles } from "@embedpdf/react/selection";
+import { Stage } from "@embedpdf/react/stage";
 import { SAFE_AREA_TOP } from "../../../utils/safeArea";
 import { isMobile } from "../../../utils/tauriUtils";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { setZoomOwnedByCurrentView } from "../../../stores/elements/elementsReducer";
 import { ReadingPosition } from "../../../types/elements/readingPosition";
 import FindInPageBar from "../FindInPageBar";
+import RemoveHighlightModal from "../RemoveHighlightModal";
 import PdfContextMenu from "./core/PdfContextMenu";
 import PdfCoreProvider from "./core/PdfCoreProvider";
-import { usePdfCore } from "./core/pdfCoreContext";
 import PdfHeadroomBridge from "./core/PdfHeadroomBridge";
 import PdfPage from "./core/PdfPage";
+import PdfScrollbar from "./core/PdfScrollbar";
 import PdfStatus from "./core/PdfStatus";
-import { usePdfLinkNavigationRenderer } from "./core/usePdfLinkNavigation";
-import styles from "./core/PdfViewport.module.css";
-import { usePdfAnnotationsPersistence } from "./highlights/usePdfAnnotationsPersistence";
+import PdfHighlightsProvider from "./highlights/PdfHighlightsProvider";
+import PdfSelectionMenu from "./highlights/PdfSelectionMenu";
 import { usePdfHighlightRemoval } from "./highlights/usePdfHighlightRemoval";
-import RemoveHighlightModal from "../RemoveHighlightModal";
-import { pdfHighlightRenderer } from "./highlights/pdfHighlightRenderer";
-import { usePdfSelectionAnchor } from "./highlights/usePdfSelectionAnchor";
 import PdfMarksProvider from "./marks/PdfMarksProvider";
 import PdfMarksScrollbar from "./marks/PdfMarksScrollbar";
 import { usePdfOutline } from "./outline/usePdfOutline";
@@ -37,47 +31,36 @@ interface PdfDocumentContentProps {
 	readPoint: ReadingPosition;
 }
 
-export default function PdfDocumentContent({
-	learningAssetId,
-	readPoint,
-}: PdfDocumentContentProps) {
-	const { activeDocumentId } = useActiveDocument();
-	const documentState = useDocumentState(activeDocumentId);
-
-	if (documentState?.status === "error") {
-		return (
-			<PdfStatus error="This PDF could not be opened.">
-				<Text size="sm" c="dimmed">
-					It may be damaged or use a format the viewer doesn’t
-					support. Try importing it again with “Extract content”
-					enabled.
-				</Text>
-			</PdfStatus>
-		);
-	}
-
-	if (!activeDocumentId || documentState?.status !== "loaded")
-		return <PdfStatus loading="Opening document…" />;
-
+export default function PdfDocumentContent(props: PdfDocumentContentProps) {
 	return (
-		<LoadedPdfDocument
-			documentId={activeDocumentId}
-			learningAssetId={learningAssetId}
-			readPoint={readPoint}
-		/>
+		<DocumentGate
+			fallback={<PdfStatus loading="Opening document…" />}
+			locked={() => (
+				<PdfStatus error="This PDF is password-protected, which the viewer doesn’t support." />
+			)}
+			error={document => (
+				<PdfStatus error="This PDF could not be opened.">
+					<Text size="sm" c="dimmed">
+						It may be damaged or use a format the viewer doesn’t
+						support. Try importing it again with “Extract content”
+						enabled.
+						{document.error?.message
+							? ` (${document.error.message})`
+							: ""}
+					</Text>
+				</PdfStatus>
+			)}>
+			<LoadedPdfDocument {...props} />
+		</DocumentGate>
 	);
 }
 
-interface LoadedPdfDocumentProps extends PdfDocumentContentProps {
-	documentId: string;
-}
-
-// Mounted only once the document loads: embedpdf's per-document hooks throw for a document that never opened.
+// Mounted only once the document is open, as the Stage and the per-document hooks need one.
 function LoadedPdfDocument({
-	documentId,
 	learningAssetId,
 	readPoint,
-}: LoadedPdfDocumentProps) {
+}: PdfDocumentContentProps) {
+	const documentId = useDocumentId() ?? "";
 	const dispatch = useAppDispatch();
 	useEffect(() => {
 		dispatch(setZoomOwnedByCurrentView(true));
@@ -86,44 +69,39 @@ function LoadedPdfDocument({
 		};
 	}, [dispatch]);
 
-	usePdfAnnotationsPersistence(documentId, learningAssetId);
-
 	// List order is nesting order, as in the text view: marks read the read point.
 	return (
 		<PdfCoreProvider
 			learningAssetId={learningAssetId}
 			documentId={documentId}
 			initialReadPoint={readPoint}>
-			<PdfReadPointProvider>
-				<PdfMarksProvider>
-					<PdfReader />
-				</PdfMarksProvider>
-			</PdfReadPointProvider>
+			<PdfHighlightsProvider learningAssetId={learningAssetId}>
+				<PdfReadPointProvider>
+					<PdfMarksProvider>
+						<PdfReader />
+					</PdfMarksProvider>
+				</PdfReadPointProvider>
+			</PdfHighlightsProvider>
 		</PdfCoreProvider>
 	);
 }
 
 function PdfReader() {
-	const { learningAssetId, documentId, goToPage } = usePdfCore();
-	usePdfFindInPage(documentId);
-	usePdfOutline(learningAssetId, documentId, goToPage);
-	const selectionAnchor = usePdfSelectionAnchor(documentId);
+	usePdfFindInPage();
+	usePdfOutline();
 	const { pendingRemoval, requestRemoval, confirmRemoval, cancelRemoval } =
-		usePdfHighlightRemoval(documentId);
-	const linkRenderers = usePdfLinkNavigationRenderer(documentId);
-	const annotationRenderers = useMemo(
-		() => [...linkRenderers, pdfHighlightRenderer],
-		[linkRenderers],
-	);
+		usePdfHighlightRemoval();
 	const [frame, setFrame] = useState<HTMLDivElement | null>(null);
 	const [pinned, setPinned] = useState(true);
-	const insets = useChromeInsets();
+	const [hovered, setHovered] = useState(false);
 
 	return (
 		// Fixed, always full-height, never resized by the header (a resize
-		// makes embedpdf re-fit/recenter, felt as an extra scroll) — it overlays.
+		// makes the Stage re-fit, felt as an extra scroll) — it overlays.
 		<div
 			ref={setFrame}
+			onPointerEnter={() => setHovered(true)}
+			onPointerLeave={() => setHovered(false)}
 			style={{
 				position: "fixed",
 				insetInlineStart: "var(--app-shell-navbar-offset, 0rem)",
@@ -136,40 +114,29 @@ function PdfReader() {
 					"var(--app-shell-transition-timing-function)",
 				overflow: "hidden",
 			}}>
+			<PdfHeadroomBridge onPinnedChange={setPinned} />
 			<PdfContextMenu>
-				<Viewport
-					documentId={documentId}
-					className={styles.viewport}
+				<Stage
 					style={{
 						width: "100%",
-						height: "100%",
-						// Clear of the header and footer, like the main scrollbar; animated by the viewport's CSS.
-						["--pdf-viewport-scrollbar-inset-top" as string]:
-							insets.top,
-						["--pdf-viewport-scrollbar-inset-bottom" as string]:
-							insets.bottom,
-					}}>
-					<PdfHeadroomBridge onPinnedChange={setPinned} />
-					<ZoomGestureWrapper
-						documentId={documentId}
-						style={{
-							width: "100%",
-							height: "100%",
-							marginTop: isMobile() ? SAFE_AREA_TOP : undefined,
-						}}>
-						<Scroller
-							documentId={documentId}
-							renderPage={({ pageIndex }) => (
-								<PdfPage
-									pageIndex={pageIndex}
-									annotationRenderers={annotationRenderers}
-									selectionAnchor={selectionAnchor}
-									onConfirmRemoval={requestRemoval}
-								/>
-							)}
-						/>
-					</ZoomGestureWrapper>
-				</Viewport>
+						height: isMobile()
+							? `calc(100% - ${SAFE_AREA_TOP})`
+							: "100%",
+						marginTop: isMobile() ? SAFE_AREA_TOP : undefined,
+						// The trough the pages rest on, so they don't blend into the app background.
+						backgroundColor: "var(--pdf-viewport-bg)",
+					}}
+					overlay={
+						<>
+							<PdfScrollbar hovered={hovered} />
+							<SelectionHandles />
+							<PdfSelectionMenu
+								onConfirmRemoval={requestRemoval}
+							/>
+						</>
+					}>
+					{page => <PdfPage pageIndex={page.pageIndex} />}
+				</Stage>
 			</PdfContextMenu>
 			<FindInPageBar />
 			<RemoveHighlightModal
@@ -177,7 +144,7 @@ function PdfReader() {
 				onConfirm={confirmRemoval}
 				onClose={cancelRemoval}
 			/>
-			<PdfToolbar documentId={documentId} pinned={pinned} />
+			<PdfToolbar pinned={pinned} />
 			<PdfMarksScrollbar container={frame} />
 		</div>
 	);

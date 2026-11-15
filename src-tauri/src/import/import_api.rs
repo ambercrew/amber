@@ -23,6 +23,7 @@ use super::dto::{
 };
 use super::epub::extract_epub_html;
 use super::services::anki_import_service::AnkiImportService;
+use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
 
 const MAX_PAGE_BYTES: usize = 20 * 1024 * 1024;
@@ -280,6 +281,15 @@ pub async fn import_anki(
         .await
         .import_package(bytes, dto.parent, dto.bibliographical_source_id)
         .await?;
+    if let Some(root) = root
+        && !dto.tags.is_empty()
+    {
+        scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .add_tags(root, dto.tags)
+            .await?;
+    }
     scope.save_changes().await?;
     Ok(root)
 }

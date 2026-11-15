@@ -1,31 +1,29 @@
 import { useCallback, useState } from "react";
-import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
 import useAppDispatch from "../../../../hooks/useAppDispatch";
 import { trashElementAction } from "../../../../stores/trash/trashActions";
 import { ElementId } from "../../../../types/elements/elementId";
+import { usePdfHighlights } from "./pdfHighlightsContext";
 
 /** Highlights to delete along with the elements created from them, which go to the trash. */
 export interface PdfHighlightRemoval {
-	annotations: { pageIndex: number; id: string }[];
+	highlightIds: string[];
 	/** Only the elements that still exist (not deleted or already trashed). */
 	elementIds: ElementId[];
 }
 
 /** A highlight removal awaiting confirmation, as in the editor; held above the floating menu, which unmounts with the selection. */
-export function usePdfHighlightRemoval(documentId: string) {
-	const { provides: annotation } = useAnnotationCapability();
+export function usePdfHighlightRemoval() {
+	const { removeHighlights } = usePdfHighlights();
 	const dispatch = useAppDispatch();
 	const [pendingRemoval, setPendingRemoval] =
 		useState<PdfHighlightRemoval | null>(null);
 
 	const confirmRemoval = useCallback(() => {
 		if (!pendingRemoval) return;
-		annotation
-			?.forDocument(documentId)
-			.deleteAnnotations(pendingRemoval.annotations);
+		removeHighlights(pendingRemoval.highlightIds);
 		for (const elementId of pendingRemoval.elementIds)
 			void dispatch(trashElementAction(elementId));
-	}, [pendingRemoval, annotation, documentId, dispatch]);
+	}, [pendingRemoval, removeHighlights, dispatch]);
 	const cancelRemoval = useCallback(() => setPendingRemoval(null), []);
 
 	return {

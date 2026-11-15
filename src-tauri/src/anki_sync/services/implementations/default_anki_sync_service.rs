@@ -41,6 +41,7 @@ use crate::import::services::anki_import_service::AnkiImportService;
 use crate::import::services::imported_html_converter::ImportedHtmlConverter;
 use crate::study::repositories::card_review_log_repository::CardReviewLogRepository;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
+use crate::study::services::card_grading_service::CardGradingService;
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::sync::store::SyncStore;
 use crate::trash::services::trash_service::TrashService;
@@ -76,6 +77,7 @@ pub struct DefaultAnkiSyncService {
     card_review_repository: Arc<dyn CardReviewRepository>,
     card_review_log_repository: Arc<dyn CardReviewLogRepository>,
     profile_resolution_service: Arc<dyn ProfileResolutionService>,
+    card_grading_service: Arc<dyn CardGradingService>,
     event_manager: Arc<dyn EventManager>,
     transaction_manager: Arc<dyn TransactionManager>,
     sync_store: Arc<dyn SyncStore>,
@@ -236,6 +238,8 @@ impl AnkiSyncService for DefaultAnkiSyncService {
                 replayed: &pulled.schedules,
                 pushed: reviews.pushed,
                 answer_in_anki: reviews.answer_in_anki,
+                lapse_in_anki: &reviews.lapse_in_anki,
+                forget_in_anki: &reviews.forget_in_anki,
             })
             .await?;
         let schedules = self.synced_schedules(&pairs, &reviews.synced).await?;

@@ -224,7 +224,6 @@ function OriginSection({
 								value={bibliographicalSourceId}
 								clearable={bibliographicalSourceId !== null}
 								searchable
-								withAlignedLabels
 								placeholder="None"
 								data={[
 									...bibliographicalSources.map(s => ({
@@ -316,7 +315,6 @@ function OriginSection({
 								<Select
 									size="sm"
 									allowDeselect={false}
-									withAlignedLabels
 									data={SOURCE_TYPE_OPTIONS}
 									value={
 										selectedBibliographicalSource.sourceType

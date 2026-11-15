@@ -38,6 +38,7 @@ export default function SearchProvider({ children }: PropsWithChildren) {
 	const {
 		onSplitMatches,
 		totalMatches,
+		countsComplete,
 		countsBySeq,
 		resolveMatchTarget,
 		toGlobalIndex,
@@ -75,6 +76,7 @@ export default function SearchProvider({ children }: PropsWithChildren) {
 		resolveMatchTarget,
 		onNavigate: goToMatch,
 		resolveInitialIndex,
+		countsComplete,
 	});
 
 	const currentTarget = useMemo(

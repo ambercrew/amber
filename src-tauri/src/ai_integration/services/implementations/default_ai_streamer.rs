@@ -3,11 +3,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use injector_derive::ScopeInjectable;
-use rig::streaming::StreamedUserContent;
 use rig::{
-    agent::{MultiTurnStreamItem, StreamingError, Text},
+    agent::MultiTurnStreamItem,
     completion::PromptError,
-    streaming::{StreamedAssistantContent, StreamingChat},
+    streaming::{Item, StreamEvent},
 };
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
@@ -22,10 +21,7 @@ use crate::ai_integration::entities::message::{
 };
 use crate::ai_integration::prompts::{approval_result_text, with_context_snippets};
 use crate::ai_integration::repositories::ai_repository::AiRepository;
-use crate::ai_integration::services::agent_provider::{
-    AgentProvider, AgentProviderError, AppAgent,
-};
-use crate::ai_integration::services::ai_client_provider::AiClientProviderError;
+use crate::ai_integration::services::agent_provider::{AgentProvider, AppAgent};
 use crate::ai_integration::services::ai_streamer::{
     AiStreamer, AiStreamerError, OnEventCallback, StreamLlmResponseEvent,
 };
@@ -96,19 +92,10 @@ impl AiStreamer for DefaultAiStreamer {
 
         let messages_to_upsert = Arc::new(Mutex::new(vec![human_message]));
 
-        // A cancellation while building the agent (e.g. during the embeddings
-        // dimension probe, which has no hook to check mid-flight) has no
-        // completion to stream — skip straight to persisting what already
-        // exists, same as a mid-stream cancellation falls through below.
-        let agent = match self
+        let agent = self
             .agent_provider
             .get_agent(chat_id, &messages, request.element_id)
-            .await
-        {
-            Ok(agent) => Some(agent),
-            Err(AgentProviderError::AiClientProvider(AiClientProviderError::Cancelled)) => None,
-            Err(err) => return Err(err.into()),
-        };
+            .await?;
 
         // The transaction resolved above (for the initial reads and agent
         // setup) would otherwise stay open — and its snapshot stale — for the
@@ -121,158 +108,127 @@ impl AiStreamer for DefaultAiStreamer {
         let mut failed = false;
         let mut called_tools = false;
 
-        if let Some(AppAgent {
+        let AppAgent {
             agent,
             approval_hook,
             tools_context,
-        }) = agent
-        {
-            let rig_messages: Vec<rig::message::Message> = merge_consecutive_assistant_messages(
-                with_current_approval_statuses(messages)
-                    .into_iter()
-                    .filter_map(|m| {
-                        let snippets = context_snippets_by_message
-                            .get(&m.id())
-                            .cloned()
-                            .unwrap_or_default();
-                        m.try_into_rig_message(&snippets).ok()
-                    })
-                    .collect(),
-            );
-            let mut stream = agent
-                .stream_chat(
-                    with_context_snippets(&request.prompt, &request.context_snippets),
-                    rig_messages,
-                )
-                .add_hook(StateCancellationHook::new(self.state.clone()))
-                .add_hook(approval_hook.clone())
-                .await;
+        } = agent;
+        let rig_messages: Vec<rig::message::Message> = merge_consecutive_assistant_messages(
+            with_current_approval_statuses(messages)
+                .into_iter()
+                .filter_map(|m| {
+                    let snippets = context_snippets_by_message
+                        .get(&m.id())
+                        .cloned()
+                        .unwrap_or_default();
+                    m.try_into_rig_message(&snippets).ok()
+                })
+                .collect(),
+        );
+        let mut stream = agent
+            .prompt(with_context_snippets(
+                &request.prompt,
+                &request.context_snippets,
+            ))
+            .history(rig_messages)
+            .add_hook(StateCancellationHook::new(self.state.clone()))
+            .add_hook(approval_hook.clone())
+            .stream();
 
-            // A running tool may be mid-write, so cancelling only interrupts the wait for the model.
-            let mut running_tools = 0usize;
-            loop {
-                let next = if running_tools > 0 {
-                    stream.next().await
-                } else {
-                    tokio::select! {
-                        next = stream.next() => next,
-                        () = self.state.cancelled() => break,
-                    }
-                };
-                let Some(content) = next else { break };
-                match content {
-                    Ok(content) => {
-                        if let MultiTurnStreamItem::StreamAssistantItem(
-                            StreamedAssistantContent::Text(Text { text, .. }),
-                        ) = content
-                        {
-                            complete_ai_response = format!("{complete_ai_response}{text}");
-                            on_event(StreamLlmResponseEvent::InProgress { chat_id, text })?;
-                        } else if let MultiTurnStreamItem::StreamAssistantItem(
-                            StreamedAssistantContent::ToolCall {
-                                tool_call,
-                                internal_call_id,
-                            },
-                        ) = content
-                        {
-                            log::info!("Tool call: {:#?}", tool_call);
-                            called_tools = true;
-                            running_tools += 1;
+        // A running tool may be mid-write, so cancelling only interrupts the wait for the model.
+        let mut running_tools = 0usize;
+        loop {
+            let next = if running_tools > 0 {
+                stream.next().await
+            } else {
+                tokio::select! {
+                    next = stream.next() => next,
+                    () = self.state.cancelled() => break,
+                }
+            };
+            let Some(content) = next else { break };
+            match content {
+                Ok(content) => {
+                    if let MultiTurnStreamItem::StreamAssistantItem(Item::Event(
+                        StreamEvent::Text { text, .. },
+                    )) = content
+                    {
+                        complete_ai_response = format!("{complete_ai_response}{text}");
+                        on_event(StreamLlmResponseEvent::InProgress { chat_id, text })?;
+                    } else if let MultiTurnStreamItem::ToolCall { tool_call } = content {
+                        log::info!("Tool call: {:#?}", tool_call);
+                        called_tools = true;
+                        running_tools += 1;
 
-                            let mut tool_call_content: ToolCallContent = tool_call.into();
-                            // Some providers (e.g. Ollama, whose chat API has
-                            // no tool-call id concept) always hand back an
-                            // empty id, which would otherwise make every call
-                            // in a chat indistinguishable to consumers pairing
-                            // calls with results by id. Fall back to rig's own
-                            // `internal_call_id`, which it generates uniquely
-                            // per call regardless of provider.
-                            if tool_call_content.id.is_empty() {
-                                tool_call_content.id = internal_call_id;
-                            }
-                            if approval_hook.requires_approval(&tool_call_content.name) {
-                                tool_call_content.approval =
-                                    Some(ToolApproval::pending(tools_context.clone()));
-                            }
-
-                            let message = Message::new(
-                                None,
-                                chat_id,
-                                MessageContent::ToolCall(tool_call_content.clone()),
-                            );
-                            let message_id = message.id();
-                            {
-                                let mut pending = messages_to_upsert.lock().await;
-                                pending.push(message);
-                                self.persist(&mut chat_to_upsert, &mut pending).await?;
-                            }
-                            self.transaction_manager.save_changes().await?;
-
-                            let description = self
-                                .tool_approval_resolver
-                                .describe(&tool_call_content)
-                                .await?;
-                            on_event(StreamLlmResponseEvent::ToolCall {
-                                chat_id,
-                                tool_call: tool_call_content,
-                                message_id,
-                                tool_location: description.location,
-                                approval_markdown: description
-                                    .approval
-                                    .map(|markdown| markdown.request),
-                            })?;
-                        } else if let MultiTurnStreamItem::StreamUserItem(
-                            StreamedUserContent::ToolResult {
-                                tool_result,
-                                internal_call_id,
-                            },
-                        ) = content
-                        {
-                            log::info!("Tool result: {:#?}", tool_result);
-                            running_tools = running_tools.saturating_sub(1);
-
-                            let mut tool_result_content: ToolResultContent = tool_result.into();
-                            if tool_result_content.id.is_empty() {
-                                tool_result_content.id = internal_call_id;
-                            }
-                            on_event(StreamLlmResponseEvent::ToolResult {
-                                chat_id,
-                                tool_result: tool_result_content.clone(),
-                            })?;
-                            messages_to_upsert.lock().await.push(Message::new(
-                                None,
-                                chat_id,
-                                MessageContent::ToolResult(tool_result_content),
-                            ));
-                            self.transaction_manager.save_changes().await?;
+                        // rig mints an id for providers that send none (e.g. Ollama).
+                        let mut tool_call_content: ToolCallContent = tool_call.into();
+                        if approval_hook.requires_approval(&tool_call_content.name) {
+                            tool_call_content.approval =
+                                Some(ToolApproval::pending(tools_context.clone()));
                         }
-                    }
-                    Err(err) => {
-                        log::error!("Error happened while streaming {:?}", err);
 
-                        let is_cancelled = matches!(&err, StreamingError::Prompt(p) if matches!(**p, PromptError::PromptCancelled { .. }));
-
-                        if !is_cancelled {
-                            failed = true;
-                            let error_message = match err {
-                                StreamingError::Completion(completion_err) => {
-                                    AiStreamerError::try_from(completion_err)
-                                        .map_or_else(|e| e.to_string(), |e| e.to_string())
-                                }
-                                StreamingError::Prompt(prompt_err) => match *prompt_err {
-                                    PromptError::CompletionError(completion_err) => {
-                                        AiStreamerError::try_from(completion_err)
-                                            .map_or_else(|e| e.to_string(), |e| e.to_string())
-                                    }
-                                    other => other.to_string(),
-                                },
-                            };
-                            on_event(StreamLlmResponseEvent::Error(error_message))?;
+                        let message = Message::new(
+                            None,
+                            chat_id,
+                            MessageContent::ToolCall(tool_call_content.clone()),
+                        );
+                        let message_id = message.id();
+                        {
+                            let mut pending = messages_to_upsert.lock().await;
+                            pending.push(message);
+                            self.persist(&mut chat_to_upsert, &mut pending).await?;
                         }
-                        break;
+                        self.transaction_manager.save_changes().await?;
+
+                        let description = self
+                            .tool_approval_resolver
+                            .describe(&tool_call_content)
+                            .await?;
+                        on_event(StreamLlmResponseEvent::ToolCall {
+                            chat_id,
+                            tool_call: Box::new(tool_call_content),
+                            message_id,
+                            tool_location: description.location,
+                            approval_markdown: description
+                                .approval
+                                .map(|markdown| markdown.request),
+                        })?;
+                    } else if let MultiTurnStreamItem::ToolResult { tool_result } = content {
+                        log::info!("Tool result: {:#?}", tool_result);
+                        running_tools = running_tools.saturating_sub(1);
+
+                        let tool_result_content: ToolResultContent = tool_result.into();
+                        on_event(StreamLlmResponseEvent::ToolResult {
+                            chat_id,
+                            tool_result: tool_result_content.clone(),
+                        })?;
+                        messages_to_upsert.lock().await.push(Message::new(
+                            None,
+                            chat_id,
+                            MessageContent::ToolResult(tool_result_content),
+                        ));
+                        self.transaction_manager.save_changes().await?;
                     }
-                };
-            }
+                }
+                Err(err) => {
+                    log::error!("Error happened while streaming {:?}", err);
+
+                    if !matches!(err, PromptError::Cancelled { .. }) {
+                        failed = true;
+                        let error_message = match err {
+                            PromptError::Provider(error) => {
+                                AiStreamerError::from(error.report()).to_string()
+                            }
+                            PromptError::Report(report) => {
+                                AiStreamerError::from(report).to_string()
+                            }
+                            other => other.to_string(),
+                        };
+                        on_event(StreamLlmResponseEvent::Error(error_message))?;
+                    }
+                    break;
+                }
+            };
         }
 
         if !complete_ai_response.trim().is_empty() {
@@ -360,18 +316,12 @@ fn merge_consecutive_assistant_messages(
     let mut merged: Vec<rig::message::Message> = Vec::with_capacity(messages.len());
 
     for message in messages {
-        if let (Some(rig::message::Message::Assistant { content: prev, .. }), true) = (
-            merged.last_mut(),
-            matches!(message, rig::message::Message::Assistant { .. }),
-        ) {
-            let rig::message::Message::Assistant { content, .. } = message else {
-                unreachable!()
-            };
-            for item in content {
-                prev.push(item);
-            }
-        } else {
-            merged.push(message);
+        match (merged.last_mut(), message) {
+            (
+                Some(rig::message::Message::Assistant(previous)),
+                rig::message::Message::Assistant(next),
+            ) => previous.content.extend(next.content),
+            (_, message) => merged.push(message),
         }
     }
 
@@ -388,15 +338,17 @@ pub mod tests {
 
     use injector::{injector::Injector, register_scope};
     use rig::{
-        completion::{CompletionError, CompletionResponse, Usage},
-        message::{AssistantContent, Message as RigMessage, UserContent},
-        streaming::RawStreamingChoice,
+        message::{
+            AssistantContent, AssistantMessage, CallId, Message as RigMessage, ToolName,
+            UserContent,
+        },
+        test_utils::MockStreamEvent,
     };
 
     use crate::{
         ai_integration::{
             ai_state::AiState,
-            clients::mock_client::{MOCK_PROVIDER, MockClient},
+            clients::mock_client::MockClient,
             entities::{
                 chat::Chat,
                 message::{ApprovalStatus, MessageContent},
@@ -482,6 +434,14 @@ pub mod tests {
     };
 
     use super::*;
+    use crate::ai_integration::repositories::ai_document_repository::AiDocumentRepository;
+    use crate::ai_integration::services::document_search_service::DocumentSearchService;
+    use crate::ai_integration::services::implementations::default_document_search_service::DefaultDocumentSearchService;
+    use crate::infrastructure::repositories::sqlite::sqlite_ai_document_repository::SqliteAiDocumentRepository;
+    use crate::infrastructure::repositories::sqlite::sqlite_content_search_repository::SqliteContentSearchRepository;
+    use crate::search::repositories::content_search_repository::ContentSearchRepository;
+    use crate::search::services::content_search_service::ContentSearchService;
+    use crate::search::services::implementations::default_content_search_service::DefaultContentSearchService;
 
     struct MockLexicalJsonConverter;
 
@@ -509,6 +469,16 @@ pub mod tests {
         register_scope!(injector, dyn SettingsRepository, DiskSettingsRepository);
         register_scope!(injector, dyn AiRepository, SqliteAiRepository);
         register_scope!(injector, dyn AiClientProvider, DefaultAiClientProvider);
+        register_scope!(
+            injector,
+            dyn AiDocumentRepository,
+            SqliteAiDocumentRepository
+        );
+        register_scope!(
+            injector,
+            dyn DocumentSearchService,
+            DefaultDocumentSearchService
+        );
         register_scope!(injector, dyn ChatCreator, DefaultChatCreator);
         register_scope!(injector, dyn MetaRepository, SqliteMetaRepository);
         register_scope!(
@@ -572,6 +542,16 @@ pub mod tests {
             dyn LearningAssetSchedulingService,
             DefaultLearningAssetSchedulingService
         );
+        register_scope!(
+            injector,
+            dyn ContentSearchRepository,
+            SqliteContentSearchRepository
+        );
+        register_scope!(
+            injector,
+            dyn ContentSearchService,
+            DefaultContentSearchService
+        );
         register_scope!(injector, dyn ToolsProvider, DefaultToolsProvider);
         register_scope!(
             injector,
@@ -591,38 +571,36 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(|request| {
-                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                if let Some(RigMessage::User { content }) =
+                    request.chat_history.last().map(Arc::as_ref)
                     && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User message: User prompt"
                 {
                     let tool_call = AssistantContent::tool_call(
                         "id",
-                        "submit",
+                        ToolName::new("submit").unwrap(),
                         serde_json::to_value(GenerateTitle {
                             title: "Chat title".to_string(),
                         })
                         .unwrap(),
                     );
-                    return CompletionResponse::new(
-                        vec![tool_call],
-                        Usage::default(),
-                        MOCK_PROVIDER,
-                    );
+                    return vec![tool_call];
                 }
 
                 panic!()
             }))),
             stream_fn: Arc::new(Some(Box::new(move |request| {
-                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                if let Some(RigMessage::User { content }) =
+                    request.chat_history.last().map(Arc::as_ref)
                     && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User prompt"
                     && !sent_stream_answer.load(Ordering::Relaxed)
                 {
                     sent_stream_answer.store(true, Ordering::Relaxed);
-                    return Ok(Some(RawStreamingChoice::Message("Bot answer".to_string())));
+                    return Some(MockStreamEvent::text("Bot answer".to_string()));
                 }
 
-                Ok(None)
+                None
             }))),
             ..Default::default()
         };
@@ -705,7 +683,7 @@ pub mod tests {
 
         let mock_client = MockClient {
             stream_fn: Arc::new(Some(Box::new(move |request| {
-                let has_context = request.chat_history.iter().any(|message| {
+                let has_context = request.chat_history.iter().map(Arc::as_ref).any(|message| {
                     matches!(
                         message,
                         RigMessage::User { content }
@@ -717,7 +695,7 @@ pub mod tests {
                 });
                 resent_context_clone.store(has_context, Ordering::Relaxed);
 
-                Ok(None)
+                None
             }))),
             ..Default::default()
         };
@@ -777,7 +755,7 @@ pub mod tests {
         let mock_client = MockClient {
             stream_fn: Arc::new(Some(Box::new(move |request| {
                 let prompt_has_snippet = matches!(
-                    request.chat_history.last(),
+                    request.chat_history.last().map(Arc::as_ref),
                     Some(RigMessage::User { content })
                         if content.iter().any(|c| matches!(
                             c,
@@ -787,8 +765,8 @@ pub mod tests {
                         ))
                 );
                 attached_to_prompt_clone.store(prompt_has_snippet, Ordering::Relaxed);
-                let preamble_has_snippet = request.preamble.as_deref().is_some_and(|p| p.contains("New selected passage"))
-                    || request.chat_history.iter().any(|message| {
+                let preamble_has_snippet = request.system_instructions().is_some_and(|p| p.contains("New selected passage"))
+                    || request.chat_history.iter().map(Arc::as_ref).any(|message| {
                         matches!(
                             message,
                             RigMessage::System { content } if content.contains("New selected passage")
@@ -796,7 +774,7 @@ pub mod tests {
                     });
                 in_preamble_clone.store(preamble_has_snippet, Ordering::Relaxed);
 
-                Ok(None)
+                None
             }))),
             ..Default::default()
         };
@@ -841,16 +819,16 @@ pub mod tests {
             completion_fn: Arc::new(Some(Box::new(|_| {
                 let tool_call = AssistantContent::tool_call(
                     "id",
-                    "submit",
+                    ToolName::new("submit").unwrap(),
                     serde_json::to_value(GenerateTitle {
                         title: "Chat title".to_string(),
                     })
                     .unwrap(),
                 );
-                CompletionResponse::new(vec![tool_call], Usage::default(), MOCK_PROVIDER)
+                vec![tool_call]
             }))),
             stream_fn: Arc::new(Some(Box::new(move |request| {
-                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                if let Some(RigMessage::User { content }) = request.chat_history.last().map(Arc::as_ref)
                     && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User prompt"
                     // search_documents plus the always-on card tools.
@@ -861,7 +839,7 @@ pub mod tests {
                     valid_request_clone.store(true, Ordering::Relaxed);
                 }
 
-                Ok(None)
+                None
             }))),
             ..Default::default()
         };
@@ -915,29 +893,27 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(|request| {
-                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                if let Some(RigMessage::User { content }) =
+                    request.chat_history.last().map(Arc::as_ref)
                     && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User message: User prompt"
                 {
                     let tool_call = AssistantContent::tool_call(
                         "id",
-                        "submit",
+                        ToolName::new("submit").unwrap(),
                         serde_json::to_value(GenerateTitle {
                             title: "Chat title".to_string(),
                         })
                         .unwrap(),
                     );
-                    return CompletionResponse::new(
-                        vec![tool_call],
-                        Usage::default(),
-                        MOCK_PROVIDER,
-                    );
+                    return vec![tool_call];
                 }
 
                 panic!()
             }))),
             stream_fn: Arc::new(Some(Box::new(move |request| {
-                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                if let Some(RigMessage::User { content }) =
+                    request.chat_history.last().map(Arc::as_ref)
                     && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User prompt"
                 {
@@ -946,10 +922,10 @@ pub mod tests {
                         ai_state_clone.cancel_generation();
                     }
                     last_sent_message.store(current + 1, Ordering::Relaxed);
-                    return Ok(Some(RawStreamingChoice::Message(current.to_string())));
+                    return Some(MockStreamEvent::text(current.to_string()));
                 }
 
-                Ok(None)
+                None
             }))),
             ..Default::default()
         };
@@ -981,10 +957,11 @@ pub mod tests {
             .get_chat_messages_ordered(chats[0].0.id())
             .await
             .unwrap();
-        assert_eq!(
-            MessageContent::Assistant("123".to_string()),
-            *messages[1].content()
-        );
+        // rig reads a chunk ahead, so the one streaming when it stopped may be dropped.
+        let MessageContent::Assistant(text) = messages[1].content() else {
+            panic!("Expected the partial answer");
+        };
+        assert!(!text.is_empty() && "123".starts_with(text.as_str()));
     }
 
     #[tokio::test]
@@ -996,7 +973,8 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(move |request| {
-                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                if let Some(RigMessage::User { content }) =
+                    request.chat_history.last().map(Arc::as_ref)
                     && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User message: User prompt"
                 {
@@ -1004,17 +982,13 @@ pub mod tests {
 
                     let tool_call = AssistantContent::tool_call(
                         "id",
-                        "submit",
+                        ToolName::new("submit").unwrap(),
                         serde_json::to_value(GenerateTitle {
                             title: "Chat title".to_string(),
                         })
                         .unwrap(),
                     );
-                    return CompletionResponse::new(
-                        vec![tool_call],
-                        Usage::default(),
-                        MOCK_PROVIDER,
-                    );
+                    return vec![tool_call];
                 }
 
                 panic!()
@@ -1067,42 +1041,40 @@ pub mod tests {
 
         let mock_client = MockClient {
             completion_fn: Arc::new(Some(Box::new(|request| {
-                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                if let Some(RigMessage::User { content }) =
+                    request.chat_history.last().map(Arc::as_ref)
                     && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User message: User prompt"
                 {
                     let tool_call = AssistantContent::tool_call(
                         "id",
-                        "submit",
+                        ToolName::new("submit").unwrap(),
                         serde_json::to_value(GenerateTitle {
                             title: "Chat title".to_string(),
                         })
                         .unwrap(),
                     );
-                    return CompletionResponse::new(
-                        vec![tool_call],
-                        Usage::default(),
-                        MOCK_PROVIDER,
-                    );
+                    return vec![tool_call];
                 }
 
                 panic!()
             }))),
             stream_fn: Arc::new(Some(Box::new(move |request| {
-                if let Some(RigMessage::User { content }) = request.chat_history.last()
+                if let Some(RigMessage::User { content }) =
+                    request.chat_history.last().map(Arc::as_ref)
                     && let Some(UserContent::Text(text)) = content.last()
                     && text.text() == "User prompt"
                 {
                     if sent_stream_answer.load(Ordering::Relaxed) {
                         // Fail on second time.
-                        return Err(CompletionError::ResponseError("error from AI".to_string()));
+                        return Some(MockStreamEvent::error("error from AI".to_string()));
                     } else {
                         sent_stream_answer.store(true, Ordering::Relaxed);
-                        return Ok(Some(RawStreamingChoice::Message("Bot answer".to_string())));
+                        return Some(MockStreamEvent::text("Bot answer".to_string()));
                     }
                 }
 
-                Ok(None)
+                None
             }))),
             ..Default::default()
         };
@@ -1128,7 +1100,7 @@ pub mod tests {
                 Arc::new(move |event| {
                     if let StreamLlmResponseEvent::Error(error) = event {
                         received_error_clone
-                            .store(error == "ResponseError: error from AI", Ordering::Relaxed);
+                            .store(error == "ProviderError: error from AI", Ordering::Relaxed);
                     }
                     Ok(())
                 }),
@@ -1159,7 +1131,7 @@ pub mod tests {
 
         let mock_client = MockClient {
             stream_fn: Arc::new(Some(Box::new(|_| {
-                Err(CompletionError::ResponseError("error from AI".to_string()))
+                Some(MockStreamEvent::error("error from AI".to_string()))
             }))),
             ..Default::default()
         };
@@ -1220,43 +1192,24 @@ pub mod tests {
             completion_fn: Arc::new(Some(Box::new(|_| {
                 let tool_call = AssistantContent::tool_call(
                     "id",
-                    "submit",
+                    ToolName::new("submit").unwrap(),
                     serde_json::to_value(GenerateTitle {
                         title: "Chat title".to_string(),
                     })
                     .unwrap(),
                 );
-                CompletionResponse::new(vec![tool_call], Usage::default(), MOCK_PROVIDER)
+                vec![tool_call]
             }))),
             stream_fn: Arc::new(Some(Box::new(move |_| {
                 match call_count_clone.fetch_add(1, Ordering::Relaxed) {
-                    0 => Ok(Some(RawStreamingChoice::ToolCall(
-                        rig::streaming::RawStreamingToolCall::new(
-                            "tc-1".to_string(),
-                            "search_documents".to_string(),
-                            serde_json::json!({ "query": "test", "top_k": 3 }),
-                        ),
-                    ))),
-                    2 => Ok(Some(RawStreamingChoice::Message(
-                        "Final answer".to_string(),
-                    ))),
-                    _ => Ok(None),
+                    0 => Some(MockStreamEvent::tool_call(
+                        "tc-1".to_string(),
+                        "search_documents".to_string(),
+                        serde_json::json!({ "query": "test", "maxResults": 3 }),
+                    )),
+                    2 => Some(MockStreamEvent::text("Final answer".to_string())),
+                    _ => None,
                 }
-            }))),
-            embeddings_model_dims: Some(
-                crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS,
-            ),
-            embed_texts_fn: Arc::new(Some(Box::new(|texts| {
-                Ok(texts
-                    .into_iter()
-                    .map(|text| rig::embeddings::Embedding {
-                        document: text,
-                        vec: vec![
-                            0f64;
-                            crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS
-                        ],
-                    })
-                    .collect())
             }))),
             ..Default::default()
         };
@@ -1322,6 +1275,101 @@ pub mod tests {
         }
     }
 
+    /// Stops the generation when the tool searches, as a user stopping while it runs would.
+    struct CancellingSearch(Arc<AiState>);
+
+    #[async_trait::async_trait]
+    impl DocumentSearchService for CancellingSearch {
+        async fn search(
+            &self,
+            _chat_id: Uuid,
+            _query: &str,
+            _max_matches: usize,
+            _window: crate::search::utils::text_matches::SnippetWindow,
+        ) -> Result<
+            crate::ai_integration::services::document_search_service::DocumentSearchResults,
+            crate::common::repository_error::RepositoryError,
+        > {
+            self.0.cancel_generation();
+            Ok(Default::default())
+        }
+    }
+
+    #[tokio::test]
+    pub async fn stream_cancelled_while_tool_runs_saved_tool_result_without_asking_ai_again() {
+        // Arrange
+
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = call_count.clone();
+        let ai_state = Arc::new(AiState::default());
+        let ai_state_clone = ai_state.clone();
+
+        let mock_client = MockClient {
+            stream_fn: Arc::new(Some(Box::new(move |_| {
+                match call_count_clone.fetch_add(1, Ordering::Relaxed) {
+                    0 => Some(MockStreamEvent::tool_call(
+                        "tc-1",
+                        "search_documents",
+                        serde_json::json!({ "query": "test", "maxResults": 3 }),
+                    )),
+                    1 => None,
+                    _ => panic!("The AI was asked again after the stop"),
+                }
+            }))),
+            ..Default::default()
+        };
+
+        let mut injector = initialize_test_injector(mock_client, ai_state).await;
+        // The user stops while the tool searches the uploaded files.
+        injector.register_singleton::<dyn DocumentSearchService>(Arc::new(CancellingSearch(
+            ai_state_clone,
+        )));
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn AiStreamer>().await;
+        let repository = scope.resolve::<dyn AiRepository>().await;
+
+        let chat = Chat::new(None, "Chat title".to_string());
+        let chat_id = chat.id();
+        repository.upsert_chat(&chat).await.unwrap();
+        repository
+            .upsert_message(&Message::new(
+                None,
+                chat_id,
+                MessageContent::Document(
+                    crate::ai_integration::entities::message::DocumentContent {
+                        file_name: "file.pdf".to_string(),
+                    },
+                ),
+            ))
+            .await
+            .unwrap();
+
+        let request = StreamAiRequestDto {
+            prompt: "User prompt".to_string(),
+            chat_id: Some(chat_id),
+            ..Default::default()
+        };
+
+        // Act
+
+        service
+            .stream(request, Arc::new(move |_| Ok(())))
+            .await
+            .unwrap();
+
+        // Assert
+
+        let messages = repository.get_chat_messages_ordered(chat_id).await.unwrap();
+
+        assert_eq!(4, messages.len());
+        let (MessageContent::ToolCall(tool_call), MessageContent::ToolResult(tool_result)) =
+            (messages[2].content(), messages[3].content())
+        else {
+            panic!("Expected the tool call and its result");
+        };
+        assert_eq!(tool_call.id, tool_result.id);
+    }
+
     #[tokio::test]
     pub async fn stream_approval_required_tool_call_persisted_pending_approval_under_emitted_message_id()
      {
@@ -1333,15 +1381,13 @@ pub mod tests {
         let mock_client = MockClient {
             stream_fn: Arc::new(Some(Box::new(move |_| {
                 match call_count_clone.fetch_add(1, Ordering::Relaxed) {
-                    0 => Ok(Some(RawStreamingChoice::ToolCall(
-                        rig::streaming::RawStreamingToolCall::new(
-                            "tc-1".to_string(),
-                            "create_card".to_string(),
-                            serde_json::json!({ "front": "Q", "back": "A" }),
-                        ),
-                    ))),
-                    2 => Ok(Some(RawStreamingChoice::Message("Done".to_string()))),
-                    _ => Ok(None),
+                    0 => Some(MockStreamEvent::tool_call(
+                        "tc-1".to_string(),
+                        "create_card".to_string(),
+                        serde_json::json!({ "front": "Q", "back": "A" }),
+                    )),
+                    2 => Some(MockStreamEvent::text("Done".to_string())),
+                    _ => None,
                 }
             }))),
             ..Default::default()
@@ -1405,6 +1451,18 @@ pub mod tests {
             }))),
             tool_call.approval
         );
+        let messages = repository.get_chat_messages_ordered(chat_id).await.unwrap();
+        let tool_result = messages
+            .iter()
+            .find_map(|message| match message.content() {
+                MessageContent::ToolResult(result) => Some(result),
+                _ => None,
+            })
+            .expect("Expected the held-back call's result");
+        assert_eq!(
+            approval_result_text(ApprovalStatus::Pending, None),
+            tool_result.text
+        );
         assert!(card_repository.get_all().await.unwrap().is_empty());
     }
 
@@ -1465,43 +1523,24 @@ pub mod tests {
             completion_fn: Arc::new(Some(Box::new(|_| {
                 let tool_call = AssistantContent::tool_call(
                     "id",
-                    "submit",
+                    ToolName::new("submit").unwrap(),
                     serde_json::to_value(GenerateTitle {
                         title: "Chat title".to_string(),
                     })
                     .unwrap(),
                 );
-                CompletionResponse::new(vec![tool_call], Usage::default(), MOCK_PROVIDER)
+                vec![tool_call]
             }))),
             stream_fn: Arc::new(Some(Box::new(move |_| {
                 match call_count_clone.fetch_add(1, Ordering::Relaxed) {
-                    0 => Ok(Some(RawStreamingChoice::ToolCall(
-                        rig::streaming::RawStreamingToolCall::new(
-                            "tc-1".to_string(),
-                            "search_documents".to_string(),
-                            serde_json::json!({ "query": "test", "top_k": 3 }),
-                        ),
-                    ))),
-                    2 => Ok(Some(RawStreamingChoice::Message(
-                        "Final answer".to_string(),
-                    ))),
-                    _ => Ok(None),
+                    0 => Some(MockStreamEvent::tool_call(
+                        "tc-1".to_string(),
+                        "search_documents".to_string(),
+                        serde_json::json!({ "query": "test", "maxResults": 3 }),
+                    )),
+                    2 => Some(MockStreamEvent::text("Final answer".to_string())),
+                    _ => None,
                 }
-            }))),
-            embeddings_model_dims: Some(
-                crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS,
-            ),
-            embed_texts_fn: Arc::new(Some(Box::new(|texts| {
-                Ok(texts
-                    .into_iter()
-                    .map(|text| rig::embeddings::Embedding {
-                        document: text,
-                        vec: vec![
-                            0f64;
-                            crate::ai_integration::clients::mock_client::DEFAULT_MOCK_EMBEDDINGS_DIMS
-                        ],
-                    })
-                    .collect())
             }))),
             ..Default::default()
         };
@@ -1589,48 +1628,39 @@ pub mod tests {
             RigMessage::User {
                 content: vec![UserContent::text("Make three cards")],
             },
-            RigMessage::Assistant {
-                id: None,
-                content: vec![AssistantContent::tool_call(
-                    "call-1",
-                    "create_card",
-                    serde_json::json!({}),
-                )],
-            },
-            RigMessage::Assistant {
-                id: None,
-                content: vec![AssistantContent::tool_call(
-                    "call-2",
-                    "create_card",
-                    serde_json::json!({}),
-                )],
-            },
-            RigMessage::Assistant {
-                id: None,
-                content: vec![AssistantContent::tool_call(
-                    "call-3",
-                    "create_card",
-                    serde_json::json!({}),
-                )],
-            },
+            RigMessage::Assistant(AssistantMessage::new(vec![AssistantContent::tool_call(
+                "call-1",
+                ToolName::new("create_card").unwrap(),
+                serde_json::json!({}),
+            )])),
+            RigMessage::Assistant(AssistantMessage::new(vec![AssistantContent::tool_call(
+                "call-2",
+                ToolName::new("create_card").unwrap(),
+                serde_json::json!({}),
+            )])),
+            RigMessage::Assistant(AssistantMessage::new(vec![AssistantContent::tool_call(
+                "call-3",
+                ToolName::new("create_card").unwrap(),
+                serde_json::json!({}),
+            )])),
             RigMessage::User {
                 content: vec![UserContent::tool_result(
-                    "call-1",
-                    "create_card",
+                    CallId::from_wire("call-1"),
+                    ToolName::new("create_card").unwrap(),
                     vec![rig::message::ToolResultContent::text("ok")],
                 )],
             },
             RigMessage::User {
                 content: vec![UserContent::tool_result(
-                    "call-2",
-                    "create_card",
+                    CallId::from_wire("call-2"),
+                    ToolName::new("create_card").unwrap(),
                     vec![rig::message::ToolResultContent::text("ok")],
                 )],
             },
             RigMessage::User {
                 content: vec![UserContent::tool_result(
-                    "call-3",
-                    "create_card",
+                    CallId::from_wire("call-3"),
+                    ToolName::new("create_card").unwrap(),
                     vec![rig::message::ToolResultContent::text("ok")],
                 )],
             },
@@ -1643,7 +1673,7 @@ pub mod tests {
         // Assert
 
         assert_eq!(5, actual.len());
-        let RigMessage::Assistant { content, .. } = &actual[1] else {
+        let RigMessage::Assistant(AssistantMessage { content, .. }) = &actual[1] else {
             panic!("Expected an assistant message");
         };
         assert_eq!(3, content.len());
@@ -1651,7 +1681,7 @@ pub mod tests {
             let AssistantContent::ToolCall(tool_call) = item else {
                 panic!("Expected a tool call");
             };
-            assert_eq!(expected_id, tool_call.id.as_str());
+            assert_eq!(expected_id, tool_call.id.wire());
         }
     }
 
@@ -1663,10 +1693,7 @@ pub mod tests {
             RigMessage::User {
                 content: vec![UserContent::text("Hi")],
             },
-            RigMessage::Assistant {
-                id: None,
-                content: vec![AssistantContent::text("Hello")],
-            },
+            RigMessage::Assistant(AssistantMessage::new(vec![AssistantContent::text("Hello")])),
         ];
 
         // Act

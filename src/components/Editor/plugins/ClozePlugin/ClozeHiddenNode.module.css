@@ -3,9 +3,10 @@
 	border-radius: var(--mantine-radius-sm);
 	padding: 0 6px;
 	font-weight: 700;
+	/* blue-8 is a mid blue, so it only works as a wash in dark mode; both pairs clear 5:1. */
 	background-color: light-dark(
-		var(--mantine-color-blue-2),
-		var(--mantine-color-blue-8)
+		var(--mantine-color-blue-1),
+		color-mix(in srgb, var(--mantine-color-blue-8) 30%, transparent)
 	);
-	color: light-dark(var(--mantine-color-blue-8), var(--mantine-color-blue-3));
+	color: light-dark(var(--mantine-color-blue-9), var(--mantine-color-blue-3));
 }

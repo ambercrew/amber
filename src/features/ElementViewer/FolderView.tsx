@@ -53,7 +53,7 @@ export default function FolderView() {
 	return (
 		<Container size="md" py="lg">
 			<Stack gap="md">
-				<Paper withBorder radius="md" p="md">
+				<Paper withBorder p="md">
 					<Stack gap="lg">
 						<PageTitle
 							icon={folder ? <FolderElementIcon /> : <HomeIcon />}

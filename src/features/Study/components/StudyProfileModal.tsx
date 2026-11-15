@@ -78,7 +78,6 @@ function StudyProfileModal() {
 					label="Profile"
 					value={selectedId}
 					allowDeselect={false}
-					withAlignedLabels
 					data={[
 						...profiles.map(profile => ({
 							value: profile.id,

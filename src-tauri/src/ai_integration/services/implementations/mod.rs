@@ -4,6 +4,7 @@ pub mod default_ai_prompt_service;
 pub mod default_ai_streamer;
 pub mod default_chat_brancher;
 pub mod default_chat_creator;
+pub mod default_document_search_service;
 pub mod default_document_uploader;
 pub mod default_tool_approval_resolver;
 pub mod default_tools_provider;

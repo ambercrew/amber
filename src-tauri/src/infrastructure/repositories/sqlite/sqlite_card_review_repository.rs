@@ -94,6 +94,54 @@ impl CardReviewRepository for SqliteCardReviewRepository {
             .collect())
     }
 
+    async fn get_reset_times(&self) -> Result<HashMap<Uuid, DateTime<Utc>>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let rows = sqlx::query!(
+            r#"SELECT
+                card_id as "card_id: uuid::fmt::Hyphenated",
+                reset_at as "reset_at!: DateTime<Utc>"
+            FROM card_reviews
+            WHERE reset_at IS NOT NULL"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.card_id.into_uuid(), row.reset_at))
+            .collect())
+    }
+
+    async fn clear_due_moved(&self, card_id: Uuid) -> Result<(), RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        sqlx::query!(
+            "UPDATE card_reviews SET due_moved_at = NULL WHERE card_id = $1",
+            card_id.hyphenated(),
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn mark_reset(&self, card_id: Uuid) -> Result<(), RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        sqlx::query!(
+            "UPDATE card_reviews SET reset_at = datetime('now') WHERE card_id = $1",
+            card_id.hyphenated(),
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        Ok(())
+    }
+
     async fn upsert(&self, review: &CardReview) -> Result<(), RepositoryError> {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();

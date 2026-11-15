@@ -39,7 +39,6 @@ impl SettingsDtoProvider for DefaultSettingsDtoProvider {
                 provider,
                 AiProviderSettingsDto {
                     model_name: provider_settings.model_name,
-                    embeddings_model_name: provider_settings.embeddings_model_name,
                     api_key_is_set,
                 },
             );

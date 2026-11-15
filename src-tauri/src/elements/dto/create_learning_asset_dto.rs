@@ -16,4 +16,7 @@ pub struct CreateLearningAssetDto {
     pub pdf_bytes_base64: Option<String>,
     #[serde(default)]
     pub pdf_page_count: Option<u32>,
+    /// Added beside the parent's, in the same transaction as the creation.
+    #[serde(default)]
+    pub tags: Vec<String>,
 }

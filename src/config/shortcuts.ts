@@ -16,6 +16,7 @@ export const GO_FORWARD_SHORTCUT = "alt+ArrowRight";
 export const NEXT_TREE_ELEMENT_SHORTCUT = "alt+ArrowDown";
 export const PREVIOUS_TREE_ELEMENT_SHORTCUT = "alt+ArrowUp";
 export const FOCUS_TREE_SHORTCUT = "mod+shift+E";
+export const SEARCH_ALL_ELEMENTS_SHORTCUT = "mod+shift+F";
 export const OPEN_FOCUSED_TREE_ELEMENT_SHORTCUT = "Enter";
 
 // Find in page
@@ -24,8 +25,9 @@ export const FIND_NEXT_SHORTCUT = "mod+G";
 export const FIND_PREVIOUS_SHORTCUT = "mod+shift+G";
 
 // Zoom
-export const ZOOM_IN_SHORTCUT = "mod+=";
-export const ZOOM_IN_ALT_SHORTCUT = "mod+[plus]";
+export const ZOOM_IN_SHORTCUT = "mod+[plus]";
+// Plus needs shift on most layouts, so the unshifted key zooms too.
+export const ZOOM_IN_ALT_SHORTCUT = "mod+=";
 export const ZOOM_OUT_SHORTCUT = "mod+-";
 export const RESET_ZOOM_SHORTCUT = "mod+0";
 
@@ -44,6 +46,7 @@ export const OPEN_DUE_DATE_SHORTCUT = "mod+shift+D";
 
 // Study session
 export const TOGGLE_STUDY_SESSION_SHORTCUT = "mod+shift+L";
+export const RETURN_TO_STUDY_SESSION_SHORTCUT = "mod+shift+S";
 export const SHOW_ANSWER_SHORTCUT = "space";
 export const GRADE_AGAIN_SHORTCUT = "1";
 export const GRADE_HARD_SHORTCUT = "2";

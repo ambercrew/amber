@@ -1,6 +1,7 @@
 import { MantineProvider } from "@mantine/core";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Route, Routes } from "react-router";
 import { listen } from "@tauri-apps/api/event";
 import { NodeDto } from "../../../../../api/elements/dto/nodeDto";
 import ElementTreeHarness from "../../../../test-utils/ElementTreeHarness";
@@ -214,6 +215,73 @@ describe("ElementTree search", () => {
 		);
 	});
 
+	function renderAt(initialEntry: string) {
+		return renderWithProviders(
+			<MantineProvider>
+				<Routes>
+					<Route
+						path="/:type/:id"
+						element={<ElementTreeHarness tree={TREE} />}
+					/>
+				</Routes>
+			</MantineProvider>,
+			{ memoryRouterProps: { initialEntries: [initialEntry] } },
+		);
+	}
+
+	it("Should highlight the collapsed parent of the open element without expanding it", () => {
+		// Arrange / Act
+
+		renderAt("/card/card-1");
+
+		// Assert
+
+		expect(
+			screen.queryByLabelText("Impressionism"),
+		).not.toBeInTheDocument();
+		expect(row("Art")).toHaveAttribute("data-active");
+		expect(row("Science")).not.toHaveAttribute("data-active");
+	});
+
+	it("Should highlight the parents of the open element when it is nested", () => {
+		// Arrange
+
+		window.localStorage.setItem(
+			"element-tree-expanded",
+			JSON.stringify({
+				"folder-art": true,
+				"extract-impressionism": true,
+			}),
+		);
+
+		// Act
+
+		renderAt("/card/card-1");
+
+		// Assert
+
+		expect(
+			["Art", "Impressionism", "Monet", "Renoir", "Science"].map(name =>
+				row(name).hasAttribute("data-active"),
+			),
+		).toEqual([true, true, true, false, false]);
+	});
+
+	it("Should show the full name in a tooltip when a row's name is hovered", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		render();
+
+		// Act
+
+		await user.hover(screen.getByLabelText("Science"));
+
+		// Assert
+
+		expect(await screen.findByRole("tooltip")).toHaveTextContent("Science");
+	});
+
 	it("Should remember expanded state after unmount and remount", async () => {
 		// Arrange
 
@@ -234,7 +302,7 @@ describe("ElementTree search", () => {
 		});
 	});
 
-	it("Should expand a folder when an element is created under it", async () => {
+	it("Should leave a folder collapsed when an element is created under it", async () => {
 		// Arrange
 
 		render();
@@ -262,11 +330,15 @@ describe("ElementTree search", () => {
 			});
 		});
 
-		// Assert — Science is expanded, revealing its child
+		// Assert — Science stays collapsed once the batch lands
 
+		await waitFor(() =>
+			expect(screen.getByLabelText("Science")).toBeInTheDocument(),
+		);
+		await act(() => new Promise(resolve => setTimeout(resolve, 100)));
 		expect(
-			await screen.findByLabelText("Biology Basics"),
-		).toBeInTheDocument();
+			screen.queryByLabelText("Biology Basics"),
+		).not.toBeInTheDocument();
 	});
 
 	it("Should still add a queued element to the tree when the sidebar unmounts", () => {
@@ -301,7 +373,11 @@ describe("ElementTree search", () => {
 		).toBeDefined();
 	});
 
-	it("Should show correct child count on a folder label", () => {
+	function row(name: string) {
+		return screen.getByLabelText(name).closest<HTMLElement>("[draggable]")!;
+	}
+
+	it("Should show the child count in a badge beside the name when a folder has children", () => {
 		// Arrange
 
 		// Act
@@ -309,20 +385,58 @@ describe("ElementTree search", () => {
 		render();
 
 		// Assert — Science has 1 learning asset child.
-		expect(screen.getByText("Science (1)")).toBeInTheDocument();
+		expect(screen.getByLabelText("Science")).toHaveTextContent(/^Science$/);
+		expect(within(row("Science")).getByText("1")).toBeVisible();
 	});
 
-	it("Should show correct child count on an extract label", async () => {
+	it("Should show the child count of an extract when it has children", async () => {
 		// Arrange
 
 		const user = userEvent.setup();
 		render();
 
-		// Expand Art to reveal its child extract.
+		// Act
+
 		await user.click(screen.getAllByRole("button", { name: "Expand" })[1]);
 
 		// Assert — Impressionism has 2 card children.
-		expect(screen.getByText("Impressionism (2)")).toBeInTheDocument();
+		expect(within(row("Impressionism")).getByText("2")).toBeVisible();
+	});
+
+	it("Should show no count badge when an element has no children", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		render();
+
+		// Act
+
+		await user.click(screen.getAllByRole("button", { name: "Expand" })[0]);
+
+		// Assert
+
+		expect(
+			row("Biology Basics").querySelector(".mantine-Badge-root"),
+		).toBeNull();
+	});
+
+	it("Should swap the count badge for the actions menu when a row is hovered", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		render();
+		const science = row("Science");
+
+		// Act
+
+		await user.hover(science);
+
+		// Assert
+
+		expect(within(science).getByText("1")).not.toBeVisible();
+		expect(
+			within(science).getByRole("button", { name: "Open actions menu" }),
+		).toBeVisible();
 	});
 });
 

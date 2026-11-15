@@ -4,19 +4,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePdfReadPoint } from "../../../../../features/ElementViewer/PdfView/readPoint/usePdfReadPoint";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
 
-const { updateReadPointMock, useScrollCapabilityMock, notificationsShowMock } =
-	vi.hoisted(() => ({
+const { updateReadPointMock, stageEvents, notificationsShowMock } = vi.hoisted(
+	() => ({
 		updateReadPointMock: vi.fn(),
-		useScrollCapabilityMock: vi.fn(),
+		// The latest page-change handler the hook handed `useStageEvent`, which re-reads it per event.
+		stageEvents: {
+			onPageChanged: null as
+				((event: { pageIndex: number }) => void) | null,
+		},
 		notificationsShowMock: vi.fn(),
-	}));
+	}),
+);
 
 vi.mock("../../../../../api/elements/api/elementsApi", () => ({
 	updateReadPoint: updateReadPointMock,
 }));
 
-vi.mock("@embedpdf/plugin-scroll/react", () => ({
-	useScrollCapability: useScrollCapabilityMock,
+vi.mock("@embedpdf/react/stage", () => ({
+	useStageEvent: (
+		_select: unknown,
+		handler: (event: { pageIndex: number }) => void,
+	) => {
+		stageEvents.onPageChanged = handler;
+	},
 }));
 
 vi.mock("@mantine/notifications", () => ({
@@ -50,19 +60,14 @@ interface PageChangeEvent {
 	totalPages: number;
 }
 
-/** A stand-in for `ScrollCapability`, exposing `emitPageChange` so tests can drive the page the hook tracks. */
+/** A stand-in for the Stage's current page, exposing `emitPageChange` so tests can drive the page the hook tracks. */
 function createFakeScrollCapability() {
-	const pageChangeHandlers = new Set<(event: PageChangeEvent) => void>();
 	let currentPage = 1;
 	const capability = {
-		onPageChange: (handler: (event: PageChangeEvent) => void) => {
-			pageChangeHandlers.add(handler);
-			return () => pageChangeHandlers.delete(handler);
-		},
 		getCurrentPage: () => currentPage,
 		emitPageChange: (event: PageChangeEvent) => {
 			currentPage = event.pageNumber;
-			pageChangeHandlers.forEach(handler => handler(event));
+			stageEvents.onPageChanged?.({ pageIndex: event.pageNumber - 1 });
 		},
 	};
 
@@ -110,7 +115,7 @@ describe("usePdfReadPoint", () => {
 		updateReadPointMock.mockResolvedValue(undefined);
 		const fake = createFakeScrollCapability();
 		capability = fake.capability;
-		useScrollCapabilityMock.mockReturnValue({ provides: capability });
+		stageEvents.onPageChanged = null;
 	});
 
 	afterEach(() => {
@@ -422,7 +427,26 @@ describe("usePdfReadPoint", () => {
 		expect(goToPage).toHaveBeenCalledWith(4);
 	});
 
-	it("Should scroll to the highlight's page when a goto is requested after a highlight is created", async () => {
+	it("Should keep the displayed read point when a highlight is created", async () => {
+		// Arrange
+
+		const { result } = renderPdfReadPoint({
+			initial: { split: 4, block: 0 },
+		});
+
+		// Act
+
+		await act(async () => {
+			result.current.recordExtractReadPoint(9);
+			await vi.runAllTimersAsync();
+		});
+
+		// Assert
+
+		expect(result.current.displayed).toEqual({ split: 4, block: 0 });
+	});
+
+	it("Should scroll to the displayed read point when a goto is requested after a highlight is created", async () => {
 		// Arrange
 
 		const { result } = renderPdfReadPoint({
@@ -441,7 +465,7 @@ describe("usePdfReadPoint", () => {
 
 		// Assert
 
-		expect(goToPage).toHaveBeenLastCalledWith(9);
+		expect(goToPage).toHaveBeenLastCalledWith(4);
 	});
 
 	it("Should persist the read point when a highlight is created", async () => {

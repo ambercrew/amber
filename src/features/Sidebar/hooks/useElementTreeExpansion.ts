@@ -21,11 +21,12 @@ function filterTree(data: TreeNodeData[], query: string) {
 	return lastFilter.filtered;
 }
 
-export function useElementTreeExpansion(
-	data: TreeNodeData[],
-	selectedId: string | null = null,
-	isStudying = false,
-) {
+/**
+ * The tree's expanded nodes. Only the user expands them: by hand, by searching,
+ * by creating from a node's menu, by revealing an element or by importing one
+ * (`useTreeRevealRequest`), never by opening one.
+ */
+export function useElementTreeExpansion(data: TreeNodeData[]) {
 	const [persistedExpandedState, setPersistedExpandedState] = useLocalStorage<
 		Record<string, boolean>
 	>({
@@ -51,62 +52,6 @@ export function useElementTreeExpansion(
 		}
 	}, [data, persistedExpandedState, treeController]);
 
-	// Ancestor ids that were auto-expanded to reveal the current study element but
-	// were not expanded beforehand — collapsed again once study moves past them.
-	const studyAutoExpandedRef = useRef<string[]>([]);
-	const wasStudyingRef = useRef(isStudying);
-
-	// Reveal the selected element by expanding its ancestors whenever navigation changes it.
-	useEffect(() => {
-		const sessionEnded = wasStudyingRef.current && !isStudying;
-		wasStudyingRef.current = isStudying;
-
-		// The last studied element stays selected, so collapse what study opened instead of revealing it.
-		if (sessionEnded) {
-			const collapsed = Object.fromEntries(
-				studyAutoExpandedRef.current.map(id => [id, false]),
-			);
-			studyAutoExpandedRef.current = [];
-			treeController.setExpandedState({
-				...treeController.expandedState,
-				...collapsed,
-			});
-			return;
-		}
-
-		if (!selectedId || data.length === 0) return;
-		const ancestors = getAncestorsOf(data, selectedId) ?? [];
-
-		if (isStudying) {
-			const current = { ...treeController.expandedState };
-			for (const id of studyAutoExpandedRef.current) {
-				current[id] = false;
-			}
-			const newlyExpanded = ancestors.filter(id => !current[id]);
-			for (const id of ancestors) {
-				current[id] = true;
-			}
-			treeController.setExpandedState(current);
-			studyAutoExpandedRef.current = newlyExpanded;
-			return;
-		}
-
-		studyAutoExpandedRef.current = [];
-		expandNodes(ancestors);
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- The rest are not important.
-	}, [selectedId, data, isStudying]);
-
-	/** Expands `ids` at once, skipping the state updates when they already are. */
-	function expandNodes(ids: string[]) {
-		if (ids.every(id => treeController.expandedState[id])) return;
-		const extra = Object.fromEntries(ids.map(id => [id, true]));
-		setPersistedExpandedState(prev => ({ ...prev, ...extra }));
-		treeController.setExpandedState({
-			...treeController.expandedState,
-			...extra,
-		});
-	}
-
 	const [search, setSearch] = useState("");
 	const preSearchExpandedState = useRef<Record<string, boolean> | null>(null);
 
@@ -123,18 +68,47 @@ export function useElementTreeExpansion(
 				getTreeExpandedState(filterTree(data, value), "*"),
 			);
 		} else {
-			const restored = preSearchExpandedState.current ?? {};
-			if (selectedId) {
-				const ancestors = getAncestorsOf(data, selectedId) ?? [];
-				const extra = Object.fromEntries(
-					ancestors.map(id => [id, true]),
-				);
-				treeController.setExpandedState({ ...restored, ...extra });
-			} else {
-				treeController.setExpandedState(restored);
-			}
+			treeController.setExpandedState(
+				preSearchExpandedState.current ?? {},
+			);
 			preSearchExpandedState.current = null;
 		}
+	}
+
+	function ancestorsExpanded(id: string): Record<string, boolean> | null {
+		const ancestors = getAncestorsOf(data, id) as string[] | null;
+		return ancestors && Object.fromEntries(ancestors.map(a => [a, true]));
+	}
+
+	/** Clears the search and expands `id`'s ancestors; false when `id` isn't in the tree. */
+	function reveal(id: string) {
+		const extra = ancestorsExpanded(id);
+		if (!extra) return false;
+		const base = search.trim()
+			? (preSearchExpandedState.current ?? {})
+			: treeController.expandedState;
+		setSearch("");
+		preSearchExpandedState.current = null;
+		setPersistedExpandedState(prev => ({ ...prev, ...extra }));
+		treeController.setExpandedState({ ...base, ...extra });
+		return true;
+	}
+
+	/** Expands `id`'s ancestors, keeping a search (they stay expanded once it's cleared); false when `id` isn't in the tree. */
+	function expandTo(id: string) {
+		const extra = ancestorsExpanded(id);
+		if (!extra) return false;
+		if (preSearchExpandedState.current)
+			preSearchExpandedState.current = {
+				...preSearchExpandedState.current,
+				...extra,
+			};
+		setPersistedExpandedState(prev => ({ ...prev, ...extra }));
+		treeController.setExpandedState({
+			...treeController.expandedState,
+			...extra,
+		});
+		return true;
 	}
 
 	return {
@@ -142,6 +116,7 @@ export function useElementTreeExpansion(
 		filteredData,
 		search,
 		handleSearchChange,
-		expandNodes,
+		reveal,
+		expandTo,
 	};
 }

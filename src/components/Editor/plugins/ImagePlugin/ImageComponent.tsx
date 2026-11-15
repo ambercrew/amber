@@ -10,7 +10,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { calculateZoomLevel } from "@lexical/utils";
-import { Box, Image, Popover } from "@mantine/core";
+import { Box, Image, Portal, Transition } from "@mantine/core";
 import { ArrowsOutIcon } from "@phosphor-icons/react";
 import {
 	$getNodeByKey,
@@ -30,6 +30,8 @@ import {
 	OcclusionTarget,
 } from "./imageOcclusionOverlayContext";
 import FloatingMenuBar from "../../../FloatingMenuBar/FloatingMenuBar";
+import { floatingMenuPop } from "../../../FloatingMenuBar/floatingMenuPop";
+import { useFloatingMenuPosition } from "../../../FloatingMenuBar/useFloatingMenuPosition";
 import { assetIdFromSrc, resolveImageSrc } from "../../../../utils/assetUrl";
 import { useIsEditorFocused } from "../../hooks/useIsEditorFocused";
 import { MOTION_DURATION_MS } from "../../../../config/motion";
@@ -161,6 +163,18 @@ export default function ImageComponent({
 	};
 
 	const isFocused = (isSelected || isResizing) && isEditable;
+	// Node selection survives blur, so also gate on focus to keep it from floating over modals.
+	const menuOpened =
+		isSoleSelection && isEditable && isEditorFocused && !isResizing;
+	const [imageBox, setImageBox] = useState<HTMLSpanElement | null>(null);
+	const [menuElement, setMenuElement] = useState<HTMLDivElement | null>(null);
+	const menuPosition = useFloatingMenuPosition({
+		open: menuOpened,
+		floating: menuElement,
+		reference: imageBox,
+		placement: "bottom",
+		strategy: "fixed",
+	});
 	// The lightbox shows the bare image, which would give away masked answers, even sibling cards' on the back.
 	const canView = !occlusionTarget;
 	const openLightbox = () => openImageLightbox(src, altText);
@@ -171,89 +185,101 @@ export default function ImageComponent({
 		});
 
 	return (
-		// Node selection survives blur, so also gate on focus to keep it from floating over modals.
-		<Popover
-			opened={
-				isSoleSelection && isEditable && isEditorFocused && !isResizing
-			}
-			position="bottom"
-			offset={8}
-			trapFocus={false}
-			returnFocus={false}
-			transitionProps={{
-				transition: "pop",
-				duration: MOTION_DURATION_MS,
-			}}>
-			<Popover.Target>
-				<Box
-					component="span"
-					pos="relative"
-					display="inline-block"
-					// Subtracting the image resizer from max width to not have x-scroll.
-					maw="calc(100% - 8px)"
-					style={{ cursor: "default" }}>
-					<Image
-						ref={imageRef}
-						src={resolveImageSrc(src)}
-						// CORS-loaded so exportDOM can inline it for external pastes without tainting the canvas.
-						crossOrigin={
-							assetIdFromSrc(src) === null
-								? undefined
-								: "anonymous"
-						}
-						alt={altText}
-						draggable={isSelected}
-						w={width}
-						h={height}
-						m={0}
-						fit="fill"
-						radius={0}
-						onDoubleClick={canView ? openLightbox : undefined}
-						style={{
-							outline: isFocused
-								? "2px solid var(--mantine-primary-color-filled)"
-								: undefined,
-						}}
-					/>
-					{occlusionId &&
-						renderOcclusionOverlay?.({
-							occlusionId,
-							target: occlusionTarget,
-						})}
-					{isEditable && isFocused && (
-						<ImageResizer
-							imageRef={imageRef}
-							onResizeStart={onResizeStart}
-							onResizeEnd={onResizeEnd}
-						/>
-					)}
-				</Box>
-			</Popover.Target>
-			<Popover.Dropdown p={0} bd={0} bg="transparent">
-				<FloatingMenuBar
-					items={[
-						...(canView
-							? [
-									{
-										name: "view",
-										title: "View image",
-										label: "View",
-										showLabel: true,
-										Icon: ArrowsOutIcon,
-										onClick: openLightbox,
-									},
-								]
-							: []),
-						...(getExtraMenuItems?.({
-							src,
-							altText,
-							occlusionId,
-							setOcclusionId,
-						}) ?? []),
-					]}
+		<>
+			<Box
+				ref={setImageBox}
+				component="span"
+				pos="relative"
+				display="inline-block"
+				// Subtracting the image resizer from max width to not have x-scroll.
+				maw="calc(100% - 8px)"
+				style={{ cursor: "default" }}>
+				<Image
+					ref={imageRef}
+					src={resolveImageSrc(src)}
+					// CORS-loaded so exportDOM can inline it for external pastes without tainting the canvas.
+					crossOrigin={
+						assetIdFromSrc(src) === null ? undefined : "anonymous"
+					}
+					alt={altText}
+					draggable={isSelected}
+					w={width}
+					h={height}
+					m={0}
+					fit="fill"
+					radius={0}
+					onDoubleClick={canView ? openLightbox : undefined}
+					style={{
+						outline: isFocused
+							? "2px solid var(--mantine-primary-color-filled)"
+							: undefined,
+					}}
 				/>
-			</Popover.Dropdown>
-		</Popover>
+				{occlusionId &&
+					renderOcclusionOverlay?.({
+						occlusionId,
+						target: occlusionTarget,
+					})}
+				{isEditable && isFocused && (
+					<ImageResizer
+						imageRef={imageRef}
+						onResizeStart={onResizeStart}
+						onResizeEnd={onResizeEnd}
+					/>
+				)}
+			</Box>
+			<Portal>
+				<Transition
+					mounted={menuOpened}
+					transition={{
+						...floatingMenuPop(!menuPosition.below),
+						common: {
+							transformOrigin: `${menuPosition.below ? "top" : "bottom"} center`,
+						},
+					}}
+					duration={MOTION_DURATION_MS}>
+					{transitionStyles => (
+						<div
+							ref={setMenuElement}
+							style={{
+								position: "fixed",
+								top: 0,
+								left: 0,
+								zIndex: "var(--mantine-z-index-popover)",
+								visibility:
+									menuPosition.placed &&
+									!menuPosition.referenceHidden
+										? undefined
+										: "hidden",
+							}}>
+							<FloatingMenuBar
+								style={transitionStyles}
+								items={[
+									...(canView
+										? [
+												{
+													name: "view",
+													title: "View image",
+													label: "View",
+													showLabel: true,
+													Icon: ArrowsOutIcon,
+													onClick: openLightbox,
+												},
+											]
+										: []),
+									...(getExtraMenuItems?.({
+										src,
+										altText,
+										occlusionId,
+										setOcclusionId,
+									}) ?? []),
+								]}
+							/>
+						</div>
+					)}
+				</Transition>
+			</Portal>
+		</>
 	);
 }
 

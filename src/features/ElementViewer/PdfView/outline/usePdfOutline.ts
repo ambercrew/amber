@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { PdfActionType, PdfBookmarkObject } from "@embedpdf/models";
-import { useBookmarkCapability } from "@embedpdf/plugin-bookmark/react";
-import { useScrollCapability } from "@embedpdf/plugin-scroll/react";
+import { useCallback, useEffect, useMemo } from "react";
+import { useDocuments } from "@embedpdf/react/runtime";
+import { OutlineItem, useOutlineState } from "@embedpdf/react/outline";
+import { StageCapability, useStage } from "@embedpdf/react/stage";
 import useAppDispatch from "../../../../hooks/useAppDispatch";
 import { useReadingCommand } from "../../../../commands/readingCommands";
 import {
@@ -9,102 +9,101 @@ import {
 	setTableOfContents,
 } from "../../../../stores/tableOfContents/tableOfContentsReducer";
 import { TableOfContentsEntry } from "../../../../types/elements/tableOfContentsEntry";
-import { GoToPage } from "../core/usePdfNavigator";
+import { usePdfCore } from "../core/pdfCoreContext";
 
-interface OutlineItem {
-	/** The bookmark's index path, e.g. "0.2.1"; unique and stable for the document. */
+type PageDestination = Parameters<StageCapability["goToDestination"]>[0];
+
+interface OutlineEntryTarget {
+	/** The item's index path, e.g. "0.2.1"; unique and stable for the document. */
 	id: string;
 	pageIndex: number | undefined;
+	/** Where on its page the entry starts, when its destination says. */
+	landing: PageDestination | null;
 }
 
-function getBookmarkPageIndex(bookmark: PdfBookmarkObject): number | undefined {
-	const target = bookmark.target;
-	if (!target) return undefined;
-	if (target.type === "destination") return target.destination.pageIndex;
-	if (target.type === "action" && target.action.type === PdfActionType.Goto) {
-		return target.action.destination.pageIndex;
-	}
-	return undefined;
+/**
+ * The spot a destination points at, without its zoom or x, so following it keeps the reader's view;
+ * `null` when it only names the page. The outline counts an entry as current from this spot on.
+ */
+export function landingOf(
+	destination: PageDestination,
+): PageDestination | null {
+	if (!("y" in destination) || destination.y === null) return null;
+	return {
+		kind: "xyz",
+		page: destination.page,
+		x: null,
+		y: destination.y,
+		zoom: null,
+	};
 }
 
-/** The table of contents for the bookmarks, and each entry's page in document order. */
+/** The table of contents for the outline's items, which the plugin lists depth first; with each entry's page, and each item's entry id. */
 export function toTableOfContents(
-	bookmarks: PdfBookmarkObject[],
-	parentId?: string,
-): { entries: TableOfContentsEntry[]; items: OutlineItem[] } {
-	const items: OutlineItem[] = [];
-	const entries = bookmarks.map((bookmark, index) => {
-		const id = parentId === undefined ? `${index}` : `${parentId}.${index}`;
-		const pageIndex = getBookmarkPageIndex(bookmark);
-		items.push({ id, pageIndex });
-		const children = bookmark.children?.length
-			? toTableOfContents(bookmark.children, id)
+	items: readonly OutlineItem[],
+	pageIndexOf: (item: OutlineItem) => number | undefined,
+): {
+	entries: TableOfContentsEntry[];
+	targets: OutlineEntryTarget[];
+	idsByObjectNumber: Map<number, string>;
+} {
+	const entries: TableOfContentsEntry[] = [];
+	const targets: OutlineEntryTarget[] = [];
+	const idsByObjectNumber = new Map<number, string>();
+	const entriesByObjectNumber = new Map<number, TableOfContentsEntry>();
+
+	for (const item of items) {
+		// A parent comes before its children; one that couldn't be read leaves them at the top level.
+		const parent = item.parent
+			? entriesByObjectNumber.get(item.parent.objectNumber)
 			: undefined;
-		if (children) items.push(...children.items);
-		return {
+		const siblings = parent ? (parent.children ??= []) : entries;
+		const id = parent
+			? `${parent.id}.${siblings.length}`
+			: `${siblings.length}`;
+		const pageIndex = pageIndexOf(item);
+		const entry: TableOfContentsEntry = {
 			id,
-			title: bookmark.title,
+			title: item.title,
 			selectable: pageIndex !== undefined,
-			children: children?.entries,
 		};
-	});
-	return { entries, items };
-}
-
-/** The entry the page is in: the latest-starting one at or before it, the deepest on a tie. */
-export function findCurrentEntryId(
-	items: OutlineItem[],
-	pageIndex: number,
-): string | null {
-	let current: { id: string; start: number; depth: number } | null = null;
-	for (const { id, pageIndex: start } of items) {
-		if (start === undefined || start > pageIndex) continue;
-		const depth = id.split(".").length;
-		if (
-			!current ||
-			start > current.start ||
-			(start === current.start && depth >= current.depth)
-		)
-			current = { id, start, depth };
+		siblings.push(entry);
+		entriesByObjectNumber.set(item.ref.objectNumber, entry);
+		idsByObjectNumber.set(item.ref.objectNumber, id);
+		const target = item.target;
+		targets.push({
+			id,
+			pageIndex,
+			landing:
+				pageIndex === undefined || target?.kind !== "goto"
+					? null
+					: landingOf(target.destination),
+		});
 	}
-	return current?.id ?? null;
+	return { entries, targets, idsByObjectNumber };
 }
 
-/** Shows the PDF's bookmarks in the side panel's table of contents, with the current one highlighted. */
-export function usePdfOutline(
-	learningAssetId: string,
-	documentId: string,
-	goToPage: GoToPage,
-) {
+/** Shows the PDF's outline in the side panel's table of contents, with the current entry highlighted. */
+export function usePdfOutline() {
+	const { learningAssetId, goToPage, announceJump } = usePdfCore();
+	const stage = useStage();
 	const dispatch = useAppDispatch();
-	const { provides: bookmark } = useBookmarkCapability();
-	const { provides: scroll } = useScrollCapability();
-	const [bookmarks, setBookmarks] = useState<PdfBookmarkObject[] | null>(
-		null,
-	);
+	const documents = useDocuments();
+	const items = useOutlineState(state => state.items);
+	const status = useOutlineState(state => state.status);
+	const current = useOutlineState(state => state.current);
 
-	useEffect(() => {
-		if (!bookmark) return;
-		let cancelled = false;
-		bookmark
-			.forDocument(documentId)
-			.getBookmarks()
-			.toPromise()
-			.then(result => {
-				if (!cancelled) setBookmarks(result.bookmarks);
-			})
-			.catch(() => {
-				if (!cancelled) setBookmarks([]);
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, [bookmark, documentId]);
-
-	const outline = useMemo(
-		() => bookmarks && toTableOfContents(bookmarks),
-		[bookmarks],
-	);
+	const outline = useMemo(() => {
+		// Nothing until the read lands, so the panel doesn't flash "no contents".
+		if (status !== "ready" && status !== "forbidden" && status !== "error")
+			return null;
+		return toTableOfContents(items, item => {
+			const target = item.target;
+			if (target?.kind !== "goto") return undefined;
+			const pageIndex = documents.getPageIndex(target.destination.page);
+			return pageIndex >= 0 ? pageIndex : undefined;
+		});
+	}, [items, status, documents]);
 
 	useEffect(() => {
 		dispatch(
@@ -123,34 +122,30 @@ export function usePdfOutline(
 		[dispatch],
 	);
 
-	// Followed outside React state, so a page change re-renders nothing unless it crosses into another entry.
+	const currentId =
+		(current && outline?.idsByObjectNumber.get(current.objectNumber)) ??
+		null;
 	useEffect(() => {
-		if (!scroll || !outline) return;
-		// Dispatched only when crossing into another entry, not on every page scrolled past.
-		let shown: string | null | undefined;
-		const highlight = (pageNumber: number) => {
-			const id = findCurrentEntryId(outline.items, pageNumber - 1);
-			if (id === shown) return;
-			shown = id;
-			dispatch(setActiveTableOfContentsEntry(id));
-		};
-		highlight(scroll.forDocument(documentId).getCurrentPage());
-		return scroll.onPageChange(event => {
-			if (event.documentId === documentId) highlight(event.pageNumber);
-		});
-	}, [scroll, documentId, outline, dispatch]);
+		if (outline) dispatch(setActiveTableOfContentsEntry(currentId));
+	}, [dispatch, outline, currentId]);
 
 	useReadingCommand(
 		"go-to-table-of-contents-entry",
 		useCallback(
 			({ entryId }) => {
-				const pageIndex = outline?.items.find(
-					item => item.id === entryId,
-				)?.pageIndex;
-				if (pageIndex !== undefined)
-					goToPage(pageIndex + 1, { behavior: "instant" });
+				const target = outline?.targets.find(
+					({ id }) => id === entryId,
+				);
+				if (target?.pageIndex === undefined) return;
+				// Lands on the entry's own spot, not its page's top, so the outline counts it as current.
+				if (target.landing) {
+					stage.goToDestination(target.landing, {
+						behavior: "instant",
+					});
+					announceJump();
+				} else goToPage(target.pageIndex + 1, { behavior: "instant" });
 			},
-			[outline, goToPage],
+			[outline, goToPage, stage, announceJump],
 		),
 	);
 }

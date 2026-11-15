@@ -11,9 +11,9 @@ interface StatCardProps {
 
 export default function StatCard({ icon: Icon, label, value }: StatCardProps) {
 	return (
-		<Paper withBorder radius="md" p="md">
+		<Paper withBorder p="md">
 			<Group gap="sm" wrap="nowrap">
-				<ThemeIcon variant="light" size="lg" radius="md">
+				<ThemeIcon variant="light" size="lg">
 					<Icon size={20} />
 				</ThemeIcon>
 				<Stack gap={0} miw={0}>

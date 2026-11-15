@@ -1,36 +1,27 @@
-import { useEffect, useLayoutEffect, useState } from "react";
-import { useViewportElement } from "@embedpdf/plugin-viewport/react";
-import { useZoomCapability } from "@embedpdf/plugin-zoom/react";
+import { useEffect, useMemo } from "react";
+import { useStageEvent } from "@embedpdf/react/stage";
 import {
 	useElementHeadroom,
 	UseElementHeadroomInput,
 } from "../../../../hooks/useElementHeadroom";
+import { StageScroller, useStageHost } from "./stageScroll";
 
-/** Hide-on-scroll for the PDF's toolbar and the header, driven by the PDF viewport's own scroll. Call inside `<Viewport>`. */
+/** Hide-on-scroll for the PDF's toolbar and the header, driven by the Stage's own scrolling. */
 export function usePdfToolbarHeadroom(
 	options: Omit<UseElementHeadroomInput, "element"> = {},
 ) {
-	const viewportRef = useViewportElement();
-	const [viewportElement, setViewportElement] = useState<HTMLElement | null>(
-		null,
-	);
+	const stage = useStageHost();
+	const scroller = useMemo(() => new StageScroller(stage), [stage]);
+	useEffect(() => scroller.connect(), [scroller]);
 
-	useLayoutEffect(() => {
-		setViewportElement(viewportRef?.current ?? null);
-	}, [viewportRef]);
-
-	const headroom = useElementHeadroom({
-		element: viewportElement,
-		...options,
-	});
+	const headroom = useElementHeadroom({ element: scroller, ...options });
 	const { pause } = headroom;
 
-	// Zoom recenters the viewport; don't let that scroll hide the toolbar.
-	const { provides: zoom } = useZoomCapability();
-	useEffect(() => {
-		if (!zoom) return;
-		return zoom.onZoomChange(() => pause());
-	}, [zoom, pause]);
+	// Zoom moves the camera too; don't let that hide the toolbar.
+	useStageEvent(
+		current => current.onZoomChanged,
+		() => pause(),
+	);
 
-	return { ...headroom, viewportElement };
+	return { ...headroom, scroller };
 }

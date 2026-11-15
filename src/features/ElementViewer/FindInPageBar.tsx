@@ -64,6 +64,17 @@ export default function FindInPageBar() {
 		setPrevOpened(opened);
 		if (opened) setInputValue(query);
 	}
+	// Also resynced when something else sets the query, e.g. a global search result.
+	// `echoedQuery` is what this bar just dispatched, so its own change isn't taken for one.
+	const [prevQuery, setPrevQuery] = useState(query);
+	const [echoedQuery, setEchoedQuery] = useState<string | null>(null);
+	if (query !== prevQuery) {
+		setPrevQuery(query);
+		setEchoedQuery(null);
+		if (query !== echoedQuery) setInputValue(query);
+	}
+	// The query typing started from; a debounced value is dropped once something else replaces it.
+	const [typedOverQuery, setTypedOverQuery] = useState(query);
 
 	// GlobalHotkeys already opens the bar on mod+F; these only apply while it's
 	// open, so the keys stay free for everything else when it's closed.
@@ -80,11 +91,14 @@ export default function FindInPageBar() {
 	);
 
 	const dispatchQuery = useDebouncedCallback((value: string) => {
+		if (query !== typedOverQuery || value === query) return;
+		setEchoedQuery(value);
 		dispatch(setSearchQuery(value));
 	}, QUERY_DEBOUNCE_IN_MILLISECONDS);
 
 	const handleQueryChange = (value: string) => {
 		setInputValue(value);
+		setTypedOverQuery(query);
 		dispatchQuery(value);
 	};
 

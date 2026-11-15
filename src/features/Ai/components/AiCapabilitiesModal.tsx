@@ -18,6 +18,10 @@ function AiCapabilitiesModal({ opened, onClose }: AiCapabilitiesModalProps) {
 				<List.Item>
 					The name and origin of the element you have open
 				</List.Item>
+				<List.Item>
+					Searching the text of the element you have open, like find
+					in page
+				</List.Item>
 				<List.Item>Snippets you provide as context</List.Item>
 				<List.Item>Documents you upload to the chat</List.Item>
 				<List.Item>

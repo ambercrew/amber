@@ -5,6 +5,7 @@ import {
 	ArrowCounterClockwiseIcon,
 	ArrowLeftIcon,
 	ArrowRightIcon,
+	ArrowUUpLeftIcon,
 	ArrowsClockwiseIcon,
 	ArrowsDownUpIcon,
 	BookOpenIcon,
@@ -20,7 +21,7 @@ import {
 	MagnifyingGlassPlusIcon,
 	MapPinIcon,
 	MoonIcon,
-	PencilSimpleIcon,
+	SignOutIcon,
 	QueueIcon,
 	SidebarSimpleIcon,
 	SlidersIcon,
@@ -44,7 +45,10 @@ import {
 	startStudySession,
 	stopStudySessionAction,
 } from "../stores/study/studyActions";
-import { selectStudyStatus } from "../stores/study/studySelectors";
+import {
+	selectStudyReturnItem,
+	selectStudyStatus,
+} from "../stores/study/studySelectors";
 import { saveSettings } from "../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../api/settings/dto/updateSettingsRequestDto";
 import { selectSettings } from "../stores/settings/settingsSelector";
@@ -73,6 +77,7 @@ import {
 	FIND_IN_PAGE_SHORTCUT,
 	FOCUS_AI_CHAT_SHORTCUT,
 	FOCUS_TREE_SHORTCUT,
+	SEARCH_ALL_ELEMENTS_SHORTCUT,
 	GO_BACK_SHORTCUT,
 	GO_FORWARD_SHORTCUT,
 	IMPORT_SHORTCUT,
@@ -92,6 +97,7 @@ import {
 	SYNC_SHORTCUT,
 	TOGGLE_LEFT_SIDEBAR_SHORTCUT,
 	TOGGLE_RIGHT_SIDEBAR_SHORTCUT,
+	RETURN_TO_STUDY_SESSION_SHORTCUT,
 	TOGGLE_STUDY_SESSION_SHORTCUT,
 	ZOOM_IN_ALT_SHORTCUT,
 	ZOOM_IN_SHORTCUT,
@@ -104,6 +110,7 @@ import { createCardAction } from "../stores/elements/elementsActions";
 import { hasDue } from "../utils/elementDue";
 import { newCardDto } from "../features/Sidebar/components/ElementTree/elementTreeUtils";
 import { paths } from "../paths";
+import { REVIEW_NAVIGATION_STATE } from "../types/study/reviewNavigationState";
 import {
 	AiPromptLibraryIcon,
 	AnkiIcon,
@@ -123,6 +130,7 @@ import {
 export const commandIds = [
 	"enter-study-mode",
 	"enter-edit-mode",
+	"return-to-study-session",
 	"open-study-session-settings",
 	"manage-study-profiles",
 	"import",
@@ -143,6 +151,7 @@ export const commandIds = [
 	"go-back",
 	"go-forward",
 	"focus-tree",
+	"search-all-elements",
 	"show-priority-queue",
 	"show-trash",
 	"focus-ai-chat",
@@ -181,7 +190,7 @@ export interface Command {
 	group: CommandGroup;
 	label: string | ((state: RootState) => string);
 	shortcut?: string; // useHotkeys format: 'mod+L', 'mod+shift+P', 'alt+ArrowUp'
-	/** Further keys that also run the command but aren't displayed, e.g. `mod+[plus]` beside `mod+=`. */
+	/** Further keys that also run the command but aren't displayed, e.g. `mod+=` beside `mod+[plus]`. */
 	extraShortcuts?: string[];
 	/** Describes the shortcut in the help when one key runs several commands; the others are left out. */
 	shortcutLabel?: string;
@@ -202,8 +211,8 @@ export const commandsById: Record<CommandId, Command> = {
 	"enter-study-mode": {
 		id: "enter-study-mode",
 		group: "Study",
-		label: "Enter study mode",
-		shortcutLabel: "Switch between study and edit mode",
+		label: "Start study session",
+		shortcutLabel: "Start or end a study session",
 		shortcut: TOGGLE_STUDY_SESSION_SHORTCUT,
 		icon: createElement(BookOpenIcon),
 		enabled: state => selectStudyStatus(state) !== "studying",
@@ -216,11 +225,27 @@ export const commandsById: Record<CommandId, Command> = {
 	"enter-edit-mode": {
 		id: "enter-edit-mode",
 		group: "Study",
-		label: "Enter edit mode",
+		label: "End study session",
 		shortcut: TOGGLE_STUDY_SESSION_SHORTCUT,
-		icon: createElement(PencilSimpleIcon),
+		icon: createElement(SignOutIcon),
 		enabled: state => selectStudyStatus(state) === "studying",
 		execute: dispatch => dispatch(stopStudySessionAction()),
+	},
+	"return-to-study-session": {
+		id: "return-to-study-session",
+		group: "Study",
+		label: "Return to study session",
+		shortcut: RETURN_TO_STUDY_SESSION_SHORTCUT,
+		icon: createElement(ArrowUUpLeftIcon),
+		enabled: state => selectStudyReturnItem(state) !== null,
+		execute: (_dispatch, getState, navigate) => {
+			const item = selectStudyReturnItem(getState());
+			if (!item) return;
+			const { type, id } = item.elementId;
+			void navigate(paths.element(type, id), {
+				state: REVIEW_NAVIGATION_STATE,
+			});
+		},
 	},
 	"open-study-session-settings": {
 		id: "open-study-session-settings",
@@ -376,11 +401,20 @@ export const commandsById: Record<CommandId, Command> = {
 	"focus-tree": {
 		id: "focus-tree",
 		group: "Navigation",
-		label: "Focus current element in the tree",
+		label: "Reveal current element in the tree",
 		searchOnly: true,
 		shortcut: FOCUS_TREE_SHORTCUT,
 		icon: createElement(TreeStructureIcon),
 		execute: () => requestFocus("tree"),
+	},
+	"search-all-elements": {
+		id: "search-all-elements",
+		group: "Navigation",
+		label: "Search in all elements",
+		searchOnly: true,
+		shortcut: SEARCH_ALL_ELEMENTS_SHORTCUT,
+		icon: createElement(MagnifyingGlassIcon),
+		execute: () => requestFocus("globalSearch"),
 	},
 	"show-priority-queue": {
 		id: "show-priority-queue",

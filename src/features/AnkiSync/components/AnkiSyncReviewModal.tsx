@@ -76,7 +76,7 @@ interface DirectionProps {
 /** One direction of the sync: what goes from one app to the other. */
 function SyncDirection({ icon, title, children }: DirectionProps) {
 	return (
-		<Paper withBorder p="sm" radius="md">
+		<Paper withBorder p="sm">
 			<Stack gap="xs">
 				<Group gap="xs" wrap="nowrap">
 					{icon}

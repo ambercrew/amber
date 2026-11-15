@@ -7,7 +7,7 @@ vi.mock(import("../../../stores/elements/elementsActions"));
 vi.mock(import("../../../components/Editor/lexicalJsonConversion"));
 
 describe("createImportedLearningAsset", () => {
-	it("Should dispatch createLearningAssetAction with a generated id, the name, parent, and content", async () => {
+	it("Should dispatch createLearningAssetAction with a generated id, the name, parent, content and tags", async () => {
 		// Arrange
 
 		const thunk = Symbol("thunk");
@@ -16,16 +16,15 @@ describe("createImportedLearningAsset", () => {
 		);
 		vi.mocked(htmlToLexicalJson).mockReturnValue('{"root":"json"}');
 		const dispatch = vi.fn().mockResolvedValue(undefined);
-		const navigate = vi.fn().mockResolvedValue(undefined);
 		const parent = {
 			type: "folder",
 			id: "parent-id",
 		} as ImportContext["parent"];
 		const ctx: ImportContext = {
 			dispatch: dispatch as unknown as ImportContext["dispatch"],
-			navigate: navigate as unknown as ImportContext["navigate"],
 			parent,
 			priorityPosition: 4,
+			tags: ["jq"],
 		};
 
 		// Act
@@ -44,6 +43,7 @@ describe("createImportedLearningAsset", () => {
 		expect(htmlToLexicalJson).toHaveBeenCalledWith("<p>content</p>");
 		expect(dto.splits).toEqual(['{"root":"json"}']);
 		expect(dto.initialPriorityPosition).toBe(4);
+		expect(dto.tags).toEqual(["jq"]);
 		expect(dispatch).toHaveBeenCalledWith(thunk);
 	});
 
@@ -56,10 +56,8 @@ describe("createImportedLearningAsset", () => {
 			>,
 		);
 		const dispatch = vi.fn().mockResolvedValue(undefined);
-		const navigate = vi.fn().mockResolvedValue(undefined);
 		const ctx: ImportContext = {
 			dispatch: dispatch as unknown as ImportContext["dispatch"],
-			navigate: navigate as unknown as ImportContext["navigate"],
 			parent: null,
 			priorityPosition: 5,
 		};
@@ -76,6 +74,5 @@ describe("createImportedLearningAsset", () => {
 
 		const dtoArg = vi.mocked(createLearningAssetAction).mock.calls[0][0];
 		expect(actual).toBe(dtoArg.id);
-		expect(navigate).not.toHaveBeenCalled();
 	});
 });

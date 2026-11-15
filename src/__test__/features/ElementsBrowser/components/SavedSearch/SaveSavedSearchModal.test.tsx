@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import SaveSavedSearchModal from "../../../../../features/ElementsBrowser/components/SavedSearch/SaveSavedSearchModal";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
@@ -23,6 +23,16 @@ describe("SaveSavedSearchModal", () => {
 		// Assert
 
 		expect(screen.getByRole("textbox")).toBeInTheDocument();
+	});
+
+	it("Should focus the name input when the modal opens", async () => {
+		// Arrange, Act
+
+		render();
+
+		// Assert
+
+		await waitFor(() => expect(screen.getByRole("textbox")).toHaveFocus());
 	});
 
 	it("Should disable the Save button when the name is empty", () => {

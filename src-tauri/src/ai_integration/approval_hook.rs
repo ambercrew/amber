@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use rig::agent::{AgentHook, HookContext, ToolCall, ToolCallAction};
+use rig::agent::{AgentHook, DispatchAction, DispatchEvent, HookContext};
 
 use crate::ai_integration::entities::message::ApprovalStatus;
 use crate::ai_integration::prompts::approval_result_text;
@@ -23,11 +23,12 @@ impl ApprovalHook {
 }
 
 impl AgentHook for ApprovalHook {
-    async fn on_tool_call(&self, _ctx: &HookContext, event: ToolCall<'_>) -> ToolCallAction {
-        if self.requires_approval(event.tool_name) {
-            ToolCallAction::Skip(approval_result_text(ApprovalStatus::Pending, None))
-        } else {
-            ToolCallAction::Run
+    async fn on_dispatch(&self, _ctx: &HookContext, event: DispatchEvent<'_>) -> DispatchAction {
+        match event.tool_name() {
+            Some(name) if self.requires_approval(name) => {
+                DispatchAction::skip(approval_result_text(ApprovalStatus::Pending, None))
+            }
+            _ => DispatchAction::Proceed,
         }
     }
 }

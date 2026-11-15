@@ -23,7 +23,8 @@ const ASSETS_DELETE_GUARD: &str = "EXISTS (SELECT 1 FROM element_assets WHERE as
 /// and FK repair policies. `meta` uses column granularity so concurrent edits to
 /// different fields of the same element merge independently; everything else is
 /// row granularity. `local_configurations` is per-machine and excluded, as are
-/// sync's own bookkeeping tables and the locally derived `element_assets`/`asset_gc`/`asset_claims`.
+/// sync's own bookkeeping tables, the locally derived `element_assets`/`asset_gc`/`asset_claims`,
+/// and `ai_documents`, the text of files uploaded to an AI chat, kept on the device it was uploaded on.
 ///
 /// FK policies mirror the schema's `ON DELETE` semantics (`SET NULL` →
 /// `FkPolicy::SetNull`, `CASCADE` → `FkPolicy::DiscardRow`), plus references

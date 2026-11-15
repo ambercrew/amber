@@ -13,7 +13,11 @@ import { useIsCoarsePointer } from "../../../../hooks/useIsCoarsePointer";
 import { paths } from "../../../../paths";
 import { ElementId } from "../../../../types/elements/elementId";
 import { ElementNodeType } from "../../../../types/elements/elementNodeType";
-import { ElementNodeProps, findNodeType } from "../../utils/elementTreeUtils";
+import {
+	ElementNodeProps,
+	findNodeType,
+	getAncestorsOf,
+} from "../../utils/elementTreeUtils";
 import TrashElementModal from "../TrashElementModal";
 import ElementTreeMenuItems from "./ElementTreeMenuItems";
 import ElementTreeNode from "./ElementTreeNode";
@@ -63,11 +67,19 @@ function ElementTree({ state }: ElementTreeProps) {
 		filteredData,
 		search,
 		handleSearchChange,
+		reveal,
 	} = state;
 
 	const rows = useMemo(
 		() => flattenTreeData(filteredData, treeController.expandedState),
 		[filteredData, treeController.expandedState],
+	);
+
+	// Highlighted like the table of contents' headings above the current one.
+	const selectedAncestors = useMemo(
+		() =>
+			new Set(selected ? (getAncestorsOf(data, selected.id) ?? []) : []),
+		[data, selected],
 	);
 
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -108,11 +120,13 @@ function ElementTree({ state }: ElementTreeProps) {
 				payload={payload}
 				search={search}
 				isSelected={isSelected}
+				isSelectedAncestor={selectedAncestors.has(node.value)}
 				isContextMenuOpen={
 					contextMenuNode?.value === node.value &&
 					contextMenuNode?.type === type
 				}
 				isRenaming={isRenaming}
+				coarsePointer={coarsePointer}
 				onSelect={() => void navigate(paths.element(type, node.value))}
 				onContextMenu={() => {
 					// The context menu itself is disabled for coarse (touch)
@@ -137,6 +151,7 @@ function ElementTree({ state }: ElementTreeProps) {
 			selectedValue={selected?.id ?? null}
 			renamingValue={renamingTarget?.id ?? null}
 			renderNode={renderNode}
+			onReveal={reveal}
 			onKeyDown={event => {
 				// Mantine's tree moves focus with the arrows; this opens the focused element.
 				const target = event.target as HTMLElement;

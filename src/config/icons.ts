@@ -18,6 +18,7 @@ import {
 	HouseIcon,
 	Icon,
 	ListMagnifyingGlassIcon,
+	MagnifyingGlassIcon,
 	MagicWandIcon,
 	NotePencilIcon,
 	PaperclipIcon,
@@ -90,4 +91,5 @@ export const AI_TOOL_ICONS: Record<string, Icon> = {
 	create_card: CardElementIcon,
 	create_cloze_card: TextboxIcon,
 	finish_extract: ELEMENT_STATUS_ICONS.finished,
+	search_open_element: MagnifyingGlassIcon,
 };

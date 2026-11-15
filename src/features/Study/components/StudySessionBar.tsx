@@ -1,30 +1,29 @@
-import { useEffect, useRef, useState } from "react";
-import { Box, Button, Group, Text } from "@mantine/core";
+import { useEffect, useState } from "react";
+import { Button, Group } from "@mantine/core";
 import { useNavigate } from "react-router";
-import { SMALL_SCREEN_BREAKPOINT } from "../../../hooks/useIsSmallScreen";
 import { previewNextLearningAsset } from "../../../api/study/api/studyApi";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { useCardScheduling } from "../hooks/useCardScheduling";
-import { useElapsedSeconds } from "../hooks/useElapsedSeconds";
+import SessionBarFrame from "./SessionBarFrame";
 import {
 	finishLearningAssetAction,
 	gradeCardAction,
 	nextLearningAssetAction,
 	skipLearningAssetAction,
 } from "../../../stores/study/studyActions";
-import { answerShown, elementShown } from "../../../stores/study/studyReducer";
+import { answerShown } from "../../../stores/study/studyReducer";
 import {
 	selectStudyCardPhase,
-	selectStudyCurrentElement,
-	selectStudyQueue,
+	selectStudyAway,
+	selectStudySessionElement,
 	selectStudyShownAt,
-	selectStudyTotalCount,
 } from "../../../stores/study/studySelectors";
 import { ElementId } from "../../../types/elements/elementId";
 import { Rating } from "../../../types/study/rating";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import AwayStudySessionBar from "./AwayStudySessionBar";
 import { useAppHotkeys } from "../../../commands/useAppHotkeys";
 import { useRunCommand } from "../../../commands/useRunCommand";
 import {
@@ -46,28 +45,19 @@ const RATINGS: { rating: Rating; label: string; shortcut: string }[] = [
 	{ rating: "easy", label: "Easy", shortcut: GRADE_EASY_SHORTCUT },
 ];
 
-function formatElapsed(totalSeconds: number): string {
-	const minutes = Math.floor(totalSeconds / 60);
-	const seconds = totalSeconds % 60;
-	return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
 function StudySessionBar() {
 	const dispatch = useAppDispatch();
 	const navigate = useNavigate();
 	const runCommand = useRunCommand();
-	const current = useAppSelector(selectStudyCurrentElement);
-	const queue = useAppSelector(selectStudyQueue);
-	const totalCount = useAppSelector(selectStudyTotalCount);
+	const current = useAppSelector(selectStudySessionElement);
+	const away = useAppSelector(selectStudyAway);
 	const cardPhase = useAppSelector(selectStudyCardPhase);
 	const shownAt = useAppSelector(selectStudyShownAt);
-	const elapsedSeconds = useElapsedSeconds(shownAt);
 	const currentKey = current ? `${current.type}:${current.id}` : null;
 	const [trackedKey, setTrackedKey] = useState(currentKey);
 	const [nextLearningAssetDue, setNextLearningAssetDue] = useState<
 		string | null
 	>(null);
-	const isFirstRender = useRef(true);
 	const { preview: cardDuePreview, schedule } = useCardScheduling(
 		current?.type === "card" ? current.id : null,
 		shownAt,
@@ -79,24 +69,9 @@ function StudySessionBar() {
 	}
 
 	useEffect(() => {
-		if (!current) return;
-
-		// Skip the mount that lands on whichever element the session already
-		// started/advanced to — only reset the timer/phase for element
-		// changes that happen afterwards (e.g. a jump via the priority
-		// queue), which the session-advance actions don't already handle.
-		if (isFirstRender.current) {
-			isFirstRender.current = false;
-		} else {
-			dispatch(elementShown());
-		}
-
-		if (current.type !== "card") {
-			void previewNextLearningAsset(current).then(
-				setNextLearningAssetDue,
-			);
-		}
-	}, [current, dispatch]);
+		if (!current || current.type === "card") return;
+		void previewNextLearningAsset(current).then(setNextLearningAssetDue);
+	}, [current]);
 
 	const answerHidden = current?.type === "card" && cardPhase === "question";
 
@@ -169,19 +144,11 @@ function StudySessionBar() {
 			: [],
 	);
 
+	if (away) return <AwayStudySessionBar />;
 	if (!current) return null;
 
 	return (
-		<Group h="100%" px="sm" py="xs" wrap="nowrap" align="center">
-			<Box flex={1}>
-				<Text
-					size="sm"
-					c="dimmed"
-					visibleFrom={SMALL_SCREEN_BREAKPOINT}>
-					{totalCount - queue.length + 1}/{totalCount}
-				</Text>
-			</Box>
-
+		<SessionBarFrame>
 			{answerHidden ? (
 				<AppTooltip touch shortcut={SHOW_ANSWER_SHORTCUT}>
 					<Button
@@ -268,18 +235,7 @@ function StudySessionBar() {
 					</AppTooltip>
 				</Group>
 			)}
-
-			<Box
-				flex={1}
-				style={{ display: "flex", justifyContent: "flex-end" }}>
-				<Text
-					size="sm"
-					c="dimmed"
-					visibleFrom={SMALL_SCREEN_BREAKPOINT}>
-					{formatElapsed(elapsedSeconds)}
-				</Text>
-			</Box>
-		</Group>
+		</SessionBarFrame>
 	);
 }
 

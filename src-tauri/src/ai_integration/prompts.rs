@@ -26,8 +26,6 @@ general knowledge, and say so when their material doesn't cover something.
 When you create cards, save each one with the `create_card` or \
 `create_cloze_card` tool, and don't repeat their content in the chat; a \
 one-line confirmation is enough.
-When the user is done with the extract they have open, offer to mark it as \
-finished with the `finish_extract` tool.
 Some tool calls wait for the user to approve or reject them in the chat and \
 only take effect once approved; their results tell you where each one stands. \
 Don't describe a call as done until it's approved, and don't repeat a rejected \
@@ -91,15 +89,29 @@ passage, create one card for each.";
 
 /// The `search_documents` tool's description.
 pub(in crate::ai_integration) const SEARCH_DOCUMENTS_DESCRIPTION: &str = "\
-Searches the files the user uploaded to this chat by meaning, returning the excerpts most \
-relevant to the query, not whole documents. Use this when the user asks about their files or \
-refers to their content without attaching it. If nothing relevant comes back, tell the user \
-rather than answering as if it had.";
+Finds text in the files the user uploaded to this chat: every exact occurrence of the query, \
+ignoring case, each with its file, its page for PDFs, and up to 300 characters of the text \
+on either side, line breaks separating paragraphs (`…` marks where the text goes on). Use this when the user asks \
+about their files or refers to their content without attaching it. It matches text, not \
+meaning, so search for words the files likely use, and try a shorter, different or \
+translated word if nothing comes back. If the files still don't mention it, tell the user \
+rather than answering as if they had.";
+
+/// The `search_open_element` tool's description.
+pub(in crate::ai_integration) const SEARCH_OPEN_ELEMENT_DESCRIPTION: &str = "\
+Finds text in the element the user has open, like find in page: every exact occurrence of the \
+query, ignoring case, each with up to 300 characters of the text on either side, line breaks \
+separating paragraphs (`…` marks where the text goes on). Use this when the user asks where or whether their open \
+element mentions something, or when you need a passage of it to answer. It matches text, not \
+meaning, so search for words the element likely uses, and try a shorter or different word if \
+nothing comes back. If the element still doesn't mention it, say so rather than answering as \
+if it had.";
 
 /// The `finish_extract` tool's description.
 pub(in crate::ai_integration) const FINISH_EXTRACT_DESCRIPTION: &str = "\
 Marks the extract the user has open as finished, so it stops coming up for review. Use \
-this when the user says they've finished with it, or asks you to mark it as finished.";
+this when the user says they've finished with it, or asks you to mark it as finished. When \
+they seem done with it, offer to mark it as finished rather than doing so unasked.";
 
 /// What the model is told about a call awaiting approval, kept current in the history it's sent.
 pub(in crate::ai_integration) fn approval_result_text(

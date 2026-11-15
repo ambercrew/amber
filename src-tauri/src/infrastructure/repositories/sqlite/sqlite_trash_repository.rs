@@ -18,13 +18,17 @@ pub struct SqliteTrashRepository {
 
 #[async_trait]
 impl TrashRepository for SqliteTrashRepository {
-    async fn trash(&self, id: ElementId, trashed_at: DateTime<Utc>) -> Result<(), RepositoryError> {
+    async fn trash(
+        &self,
+        id: ElementId,
+        trashed_at: DateTime<Utc>,
+    ) -> Result<Vec<ElementId>, RepositoryError> {
         let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
         // The `+` keeps SQLite off the trashed_at index, which would visit every live element.
-        sqlx::query!(
+        let rows = sqlx::query!(
             r#"WITH RECURSIVE subtree(element_id) AS (
                 SELECT element_id FROM meta WHERE element_id = $1
                 UNION ALL
@@ -34,14 +38,18 @@ impl TrashRepository for SqliteTrashRepository {
             SET trashed_at = datetime($2),
                 trashed_root = CASE WHEN element_id = $1 THEN 1 ELSE 0 END
             WHERE element_id IN (SELECT element_id FROM subtree)
-              AND (element_id = $1 OR +trashed_at IS NULL)"#,
+              AND (element_id = $1 OR +trashed_at IS NULL)
+            RETURNING element_id as "element_id: uuid::fmt::Hyphenated", element_type"#,
             uuid,
             trashed_at
         )
-        .execute(&mut *tx)
+        .fetch_all(&mut *tx)
         .await?;
 
-        Ok(())
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.element_id.into_uuid(), row.element_type).into_element_id())
+            .collect())
     }
 
     async fn restore(&self, id: ElementId) -> Result<Vec<ElementId>, RepositoryError> {
