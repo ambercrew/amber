@@ -117,7 +117,6 @@ function renderReadPoint(overrides: {
 			const { onViewportChange } = useViewportChange(scrollElement);
 			const readPoint = useReadPoint({
 				learningAssetId,
-				primarySeq,
 				initial,
 				getContentRoot,
 				lastSplitSeq,

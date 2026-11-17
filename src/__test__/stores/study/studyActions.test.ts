@@ -175,6 +175,7 @@ const BASE_STUDY_STATE: StudyState = {
 	timedElementId: null,
 	timeSpent: {},
 	startedAt: null,
+	resume: null,
 };
 
 // A running session reviews the element on screen, unless the test picks one.

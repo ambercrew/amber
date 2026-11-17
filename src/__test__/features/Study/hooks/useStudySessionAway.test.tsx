@@ -31,6 +31,7 @@ const STUDYING_STATE: StudyState = {
 	timedElementId: REVIEWED,
 	timeSpent: {},
 	startedAt: null,
+	resume: null,
 };
 
 const LINKS: [string, string, boolean][] = [

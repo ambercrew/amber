@@ -1,5 +1,4 @@
-/** What placed the read point during this opening of a learning asset. */
-export type ReadPointSource = "automatic" | "extract" | "manual";
+import { ReadPointSource } from "../../../types/elements/readPointSource";
 
 const RANK: Record<ReadPointSource, number> = {
 	automatic: 0,

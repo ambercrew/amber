@@ -52,8 +52,10 @@ split; seq from `useSplit()`), `ContextMenuItems` (a menu section; the host adds
   mount after scrolling stops, and `primarySeq`'s content root may briefly not exist. Measure "on scroll"
   through `onViewportChange(listener)` (once a frame; also fires when the top split mounts after a fast scroll settles),
   never a raw scroll listener — as `readPoint` and `tableOfContents` do.
+- `initialViewPosition` (a `ViewPosition`: top block plus `scrollTop`'s offset past it) opens there instead of the read point, and `onLeave` reports where the reader last was on unmount (`null` if they never scrolled; scrolling is only measured while it's set, so pass it only for the asset under review); any open of the study session's asset under review (Return, the sidebar, back) uses both through `useReviewResume`, as the read point does for its precedence (`resumeSource`/`onLeave` on `useReadPointPlacement`).
 - `getContentRoot(seq)` is `undefined` for unmounted splits — handle it; don't query the DOM.
-- For "here" actions use `anchors.resolveVisibleAnchor()`.
+- For "here" actions use `anchors.resolveVisibleAnchor()`; for the block at the viewport top, `anchors.topVisibleBlock()`, as the read point does; `anchors.topVisible()` adds the scroll offset past it at the cost of another layout read, for the remembered view position.
+- Land with `scrollGeometry.ts`'s `contentTopOf`/`jumpTo`, which hide the header past its fixed zone like every other landing.
 - Per-split ref callbacks must be stable: use `useKeyedRefCallbacks`.
 
 ## Testing

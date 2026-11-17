@@ -61,6 +61,10 @@ export const selectStudyReturnItem = createSelector(
 	},
 );
 
+/** How the element under review was left, for any opening of it to pick up there. */
+export const selectStudyResume = (state: RootState) =>
+	state.study.status === "studying" ? state.study.resume : null;
+
 /** Keys (`elementKey`) of the queued elements, for membership checks that don't walk the queue. */
 export const selectStudyQueuedKeys = createSelector(
 	[selectStudyQueue],

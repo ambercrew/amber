@@ -1,8 +1,11 @@
 import { useCallback, useState } from "react";
 import { StageCapability } from "@embedpdf/react/stage";
+import { PdfViewPosition } from "../../../../types/elements/pdfViewPosition";
 
 export interface GoToPageOptions {
 	behavior?: "smooth" | "instant";
+	/** Lands on this spot of the page at the current zoom, instead of the page's top. */
+	position?: PdfViewPosition;
 }
 
 /** Jumps to a 1-based page. */
@@ -25,8 +28,16 @@ export function usePdfNavigator(stage: StageCapability): ReturnValue {
 	);
 
 	const goToPage = useCallback<GoToPage>(
-		(pageNumber, { behavior = "smooth" } = {}) => {
-			stage.goToPage(pageNumber - 1, { behavior });
+		(pageNumber, { behavior = "smooth", position } = {}) => {
+			// Keeps the zoom as it is, which the view persists on its own.
+			const viewpoint = position && {
+				anchor: position,
+				zoom: stage.getViewpoint().zoom,
+			};
+			stage.goToPage(
+				pageNumber - 1,
+				viewpoint ? { behavior, viewpoint } : { behavior },
+			);
 			announceJump();
 		},
 		[stage, announceJump],

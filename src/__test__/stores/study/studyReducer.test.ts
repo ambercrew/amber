@@ -10,6 +10,7 @@ import studyReducer, {
 	sessionAdvanced,
 	sessionElementShown,
 	sessionLeft,
+	reviewedElementLeft,
 	sessionStarted,
 	sessionStopped,
 	summaryDismissed,
@@ -34,6 +35,7 @@ const BASE_STATE: StudyState = {
 	timedElementId: null,
 	timeSpent: {},
 	startedAt: null,
+	resume: null,
 };
 
 describe("studyReducer", () => {
@@ -793,6 +795,112 @@ describe("studyReducer", () => {
 		// Assert
 
 		expect(actual.summary).toBeNull();
+	});
+
+	describe("reviewedElementLeft", () => {
+		const REVIEWING: StudyState = {
+			...BASE_STATE,
+			status: "studying",
+			queue: [queueItem("learningAsset", "a"), queueItem("card", "c")],
+			timedElementId: { type: "learningAsset", id: "a" },
+		};
+		const POSITION = { split: 2, block: 5, offset: 30 };
+
+		it("Should merge each view's report when the asset under review is left", () => {
+			// Arrange
+
+			const state = studyReducer(
+				REVIEWING,
+				reviewedElementLeft({
+					learningAssetId: "a",
+					viewPosition: POSITION,
+				}),
+			);
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				reviewedElementLeft({
+					learningAssetId: "a",
+					readPointSource: "manual",
+				}),
+			);
+
+			// Assert
+
+			expect(actual.resume).toEqual({
+				learningAssetId: "a",
+				viewPosition: POSITION,
+				readPointSource: "manual",
+			});
+		});
+
+		it("Should drop an earlier visit's position when a later visit reports none", () => {
+			// Arrange
+
+			const state = studyReducer(
+				REVIEWING,
+				reviewedElementLeft({
+					learningAssetId: "a",
+					viewPosition: POSITION,
+				}),
+			);
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				reviewedElementLeft({
+					learningAssetId: "a",
+					viewPosition: undefined,
+				}),
+			);
+
+			// Assert
+
+			expect(actual.resume?.viewPosition).toBeUndefined();
+		});
+
+		it("Should ignore the report when the left asset isn't under review", () => {
+			// Arrange
+
+			const left = reviewedElementLeft({
+				learningAssetId: "other",
+				viewPosition: POSITION,
+			});
+
+			// Act
+
+			const actual = studyReducer(REVIEWING, left);
+
+			// Assert
+
+			expect(actual.resume).toBeNull();
+		});
+
+		it("Should forget how the asset was left when another session element is shown", () => {
+			// Arrange
+
+			const state = studyReducer(
+				REVIEWING,
+				reviewedElementLeft({
+					learningAssetId: "a",
+					viewPosition: POSITION,
+				}),
+			);
+
+			// Act
+
+			const actual = studyReducer(
+				state,
+				sessionElementShown({ elementId: { type: "card", id: "c" } }),
+			);
+
+			// Assert
+
+			expect(actual.resume).toBeNull();
+		});
 	});
 
 	describe("long queues", () => {

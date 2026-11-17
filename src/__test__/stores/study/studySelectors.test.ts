@@ -25,6 +25,7 @@ const STUDYING: StudyState = {
 	timedElementId: null,
 	timeSpent: {},
 	startedAt: null,
+	resume: null,
 };
 
 const VIEWED_CARD: AnyElementDto = {

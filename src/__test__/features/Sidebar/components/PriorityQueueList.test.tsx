@@ -91,6 +91,7 @@ describe("PriorityQueueList", () => {
 						timedElementId: QUEUE[3].elementId,
 						timeSpent: {},
 						startedAt: null,
+						resume: null,
 					},
 				},
 				memoryRouterProps: { initialEntries: ["/card/card-5"] },

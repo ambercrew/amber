@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Text } from "@mantine/core";
 import { DocumentGate, useDocumentId } from "@embedpdf/react/runtime";
 import { SelectionHandles } from "@embedpdf/react/selection";
@@ -8,6 +8,8 @@ import { isMobile } from "../../../utils/tauriUtils";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { setZoomOwnedByCurrentView } from "../../../stores/elements/elementsReducer";
 import { ReadingPosition } from "../../../types/elements/readingPosition";
+import { PdfViewPosition } from "../../../types/elements/pdfViewPosition";
+import { useReviewResume } from "../hooks/useReviewResume";
 import FindInPageBar from "../FindInPageBar";
 import RemoveHighlightModal from "../RemoveHighlightModal";
 import PdfContextMenu from "./core/PdfContextMenu";
@@ -68,13 +70,24 @@ function LoadedPdfDocument({
 			dispatch(setZoomOwnedByCurrentView(false));
 		};
 	}, [dispatch]);
+	// Revisiting the asset under review lands where the reader left, not on the read point.
+	const { resume, reportLeft, underReview } =
+		useReviewResume(learningAssetId);
+	// Reports `undefined` too, so an earlier visit's position isn't kept.
+	const handleLeave = useCallback(
+		(position: PdfViewPosition | null) =>
+			reportLeft({ pdfViewPosition: position ?? undefined }),
+		[reportLeft],
+	);
 
 	// List order is nesting order, as in the text view: marks read the read point.
 	return (
 		<PdfCoreProvider
 			learningAssetId={learningAssetId}
 			documentId={documentId}
-			initialReadPoint={readPoint}>
+			initialReadPoint={readPoint}
+			initialViewPosition={resume?.pdfViewPosition}
+			onLeave={underReview ? handleLeave : undefined}>
 			<PdfHighlightsProvider learningAssetId={learningAssetId}>
 				<PdfReadPointProvider>
 					<PdfMarksProvider>

@@ -3,6 +3,7 @@ import { runReadingCommand } from "../../../../../commands/readingCommands";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePdfReadPoint } from "../../../../../features/ElementViewer/PdfView/readPoint/usePdfReadPoint";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
+import { PdfViewPosition } from "../../../../../types/elements/pdfViewPosition";
 
 const { updateReadPointMock, stageEvents, notificationsShowMock } = vi.hoisted(
 	() => ({
@@ -86,15 +87,17 @@ let finishLayout: () => void;
 
 function renderPdfReadPoint(overrides: {
 	initial: ReadingPosition;
+	initialViewPosition?: PdfViewPosition;
 	getMenuPage?: () => number | null;
 }) {
-	const { initial, getMenuPage } = overrides;
+	const { initial, initialViewPosition, getMenuPage } = overrides;
 	const rendered = renderHook(
 		({ layoutReady }) =>
 			usePdfReadPoint({
 				learningAssetId: LEARNING_ASSET_ID,
 				documentId: DOCUMENT_ID,
 				initial,
+				initialViewPosition,
 				layoutReady,
 				pageCount: PAGE_COUNT,
 				goToPage,
@@ -137,6 +140,44 @@ describe("usePdfReadPoint", () => {
 		expect(goToPage).toHaveBeenCalledWith(4, {
 			behavior: "instant",
 		});
+	});
+
+	it("Should land on the view position instead of the read point when one is given", () => {
+		// Arrange
+
+		const position = { pageIndex: 6, fractionX: 0, fractionY: 0.3 };
+		renderPdfReadPoint({
+			initial: { split: 4, block: 0 },
+			initialViewPosition: position,
+		});
+
+		// Act
+
+		finishLayout();
+
+		// Assert
+
+		expect(goToPage).toHaveBeenCalledWith(7, {
+			behavior: "instant",
+			position,
+		});
+	});
+
+	it("Should fall back to the read point when the view position's page is gone", () => {
+		// Arrange
+
+		renderPdfReadPoint({
+			initial: { split: 4, block: 0 },
+			initialViewPosition: { pageIndex: 40, fractionX: 0, fractionY: 0 },
+		});
+
+		// Act
+
+		finishLayout();
+
+		// Assert
+
+		expect(goToPage).toHaveBeenCalledWith(4, { behavior: "instant" });
 	});
 
 	it("Should clamp the restored page to the document's total page count", () => {
