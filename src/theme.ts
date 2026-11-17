@@ -303,6 +303,8 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--mantine-color-body": lighten("var(--mantine-color-gray-0)", 0.8),
 		"--sidebar-bg": lighten("var(--mantine-color-gray-0)", 0.3),
 		"--editor-surface-bg": "var(--sidebar-bg)",
+		// Shiki's gruvbox-light-soft background, eased toward the sidebar's, which alone was 1.03:1 on the body.
+		"--code-bg": "color-mix(in srgb, #f2e5bc 35%, var(--sidebar-bg))",
 		"--inset-surface-bg": "var(--sidebar-bg)",
 		"--pdf-viewport-bg": "#e8e5dc",
 		// Mantine's gray-0 hover (nav links, tabs) is the sidebar's own background, so it never shows there.
@@ -334,6 +336,8 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
 		"--mantine-color-body": "#201e1b",
 		"--sidebar-bg": "#2a2723",
 		"--editor-surface-bg": "var(--sidebar-bg)",
+		// A translucent lift, so code stays raised on any surface (dark-6 would vanish in popovers); amber tints read brown.
+		"--code-bg": "rgba(255, 255, 255, 0.06)",
 		"--inset-surface-bg": "var(--sidebar-bg)",
 		"--pdf-viewport-bg": "var(--mantine-color-body)",
 		// dark-6 is 1.14:1 on the sidebar; dark-5 matches Spotlight's hover below.

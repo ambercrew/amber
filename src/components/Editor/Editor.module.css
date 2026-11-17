@@ -23,7 +23,16 @@
    nested case only matches under a <pre>, which Lexical never emits. Paint the
    outermost one and flatten the rest. !important beats Shiki's inline style. */
 .typography code {
-	background-color: var(--editor-surface-bg) !important;
+	background-color: var(--code-bg) !important;
+}
+
+.typography .code-block {
+	padding: var(--mantine-spacing-xs);
+}
+
+/* Inline code, i.e. any <code> outside another; the reset below still wins inside blocks. */
+.typography :not(code) > code {
+	padding: calc(var(--mantine-spacing-xs) / 2);
 }
 
 .typography code code,
