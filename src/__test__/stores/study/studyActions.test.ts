@@ -32,6 +32,7 @@ import {
 	getLearningAssetReview,
 	registerCardReview,
 	nextLearningAsset,
+	skipLearningAsset,
 } from "../../../api/study/api/studyApi";
 import {
 	elementExists,
@@ -768,6 +769,10 @@ describe("skipLearningAssetAction", () => {
 		]);
 		expect(state.counts.learningAssets).toBe(0);
 		expect(state.counts.finished).toBe(0);
+		expect(skipLearningAsset).toHaveBeenCalledWith({
+			type: "learningAsset",
+			id: "1",
+		});
 		expect(navigate).toHaveBeenCalledWith("/learningAsset/2", {
 			state: REVIEW_NAVIGATION_STATE,
 		});

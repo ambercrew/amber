@@ -1,1 +1,2 @@
 pub mod local_configuration_repository;
+pub mod synced_configuration_repository;

@@ -1,24 +1,26 @@
 #[cfg(test)]
 use crate::elements::value_objects::reading_position::ReadingPosition;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::{Datelike, NaiveDate, Utc};
 use injector_derive::ScopeInjectable;
+use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
-use crate::local_configurations::repositories::local_configuration_repository::{
-    LocalConfigurationRepository, LocalConfigurationRepositoryExt,
-};
+use crate::local_configurations::repositories::local_configuration_repository::LocalConfigurationRepositoryExt;
+use crate::local_configurations::repositories::synced_configuration_repository::SyncedConfigurationRepository;
 use crate::saved_searches::entities::saved_search_filter::ElementFilter;
 use crate::saved_searches::repositories::saved_search_repository::SavedSearchRepository;
 use crate::search::repositories::search_repository::SearchRepository;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
+use crate::study::repositories::learning_asset_skip_repository::LearningAssetSkipRepository;
 use crate::study::services::due_elements_service::DueElementsService;
-use crate::study::utils::day_boundary::local_date;
+use crate::study::utils::day_boundary::{local_date, start_of_today_utc};
 use crate::study::value_objects::due_element::DueElement;
 use crate::study::value_objects::fuzz_factor_configuration::{
     FUZZ_FACTOR_CONFIGURATION_NAME, FuzzFactorConfiguration,
@@ -29,10 +31,11 @@ use crate::study::value_objects::study_scope::StudyScope;
 pub struct DefaultDueElementsService {
     card_review_repository: Arc<dyn CardReviewRepository>,
     learning_asset_review_repository: Arc<dyn LearningAssetReviewRepository>,
-    local_configuration_repository: Arc<dyn LocalConfigurationRepository>,
+    learning_asset_skip_repository: Arc<dyn LearningAssetSkipRepository>,
     meta_repository: Arc<dyn MetaRepository>,
     saved_search_repository: Arc<dyn SavedSearchRepository>,
     search_repository: Arc<dyn SearchRepository>,
+    synced_configuration_repository: Arc<dyn SyncedConfigurationRepository>,
 }
 
 impl DefaultDueElementsService {
@@ -92,9 +95,12 @@ impl DueElementsService for DefaultDueElementsService {
         if let Some(scope) = scope {
             self.retain_matching(&mut due, scope).await?;
         }
+        if due.is_empty() {
+            return Ok(due);
+        }
 
         let fuzz_factor = self
-            .local_configuration_repository
+            .synced_configuration_repository
             .get_by_name::<FuzzFactorConfiguration>(FUZZ_FACTOR_CONFIGURATION_NAME)
             .await
             .ok()
@@ -103,13 +109,30 @@ impl DueElementsService for DefaultDueElementsService {
             .fuzz_factor;
 
         let priorities = self.meta_repository.get_priorities_ordered().await?;
-        Ok(order_by_priority_with_fuzz(
-            due,
-            &priorities,
-            fuzz_factor,
-            local_date(Utc::now()),
-        ))
+        let ordered =
+            order_by_priority_with_fuzz(due, &priorities, fuzz_factor, local_date(Utc::now()));
+
+        let skipped = self
+            .learning_asset_skip_repository
+            .get_skipped_since(start_of_today_utc())
+            .await?;
+        Ok(defer_skipped(ordered, &skipped))
     }
+}
+
+/// Moves the elements in `skipped` (earliest skip first) to the end, in the order they were skipped.
+fn defer_skipped(mut entries: Vec<DueElement>, skipped: &[Uuid]) -> Vec<DueElement> {
+    if skipped.is_empty() {
+        return entries;
+    }
+    let skip_order: HashMap<Uuid, usize> = skipped
+        .iter()
+        .enumerate()
+        .map(|(order, id)| (*id, order))
+        .collect();
+    // Stable, and `None` sorts first, so the elements not skipped keep their order.
+    entries.sort_by_key(|entry| skip_order.get(&entry.element_id.id()).copied());
+    entries
 }
 
 /// Orders elements by their rank among `priorities` (every live element's, ascending), nudged by
@@ -185,8 +208,9 @@ mod tests {
             sqlite_card_review_repository::SqliteCardReviewRepository,
             sqlite_learning_asset_repository::SqliteLearningAssetRepository,
             sqlite_learning_asset_review_repository::SqliteLearningAssetReviewRepository,
-            sqlite_local_configuration_repository::SqliteLocalConfigurationRepository,
+            sqlite_learning_asset_skip_repository::SqliteLearningAssetSkipRepository,
             sqlite_meta_repository::SqliteMetaRepository,
+            sqlite_synced_configuration_repository::SqliteSyncedConfigurationRepository,
         },
         infrastructure::repositories::sqlite::{
             sqlite_saved_search_repository::SqliteSavedSearchRepository,
@@ -223,8 +247,13 @@ mod tests {
         );
         register_scope!(
             injector,
-            dyn LocalConfigurationRepository,
-            SqliteLocalConfigurationRepository
+            dyn LearningAssetSkipRepository,
+            SqliteLearningAssetSkipRepository
+        );
+        register_scope!(
+            injector,
+            dyn SyncedConfigurationRepository,
+            SqliteSyncedConfigurationRepository
         );
         register_scope!(
             injector,
@@ -331,6 +360,91 @@ mod tests {
 
         assert!(due.contains(&card_id));
         assert!(!due.contains(&learning_asset_id));
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_skipped_today_puts_them_last_in_skip_order() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let skip_repo = scope.resolve::<dyn LearningAssetSkipRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        let first_skipped = create_new_card(&card_repo, "first skipped").await;
+        let not_skipped = create_new_card(&card_repo, "not skipped").await;
+        let second_skipped = create_new_card(&card_repo, "second skipped").await;
+        let now = Utc::now();
+        skip_repo
+            .record_skip(first_skipped.id(), now - Duration::seconds(1))
+            .await
+            .unwrap();
+        skip_repo
+            .record_skip(second_skipped.id(), now)
+            .await
+            .unwrap();
+
+        // Act
+
+        let actual = ids(service.get_due_elements(None).await.unwrap());
+
+        // Assert
+
+        assert_eq!(vec![not_skipped, first_skipped, second_skipped], actual);
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_skipped_before_today_keeps_it_in_place() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let skip_repo = scope.resolve::<dyn LearningAssetSkipRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        let skipped_yesterday = create_new_card(&card_repo, "skipped yesterday").await;
+        let skipped_today = create_new_card(&card_repo, "skipped today").await;
+        skip_repo
+            .record_skip(
+                skipped_yesterday.id(),
+                start_of_today_utc() - Duration::hours(1),
+            )
+            .await
+            .unwrap();
+        skip_repo
+            .record_skip(skipped_today.id(), Utc::now())
+            .await
+            .unwrap();
+
+        // Act
+
+        let actual = ids(service.get_due_elements(None).await.unwrap());
+
+        // Assert
+
+        assert_eq!(vec![skipped_yesterday, skipped_today], actual);
+    }
+
+    #[test]
+    fn defer_skipped_skipped_elements_moves_them_last_in_skip_order() {
+        // Arrange
+
+        let entries = ordered_entries(4);
+        let expected = vec![
+            entries[0].element_id,
+            entries[2].element_id,
+            entries[3].element_id,
+            entries[1].element_id,
+        ];
+        let skipped = vec![entries[3].element_id.id(), entries[1].element_id.id()];
+
+        // Act
+
+        let actual = ids(defer_skipped(entries, &skipped));
+
+        // Assert
+
+        assert_eq!(expected, actual);
     }
 
     #[tokio::test]

@@ -14,6 +14,11 @@ export function getDueElements(
 	return invoke("get_due_elements", { studyScope });
 }
 
+/** Records a skip on every device, so today's queue puts the element last. */
+export function skipLearningAsset(elementId: ElementId): Promise<void> {
+	return invoke("skip_learning_asset", { elementId });
+}
+
 export function registerCardReview(
 	review: CardReviewDto,
 	rating: Rating,

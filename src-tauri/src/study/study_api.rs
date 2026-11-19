@@ -8,9 +8,8 @@ use chrono::{DateTime, Utc};
 use crate::common::api_error::ApiError;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
-use crate::local_configurations::repositories::local_configuration_repository::{
-    LocalConfigurationRepository, LocalConfigurationRepositoryExt,
-};
+use crate::local_configurations::repositories::local_configuration_repository::LocalConfigurationRepositoryExt;
+use crate::local_configurations::repositories::synced_configuration_repository::SyncedConfigurationRepository;
 use crate::study::dto::card_review_request_dto::CardReviewRequestDto;
 use crate::study::dto::card_review_response_dto::CardReviewResponseDto;
 use crate::study::dto::card_scheduling_dto::CardSchedulingDto;
@@ -19,6 +18,7 @@ use crate::study::dto::learning_asset_review_dto::LearningAssetReviewResponseDto
 use crate::study::dto::study_scope_request_dto::StudyScopeRequestDto;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
+use crate::study::repositories::learning_asset_skip_repository::LearningAssetSkipRepository;
 use crate::study::services::card_grading_service::CardGradingService;
 use crate::study::services::due_elements_service::DueElementsService;
 use crate::study::services::element_status_service::ElementStatusService;
@@ -72,6 +72,22 @@ pub async fn get_due_elements(
         .get_due_elements(study_scope.map(Into::into))
         .await?;
     Ok(due_elements.into_iter().map(Into::into).collect())
+}
+
+/// Records the skip on every device, so today's queue puts the element last after a restart.
+#[tauri::command]
+pub async fn skip_learning_asset(
+    injector: State<'_, Arc<Injector>>,
+    element_id: ElementId,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    scope
+        .resolve::<dyn LearningAssetSkipRepository>()
+        .await
+        .record_skip(element_id.id(), Utc::now())
+        .await?;
+    scope.save_changes().await?;
+    Ok(())
 }
 
 /// Persists a review the frontend scheduled with ts-fsrs. Scheduling itself
@@ -159,7 +175,7 @@ pub async fn finish_learning_asset(
 pub async fn get_fuzz_factor(injector: State<'_, Arc<Injector>>) -> Result<u8, ApiError> {
     let scope = injector.start_scope();
     let configuration = scope
-        .resolve::<dyn LocalConfigurationRepository>()
+        .resolve::<dyn SyncedConfigurationRepository>()
         .await
         .get_by_name::<FuzzFactorConfiguration>(FUZZ_FACTOR_CONFIGURATION_NAME)
         .await?
@@ -174,7 +190,7 @@ pub async fn set_fuzz_factor(
 ) -> Result<(), ApiError> {
     let scope = injector.start_scope();
     scope
-        .resolve::<dyn LocalConfigurationRepository>()
+        .resolve::<dyn SyncedConfigurationRepository>()
         .await
         .set_by_name(
             FUZZ_FACTOR_CONFIGURATION_NAME,

@@ -252,6 +252,24 @@ fn table_configs() -> Vec<TableSyncConfig> {
             delete_guard: None,
         },
         TableSyncConfig {
+            name: "learning_asset_skips",
+            // Column granularity: a skip's cell holds only `skipped_at`, not a JSON copy of the row.
+            granularity: Granularity::Column,
+            fk_constraints: vec![FkConstraint::new(
+                "element_id",
+                "meta",
+                "element_id",
+                FkPolicy::DiscardRow,
+            )],
+            delete_guard: None,
+        },
+        TableSyncConfig {
+            name: "synced_configurations",
+            granularity: Granularity::Row,
+            fk_constraints: vec![],
+            delete_guard: None,
+        },
+        TableSyncConfig {
             name: "card_review_logs",
             granularity: Granularity::Row,
             fk_constraints: vec![FkConstraint::new(
@@ -506,6 +524,92 @@ mod tests {
         .fetch_one(tx.as_mut())
         .await
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn table_configs_learning_asset_skip_and_synced_configuration_saved_are_staged_for_other_devices()
+     {
+        // Arrange
+
+        let injector = Arc::new(crate::test_utils::create_file_backed_test_injector().await);
+        register_sync_tables(&injector).await.unwrap();
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        let mut guard = tx.lock().await;
+        let element_id = "6f1c2a9e-0000-4000-8000-000000000001";
+        sqlx::query(
+            "INSERT INTO meta(element_id, element_type, name, position, priority)
+             VALUES (?1, 'learning_asset', 'test', x'80', x'80')",
+        )
+        .bind(element_id)
+        .execute(guard.as_mut())
+        .await
+        .unwrap();
+
+        // Act
+
+        sqlx::query("INSERT INTO learning_asset_skips VALUES (?1, 1800000000000)")
+            .bind(element_id)
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO synced_configurations VALUES ('FUZZ_FACTOR', '{\"fuzz_factor\":25}')",
+        )
+        .execute(guard.as_mut())
+        .await
+        .unwrap();
+
+        // Assert
+
+        let staged: i64 = sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT tbl) FROM sync_cells
+             WHERE tbl IN ('learning_asset_skips', 'synced_configurations')",
+        )
+        .fetch_one(guard.as_mut())
+        .await
+        .unwrap();
+        assert_eq!(2, staged);
+    }
+
+    #[tokio::test]
+    async fn table_configs_learning_asset_skip_saved_stages_only_its_time() {
+        // Arrange
+
+        let injector = Arc::new(crate::test_utils::create_file_backed_test_injector().await);
+        register_sync_tables(&injector).await.unwrap();
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        let mut guard = tx.lock().await;
+        let element_id = "6f1c2a9e-0000-4000-8000-000000000002";
+        sqlx::query(
+            "INSERT INTO meta(element_id, element_type, name, position, priority)
+             VALUES (?1, 'learning_asset', 'test', x'80', x'80')",
+        )
+        .bind(element_id)
+        .execute(guard.as_mut())
+        .await
+        .unwrap();
+
+        // Act
+
+        sqlx::query("INSERT INTO learning_asset_skips VALUES (?1, 1800000000000)")
+            .bind(element_id)
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+
+        // Assert
+
+        let cells: Vec<(String, Vec<u8>)> =
+            sqlx::query_as("SELECT col, value FROM sync_cells WHERE tbl = 'learning_asset_skips'")
+                .fetch_all(guard.as_mut())
+                .await
+                .unwrap();
+        assert_eq!(
+            vec![("skipped_at".to_string(), b"1800000000000".to_vec())],
+            cells
+        );
     }
 
     fn remote_asset_cell(

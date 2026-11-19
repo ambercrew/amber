@@ -7,6 +7,7 @@ import {
 	getLearningAssetReview,
 	finishLearningAsset,
 	nextLearningAsset,
+	skipLearningAsset,
 } from "../../api/study/api/studyApi";
 import { paths } from "../../paths";
 import { CardReviewDto } from "../../api/study/dto/cardReviewDto";
@@ -39,10 +40,6 @@ import {
 import { STUDY_SESSION_FINISHED } from "../../types/events/studySessionFinishedEvent";
 import { REVIEW_NAVIGATION_STATE } from "../../types/study/reviewNavigationState";
 import { isSameElement } from "../../utils/elementKey";
-import {
-	deferSkippedElements,
-	recordSkippedElement,
-} from "./skippedElementsStorage";
 import errorToString from "../../utils/errorToString";
 
 // A same-day relearning card is re-queued rather than dropped until "later
@@ -54,9 +51,7 @@ export function startStudySession(navigate: NavigateFunction) {
 		dispatch: AppDispatch,
 		getState: () => RootState,
 	): Promise<boolean> => {
-		const queue = deferSkippedElements(
-			await getDueElements(selectStudyScope(getState())),
-		);
+		const queue = await getDueElements(selectStudyScope(getState()));
 		if (queue.length === 0) return false;
 		dispatch(sessionStarted(queue));
 		await navigateToElement(queue[0]?.elementId, navigate, dispatch);
@@ -327,7 +322,7 @@ export function skipLearningAssetAction(
 ) {
 	return async (dispatch: AppDispatch, getState: () => RootState) => {
 		const currentIndex = selectStudyIndex(getState());
-		recordSkippedElement(elementId);
+		await skipLearningAsset(elementId);
 		dispatch(learningAssetSkipped({ elementId }));
 		await advanceSession(
 			dispatch,

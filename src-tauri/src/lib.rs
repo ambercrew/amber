@@ -235,6 +235,7 @@ pub async fn run() {
             get_card_review,
             get_learning_asset_review,
             get_due_elements,
+            skip_learning_asset,
             register_card_review,
             get_card_scheduling,
             next_learning_asset,

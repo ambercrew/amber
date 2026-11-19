@@ -9,7 +9,6 @@ import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { useTauriEvent } from "../../../hooks/useTauriEvent";
 import { queueLoaded } from "../../../stores/study/studyReducer";
-import { deferSkippedElements } from "../../../stores/study/skippedElementsStorage";
 import {
 	selectStudyScope,
 	selectStudyStatus,
@@ -44,7 +43,7 @@ export function useDueElementsPreview() {
 		void callApi(async () => {
 			const queue = await getDueElements(scope);
 			if (requestId === latestRequestId.current) {
-				dispatch(queueLoaded(deferSkippedElements(queue)));
+				dispatch(queueLoaded(queue));
 			}
 		});
 	}
