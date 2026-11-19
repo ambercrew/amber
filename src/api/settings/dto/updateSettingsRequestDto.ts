@@ -16,6 +16,7 @@ export default interface UpdateSettingsRequestDto {
 	zoomPercentage: number | null;
 	lineWidth: LineWidth | null;
 	autoSync: boolean | null;
+	spellCheck: boolean | null;
 	trashRetentionDays: number | null;
 
 	enableAi: boolean | null;
@@ -40,6 +41,7 @@ export function buildUpdateSettingsRequest(
 		zoomPercentage: null,
 		lineWidth: null,
 		autoSync: null,
+		spellCheck: null,
 		trashRetentionDays: null,
 		enableAi: null,
 		aiProvider: null,

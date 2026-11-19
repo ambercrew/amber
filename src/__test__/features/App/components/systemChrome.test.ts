@@ -17,6 +17,7 @@ const baseSettings: SettingsDto = {
 	zoomPercentage: 100,
 	lineWidth: "Narrow",
 	autoSync: true,
+	spellCheck: true,
 	trashRetentionDays: 30,
 	enableAi: false,
 	aiProvider: "ollama",

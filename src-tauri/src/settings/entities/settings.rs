@@ -32,6 +32,9 @@ pub struct Settings {
     #[serde(default)]
     pub line_width: LineWidth,
     pub auto_sync: bool,
+    /// Underlines misspellings in the editor, in the OS spell checker's language.
+    #[serde(default = "default_spell_check")]
+    pub spell_check: bool,
 
     /// How many days elements stay in the trash before they are purged.
     /// Defaulted so a settings file written before the trash existed still
@@ -81,6 +84,10 @@ fn default_trash_retention_days() -> u32 {
     DEFAULT_TRASH_RETENTION_DAYS
 }
 
+fn default_spell_check() -> bool {
+    true
+}
+
 fn default_enable_ai() -> bool {
     true
 }
@@ -97,6 +104,7 @@ impl Default for Settings {
             zoom_percentage: f64::default(),
             line_width: LineWidth::default(),
             auto_sync: bool::default(),
+            spell_check: true,
             trash_retention_days: DEFAULT_TRASH_RETENTION_DAYS,
             enable_ai: true,
             ai_provider: AiProvider::default(),
@@ -132,6 +140,7 @@ impl Settings {
             zoom_percentage: 100f64,
             line_width: LineWidth::default(),
             auto_sync: true,
+            spell_check: true,
             trash_retention_days: DEFAULT_TRASH_RETENTION_DAYS,
             enable_ai: true,
             ai_provider: AiProvider::default(),
@@ -255,6 +264,27 @@ mod tests {
         // Assert
 
         assert_eq!(LineWidth::Narrow, actual.line_width);
+    }
+
+    #[test]
+    pub fn from_json_spell_check_missing_defaulted_to_enabled() {
+        // Arrange
+
+        let json = r#"{
+            "baseDatabaseDirectory": "/data/amber",
+            "profile": "Default",
+            "theme": "FollowSystem",
+            "zoomPercentage": 100.0,
+            "autoSync": true
+        }"#;
+
+        // Act
+
+        let actual = Settings::from_json(json).unwrap();
+
+        // Assert
+
+        assert!(actual.spell_check);
     }
 
     #[test]

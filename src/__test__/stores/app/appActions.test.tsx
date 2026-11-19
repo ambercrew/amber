@@ -38,6 +38,7 @@ describe("appActions", () => {
 			if (cb === expectedInitiateSettings) {
 				return Promise.resolve({
 					autoSync: true,
+					spellCheck: true,
 				} as Partial<SettingsDto>);
 			}
 		});
@@ -78,6 +79,7 @@ describe("appActions", () => {
 			if (cb === expectedInitiateSettings) {
 				return Promise.resolve({
 					autoSync: true,
+					spellCheck: true,
 				} as Partial<SettingsDto>);
 			}
 		});
@@ -117,6 +119,7 @@ describe("appActions", () => {
 			if (cb === expectedInitiateSettings) {
 				return Promise.resolve({
 					autoSync: false,
+					spellCheck: true,
 				} as Partial<SettingsDto>);
 			}
 		});

@@ -19,6 +19,7 @@ pub struct SettingsDto {
     pub zoom_percentage: f64,
     pub line_width: LineWidth,
     pub auto_sync: bool,
+    pub spell_check: bool,
     pub trash_retention_days: u32,
 
     pub enable_ai: bool,

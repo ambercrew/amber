@@ -62,6 +62,9 @@ impl SettingsUpdater for DefaultSettingsUpdater {
         if let Some(auto_sync) = new_settings.auto_sync {
             settings.auto_sync = auto_sync;
         }
+        if let Some(spell_check) = new_settings.spell_check {
+            settings.spell_check = spell_check;
+        }
         if let Some(trash_retention_days) = new_settings.trash_retention_days {
             settings.trash_retention_days = trash_retention_days;
         }

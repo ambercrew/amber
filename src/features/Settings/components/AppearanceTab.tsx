@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { Box, Select, SegmentedControl, Slider, Stack } from "@mantine/core";
+import {
+	Box,
+	Group,
+	Select,
+	SegmentedControl,
+	Slider,
+	Stack,
+	Switch,
+} from "@mantine/core";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import useApi from "../../../hooks/useApi";
@@ -20,6 +28,7 @@ import {
 	selectValueToFont,
 } from "./fontSelectUtils";
 import FieldLabel from "../../../components/FieldLabel/FieldLabel";
+import FieldInfoIcon from "../../../components/FieldLabel/FieldInfoIcon";
 
 const ZOOM_MARKS = [
 	{ value: 50, label: "50%" },
@@ -123,6 +132,10 @@ function AppearanceTab() {
 		};
 	}
 
+	function handleSpellCheckChange(spellCheck: boolean) {
+		void dispatch(saveSettings(buildUpdateSettingsRequest({ spellCheck })));
+	}
+
 	function persistZoom(value: number) {
 		void dispatch(
 			saveSettings(buildUpdateSettingsRequest({ zoomPercentage: value })),
@@ -165,6 +178,17 @@ function AppearanceTab() {
 					/>
 				</Stack>
 			)}
+
+			<Group gap={4}>
+				<Switch
+					label="Spell check"
+					checked={settings.spellCheck}
+					onChange={e =>
+						handleSpellCheckChange(e.currentTarget.checked)
+					}
+				/>
+				<FieldInfoIcon tooltip="Underlines misspelled words in the editor. Words are checked in your device's spell checker language, so turn this off if you write in another language." />
+			</Group>
 
 			{/* Font pickers rely on system font enumeration, which isn't
 			supported on mobile, so hide them there. */}

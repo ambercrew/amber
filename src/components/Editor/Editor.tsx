@@ -89,6 +89,9 @@ function EditorContent({
 	const coarsePointer = useIsCoarsePointer();
 	const contextMenuDisabled =
 		coarsePointer || (!contextMenuItems && !contextMenuLinkUrl);
+	const spellCheck = useAppSelector(
+		state => state.settings.settings?.spellCheck ?? true,
+	);
 	const keyboardSuppressed = useAppSelector(
 		selectIsVirtualKeyboardSuppressed,
 	);
@@ -153,6 +156,7 @@ function EditorContent({
 								inputMode={
 									suppressKeyboard ? "none" : undefined
 								}
+								spellCheck={spellCheck}
 								aria-label="Rich text editor"
 								aria-placeholder="Type '/' for commands..."
 								placeholder={

@@ -42,6 +42,7 @@ const SETTINGS = {
 	lineWidth: "Medium",
 	zoomPercentage: 100,
 	autoSync: false,
+	spellCheck: true,
 	font: { type: "systemDefault" },
 	fontHeadings: { type: "systemDefault" },
 	fontMonospace: { type: "systemDefault" },
