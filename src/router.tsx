@@ -2,11 +2,13 @@ import { createBrowserRouter } from "react-router";
 import App from "./features/App/components/App";
 import ElementViewer from "./features/ElementViewer/ElementViewer";
 import ElementsBrowser from "./features/ElementsBrowser/components/ElementsBrowser";
+import RouteErrorFallback from "./components/AppErrorBoundary/RouteErrorFallback";
 
 export const router = createBrowserRouter([
 	{
 		path: "/",
 		element: <App />,
+		errorElement: <RouteErrorFallback />,
 		children: [
 			{
 				index: true,

@@ -18,6 +18,8 @@ import { MantineProvider } from "@mantine/core";
 import { ModalsProvider } from "@mantine/modals";
 import { theme, cssVariablesResolver } from "./theme.ts";
 import SettingsSync from "./features/App/components/SettingsSync.tsx";
+import AppErrorBoundary from "./components/AppErrorBoundary/AppErrorBoundary.tsx";
+import { installLifecycleLogging } from "./utils/lifecycleLogging.ts";
 
 function forwardConsole(
 	fnName: "log" | "debug" | "info" | "warn" | "error",
@@ -44,6 +46,7 @@ forwardConsole("debug", debug);
 forwardConsole("info", info);
 forwardConsole("warn", warn);
 forwardConsole("error", error);
+installLifecycleLogging();
 
 const store = setupStore();
 
@@ -53,10 +56,12 @@ createRoot(document.getElementById("root")!).render(
 			<MantineProvider
 				theme={theme}
 				cssVariablesResolver={cssVariablesResolver}>
-				<SettingsSync />
-				<ModalsProvider>
-					<RouterProvider router={router} />
-				</ModalsProvider>
+				<AppErrorBoundary>
+					<SettingsSync />
+					<ModalsProvider>
+						<RouterProvider router={router} />
+					</ModalsProvider>
+				</AppErrorBoundary>
 			</MantineProvider>
 		</Provider>
 	</React.StrictMode>,

@@ -83,8 +83,10 @@ pub async fn run() {
     let mut tauri_builder = tauri::Builder::<AppRuntime>::new()
         .runtime(runtime)
         .plugin(
+            // The default 40 KB single file rotates away an error before anyone can read it.
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(3))
                 .build(),
         )
         .plugin(tauri_plugin_http::init())
