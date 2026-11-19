@@ -7,6 +7,7 @@ use chrono::{Datelike, NaiveDate, Utc};
 use injector_derive::ScopeInjectable;
 
 use crate::common::repository_error::RepositoryError;
+use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::local_configurations::repositories::local_configuration_repository::{
     LocalConfigurationRepository, LocalConfigurationRepositoryExt,
@@ -29,6 +30,7 @@ pub struct DefaultDueElementsService {
     card_review_repository: Arc<dyn CardReviewRepository>,
     learning_asset_review_repository: Arc<dyn LearningAssetReviewRepository>,
     local_configuration_repository: Arc<dyn LocalConfigurationRepository>,
+    meta_repository: Arc<dyn MetaRepository>,
     saved_search_repository: Arc<dyn SavedSearchRepository>,
     search_repository: Arc<dyn SearchRepository>,
 }
@@ -100,41 +102,49 @@ impl DueElementsService for DefaultDueElementsService {
             .unwrap_or_default()
             .fuzz_factor;
 
+        let priorities = self.meta_repository.get_priorities_ordered().await?;
         Ok(order_by_priority_with_fuzz(
             due,
+            &priorities,
             fuzz_factor,
             local_date(Utc::now()),
         ))
     }
 }
 
-/// Sorts elements by priority (ascending — highest priority first), then
-/// randomizes their position within fixed-size "brackets" of the sorted
-/// list to avoid predictable clusters of equal-priority items.
+/// Orders elements by their rank among `priorities` (every live element's, ascending), nudged by
+/// a random amount fixed per element and day.
 ///
-/// `fuzz_factor` (0-100) controls the bracket size as a fraction of the
-/// whole queue: 0 keeps the exact priority order, 100 shuffles the entire
-/// queue. The shuffle is seeded by `day`, so every fetch on one day agrees.
+/// `fuzz_factor` (0-100) weighs the nudge against the rank: 0 keeps the exact priority order,
+/// 100 shuffles the queue. Ranks count elements that aren't due, so reviewing elements never
+/// moves the rest; creating or deleting one can only swap a few neighbours.
 fn order_by_priority_with_fuzz(
     mut entries: Vec<DueElement>,
+    priorities: &[Vec<u8>],
     fuzz_factor: u8,
     day: NaiveDate,
 ) -> Vec<DueElement> {
-    entries.sort_by(|a, b| a.priority.cmp(&b.priority));
+    let fuzz = f64::from(fuzz_factor.min(100)) / 100.0;
+    let total = priorities.len() as f64;
 
-    let bracket_size = ((entries.len() as f64) * (fuzz_factor.min(100) as f64 / 100.0))
-        .round()
-        .max(1.0) as usize;
-
-    for bracket in entries.chunks_mut(bracket_size) {
-        bracket.sort_by_cached_key(|entry| day_shuffle_key(day, &entry.element_id));
-    }
+    entries.sort_by_cached_key(|entry| {
+        let rank = priorities
+            .partition_point(|priority| priority.as_slice() < entry.priority.as_bytes())
+            as f64;
+        let nudge = unit_interval(day_shuffle_key(day, &entry.element_id)) * total;
+        let key = (1.0 - fuzz) * rank + fuzz * nudge;
+        (key.to_bits(), entry.priority.clone())
+    });
 
     entries
 }
 
-/// A pseudo-random rank for the element on `day`, so its place within a bracket holds all day
-/// whatever else is due.
+/// Maps a random `u64` onto `[0, 1)`.
+fn unit_interval(value: u64) -> f64 {
+    (value >> 11) as f64 / (1u64 << 53) as f64
+}
+
+/// A pseudo-random value for the element on `day`, so its nudge holds all day whatever else is due.
 fn day_shuffle_key(day: NaiveDate, element_id: &ElementId) -> u64 {
     let (high, low) = element_id.id().as_u64_pair();
     splitmix64(splitmix64(low ^ day.num_days_from_ce() as u64) ^ high)
@@ -472,6 +482,13 @@ mod tests {
         due.into_iter().map(|entry| entry.element_id).collect()
     }
 
+    fn priorities_of(entries: &[DueElement]) -> Vec<Vec<u8>> {
+        entries
+            .iter()
+            .map(|entry| entry.priority.as_bytes().to_vec())
+            .collect()
+    }
+
     fn ordered_entries(count: usize) -> Vec<DueElement> {
         let mut priority = FractionalIndex::default();
         let mut entries = Vec::with_capacity(count);
@@ -496,12 +513,13 @@ mod tests {
         // Arrange
 
         let entries = ordered_entries(20);
+        let priorities = priorities_of(&entries);
         let expected: Vec<ElementId> = entries.iter().map(|entry| entry.element_id).collect();
         let day = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
 
         // Act
 
-        let actual = ids(order_by_priority_with_fuzz(entries, 0, day));
+        let actual = ids(order_by_priority_with_fuzz(entries, &priorities, 0, day));
 
         // Assert
 
@@ -513,12 +531,13 @@ mod tests {
         // Arrange
 
         let entries = ordered_entries(20);
+        let priorities = priorities_of(&entries);
         let mut expected: Vec<ElementId> = entries.iter().map(|entry| entry.element_id).collect();
         let day = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
 
         // Act
 
-        let mut actual = ids(order_by_priority_with_fuzz(entries, 100, day));
+        let mut actual = ids(order_by_priority_with_fuzz(entries, &priorities, 100, day));
 
         // Assert
 
@@ -528,29 +547,55 @@ mod tests {
     }
 
     #[test]
-    fn order_by_priority_with_fuzz_moderate_fuzz_never_moves_items_out_of_their_bracket() {
+    fn order_by_priority_with_fuzz_moderate_fuzz_never_moves_items_far_from_their_rank() {
         // Arrange
 
         let entries = ordered_entries(20);
-        let expected: Vec<ElementId> = entries.iter().map(|entry| entry.element_id).collect();
+        let priorities = priorities_of(&entries);
+        let by_rank: Vec<ElementId> = entries.iter().map(|entry| entry.element_id).collect();
         let day = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
 
         // Act
 
-        let actual = ids(order_by_priority_with_fuzz(entries, 25, day));
+        let actual = ids(order_by_priority_with_fuzz(entries, &priorities, 25, day));
 
         // Assert
 
-        let bracket_size = 5;
-        for (bracket_index, chunk) in actual.chunks(bracket_size).enumerate() {
-            let expected_chunk =
-                &expected[bracket_index * bracket_size..bracket_index * bracket_size + chunk.len()];
-            let mut sorted_chunk = chunk.to_vec();
-            let mut sorted_expected_chunk = expected_chunk.to_vec();
-            sorted_chunk.sort_by_key(|id| id.id());
-            sorted_expected_chunk.sort_by_key(|id| id.id());
-            assert_eq!(sorted_expected_chunk, sorted_chunk);
+        let rank = |id: &ElementId| by_rank.iter().position(|e| e == id).unwrap();
+        // An element can only pass one less than 20 * 0.25 / 0.75 ranks behind it.
+        for (index, earlier) in actual.iter().enumerate() {
+            for later in &actual[index + 1..] {
+                assert!((rank(earlier) as f64) - (rank(later) as f64) < 20.0 * 0.25 / 0.75);
+            }
         }
+    }
+
+    #[test]
+    fn order_by_priority_with_fuzz_reviewed_elements_removed_keeps_the_others_in_order() {
+        // Arrange
+
+        let entries = ordered_entries(20);
+        let priorities = priorities_of(&entries);
+        let day = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
+        let full = ids(order_by_priority_with_fuzz(
+            entries.clone(),
+            &priorities,
+            25,
+            day,
+        ));
+        let reviewed: Vec<ElementId> = full[..5].to_vec();
+        let remaining: Vec<DueElement> = entries
+            .into_iter()
+            .filter(|entry| !reviewed.contains(&entry.element_id))
+            .collect();
+
+        // Act
+
+        let actual = ids(order_by_priority_with_fuzz(remaining, &priorities, 25, day));
+
+        // Assert
+
+        assert_eq!(full[5..].to_vec(), actual);
     }
 
     #[test]
@@ -558,12 +603,18 @@ mod tests {
         // Arrange
 
         let entries = ordered_entries(20);
+        let priorities = priorities_of(&entries);
         let day = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
 
         // Act
 
-        let first = ids(order_by_priority_with_fuzz(entries.clone(), 100, day));
-        let second = ids(order_by_priority_with_fuzz(entries, 100, day));
+        let first = ids(order_by_priority_with_fuzz(
+            entries.clone(),
+            &priorities,
+            100,
+            day,
+        ));
+        let second = ids(order_by_priority_with_fuzz(entries, &priorities, 100, day));
 
         // Assert
 
@@ -575,13 +626,20 @@ mod tests {
         // Arrange
 
         let entries = ordered_entries(20);
+        let priorities = priorities_of(&entries);
         let day = NaiveDate::from_ymd_opt(2026, 11, 11).unwrap();
 
         // Act
 
-        let today = ids(order_by_priority_with_fuzz(entries.clone(), 100, day));
+        let today = ids(order_by_priority_with_fuzz(
+            entries.clone(),
+            &priorities,
+            100,
+            day,
+        ));
         let tomorrow = ids(order_by_priority_with_fuzz(
             entries,
+            &priorities,
             100,
             day.succ_opt().unwrap(),
         ));

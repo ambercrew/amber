@@ -159,6 +159,9 @@ pub trait MetaRepository: Send + Sync {
     /// Same order as `get_all_ordered_by_priority`, without loading each element's meta.
     async fn get_ids_ordered_by_priority(&self) -> Result<Vec<ElementId>, RepositoryError>;
 
+    /// Every live element's priority bytes, ascending; read from the index alone, so it's cheap.
+    async fn get_priorities_ordered(&self) -> Result<Vec<Vec<u8>>, RepositoryError>;
+
     /// The element at the given zero-based offset in priority order,
     /// excluding `excluding` (if any — `None` when scanning for a not-yet-created
     /// element), or `None` if the offset is out of range.

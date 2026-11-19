@@ -735,6 +735,19 @@ impl MetaRepository for SqliteMetaRepository {
             .collect())
     }
 
+    async fn get_priorities_ordered(&self) -> Result<Vec<Vec<u8>>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let rows = sqlx::query!(
+            r#"SELECT priority FROM meta
+               WHERE trashed_at IS NULL
+               ORDER BY priority"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows.into_iter().map(|row| row.priority).collect())
+    }
+
     async fn get_at_priority_offset(
         &self,
         excluding: Option<ElementId>,
@@ -906,6 +919,43 @@ mod tests {
         // Assert
 
         assert_eq!(vec![first, second], ids);
+    }
+
+    #[tokio::test]
+    async fn get_priorities_ordered_elements_out_of_order_returns_them_ascending() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let first_priority = FractionalIndex::default();
+        let next_priority = FractionalIndex::new_after(&first_priority);
+        repo.create_meta(&Meta {
+            priority: next_priority.clone(),
+            ..make_meta(ElementId::Folder(Uuid::new_v4()))
+        })
+        .await
+        .unwrap();
+        repo.create_meta(&Meta {
+            priority: first_priority.clone(),
+            ..make_meta(ElementId::Card(Uuid::new_v4()))
+        })
+        .await
+        .unwrap();
+
+        // Act
+
+        let priorities = repo.get_priorities_ordered().await.unwrap();
+
+        // Assert
+
+        assert_eq!(
+            vec![
+                first_priority.as_bytes().to_vec(),
+                next_priority.as_bytes().to_vec()
+            ],
+            priorities
+        );
     }
 
     #[tokio::test]
