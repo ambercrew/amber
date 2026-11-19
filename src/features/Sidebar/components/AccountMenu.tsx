@@ -35,6 +35,7 @@ function AccountMenu() {
 				<Button
 					variant="subtle"
 					color="gray"
+					c="bright"
 					fullWidth
 					justify="flex-start"
 					leftSection={<UserCircleIcon size={18} />}>

@@ -27,6 +27,7 @@ function SyncButton() {
 			<ActionIcon
 				variant="subtle"
 				color="gray"
+				c="bright"
 				loading={isSyncing}
 				size="lg"
 				disabled={isSyncing}
