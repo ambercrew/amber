@@ -21,6 +21,7 @@ const profile: StudyProfileDto = {
 	initialIntervalMultiplier: 1.2,
 	initialIntervalDays: 1,
 	minIntervalDays: 1,
+	maximumIntervalDays: 36500,
 	priorityInheritancePolicy: {
 		placement: { type: "aboveParent" },
 		ceilingPercentile: null,

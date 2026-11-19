@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
-use crate::study::entities::study_profile::StudyProfile;
+use crate::study::entities::study_profile::{DEFAULT_MAXIMUM_INTERVAL_DAYS, StudyProfile};
 use crate::study::repositories::study_profile_repository::StudyProfileRepository;
 use crate::study::services::profile_resolution_service::{
     EffectiveProfile, ProfileResolutionError, ProfileResolutionService, ProfileSource,
@@ -173,6 +173,7 @@ impl DefaultProfileResolutionService {
             initial_interval_multiplier: DEFAULT_INTERVAL_MULTIPLIER,
             initial_interval_days: DEFAULT_INITIAL_INTERVAL_DAYS,
             min_interval_days: DEFAULT_MIN_INTERVAL_DAYS,
+            maximum_interval_days: DEFAULT_MAXIMUM_INTERVAL_DAYS,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }

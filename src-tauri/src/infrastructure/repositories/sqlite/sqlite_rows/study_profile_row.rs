@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
 use uuid::fmt::Hyphenated;
 
-use crate::study::entities::study_profile::StudyProfile;
+use crate::study::entities::study_profile::{
+    DEFAULT_MAXIMUM_INTERVAL_DAYS, MAX_MAXIMUM_INTERVAL_DAYS, StudyProfile,
+};
 use crate::study::value_objects::priority_inheritance_policy::{
     Placement, PriorityInheritancePolicy,
 };
@@ -19,6 +21,7 @@ pub struct StudyProfileRow {
     pub initial_interval_multiplier: f64,
     pub initial_interval_days: f64,
     pub min_interval_days: f64,
+    pub maximum_interval_days: i64,
     pub priority_inheritance_placement: Option<String>,
     pub priority_inheritance_percentile: Option<f64>,
     pub priority_inheritance_ceiling_percentile: Option<f64>,
@@ -45,6 +48,7 @@ impl From<StudyProfileRow> for StudyProfile {
             initial_interval_multiplier: row.initial_interval_multiplier as f32,
             initial_interval_days: row.initial_interval_days as f32,
             min_interval_days: row.min_interval_days as f32,
+            maximum_interval_days: maximum_interval_from_column(row.maximum_interval_days),
             priority_inheritance_policy: PriorityInheritancePolicy {
                 placement: Placement::from_columns(
                     row.priority_inheritance_placement.as_deref(),
@@ -53,5 +57,48 @@ impl From<StudyProfileRow> for StudyProfile {
                 ceiling_percentile: row.priority_inheritance_ceiling_percentile,
             },
         }
+    }
+}
+
+/// An out-of-range value, as a synced cell could carry, falls back to the default.
+fn maximum_interval_from_column(value: i64) -> u32 {
+    u32::try_from(value)
+        .ok()
+        .filter(|days| (1..=MAX_MAXIMUM_INTERVAL_DAYS).contains(days))
+        .unwrap_or(DEFAULT_MAXIMUM_INTERVAL_DAYS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maximum_interval_from_column_negative_value_returns_default() {
+        // Arrange
+
+        let value = -1;
+
+        // Act
+
+        let actual = maximum_interval_from_column(value);
+
+        // Assert
+
+        assert_eq!(DEFAULT_MAXIMUM_INTERVAL_DAYS, actual);
+    }
+
+    #[test]
+    fn maximum_interval_from_column_value_in_range_returns_value() {
+        // Arrange
+
+        let value = 365;
+
+        // Act
+
+        let actual = maximum_interval_from_column(value);
+
+        // Assert
+
+        assert_eq!(365, actual);
     }
 }

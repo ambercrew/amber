@@ -65,6 +65,7 @@ export function createScheduler(
 		// An empty list means no steps, not ts-fsrs's defaults.
 		learningSteps: profile.learningSteps as StepUnit[],
 		relearningSteps: profile.relearningSteps as StepUnit[],
+		maximumInterval: profile.maximumIntervalDays,
 	});
 }
 

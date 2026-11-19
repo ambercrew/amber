@@ -33,6 +33,8 @@ import {
 	FSRS_PARAM_COUNT,
 	initialValues,
 	isValidFsrsParams,
+	isValidMaximumInterval,
+	MAX_MAXIMUM_INTERVAL_DAYS,
 	isValidSteps,
 	ProfileFormValues,
 	toRequestDto,
@@ -75,6 +77,7 @@ const FIELD_TABS: Partial<Record<keyof ProfileFormValues, TabValue>> = {
 	fsrsParams: "cards",
 	learningSteps: "cards",
 	relearningSteps: "cards",
+	maximumIntervalDays: "cards",
 	placementPercentile: "queue",
 	ceilingPercentile: "queue",
 };
@@ -108,6 +111,10 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 				isValidSteps(value)
 					? null
 					: "Each space-separated step must be a number followed by m, h or d (e.g. 1m 10m 1d)",
+			maximumIntervalDays: value =>
+				isValidMaximumInterval(value)
+					? null
+					: `Enter a whole number of days from 1 to ${MAX_MAXIMUM_INTERVAL_DAYS}`,
 		},
 	});
 

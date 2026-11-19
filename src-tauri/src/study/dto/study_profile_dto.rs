@@ -25,6 +25,7 @@ pub struct StudyProfileResponseDto {
     pub initial_interval_multiplier: f32,
     pub initial_interval_days: f32,
     pub min_interval_days: f32,
+    pub maximum_interval_days: u32,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
@@ -66,6 +67,7 @@ impl From<StudyProfile> for StudyProfileResponseDto {
             initial_interval_multiplier: profile.initial_interval_multiplier,
             initial_interval_days: profile.initial_interval_days,
             min_interval_days: profile.min_interval_days,
+            maximum_interval_days: profile.maximum_interval_days,
             priority_inheritance_policy: profile.priority_inheritance_policy,
         }
     }
@@ -84,6 +86,7 @@ pub struct StudyProfileRequestDto {
     pub initial_interval_multiplier: f32,
     pub initial_interval_days: f32,
     pub min_interval_days: f32,
+    pub maximum_interval_days: u32,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
@@ -98,6 +101,7 @@ impl From<StudyProfileRequestDto> for StudyProfileFields {
             initial_interval_multiplier: dto.initial_interval_multiplier,
             initial_interval_days: dto.initial_interval_days,
             min_interval_days: dto.min_interval_days,
+            maximum_interval_days: dto.maximum_interval_days,
             priority_inheritance_policy: dto.priority_inheritance_policy,
         }
     }

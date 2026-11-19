@@ -23,6 +23,7 @@ export interface StudyProfileDto {
 	fsrsParams: number[];
 	learningSteps: string[];
 	relearningSteps: string[];
+	maximumIntervalDays: number;
 	initialIntervalMultiplier: number;
 	initialIntervalDays: number;
 	minIntervalDays: number;
@@ -35,6 +36,7 @@ export interface StudyProfileRequestDto {
 	fsrsParams: number[];
 	learningSteps: string[];
 	relearningSteps: string[];
+	maximumIntervalDays: number;
 	initialIntervalMultiplier: number;
 	initialIntervalDays: number;
 	minIntervalDays: number;

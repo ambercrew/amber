@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::value_objects::element_id::ElementId;
-use crate::study::entities::study_profile::StudyProfile;
+use crate::study::entities::study_profile::{MAX_MAXIMUM_INTERVAL_DAYS, StudyProfile};
 use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
 use crate::study::value_objects::step_unit::StepUnit;
 
@@ -25,6 +25,7 @@ pub struct StudyProfileFields {
     pub initial_interval_multiplier: f32,
     pub initial_interval_days: f32,
     pub min_interval_days: f32,
+    pub maximum_interval_days: u32,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
@@ -70,4 +71,7 @@ pub enum StudyProfileServiceError {
 
     #[error("expected {FSRS_PARAM_COUNT} FSRS parameters, got {actual}")]
     InvalidFsrsParamCount { actual: usize },
+
+    #[error("expected a maximum interval from 1 to {MAX_MAXIMUM_INTERVAL_DAYS} days, got {actual}")]
+    InvalidMaximumInterval { actual: u32 },
 }

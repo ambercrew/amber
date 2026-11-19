@@ -10,7 +10,11 @@ import {
 import { UseFormReturnType } from "@mantine/form";
 import { MagicWandIcon } from "@phosphor-icons/react";
 import FieldLabel from "../../../../components/FieldLabel/FieldLabel";
-import { ProfileFormValues } from "./profileFormValues";
+import {
+	DEFAULT_MAXIMUM_INTERVAL_DAYS,
+	MAX_MAXIMUM_INTERVAL_DAYS,
+	ProfileFormValues,
+} from "./profileFormValues";
 import { FsrsOptimization } from "./useFsrsOptimization";
 
 interface CardsTabProps {
@@ -94,6 +98,20 @@ function CardsTab({ form, optimization }: CardsTabProps) {
 				}
 				placeholder="None"
 				{...form.getInputProps("relearningSteps")}
+			/>
+			<NumberInput
+				label={
+					<FieldLabel
+						label="Maximum interval (days)"
+						tooltip={`The longest a card can go between reviews, however well you know it. The default, ${DEFAULT_MAXIMUM_INTERVAL_DAYS} days (100 years), leaves it to FSRS.`}
+					/>
+				}
+				min={1}
+				max={MAX_MAXIMUM_INTERVAL_DAYS}
+				step={1}
+				allowDecimal={false}
+				allowNegative={false}
+				{...form.getInputProps("maximumIntervalDays")}
 			/>
 		</Stack>
 	);

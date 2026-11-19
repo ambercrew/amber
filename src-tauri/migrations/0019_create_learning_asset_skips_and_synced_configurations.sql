@@ -15,3 +15,16 @@ CREATE TABLE synced_configurations(
 INSERT INTO synced_configurations(name, value)
 SELECT name, value FROM local_configurations WHERE name = 'FUZZ_FACTOR';
 DELETE FROM local_configurations WHERE name = 'FUZZ_FACTOR';
+
+-- The default mirrors DEFAULT_MAXIMUM_INTERVAL_DAYS in study_profile.rs.
+ALTER TABLE study_profiles ADD COLUMN maximum_interval_days INTEGER NOT NULL DEFAULT 36500;
+
+DROP TRIGGER study_profiles_update_modified_at_after_update;
+
+CREATE TRIGGER study_profiles_update_modified_at_after_update
+    AFTER UPDATE OF name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, maximum_interval_days, initial_interval_multiplier, initial_interval_days, min_interval_days, priority_inheritance_placement, priority_inheritance_percentile, priority_inheritance_ceiling_percentile ON study_profiles
+BEGIN
+    UPDATE study_profiles
+    SET modified_at = datetime('now')
+    WHERE id = NEW.id;
+END;

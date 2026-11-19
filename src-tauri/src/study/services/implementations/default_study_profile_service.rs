@@ -9,7 +9,7 @@ use crate::common::event_manager::EventManager;
 use crate::common::repository_error::RepositoryError;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
-use crate::study::entities::study_profile::StudyProfile;
+use crate::study::entities::study_profile::{MAX_MAXIMUM_INTERVAL_DAYS, StudyProfile};
 use crate::study::events::study_profiles_changed_event::STUDY_PROFILES_CHANGED_EVENT;
 use crate::study::repositories::study_profile_repository::StudyProfileRepository;
 use crate::study::services::study_profile_service::{
@@ -33,6 +33,7 @@ impl StudyProfileService for DefaultStudyProfileService {
         &self,
         fields: StudyProfileFields,
     ) -> Result<StudyProfile, StudyProfileServiceError> {
+        validate_maximum_interval(fields.maximum_interval_days)?;
         let fsrs_params = validate_fsrs_params(fields.fsrs_params)?
             .unwrap_or_else(|| fsrs::DEFAULT_PARAMETERS.to_vec());
         let now = Utc::now();
@@ -49,6 +50,7 @@ impl StudyProfileService for DefaultStudyProfileService {
             initial_interval_multiplier: fields.initial_interval_multiplier,
             initial_interval_days: fields.initial_interval_days,
             min_interval_days: fields.min_interval_days,
+            maximum_interval_days: fields.maximum_interval_days,
             priority_inheritance_policy: fields.priority_inheritance_policy,
         };
         self.study_profile_repository.create(&profile).await?;
@@ -61,6 +63,7 @@ impl StudyProfileService for DefaultStudyProfileService {
         id: Uuid,
         fields: StudyProfileFields,
     ) -> Result<StudyProfile, StudyProfileServiceError> {
+        validate_maximum_interval(fields.maximum_interval_days)?;
         let existing = self.study_profile_repository.get_by_id(id).await?;
         let fsrs_params =
             validate_fsrs_params(fields.fsrs_params)?.or_else(|| existing.fsrs_params.clone());
@@ -73,6 +76,7 @@ impl StudyProfileService for DefaultStudyProfileService {
             initial_interval_multiplier: fields.initial_interval_multiplier,
             initial_interval_days: fields.initial_interval_days,
             min_interval_days: fields.min_interval_days,
+            maximum_interval_days: fields.maximum_interval_days,
             priority_inheritance_policy: fields.priority_inheritance_policy,
             ..existing
         };
@@ -159,6 +163,14 @@ fn validate_fsrs_params(
     }
 }
 
+fn validate_maximum_interval(days: u32) -> Result<(), StudyProfileServiceError> {
+    if (1..=MAX_MAXIMUM_INTERVAL_DAYS).contains(&days) {
+        Ok(())
+    } else {
+        Err(StudyProfileServiceError::InvalidMaximumInterval { actual: days })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::elements::value_objects::name_source::NameSource;
@@ -177,6 +189,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::study::entities::study_profile::DEFAULT_MAXIMUM_INTERVAL_DAYS;
 
     fn permissive_event_manager() -> Arc<dyn EventManager> {
         let mut mock = MockEventManager::new();
@@ -211,6 +224,7 @@ mod tests {
             initial_interval_multiplier: 1.2,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
+            maximum_interval_days: DEFAULT_MAXIMUM_INTERVAL_DAYS,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }
@@ -295,6 +309,51 @@ mod tests {
         assert!(matches!(
             result,
             Err(StudyProfileServiceError::InvalidFsrsParamCount { actual: 3 })
+        ));
+    }
+
+    #[tokio::test]
+    async fn create_profile_zero_maximum_interval_returns_error() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn StudyProfileService>().await;
+        let mut fields = make_fields("Custom");
+        fields.maximum_interval_days = 0;
+
+        // Act
+
+        let result = service.create_profile(fields).await;
+
+        // Assert
+
+        assert!(matches!(
+            result,
+            Err(StudyProfileServiceError::InvalidMaximumInterval { actual: 0 })
+        ));
+    }
+
+    #[tokio::test]
+    async fn update_profile_maximum_interval_above_limit_returns_error() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn StudyProfileService>().await;
+        let profile = service.create_profile(make_fields("Custom")).await.unwrap();
+        let mut fields = make_fields("Custom");
+        fields.maximum_interval_days = MAX_MAXIMUM_INTERVAL_DAYS + 1;
+
+        // Act
+
+        let result = service.update_profile(profile.id, fields).await;
+
+        // Assert
+
+        assert!(matches!(
+            result,
+            Err(StudyProfileServiceError::InvalidMaximumInterval { .. })
         ));
     }
 

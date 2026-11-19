@@ -246,6 +246,8 @@ mod tests {
             initial_interval_multiplier: 1.2,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
+            maximum_interval_days:
+                crate::study::entities::study_profile::DEFAULT_MAXIMUM_INTERVAL_DAYS,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }

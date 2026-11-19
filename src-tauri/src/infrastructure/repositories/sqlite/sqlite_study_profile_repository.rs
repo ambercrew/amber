@@ -40,8 +40,8 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
 
         sqlx::query!(
             r#"INSERT INTO study_profiles
-                (id, created_at, modified_at, name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, initial_interval_multiplier, initial_interval_days, min_interval_days, priority_inheritance_placement, priority_inheritance_percentile, priority_inheritance_ceiling_percentile)
-            VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)"#,
+                (id, created_at, modified_at, name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, maximum_interval_days, initial_interval_multiplier, initial_interval_days, min_interval_days, priority_inheritance_placement, priority_inheritance_percentile, priority_inheritance_ceiling_percentile)
+            VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)"#,
             profile.id.hyphenated(),
             profile.created_at,
             profile.modified_at,
@@ -51,6 +51,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             fsrs_params,
             learning_steps,
             relearning_steps,
+            profile.maximum_interval_days,
             profile.initial_interval_multiplier,
             profile.initial_interval_days,
             profile.min_interval_days,
@@ -93,19 +94,21 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 fsrs_params = $4,
                 learning_steps = $5,
                 relearning_steps = $6,
-                initial_interval_multiplier = $7,
-                initial_interval_days = $8,
-                min_interval_days = $9,
-                priority_inheritance_placement = $10,
-                priority_inheritance_percentile = $11,
-                priority_inheritance_ceiling_percentile = $12
-            WHERE id = $13"#,
+                maximum_interval_days = $7,
+                initial_interval_multiplier = $8,
+                initial_interval_days = $9,
+                min_interval_days = $10,
+                priority_inheritance_placement = $11,
+                priority_inheritance_percentile = $12,
+                priority_inheritance_ceiling_percentile = $13
+            WHERE id = $14"#,
             profile.name,
             profile.is_default,
             profile.desired_retention,
             fsrs_params,
             learning_steps,
             relearning_steps,
+            profile.maximum_interval_days,
             profile.initial_interval_multiplier,
             profile.initial_interval_days,
             profile.min_interval_days,
@@ -148,6 +151,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 fsrs_params,
                 learning_steps,
                 relearning_steps,
+                maximum_interval_days,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days,
@@ -180,6 +184,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 fsrs_params,
                 learning_steps,
                 relearning_steps,
+                maximum_interval_days,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days,
@@ -220,6 +225,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 fsrs_params,
                 learning_steps,
                 relearning_steps,
+                maximum_interval_days,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days,
@@ -279,6 +285,7 @@ mod tests {
             initial_interval_multiplier: 1.2,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
+            maximum_interval_days: 365,
             priority_inheritance_policy: PriorityInheritancePolicy {
                 placement: Placement::OffsetFromParent {
                     offset_percentile: 15.0,
@@ -308,6 +315,7 @@ mod tests {
         assert_eq!(profile.fsrs_params, actual.fsrs_params);
         assert_eq!(profile.learning_steps, actual.learning_steps);
         assert_eq!(profile.relearning_steps, actual.relearning_steps);
+        assert_eq!(profile.maximum_interval_days, actual.maximum_interval_days);
         assert_eq!(
             profile.priority_inheritance_policy,
             actual.priority_inheritance_policy

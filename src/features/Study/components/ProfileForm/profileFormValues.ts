@@ -17,6 +17,10 @@ const DEFAULT_FSRS_PARAMS = [
 const DEFAULT_LEARNING_STEPS = ["1m", "10m"];
 const DEFAULT_RELEARNING_STEPS = ["10m"];
 
+// Mirror DEFAULT_MAXIMUM_INTERVAL_DAYS and MAX_MAXIMUM_INTERVAL_DAYS in study_profile.rs (src-tauri).
+export const DEFAULT_MAXIMUM_INTERVAL_DAYS = 36500;
+export const MAX_MAXIMUM_INTERVAL_DAYS = 36500;
+
 export const FSRS_PARAM_COUNT = 21;
 
 export interface ProfileFormValues extends Omit<
@@ -112,6 +116,14 @@ export function isValidSteps(raw: string): boolean {
 	return parseSteps(raw).every(step => STEP_UNIT_PATTERN.test(step));
 }
 
+export function isValidMaximumInterval(value: number): boolean {
+	return (
+		Number.isInteger(value) &&
+		value >= 1 &&
+		value <= MAX_MAXIMUM_INTERVAL_DAYS
+	);
+}
+
 export function initialValues(
 	profile: StudyProfileDto | null,
 ): ProfileFormValues {
@@ -125,6 +137,8 @@ export function initialValues(
 		relearningSteps: (
 			profile?.relearningSteps ?? DEFAULT_RELEARNING_STEPS
 		).join(" "),
+		maximumIntervalDays:
+			profile?.maximumIntervalDays ?? DEFAULT_MAXIMUM_INTERVAL_DAYS,
 		initialIntervalMultiplier: profile?.initialIntervalMultiplier ?? 1.2,
 		initialIntervalDays: profile?.initialIntervalDays ?? 1,
 		minIntervalDays: profile?.minIntervalDays ?? 1,
