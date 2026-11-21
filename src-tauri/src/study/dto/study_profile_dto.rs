@@ -30,6 +30,7 @@ pub struct StudyProfileResponseDto {
     pub new_cards_per_day: u32,
     pub leech_threshold: u32,
     pub leech_action: LeechAction,
+    pub card_initial_interval_days: f32,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
@@ -74,6 +75,7 @@ impl From<StudyProfile> for StudyProfileResponseDto {
             new_cards_per_day: profile.new_cards_per_day,
             leech_threshold: profile.leech_threshold,
             leech_action: profile.leech_action,
+            card_initial_interval_days: profile.card_initial_interval_days,
             priority_inheritance_policy: profile.priority_inheritance_policy,
         }
     }
@@ -96,6 +98,7 @@ pub struct StudyProfileRequestDto {
     pub new_cards_per_day: u32,
     pub leech_threshold: u32,
     pub leech_action: LeechAction,
+    pub card_initial_interval_days: f32,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
@@ -114,6 +117,7 @@ impl From<StudyProfileRequestDto> for StudyProfileFields {
             new_cards_per_day: dto.new_cards_per_day,
             leech_threshold: dto.leech_threshold,
             leech_action: dto.leech_action,
+            card_initial_interval_days: dto.card_initial_interval_days,
             priority_inheritance_policy: dto.priority_inheritance_policy,
         }
     }

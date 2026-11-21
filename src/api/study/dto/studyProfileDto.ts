@@ -30,6 +30,7 @@ export interface StudyProfileDto {
 	newCardsPerDay: number;
 	leechThreshold: number;
 	leechAction: LeechAction;
+	cardInitialIntervalDays: number;
 	initialIntervalMultiplier: number;
 	initialIntervalDays: number;
 	minIntervalDays: number;
@@ -46,6 +47,7 @@ export interface StudyProfileRequestDto {
 	newCardsPerDay: number;
 	leechThreshold: number;
 	leechAction: LeechAction;
+	cardInitialIntervalDays: number;
 	initialIntervalMultiplier: number;
 	initialIntervalDays: number;
 	minIntervalDays: number;

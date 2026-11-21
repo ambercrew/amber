@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
-import { Box, Group, Stack, Text } from "@mantine/core";
+import { Box, Flex, Stack, Text } from "@mantine/core";
+import { useIsSmallScreen } from "../../../hooks/useIsSmallScreen";
 
 const LABEL_WIDTH = 96;
 
@@ -10,15 +11,20 @@ interface ImportFieldProps {
 	children: ReactNode;
 }
 
-/** One row of the import modal's form, labelled on its left. */
+/** One row of the import modal's form, labelled on its left, or above it on a small screen. */
 function ImportField({ label, description, children }: ImportFieldProps) {
+	// Switches with the modal's full-screen layout, so the two never mix.
+	const isSmallScreen = useIsSmallScreen();
 	return (
-		<Group align="flex-start" wrap="nowrap" gap="md">
+		<Flex
+			direction={isSmallScreen ? "column" : "row"}
+			align={isSmallScreen ? "stretch" : "flex-start"}
+			gap={isSmallScreen ? 4 : "md"}>
 			<Text
 				size="sm"
 				fw={500}
-				w={LABEL_WIDTH}
-				pt={7}
+				w={isSmallScreen ? "auto" : LABEL_WIDTH}
+				pt={isSmallScreen ? 0 : 7}
 				style={{ flexShrink: 0 }}>
 				{label}
 			</Text>
@@ -30,7 +36,7 @@ function ImportField({ label, description, children }: ImportFieldProps) {
 					</Text>
 				)}
 			</Stack>
-		</Group>
+		</Flex>
 	);
 }
 

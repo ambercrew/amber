@@ -32,6 +32,7 @@ pub struct StudyProfileFields {
     pub new_cards_per_day: u32,
     pub leech_threshold: u32,
     pub leech_action: LeechAction,
+    pub card_initial_interval_days: f32,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
@@ -84,6 +85,11 @@ pub enum StudyProfileServiceError {
 
     #[error("expected a maximum interval from 1 to {MAX_MAXIMUM_INTERVAL_DAYS} days, got {actual}")]
     InvalidMaximumInterval { actual: u32 },
+
+    #[error(
+        "expected an initial interval from 0 to {MAX_MAXIMUM_INTERVAL_DAYS} days, got {actual}"
+    )]
+    InvalidInitialInterval { actual: f32 },
 
     #[error("expected at most {MAX_NEW_CARDS_PER_DAY} new cards per day, got {actual}")]
     InvalidNewCardsPerDay { actual: u32 },

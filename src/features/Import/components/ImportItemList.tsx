@@ -38,6 +38,7 @@ import { markdownFormat } from "../markdown/format";
 import { htmlFormat } from "../html/format";
 import { textFormat } from "../text/format";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import { useIsSmallScreen } from "../../../hooks/useIsSmallScreen";
 
 const BORDER = "1px solid var(--mantine-color-default-border)";
 const ICON_SIZE = 18;
@@ -94,11 +95,26 @@ function ImportItemList({
 	onBrowse,
 	addInput,
 }: ImportItemListProps) {
+	// A small screen puts a PDF's mode under its name, which would otherwise be squeezed to a few letters.
+	const isSmallScreen = useIsSmallScreen();
 	return (
 		<Box bd={BORDER} style={{ borderRadius: "var(--mantine-radius-sm)" }}>
 			{items.map(item => {
 				const { title, subtitle } = describeItem(item);
 				const itemError = error?.key === item.key ? error : null;
+				const pdfMode = item.kind === "file" && isPdfItem(item) && (
+					<SegmentedControl
+						size="xs"
+						data={PDF_MODES}
+						value={item.extractPdf ? "extract" : "pdf"}
+						aria-label={`How to import ${item.file.name}`}
+						onChange={mode =>
+							onExtractPdfChange(item.key, mode === "extract")
+						}
+						style={{ flexShrink: 0, alignSelf: "flex-start" }}
+						mt={isSmallScreen ? 4 : 0}
+					/>
+				);
 				return (
 					<Group
 						key={item.key}
@@ -139,22 +155,9 @@ function ImportItemList({
 									{subtitle}
 								</Text>
 							)}
+							{isSmallScreen && pdfMode}
 						</Stack>
-						{item.kind === "file" && isPdfItem(item) && (
-							<SegmentedControl
-								size="xs"
-								data={PDF_MODES}
-								value={item.extractPdf ? "extract" : "pdf"}
-								aria-label={`How to import ${item.file.name}`}
-								onChange={mode =>
-									onExtractPdfChange(
-										item.key,
-										mode === "extract",
-									)
-								}
-								style={{ flexShrink: 0 }}
-							/>
-						)}
+						{!isSmallScreen && pdfMode}
 						<CloseButton
 							size="sm"
 							aria-label={`Remove ${title}`}

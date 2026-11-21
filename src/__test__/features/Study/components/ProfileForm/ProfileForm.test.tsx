@@ -40,6 +40,7 @@ function makeProfile(
 		newCardsPerDay: 20,
 		leechThreshold: 8,
 		leechAction: "tagOnly",
+		cardInitialIntervalDays: 1,
 		priorityInheritancePolicy: {
 			placement: { type: "aboveParent" },
 			ceilingPercentile: null,
@@ -389,6 +390,72 @@ describe("ProfileForm", () => {
 				}),
 			);
 		});
+	});
+
+	it("Should submit the card initial interval apart from the learning assets' one when it is edited on the Cards tab", async () => {
+		// Arrange
+
+		const profile = makeProfile();
+		vi.mocked(updateStudyProfile).mockResolvedValue(profile);
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+
+		// Act
+
+		const input = screen.getByRole("textbox", {
+			name: "Initial interval (days)",
+		});
+		await user.clear(input);
+		await user.type(input, "4");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// Assert
+
+		await waitFor(() => {
+			expect(updateStudyProfile).toHaveBeenCalledWith(
+				profile.id,
+				expect.objectContaining({
+					cardInitialIntervalDays: 4,
+					initialIntervalDays: profile.initialIntervalDays,
+				}),
+			);
+		});
+	});
+
+	it("Should show a validation error and not submit when the card initial interval is cleared", async () => {
+		// Arrange
+
+		const profile = makeProfile();
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+
+		// Act
+
+		await user.clear(
+			screen.getByRole("textbox", { name: "Initial interval (days)" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// Assert
+
+		expect(
+			await screen.findByText("Enter a number of days from 0 to 36500"),
+		).toBeInTheDocument();
+		expect(updateStudyProfile).not.toHaveBeenCalled();
 	});
 
 	it("Should not render a percentile input when the policy takes no percentile", async () => {

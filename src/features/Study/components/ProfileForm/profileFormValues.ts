@@ -22,6 +22,9 @@ const DEFAULT_RELEARNING_STEPS = ["10m"];
 export const DEFAULT_MAXIMUM_INTERVAL_DAYS = 36500;
 export const MAX_MAXIMUM_INTERVAL_DAYS = 36500;
 
+// Mirrors DEFAULT_INITIAL_INTERVAL_DAYS (src-tauri), which cards, learning assets and extracts share.
+const DEFAULT_INITIAL_INTERVAL_DAYS = 1;
+
 // Mirror the DEFAULT_ and MAX_ new-card and leech constants in study_profile.rs (src-tauri).
 export const DEFAULT_NEW_CARDS_PER_DAY = 20;
 export const MAX_NEW_CARDS_PER_DAY = 9999;
@@ -132,6 +135,16 @@ export function isValidMaximumInterval(value: number): boolean {
 	);
 }
 
+/** A first due date from 0 to the longest interval; a cleared input gives "". */
+export function isValidInitialInterval(value: number | string): boolean {
+	return (
+		typeof value === "number" &&
+		Number.isFinite(value) &&
+		value >= 0 &&
+		value <= MAX_MAXIMUM_INTERVAL_DAYS
+	);
+}
+
 /** A whole number from 0 to `max`. */
 export function isValidCount(value: number, max: number): boolean {
 	return Number.isInteger(value) && value >= 0 && value <= max;
@@ -159,8 +172,11 @@ export function initialValues(
 		newCardsPerDay: profile?.newCardsPerDay ?? DEFAULT_NEW_CARDS_PER_DAY,
 		leechThreshold: profile?.leechThreshold ?? DEFAULT_LEECH_THRESHOLD,
 		leechAction: profile?.leechAction ?? "tagOnly",
+		cardInitialIntervalDays:
+			profile?.cardInitialIntervalDays ?? DEFAULT_INITIAL_INTERVAL_DAYS,
 		initialIntervalMultiplier: profile?.initialIntervalMultiplier ?? 1.2,
-		initialIntervalDays: profile?.initialIntervalDays ?? 1,
+		initialIntervalDays:
+			profile?.initialIntervalDays ?? DEFAULT_INITIAL_INTERVAL_DAYS,
 		minIntervalDays: profile?.minIntervalDays ?? 1,
 		placementType:
 			profile?.priorityInheritancePolicy.placement.type ?? "aboveParent",

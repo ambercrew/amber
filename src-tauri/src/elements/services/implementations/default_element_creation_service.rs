@@ -644,6 +644,15 @@ mod tests {
         scope: &injector::injector_scope::InjectorScope<'_>,
         initial_interval_days: f32,
     ) -> Uuid {
+        create_test_profile_with_intervals(scope, initial_interval_days, initial_interval_days)
+            .await
+    }
+
+    async fn create_test_profile_with_intervals(
+        scope: &injector::injector_scope::InjectorScope<'_>,
+        initial_interval_days: f32,
+        card_initial_interval_days: f32,
+    ) -> Uuid {
         let profile_repo = scope.resolve::<dyn StudyProfileRepository>().await;
         let profile = StudyProfile {
             id: Uuid::new_v4(),
@@ -663,6 +672,7 @@ mod tests {
             new_cards_per_day: crate::study::entities::study_profile::DEFAULT_NEW_CARDS_PER_DAY,
             leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
             leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
+            card_initial_interval_days,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         };
         profile_repo.create(&profile).await.unwrap();
@@ -692,6 +702,7 @@ mod tests {
             new_cards_per_day: crate::study::entities::study_profile::DEFAULT_NEW_CARDS_PER_DAY,
             leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
             leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
+            card_initial_interval_days: 1.0,
             priority_inheritance_policy,
         };
         profile_repo.create(&profile).await.unwrap();
@@ -813,12 +824,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_card_creates_review_due_today_plus_initial_interval() {
+    async fn create_card_creates_review_due_today_plus_card_initial_interval() {
         // Arrange
 
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
-        create_test_profile(&scope, 2.0).await;
+        create_test_profile_with_intervals(&scope, 5.0, 2.0).await;
         let service = create_service(&scope).await;
         let dto = CreateCardDto {
             id: Uuid::new_v4(),
@@ -962,6 +973,7 @@ mod tests {
             new_cards_per_day: crate::study::entities::study_profile::DEFAULT_NEW_CARDS_PER_DAY,
             leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
             leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
+            card_initial_interval_days: 1.0,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         };
         profile_repo.create(&profile).await.unwrap();

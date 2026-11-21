@@ -42,6 +42,9 @@ pub struct StudyProfile {
     /// Lapses at which a card becomes a leech, flagged again every half of it after; 0 turns it off.
     pub leech_threshold: u32,
     pub leech_action: LeechAction,
+    /// Days added to "today" to compute a new card's first due date, as `initial_interval_days` does
+    /// for learning assets and extracts.
+    pub card_initial_interval_days: f32,
     // Incremental reading (learning_assets/extracts)
     pub initial_interval_multiplier: f32,
     /// Days added to "today" to compute the due date the first time an element is

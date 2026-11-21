@@ -123,6 +123,7 @@ mod tests {
             new_cards_per_day: crate::study::entities::study_profile::DEFAULT_NEW_CARDS_PER_DAY,
             leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
             leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
+            card_initial_interval_days: 1.0,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }

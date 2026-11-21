@@ -57,6 +57,7 @@ impl StudyProfileService for DefaultStudyProfileService {
             new_cards_per_day: fields.new_cards_per_day,
             leech_threshold: fields.leech_threshold,
             leech_action: fields.leech_action,
+            card_initial_interval_days: fields.card_initial_interval_days,
             priority_inheritance_policy: fields.priority_inheritance_policy,
         };
         self.study_profile_repository.create(&profile).await?;
@@ -86,6 +87,7 @@ impl StudyProfileService for DefaultStudyProfileService {
             new_cards_per_day: fields.new_cards_per_day,
             leech_threshold: fields.leech_threshold,
             leech_action: fields.leech_action,
+            card_initial_interval_days: fields.card_initial_interval_days,
             priority_inheritance_policy: fields.priority_inheritance_policy,
             ..existing
         };
@@ -199,6 +201,16 @@ fn validate_limits(fields: &StudyProfileFields) -> Result<(), StudyProfileServic
             actual: fields.maximum_interval_days,
         });
     }
+    // Bounded so adding it to today can't overflow chrono's date range.
+    let interval_range = 0.0..=MAX_MAXIMUM_INTERVAL_DAYS as f32;
+    for days in [
+        fields.initial_interval_days,
+        fields.card_initial_interval_days,
+    ] {
+        if !interval_range.contains(&days) {
+            return Err(StudyProfileServiceError::InvalidInitialInterval { actual: days });
+        }
+    }
     if fields.new_cards_per_day > MAX_NEW_CARDS_PER_DAY {
         return Err(StudyProfileServiceError::InvalidNewCardsPerDay {
             actual: fields.new_cards_per_day,
@@ -270,6 +282,7 @@ mod tests {
             new_cards_per_day: crate::study::entities::study_profile::DEFAULT_NEW_CARDS_PER_DAY,
             leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
             leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
+            card_initial_interval_days: 1.0,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }
@@ -516,6 +529,51 @@ mod tests {
         assert!(matches!(
             result,
             Err(StudyProfileServiceError::InvalidMaximumInterval { .. })
+        ));
+    }
+
+    #[tokio::test]
+    async fn create_profile_card_initial_interval_above_limit_returns_error() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn StudyProfileService>().await;
+        let mut fields = make_fields("Custom");
+        fields.card_initial_interval_days = 1e8;
+
+        // Act
+
+        let result = service.create_profile(fields).await;
+
+        // Assert
+
+        assert!(matches!(
+            result,
+            Err(StudyProfileServiceError::InvalidInitialInterval { .. })
+        ));
+    }
+
+    #[tokio::test]
+    async fn update_profile_negative_initial_interval_returns_error() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn StudyProfileService>().await;
+        let profile = service.create_profile(make_fields("Custom")).await.unwrap();
+        let mut fields = make_fields("Custom");
+        fields.initial_interval_days = -1.0;
+
+        // Act
+
+        let result = service.update_profile(profile.id, fields).await;
+
+        // Assert
+
+        assert!(matches!(
+            result,
+            Err(StudyProfileServiceError::InvalidInitialInterval { .. })
         ));
     }
 

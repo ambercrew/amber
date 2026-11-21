@@ -8,7 +8,6 @@ import {
 import { useNavigate } from "react-router";
 import {
 	Button,
-	Group,
 	Loader,
 	Progress,
 	Stack,
@@ -48,9 +47,25 @@ import ImportItemList from "./ImportItemList";
 import ImportFilePicker from "./ImportFilePicker";
 import ImportField from "./ImportField";
 import { useImportPriority } from "../hooks/useImportPriority";
+import ModalActions from "../../../components/AppModal/ModalActions";
 
-// Dropzone turns off pointer events on its contents, so the form turns them back on.
-const CLICKABLE_STYLE = { pointerEvents: "all" as const };
+// Dropzone turns off pointer events on its contents, so the form turns them back on. It and the
+// Dropzone fill the body, so a full-screen modal's buttons reach its bottom.
+const FORM_STYLE = {
+	pointerEvents: "all" as const,
+	flex: 1,
+	display: "flex",
+	flexDirection: "column" as const,
+};
+const DROPZONE_STYLES = {
+	root: {
+		border: "none",
+		flex: 1,
+		display: "flex",
+		flexDirection: "column" as const,
+	},
+	inner: { flex: 1, display: "flex", flexDirection: "column" as const },
+};
 
 const PARENT_TYPES: ElementNodeType[] = ["folder", "learningAsset", "extract"];
 
@@ -273,6 +288,7 @@ function ImportModal() {
 			onClose={handleClose}
 			title="Import"
 			size="lg"
+			fullScreenOnSmallScreen
 			withCloseButton={!isImporting}
 			closeOnClickOutside={!isImporting}
 			closeOnEscape={!isImporting}>
@@ -292,7 +308,7 @@ function ImportModal() {
 					})
 				}
 				p={0}
-				style={{ border: "none" }}>
+				styles={DROPZONE_STYLES}>
 				{phase.kind === "importing" ? (
 					<Stack align="center" gap="sm" py="md">
 						<Loader size="sm" />
@@ -314,8 +330,8 @@ function ImportModal() {
 						)}
 					</Stack>
 				) : (
-					<form onSubmit={handleSubmit} style={CLICKABLE_STYLE}>
-						<Stack gap="md">
+					<form onSubmit={handleSubmit} style={FORM_STYLE}>
+						<Stack gap="md" flex={1}>
 							{items.length > 0 ? (
 								<ImportItemList
 									items={items}
@@ -385,7 +401,7 @@ function ImportModal() {
 								count={count}
 								onPositionChange={priority.handlePositionChange}
 							/>
-							<Group justify="flex-end" gap="sm">
+							<ModalActions>
 								<Button variant="default" onClick={handleClose}>
 									Cancel
 								</Button>
@@ -394,7 +410,7 @@ function ImportModal() {
 										? `Import ${itemsLabel(count)}`
 										: "Import"}
 								</Button>
-							</Group>
+							</ModalActions>
 						</Stack>
 					</form>
 				)}

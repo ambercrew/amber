@@ -41,8 +41,8 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
 
         sqlx::query!(
             r#"INSERT INTO study_profiles
-                (id, created_at, modified_at, name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, maximum_interval_days, new_cards_per_day, leech_threshold, leech_action, initial_interval_multiplier, initial_interval_days, min_interval_days, priority_inheritance_placement, priority_inheritance_percentile, priority_inheritance_ceiling_percentile)
-            VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)"#,
+                (id, created_at, modified_at, name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, maximum_interval_days, new_cards_per_day, leech_threshold, leech_action, card_initial_interval_days, initial_interval_multiplier, initial_interval_days, min_interval_days, priority_inheritance_placement, priority_inheritance_percentile, priority_inheritance_ceiling_percentile)
+            VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)"#,
             profile.id.hyphenated(),
             profile.created_at,
             profile.modified_at,
@@ -56,6 +56,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             profile.new_cards_per_day,
             profile.leech_threshold,
             leech_action,
+            profile.card_initial_interval_days,
             profile.initial_interval_multiplier,
             profile.initial_interval_days,
             profile.min_interval_days,
@@ -103,13 +104,14 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 new_cards_per_day = $8,
                 leech_threshold = $9,
                 leech_action = $10,
-                initial_interval_multiplier = $11,
-                initial_interval_days = $12,
-                min_interval_days = $13,
-                priority_inheritance_placement = $14,
-                priority_inheritance_percentile = $15,
-                priority_inheritance_ceiling_percentile = $16
-            WHERE id = $17"#,
+                card_initial_interval_days = $11,
+                initial_interval_multiplier = $12,
+                initial_interval_days = $13,
+                min_interval_days = $14,
+                priority_inheritance_placement = $15,
+                priority_inheritance_percentile = $16,
+                priority_inheritance_ceiling_percentile = $17
+            WHERE id = $18"#,
             profile.name,
             profile.is_default,
             profile.desired_retention,
@@ -120,6 +122,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             profile.new_cards_per_day,
             profile.leech_threshold,
             leech_action,
+            profile.card_initial_interval_days,
             profile.initial_interval_multiplier,
             profile.initial_interval_days,
             profile.min_interval_days,
@@ -166,6 +169,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 new_cards_per_day,
                 leech_threshold,
                 leech_action,
+                card_initial_interval_days,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days,
@@ -202,6 +206,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 new_cards_per_day,
                 leech_threshold,
                 leech_action,
+                card_initial_interval_days,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days,
@@ -246,6 +251,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 new_cards_per_day,
                 leech_threshold,
                 leech_action,
+                card_initial_interval_days,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days,
@@ -309,6 +315,7 @@ mod tests {
             new_cards_per_day: 5,
             leech_threshold: 4,
             leech_action: crate::study::value_objects::leech_action::LeechAction::Suspend,
+            card_initial_interval_days: 2.5,
             priority_inheritance_policy: PriorityInheritancePolicy {
                 placement: Placement::OffsetFromParent {
                     offset_percentile: 15.0,
@@ -342,6 +349,10 @@ mod tests {
         assert_eq!(profile.new_cards_per_day, actual.new_cards_per_day);
         assert_eq!(profile.leech_threshold, actual.leech_threshold);
         assert_eq!(profile.leech_action, actual.leech_action);
+        assert_eq!(
+            profile.card_initial_interval_days,
+            actual.card_initial_interval_days
+        );
         assert_eq!(
             profile.priority_inheritance_policy,
             actual.priority_inheritance_policy

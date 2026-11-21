@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Button, Divider, Group, Stack, Tabs, Text } from "@mantine/core";
+import { Button, Divider, Stack, Tabs, Text } from "@mantine/core";
+import ModalActions from "../../../../components/AppModal/ModalActions";
 import { useForm } from "@mantine/form";
 import { modals } from "@mantine/modals";
 import {
@@ -26,6 +27,7 @@ import {
 	initialValues,
 	isValidFsrsParams,
 	isValidCount,
+	isValidInitialInterval,
 	isValidMaximumInterval,
 	MAX_LEECH_THRESHOLD,
 	MAX_MAXIMUM_INTERVAL_DAYS,
@@ -74,6 +76,7 @@ const FIELD_TABS: Partial<Record<keyof ProfileFormValues, TabValue>> = {
 	relearningSteps: "cards",
 	maximumIntervalDays: "cards",
 	newCardsPerDay: "cards",
+	cardInitialIntervalDays: "cards",
 	leechThreshold: "cards",
 	placementPercentile: "queue",
 	ceilingPercentile: "queue",
@@ -112,6 +115,14 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 				isValidMaximumInterval(value)
 					? null
 					: `Enter a whole number of days from 1 to ${MAX_MAXIMUM_INTERVAL_DAYS}`,
+			initialIntervalDays: value =>
+				isValidInitialInterval(value)
+					? null
+					: `Enter a number of days from 0 to ${MAX_MAXIMUM_INTERVAL_DAYS}`,
+			cardInitialIntervalDays: value =>
+				isValidInitialInterval(value)
+					? null
+					: `Enter a number of days from 0 to ${MAX_MAXIMUM_INTERVAL_DAYS}`,
 			newCardsPerDay: value =>
 				isValidCount(value, MAX_NEW_CARDS_PER_DAY)
 					? null
@@ -255,45 +266,49 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 
 				<Divider />
 
-				<Group justify="space-between">
-					<Group gap={4}>
-						{profile && (
-							<Button
-								type="button"
-								variant="default"
-								size="sm"
-								onClick={() => void handleClone()}>
-								Clone
-							</Button>
-						)}
-						{profile && !profile.isDefault && (
-							<AppTooltip
-								label="Makes this the default profile. Default status can only be moved to another profile, never simply turned off."
-								multiline>
+				<ModalActions
+					start={
+						profile && (
+							<>
 								<Button
 									type="button"
 									variant="default"
 									size="sm"
-									onClick={() => void handleSetDefault()}>
-									Make default
+									onClick={() => void handleClone()}>
+									Clone
 								</Button>
-							</AppTooltip>
-						)}
-						{profile && !profile.isDefault && (
-							<Button
-								type="button"
-								variant="subtle"
-								color="red"
-								size="sm"
-								onClick={handleDelete}>
-								Delete
-							</Button>
-						)}
-					</Group>
+								{!profile.isDefault && (
+									<AppTooltip
+										label="Makes this the default profile. Default status can only be moved to another profile, never simply turned off."
+										multiline>
+										<Button
+											type="button"
+											variant="default"
+											size="sm"
+											onClick={() =>
+												void handleSetDefault()
+											}>
+											Make default
+										</Button>
+									</AppTooltip>
+								)}
+								{!profile.isDefault && (
+									<Button
+										type="button"
+										variant="subtle"
+										color="red"
+										size="sm"
+										onClick={handleDelete}>
+										Delete
+									</Button>
+								)}
+							</>
+						)
+					}>
 					<Button type="submit" size="sm">
 						{profile ? "Save" : "Create"}
 					</Button>
-				</Group>
+				</ModalActions>
 			</Stack>
 			{pendingCreate && (
 				<ProfileNameModal

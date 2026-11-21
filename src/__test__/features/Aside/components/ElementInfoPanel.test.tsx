@@ -40,6 +40,7 @@ const profile: StudyProfileDto = {
 	newCardsPerDay: 20,
 	leechThreshold: 8,
 	leechAction: "tagOnly",
+	cardInitialIntervalDays: 1,
 	priorityInheritancePolicy: {
 		placement: { type: "aboveParent" },
 		ceilingPercentile: null,

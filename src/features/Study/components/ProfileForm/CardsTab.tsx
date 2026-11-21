@@ -50,17 +50,29 @@ function CardsTab({ form, optimization }: CardsTabProps) {
 						allowNegative={false}
 						{...form.getInputProps("newCardsPerDay")}
 					/>
-					<TextInput
+					<NumberInput
 						label={
 							<FieldLabel
-								label="Learning steps"
-								tooltip="Same-day intervals a new card repeats before entering the long-term review schedule, separated by spaces (e.g. 1m 10m). Leave empty to skip them and let FSRS schedule new cards directly."
+								label="Initial interval (days)"
+								tooltip="Days until a card created under this profile is first due. 0 makes it due today."
 							/>
 						}
-						placeholder="None"
-						{...form.getInputProps("learningSteps")}
+						min={0}
+						step={1}
+						allowNegative={false}
+						{...form.getInputProps("cardInitialIntervalDays")}
 					/>
 				</SimpleGrid>
+				<TextInput
+					label={
+						<FieldLabel
+							label="Learning steps"
+							tooltip="Same-day intervals a new card repeats before entering the long-term review schedule, separated by spaces (e.g. 1m 10m). Leave empty to skip them and let FSRS schedule new cards directly."
+						/>
+					}
+					placeholder="None"
+					{...form.getInputProps("learningSteps")}
+				/>
 			</Stack>
 			<Stack gap="sm">
 				<Divider label="Scheduling" labelPosition="left" />
