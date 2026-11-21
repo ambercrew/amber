@@ -15,7 +15,7 @@ Load the matching skill in `.claude/skills/` before working in its area:
 - `skill-creator` — when creating, changing or reviewing a skill, with the Amber rules in `amber-coding-standards`' "Writing skills"
 - `mantine-form`, `mantine-combobox`, `mantine-custom-components`, `vercel-react-best-practices`, `vitest`, `rust-best-practices`, `skill-creator` — third-party, installed with `npx skills` into `.agents/skills/` (symlinked here, pinned in `skills-lock.json`); update with `npx skills update -p`, don't edit them by hand
 
-CLAUDE.md and Amber's own skills win over the third-party ones: e.g. keep the test naming, AAA structure and short comments below, whatever `rust-best-practices` says. From `vercel-react-best-practices`, skip the rules that assume Next.js or a server (`server-*`, `rendering-hydration-*`, `async-api-routes`, `client-swr-dedup`) and the memoization ones (`rerender-memo*`, `rerender-simple-expression-in-memo`), as the React Compiler handles those.
+CLAUDE.md and Amber's own skills win over the third-party ones: e.g. keep the test naming, AAA structure and short comments below, whatever `rust-best-practices` says. From `vercel-react-best-practices`, skip the rules that assume Next.js or a server (`server-*`, `rendering-hydration-*`, `async-api-routes`, `client-swr-dedup`) the memoization ones (`rerender-memo*`, `rerender-simple-expression-in-memo`), as the React Compiler handles those, and the code-splitting ones (`bundle-dynamic-imports`, `bundle-conditional`, `bundle-preload`), as Amber imports statically.
 
 When a change alters what one of Amber's own skills describes, update the skill in the same change.
 
@@ -57,7 +57,7 @@ npm run uitest              # Vitest with the interactive UI
 npm run coverage            # Coverage report
 ```
 
-Startup queries must seek, not scan, and periodic background tasks start through `deferred_interval`, which holds their first run until the startup sync has been attempted (`SyncCompletion::wait_attempted`), so they never hold the sync lock during it. Keep heavy, rarely used features (import parsers, the PDF engine, the occlusion canvas) behind dynamic `import()`/`React.lazy`, so they stay out of the startup bundle.
+Startup queries must seek, not scan, and periodic background tasks start through `deferred_interval`, which holds their first run until the startup sync has been attempted (`SyncCompletion::wait_attempted`), so they never hold the sync lock during it. Import modules statically, never with `React.lazy` or a dynamic `import()`: the app loads from local disk, so splitting saves little, and a lazy view's first render waits out React's ~300 ms Suspense reveal throttle.
 
 ### Rust backend
 

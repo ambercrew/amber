@@ -1,12 +1,9 @@
 import { FileFormat } from "../utils/fileFormat";
+import { extractMarkdown } from "./extract";
 
-// The parser loads on first use, keeping it out of the startup bundle.
 export const markdownFormat: FileFormat = {
 	label: "Markdown",
 	extensions: ["md", "markdown"],
 	mimeTypes: ["text/markdown"],
-	extract: async bytes =>
-		(await import("./extract")).extractMarkdown(
-			new TextDecoder().decode(bytes),
-		),
+	extract: bytes => extractMarkdown(new TextDecoder().decode(bytes)),
 };

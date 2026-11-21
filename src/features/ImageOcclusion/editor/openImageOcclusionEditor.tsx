@@ -1,8 +1,7 @@
-import { Suspense } from "react";
 import { FocusTrap } from "@mantine/core";
 import { modals } from "@mantine/modals";
 import type { OcclusionEditorTarget } from "./ImageOcclusionEditor";
-import ResponsiveOcclusionEditor from "./LazyResponsiveOcclusionEditor";
+import ResponsiveOcclusionEditor from "./ResponsiveOcclusionEditor";
 import { ModalHotkeysContext } from "../../../commands/useAppHotkeys";
 
 // Inset on big screens, so the editor's close button isn't mistaken for the window's own.
@@ -29,14 +28,12 @@ export function openImageOcclusionEditor(
 			<ModalHotkeysContext value>
 				{/* Takes the initial focus so the name input doesn't pop up the on-screen keyboard. */}
 				<FocusTrap.InitialFocus />
-				<Suspense>
-					<ResponsiveOcclusionEditor
-						modalId={modalId}
-						margin={SCREEN_MARGIN}
-						target={target}
-						onSaved={onSaved}
-					/>
-				</Suspense>
+				<ResponsiveOcclusionEditor
+					modalId={modalId}
+					margin={SCREEN_MARGIN}
+					target={target}
+					onSaved={onSaved}
+				/>
 			</ModalHotkeysContext>
 		),
 	});

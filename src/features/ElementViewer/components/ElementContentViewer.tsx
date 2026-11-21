@@ -1,16 +1,10 @@
-import {
-	lazy,
-	Suspense,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import CardElementViewer from "./CardElementViewer";
 import ExtractElementViewer from "./ExtractElementViewer";
 import FindInPageBar from "./FindInPageBar";
 import RemoveHighlightModal from "./RemoveHighlightModal";
 import LearningAssetView from "../LearningAssetView/LearningAssetView";
+import PdfLearningAssetView from "../PdfView/PdfLearningAssetView";
 import SearchHighlightOverlay from "../../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightOverlay";
 import { SearchHighlightRegistry } from "../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
 import { SearchHighlightRegistryContext } from "../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistryContext";
@@ -21,11 +15,6 @@ import {
 import { AnyElementDto } from "../../../api/elements/dto/anyElementDto";
 import { useElementViewerButtons } from "../hooks/useElementViewerButtons";
 import { useHighlightCreatedHandler } from "../hooks/useHighlightCreatedHandler";
-
-// The PDF engine is large, so it loads with the first PDF opened rather than at startup.
-const PdfLearningAssetView = lazy(
-	() => import("../PdfView/PdfLearningAssetView"),
-);
 
 type ContentElement = Exclude<AnyElementDto, { type: "folder" }>;
 
@@ -97,13 +86,11 @@ export default function ElementContentViewer({
 
 	if (isPdf) {
 		return (
-			<Suspense>
-				<PdfLearningAssetView
-					key={`pdf-${elementId.id}`}
-					learningAssetId={elementId.id}
-					readPoint={currentElement.data.readPoint}
-				/>
-			</Suspense>
+			<PdfLearningAssetView
+				key={`pdf-${elementId.id}`}
+				learningAssetId={elementId.id}
+				readPoint={currentElement.data.readPoint}
+			/>
 		);
 	}
 
