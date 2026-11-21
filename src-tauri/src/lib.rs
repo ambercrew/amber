@@ -325,6 +325,7 @@ pub async fn run() {
             sync,
             // Common
             resolve_frontend_request,
+            reject_frontend_request,
         ]);
 
     // Plugins may block on their own tokio runtime while initializing (e.g. zbus in single-instance).

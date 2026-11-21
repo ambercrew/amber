@@ -1,9 +1,12 @@
 import { FileFormat } from "../utils/fileFormat";
-import { extractHtml } from "./extract";
 
+// The parser loads on first use, keeping it out of the startup bundle.
 export const htmlFormat: FileFormat = {
 	label: "HTML",
 	extensions: ["html", "htm", "xhtml"],
 	mimeTypes: ["text/html", "application/xhtml+xml"],
-	extract: bytes => extractHtml(new TextDecoder().decode(bytes)),
+	extract: async bytes =>
+		(await import("./extract")).extractHtml(
+			new TextDecoder().decode(bytes),
+		),
 };

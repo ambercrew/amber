@@ -15,7 +15,7 @@ import lexicalPlugin from "@lexical/eslint-plugin";
 import mantine from "eslint-config-mantine";
 
 export default defineConfig([
-	{ ignores: ["dist", "src-tauri", "coverage"] },
+	{ ignores: ["dist", "src-tauri", "coverage", "**/*.local"] },
 	{
 		settings: {
 			react: {

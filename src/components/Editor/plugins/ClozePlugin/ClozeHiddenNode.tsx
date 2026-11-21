@@ -12,15 +12,16 @@ import {
 	type Spread,
 } from "lexical";
 import styles from "./ClozeHiddenNode.module.css";
+import {
+	CLOZE_HIDDEN_ATTRIBUTE,
+	CLOZE_HIDDEN_TAG_NAME,
+	CLOZE_PLACEHOLDER,
+} from "./clozeHiddenConstants";
 
 export type SerializedClozeHiddenNode = Spread<
 	{ hiddenText: string },
 	SerializedTextNode
 >;
-
-export const CLOZE_HIDDEN_TAG_NAME = "mark";
-export const CLOZE_HIDDEN_ATTRIBUTE = "data-cloze-hidden";
-export const CLOZE_PLACEHOLDER = "[...]";
 
 // Displays a literal "[...]" and keeps the hidden phrase as data (e.g. to seed a nested cloze). A
 // TextNode rather than a DecoratorNode, so the placeholder styles and edits like any text run.

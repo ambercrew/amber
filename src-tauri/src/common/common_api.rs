@@ -20,3 +20,16 @@ pub async fn resolve_frontend_request(
     bridge.resolve(request_id, response);
     Ok(())
 }
+
+/// Fails a pending `RequestBridge::request` call with the frontend's error message.
+#[tauri::command]
+pub async fn reject_frontend_request(
+    injector: State<'_, Arc<Injector>>,
+    request_id: Uuid,
+    message: String,
+) -> Result<(), ApiError> {
+    let scope = injector.start_scope();
+    let bridge = scope.resolve::<RequestBridge<crate::AppRuntime>>().await;
+    bridge.reject(request_id, message);
+    Ok(())
+}

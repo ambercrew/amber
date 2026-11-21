@@ -1,6 +1,6 @@
 import { FileFormat } from "../utils/fileFormat";
-import { extractEpub } from "./extract";
 
+// The parser loads on first use, keeping it out of the startup bundle.
 export const epubFormat: FileFormat = {
 	label: "EPUB",
 	extensions: ["epub"],
@@ -11,5 +11,5 @@ export const epubFormat: FileFormat = {
 		head[1] === 0x4b &&
 		head[2] === 0x03 &&
 		head[3] === 0x04,
-	extract: bytes => extractEpub(bytes),
+	extract: async bytes => (await import("./extract")).extractEpub(bytes),
 };

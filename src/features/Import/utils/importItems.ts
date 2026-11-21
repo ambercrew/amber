@@ -5,9 +5,8 @@ import { ImportResult } from "./importResult";
 import { FileFormat } from "./fileFormat";
 import { PdfProgress } from "../pdf/extract";
 import { pdfFormat } from "../pdf/format";
-import { runContentImport } from "../flows/content";
-import { FileImportError, runFileImport } from "../flows/file";
-import { importRawPage, runUrlImport, UrlImportError } from "../flows/url";
+import type { FileImportError } from "../flows/file";
+import type { UrlImportError } from "../flows/url";
 
 /** One thing staged in the import modal, imported in order with the others. */
 export type ImportItem =
@@ -116,6 +115,16 @@ export async function runImportItem(
 	onProgress: (progress: PdfProgress) => void,
 ): Promise<ImportResult<ImportItemError>> {
 	try {
+		// The flows pull in the parsers, so they load on the first import, not at startup.
+		const [
+			{ runContentImport },
+			{ runFileImport },
+			{ importRawPage, runUrlImport },
+		] = await Promise.all([
+			import("../flows/content"),
+			import("../flows/file"),
+			import("../flows/url"),
+		]);
 		switch (item.kind) {
 			case "file":
 				return describeFailure(

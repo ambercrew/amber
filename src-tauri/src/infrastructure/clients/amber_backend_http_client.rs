@@ -19,6 +19,9 @@ use reqwest::{
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
 use reqwest_retry::{RetryError, RetryTransientMiddleware, policies::ExponentialBackoff};
 
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const READ_TIMEOUT: Duration = Duration::from_secs(30);
+
 const PROTOBUF_CONTENT_TYPE: &str = "application/x-protobuf";
 
 const AUTH_TOKEN_SECRET_KEY: &str = "backend-auth-token";
@@ -44,7 +47,12 @@ impl AmberBackendHttpClient {
             log::info!("The application was not able to load a stored authentication token.")
         }
 
-        let reqwest_client = reqwest::Client::builder().build();
+        // Bounds a stalled connection, which otherwise holds a sync until the OS gives up; idle time
+        // between reads rather than a total, so a large pull on a slow link still completes.
+        let reqwest_client = reqwest::Client::builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(READ_TIMEOUT)
+            .build();
 
         if let Err(err) = reqwest_client {
             return Err(err.to_string());

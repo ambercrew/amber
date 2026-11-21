@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { InfoIcon, ListBulletsIcon } from "@phosphor-icons/react";
 import { AiIcon } from "../../../config/icons";
 import { useWindowEvent } from "@mantine/hooks";
@@ -9,7 +10,6 @@ import CollapsibleSidebar, {
 } from "../../../components/CollapsibleSidebar/CollapsibleSidebar";
 import ElementInfoPanel from "./ElementInfoPanel";
 import TableOfContentsPanel from "./TableOfContentsPanel";
-import AiPanel from "../../Ai/components/AiPanel";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectSettings } from "../../../stores/settings/settingsSelectors";
 
@@ -20,6 +20,9 @@ interface AsideProps {
 	onExpand: () => void;
 	onToggle: () => void;
 }
+
+// The chat renders Markdown with KaTeX, so it loads after the shell rather than with it.
+const AiPanel = lazy(() => import("../../Ai/components/AiPanel"));
 
 function Aside({ onCollapse, onExpand, onToggle }: AsideProps) {
 	const settings = useAppSelector(selectSettings);
@@ -40,7 +43,11 @@ function Aside({ onCollapse, onExpand, onToggle }: AsideProps) {
 						value: "ai",
 						title: "AI",
 						icon: <AiIcon size={16} />,
-						panel: <AiPanel />,
+						panel: (
+							<Suspense>
+								<AiPanel />
+							</Suspense>
+						),
 						scrollable: false,
 					},
 				]

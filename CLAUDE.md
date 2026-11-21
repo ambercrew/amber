@@ -56,6 +56,8 @@ npm run uitest              # Vitest with the interactive UI
 npm run coverage            # Coverage report
 ```
 
+Startup queries must seek, not scan, and periodic background tasks start through `deferred_interval`, which holds their first run until the startup sync has been attempted (`SyncCompletion::wait_attempted`), so they never hold the sync lock during it. Keep heavy, rarely used features (import parsers, the PDF engine, the occlusion canvas) behind dynamic `import()`/`React.lazy`, so they stay out of the startup bundle.
+
 ### Rust backend
 
 ```bash

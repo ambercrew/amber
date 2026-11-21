@@ -14,6 +14,8 @@ pub enum OcclusionCardContentBuilderError {
     Timeout,
     #[error("The frontend returned invalid occlusion card content")]
     InvalidResponse,
+    #[error("{0}")]
+    Failed(String),
 }
 
 /// Builds occlusion cards' content. The frontend owns the Lexical format, so the

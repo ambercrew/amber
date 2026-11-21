@@ -2,7 +2,7 @@ import DOMPurify from "dompurify";
 import {
 	CLOZE_HIDDEN_ATTRIBUTE,
 	CLOZE_HIDDEN_TAG_NAME,
-} from "../components/Editor/plugins/ClozePlugin/ClozeHiddenNode";
+} from "../components/Editor/plugins/ClozePlugin/clozeHiddenConstants";
 
 const ALLOWED_TAGS = [
 	"p",

@@ -5,6 +5,7 @@ use injector::injector::Injector;
 
 use crate::assets::services::asset_service::AssetService;
 use crate::backend::clients::amber_backend_client::AmberBackendClient;
+use crate::common::utils::deferred_interval::deferred_interval;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::local_configurations::repositories::local_configuration_repository::{
     LocalConfigurationRepository, LocalConfigurationRepositoryExt,
@@ -31,10 +32,11 @@ pub fn spawn_asset_maintenance_task(injector: Arc<Injector>) {
             }
         });
 
-        let mut interval = tokio::time::interval(Duration::from_mins(
-            TIME_BETWEEN_ASSET_MAINTENANCE_IN_MINUTES,
-        ));
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut interval = deferred_interval(
+            &injector,
+            Duration::from_mins(TIME_BETWEEN_ASSET_MAINTENANCE_IN_MINUTES),
+        )
+        .await;
 
         loop {
             interval.tick().await;
