@@ -1,13 +1,5 @@
 import { useState } from "react";
-import {
-	Button,
-	Divider,
-	Group,
-	Stack,
-	Tabs,
-	Text,
-	TextInput,
-} from "@mantine/core";
+import { Button, Divider, Group, Stack, Tabs, Text } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { modals } from "@mantine/modals";
 import {
@@ -19,7 +11,7 @@ import {
 } from "../../../../api/study/api/studyProfileApi";
 import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
 import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
-import FieldLabel from "../../../../components/FieldLabel/FieldLabel";
+import ProfileNameModal from "../ProfileNameModal";
 import CardsTab from "./CardsTab";
 import QueueTab from "./QueueTab";
 import LearningAssetsAndExtractsTab from "./LearningAssetsAndExtractsTab";
@@ -33,8 +25,11 @@ import {
 	FSRS_PARAM_COUNT,
 	initialValues,
 	isValidFsrsParams,
+	isValidCount,
 	isValidMaximumInterval,
+	MAX_LEECH_THRESHOLD,
 	MAX_MAXIMUM_INTERVAL_DAYS,
+	MAX_NEW_CARDS_PER_DAY,
 	isValidSteps,
 	ProfileFormValues,
 	toRequestDto,
@@ -78,6 +73,8 @@ const FIELD_TABS: Partial<Record<keyof ProfileFormValues, TabValue>> = {
 	learningSteps: "cards",
 	relearningSteps: "cards",
 	maximumIntervalDays: "cards",
+	newCardsPerDay: "cards",
+	leechThreshold: "cards",
 	placementPercentile: "queue",
 	ceilingPercentile: "queue",
 };
@@ -115,18 +112,38 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 				isValidMaximumInterval(value)
 					? null
 					: `Enter a whole number of days from 1 to ${MAX_MAXIMUM_INTERVAL_DAYS}`,
+			newCardsPerDay: value =>
+				isValidCount(value, MAX_NEW_CARDS_PER_DAY)
+					? null
+					: `Enter a whole number from 0 to ${MAX_NEW_CARDS_PER_DAY}`,
+			leechThreshold: value =>
+				isValidCount(value, MAX_LEECH_THRESHOLD)
+					? null
+					: `Enter a whole number from 0 to ${MAX_LEECH_THRESHOLD}`,
 		},
 	});
 
 	const optimization = useFsrsOptimization(form, profile?.id ?? null);
 
+	// A new profile is named once its fields are valid, just before it's created.
+	const [pendingCreate, setPendingCreate] =
+		useState<ProfileFormValues | null>(null);
+
 	async function handleSubmit(values: ProfileFormValues) {
-		const payload = toRequestDto(values);
-		if (profile) {
-			await updateStudyProfile(profile.id, payload);
-		} else {
-			await createStudyProfile(payload);
+		if (!profile) {
+			setPendingCreate(values);
+			return;
 		}
+		await updateStudyProfile(
+			profile.id,
+			toRequestDto(values, profile.name),
+		);
+		onSaved();
+		onSubmitted();
+	}
+
+	async function handleCreate(values: ProfileFormValues, name: string) {
+		await createStudyProfile(toRequestDto(values, name));
 		onSaved();
 		onSubmitted();
 	}
@@ -179,21 +196,19 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 				display: "flex",
 				flexDirection: "column",
 				flex: 1,
+				minHeight: 0,
 			}}>
-			<Stack gap="sm" flex={1}>
-				<TextInput
-					label={
-						<FieldLabel
-							label="Name"
-							tooltip="A label to identify this profile."
-						/>
-					}
-					{...form.getInputProps("name")}
-				/>
-
+			<Stack gap="sm" flex={1} mih={0}>
+				{/* Only the open tab scrolls, keeping the buttons at the bottom. */}
 				<Tabs
 					value={tab}
-					onChange={value => value && selectTab(value as TabValue)}>
+					onChange={value => value && selectTab(value as TabValue)}
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						flex: 1,
+						minHeight: 0,
+					}}>
 					<Tabs.List grow>
 						{TABS.map(({ value, label }) => (
 							<Tabs.Tab key={value} value={value}>
@@ -203,14 +218,20 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 					</Tabs.List>
 
 					{TABS.map(({ value, description }) => (
-						// Clips the slide sideways so it doesn't flash a scrollbar; the gutter keeps focus rings visible.
+						// Hides the sideways slide so it doesn't flash a scrollbar; the gutter keeps focus rings visible.
 						<Tabs.Panel
 							key={value}
 							value={value}
 							pt="sm"
+							pb={4}
 							mx={-4}
 							px={4}
-							style={{ overflowX: "clip" }}>
+							style={{
+								flex: 1,
+								minHeight: 0,
+								overflowX: "hidden",
+								overflowY: "auto",
+							}}>
 							<Stack gap="sm" style={tabStyle}>
 								<Text size="sm" c="dimmed">
 									{description}
@@ -232,7 +253,7 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 					))}
 				</Tabs>
 
-				<Divider mt="auto" />
+				<Divider />
 
 				<Group justify="space-between">
 					<Group gap={4}>
@@ -274,6 +295,15 @@ function ProfileForm({ profile, onSaved, onSubmitted }: ProfileFormProps) {
 					</Button>
 				</Group>
 			</Stack>
+			{pendingCreate && (
+				<ProfileNameModal
+					title="Name the new profile"
+					confirmLabel="Create"
+					initialName="New profile"
+					onClose={() => setPendingCreate(null)}
+					onConfirm={name => handleCreate(pendingCreate, name)}
+				/>
+			)}
 		</form>
 	);
 }

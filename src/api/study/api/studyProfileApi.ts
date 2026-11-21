@@ -24,6 +24,13 @@ export function updateStudyProfile(
 	return invoke("update_study_profile", { id, dto });
 }
 
+export function renameStudyProfile(
+	id: string,
+	name: string,
+): Promise<StudyProfileDto> {
+	return invoke("rename_study_profile", { id, name });
+}
+
 export function deleteStudyProfile(id: string): Promise<void> {
 	return invoke("delete_study_profile", { id });
 }

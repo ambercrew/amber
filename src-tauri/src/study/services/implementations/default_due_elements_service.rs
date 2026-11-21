@@ -1,6 +1,6 @@
 #[cfg(test)]
 use crate::elements::value_objects::reading_position::ReadingPosition;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -16,10 +16,15 @@ use crate::local_configurations::repositories::synced_configuration_repository::
 use crate::saved_searches::entities::saved_search_filter::ElementFilter;
 use crate::saved_searches::repositories::saved_search_repository::SavedSearchRepository;
 use crate::search::repositories::search_repository::SearchRepository;
+use crate::study::repositories::card_review_log_repository::CardReviewLogRepository;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::repositories::learning_asset_skip_repository::LearningAssetSkipRepository;
+use crate::study::repositories::study_profile_repository::StudyProfileRepository;
 use crate::study::services::due_elements_service::DueElementsService;
+use crate::study::services::profile_resolution_service::{
+    ProfileResolutionError, ProfileResolutionService,
+};
 use crate::study::utils::day_boundary::{local_date, start_of_today_utc};
 use crate::study::value_objects::due_element::DueElement;
 use crate::study::value_objects::fuzz_factor_configuration::{
@@ -30,12 +35,15 @@ use crate::study::value_objects::study_scope::StudyScope;
 #[derive(ScopeInjectable)]
 pub struct DefaultDueElementsService {
     card_review_repository: Arc<dyn CardReviewRepository>,
+    card_review_log_repository: Arc<dyn CardReviewLogRepository>,
     learning_asset_review_repository: Arc<dyn LearningAssetReviewRepository>,
     learning_asset_skip_repository: Arc<dyn LearningAssetSkipRepository>,
     meta_repository: Arc<dyn MetaRepository>,
     saved_search_repository: Arc<dyn SavedSearchRepository>,
     search_repository: Arc<dyn SearchRepository>,
     synced_configuration_repository: Arc<dyn SyncedConfigurationRepository>,
+    profile_resolution_service: Arc<dyn ProfileResolutionService>,
+    study_profile_repository: Arc<dyn StudyProfileRepository>,
 }
 
 impl DefaultDueElementsService {
@@ -82,6 +90,110 @@ impl DefaultDueElementsService {
         due.retain(|entry| matching.contains(&entry.element_id));
         Ok(())
     }
+
+    /// Drops the new cards past each profile's daily limit, less the cards it introduced today. Resolves
+    /// each new card's profile only when it can matter, as a large import leaves many new cards.
+    async fn limit_new_cards(
+        &self,
+        ordered: Vec<DueElement>,
+    ) -> Result<Vec<DueElement>, ProfileResolutionError> {
+        let new_card_ids: Vec<Uuid> = ordered
+            .iter()
+            .filter(|entry| entry.is_new_card)
+            .map(|entry| entry.element_id.id())
+            .collect();
+        if new_card_ids.is_empty() {
+            return Ok(ordered);
+        }
+
+        let introduced = self
+            .card_review_log_repository
+            .get_cards_first_reviewed_since(start_of_today_utc())
+            .await?;
+        // Created first if missing (e.g. a database filled by a sync pull), so it's among the limits.
+        let default_id = self
+            .profile_resolution_service
+            .resolve_profile(None)
+            .await?
+            .id;
+        let limits: HashMap<Uuid, u32> = self
+            .study_profile_repository
+            .get_all()
+            .await?
+            .into_iter()
+            .map(|profile| (profile.id, profile.new_cards_per_day))
+            .collect();
+
+        // With one profile every card uses it, so there's nothing to resolve.
+        if let [(&profile_id, &limit)] = limits.iter().collect::<Vec<_>>()[..] {
+            let remaining =
+                HashMap::from([(profile_id, limit.saturating_sub(introduced.len() as u32))]);
+            return Ok(keep_allowed_new_cards(
+                ordered,
+                |_| Some(profile_id),
+                remaining,
+                profile_id,
+            ));
+        }
+
+        let introduced_profiles = self
+            .profile_resolution_service
+            .resolve_profile_ids(&introduced)
+            .await?;
+        let mut remaining = limits;
+        for profile_id in introduced_profiles.values() {
+            let profile_id = known_or_default(&remaining, *profile_id, default_id);
+            if let Some(left) = remaining.get_mut(&profile_id) {
+                *left = left.saturating_sub(1);
+            }
+        }
+        // No profile can run out when even the smallest allowance covers every new card.
+        let smallest = remaining.values().copied().min().unwrap_or(0);
+        if new_card_ids.len() <= smallest as usize {
+            return Ok(ordered);
+        }
+
+        let profile_of = self.new_card_profiles(&ordered, default_id).await?;
+        Ok(keep_allowed_new_cards(
+            ordered,
+            |card_id| profile_of.get(&card_id).copied(),
+            remaining,
+            default_id,
+        ))
+    }
+
+    /// Each new card's effective profile: its own, else its parent's, resolved once per parent, as a big
+    /// import puts thousands of cards in each deck.
+    async fn new_card_profiles(
+        &self,
+        entries: &[DueElement],
+        default_id: Uuid,
+    ) -> Result<HashMap<Uuid, Uuid>, ProfileResolutionError> {
+        let new_cards = entries.iter().filter(|entry| entry.is_new_card);
+        let inheriting = new_cards
+            .clone()
+            .filter(|entry| entry.study_profile_id.is_none());
+        let parents: Vec<Uuid> = inheriting
+            .clone()
+            .filter_map(|entry| entry.parent_id)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        let parent_profiles = self
+            .profile_resolution_service
+            .resolve_profile_ids(&parents)
+            .await?;
+
+        Ok(new_cards
+            .map(|entry| {
+                let profile_id = entry
+                    .study_profile_id
+                    .or_else(|| parent_profiles.get(&entry.parent_id?).copied())
+                    .unwrap_or(default_id);
+                (entry.element_id.id(), profile_id)
+            })
+            .collect())
+    }
 }
 
 #[async_trait]
@@ -89,7 +201,7 @@ impl DueElementsService for DefaultDueElementsService {
     async fn get_due_elements(
         &self,
         scope: Option<StudyScope>,
-    ) -> Result<Vec<DueElement>, RepositoryError> {
+    ) -> Result<Vec<DueElement>, ProfileResolutionError> {
         let mut due = self.all_due().await?;
 
         if let Some(scope) = scope {
@@ -111,12 +223,48 @@ impl DueElementsService for DefaultDueElementsService {
         let priorities = self.meta_repository.get_priorities_ordered().await?;
         let ordered =
             order_by_priority_with_fuzz(due, &priorities, fuzz_factor, local_date(Utc::now()));
+        let ordered = self.limit_new_cards(ordered).await?;
 
         let skipped = self
             .learning_asset_skip_repository
             .get_skipped_since(start_of_today_utc())
             .await?;
         Ok(defer_skipped(ordered, &skipped))
+    }
+}
+
+/// Keeps the first `remaining` new cards of each profile in queue order. A card without a known
+/// profile (none resolved, or one deleted on another device) uses the default's allowance.
+fn keep_allowed_new_cards(
+    mut entries: Vec<DueElement>,
+    profile_of: impl Fn(Uuid) -> Option<Uuid>,
+    mut remaining: HashMap<Uuid, u32>,
+    default_id: Uuid,
+) -> Vec<DueElement> {
+    entries.retain(|entry| {
+        if !entry.is_new_card {
+            return true;
+        }
+        let profile_id = profile_of(entry.element_id.id()).unwrap_or(default_id);
+        let profile_id = known_or_default(&remaining, profile_id, default_id);
+        let Some(left) = remaining.get_mut(&profile_id) else {
+            return true;
+        };
+        if *left == 0 {
+            return false;
+        }
+        *left -= 1;
+        true
+    });
+    entries
+}
+
+/// `profile_id` when it has an allowance, else the default profile, which inherits its cards.
+fn known_or_default(remaining: &HashMap<Uuid, u32>, profile_id: Uuid, default_id: Uuid) -> Uuid {
+    if remaining.contains_key(&profile_id) {
+        profile_id
+    } else {
+        default_id
     }
 }
 
@@ -146,16 +294,26 @@ fn order_by_priority_with_fuzz(
     let fuzz = f64::from(fuzz_factor.min(100)) / 100.0;
     let total = priorities.len() as f64;
 
-    entries.sort_by_cached_key(|entry| {
-        let rank = priorities
-            .partition_point(|priority| priority.as_slice() < entry.priority.as_bytes())
-            as f64;
-        let nudge = unit_interval(day_shuffle_key(day, &entry.element_id)) * total;
-        let key = (1.0 - fuzz) * rank + fuzz * nudge;
-        (key.to_bits(), entry.priority.clone())
-    });
-
-    entries
+    // Ranks in one walk along both sorted lists: a binary search per entry misses the cache on most steps.
+    entries.sort_unstable_by(|a, b| a.priority.as_bytes().cmp(b.priority.as_bytes()));
+    let mut rank = 0;
+    let mut keyed: Vec<(u64, DueElement)> = entries
+        .into_iter()
+        .map(|entry| {
+            while priorities
+                .get(rank)
+                .is_some_and(|priority| priority.as_slice() < entry.priority.as_bytes())
+            {
+                rank += 1;
+            }
+            let nudge = unit_interval(day_shuffle_key(day, &entry.element_id)) * total;
+            let key = (1.0 - fuzz) * rank as f64 + fuzz * nudge;
+            (key.to_bits(), entry)
+        })
+        .collect();
+    // Stable, so entries with equal keys stay in priority order.
+    keyed.sort_by_key(|(key, _)| *key);
+    keyed.into_iter().map(|(_, entry)| entry).collect()
 }
 
 /// Maps a random `u64` onto `[0, 1)`.
@@ -201,11 +359,13 @@ mod tests {
         },
         infrastructure::repositories::sqlite::{
             sqlite_card_repository::SqliteCardRepository,
+            sqlite_card_review_log_repository::SqliteCardReviewLogRepository,
             sqlite_card_review_repository::SqliteCardReviewRepository,
             sqlite_learning_asset_repository::SqliteLearningAssetRepository,
             sqlite_learning_asset_review_repository::SqliteLearningAssetReviewRepository,
             sqlite_learning_asset_skip_repository::SqliteLearningAssetSkipRepository,
             sqlite_meta_repository::SqliteMetaRepository,
+            sqlite_study_profile_repository::SqliteStudyProfileRepository,
             sqlite_synced_configuration_repository::SqliteSyncedConfigurationRepository,
         },
         infrastructure::repositories::sqlite::{
@@ -216,7 +376,13 @@ mod tests {
             saved_search::SavedSearch,
             saved_search_filter::{SavedSearchFilter, StringFilterOperator},
         },
+        study::entities::card_review::CardReview,
+        study::entities::card_review_log::CardReviewLog,
         study::entities::learning_asset_review::LearningAssetReview,
+        study::entities::study_profile::StudyProfile,
+        study::services::implementations::default_profile_resolution_service::DefaultProfileResolutionService,
+        study::value_objects::card_state::CardState,
+        study::value_objects::rating::Rating,
         test_utils::create_test_injector,
     };
 
@@ -258,8 +424,63 @@ mod tests {
         );
         register_scope!(injector, dyn PriorityService, DefaultPriorityService);
         register_scope!(injector, dyn SearchRepository, SqliteSearchRepository);
+        register_scope!(
+            injector,
+            dyn CardReviewLogRepository,
+            SqliteCardReviewLogRepository
+        );
+        register_scope!(
+            injector,
+            dyn StudyProfileRepository,
+            SqliteStudyProfileRepository
+        );
+        register_scope!(
+            injector,
+            dyn ProfileResolutionService,
+            DefaultProfileResolutionService
+        );
         register_scope!(injector, dyn DueElementsService, DefaultDueElementsService);
         injector
+    }
+
+    /// Creates never-reviewed cards in priority order, the first highest.
+    async fn create_new_cards(card_repo: &Arc<dyn CardRepository>, count: usize) -> Vec<ElementId> {
+        let mut priority = FractionalIndex::default();
+        let mut card_ids = Vec::with_capacity(count);
+        for _ in 0..count {
+            let card_id = ElementId::Card(Uuid::new_v4());
+            card_repo
+                .create(Card {
+                    meta: Meta {
+                        priority: priority.clone(),
+                        ..make_meta(card_id)
+                    },
+                    front: String::new(),
+                    back: String::new(),
+                })
+                .await
+                .unwrap();
+            card_ids.push(card_id);
+            priority = FractionalIndex::new_after(&priority);
+        }
+        card_ids
+    }
+
+    /// Makes the default profile let `limit` new cards in per day.
+    async fn set_new_cards_per_day(
+        scope: &injector::injector_scope::InjectorScope<'_>,
+        limit: u32,
+    ) {
+        let resolution = scope.resolve::<dyn ProfileResolutionService>().await;
+        let profile_repo = scope.resolve::<dyn StudyProfileRepository>().await;
+        let profile = resolution.resolve_profile(None).await.unwrap();
+        profile_repo
+            .update(&StudyProfile {
+                new_cards_per_day: limit,
+                ..profile
+            })
+            .await
+            .unwrap();
     }
 
     async fn create_new_card(card_repo: &Arc<dyn CardRepository>, name: &str) -> ElementId {
@@ -606,6 +827,9 @@ mod tests {
             element_id: ElementId::Card(Uuid::new_v4()),
             name: String::new(),
             priority: priority.clone(),
+            is_new_card: false,
+            study_profile_id: None,
+            parent_id: None,
         });
         for _ in 1..count {
             priority = FractionalIndex::new_after(&priority);
@@ -613,6 +837,9 @@ mod tests {
                 element_id: ElementId::Card(Uuid::new_v4()),
                 name: String::new(),
                 priority: priority.clone(),
+                is_new_card: false,
+                study_profile_id: None,
+                parent_id: None,
             });
         }
         entries
@@ -757,5 +984,277 @@ mod tests {
         // Assert
 
         assert_ne!(today, tomorrow);
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_more_new_cards_than_limit_returns_first_by_priority() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        set_new_cards_per_day(&scope, 2).await;
+        let cards = create_new_cards(&card_repo, 3).await;
+
+        // Act
+
+        let due = ids(service.get_due_elements(None).await.unwrap());
+
+        // Assert
+
+        assert_eq!(cards[..2], due);
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_no_profile_yet_caps_at_default_limit() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        let limit = crate::study::entities::study_profile::DEFAULT_NEW_CARDS_PER_DAY as usize;
+        create_new_cards(&card_repo, limit + 1).await;
+
+        // Act
+
+        let due = service.get_due_elements(None).await.unwrap();
+
+        // Assert
+
+        assert_eq!(limit, due.len());
+    }
+
+    #[test]
+    fn keep_allowed_new_cards_unknown_profile_uses_default_allowance() {
+        // Arrange
+
+        let entries: Vec<DueElement> = ordered_entries(3)
+            .into_iter()
+            .map(|entry| DueElement {
+                is_new_card: true,
+                ..entry
+            })
+            .collect();
+        let (default_profile, deleted_profile) = (Uuid::new_v4(), Uuid::new_v4());
+        let remaining = HashMap::from([(default_profile, 1)]);
+        let expected = vec![entries[0].element_id];
+
+        // Act
+
+        let actual = ids(keep_allowed_new_cards(
+            entries,
+            |_| Some(deleted_profile),
+            remaining,
+            default_profile,
+        ));
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_card_introduced_today_counts_against_limit() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let card_review_repo = scope.resolve::<dyn CardReviewRepository>().await;
+        let log_repo = scope.resolve::<dyn CardReviewLogRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        set_new_cards_per_day(&scope, 2).await;
+        let learned = create_new_card(&card_repo, "learned").await;
+        card_review_repo
+            .upsert(&CardReview {
+                card_id: learned.id(),
+                due: Utc::now() + Duration::days(3),
+                stability: 3.0,
+                difficulty: 5.0,
+                reps: 1,
+                lapses: 0,
+                state: CardState::Review,
+                last_reviewed: Some(Utc::now()),
+                scheduled_days: 3,
+                learning_steps: 0,
+            })
+            .await
+            .unwrap();
+        log_repo
+            .create(&CardReviewLog {
+                id: Uuid::new_v4(),
+                card_id: Some(learned.id()),
+                reviewed_at: Utc::now(),
+                rating: Rating::Good,
+                duration_ms: None,
+            })
+            .await
+            .unwrap();
+        let cards = create_new_cards(&card_repo, 2).await;
+
+        // Act
+
+        let due = ids(service.get_due_elements(None).await.unwrap());
+
+        // Assert
+
+        assert_eq!(cards[..1], due);
+    }
+
+    #[test]
+    fn keep_allowed_new_cards_two_profiles_caps_each_separately() {
+        // Arrange
+
+        let entries: Vec<DueElement> = ordered_entries(4)
+            .into_iter()
+            .map(|entry| DueElement {
+                is_new_card: true,
+                ..entry
+            })
+            .collect();
+        let (capped_profile, open_profile) = (Uuid::new_v4(), Uuid::new_v4());
+        let profile_of: HashMap<Uuid, Uuid> = entries
+            .iter()
+            .enumerate()
+            .map(|(index, entry)| {
+                let profile = if index % 2 == 0 {
+                    capped_profile
+                } else {
+                    open_profile
+                };
+                (entry.element_id.id(), profile)
+            })
+            .collect();
+        let remaining = HashMap::from([(capped_profile, 1), (open_profile, 5)]);
+        let expected = vec![
+            entries[0].element_id,
+            entries[1].element_id,
+            entries[3].element_id,
+        ];
+
+        // Act
+
+        let actual = ids(keep_allowed_new_cards(
+            entries,
+            |card_id| profile_of.get(&card_id).copied(),
+            remaining,
+            capped_profile,
+        ));
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_two_profiles_caps_each_at_its_own_limit() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let profile_repo = scope.resolve::<dyn StudyProfileRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        set_new_cards_per_day(&scope, 5).await;
+        let default = scope
+            .resolve::<dyn ProfileResolutionService>()
+            .await
+            .resolve_profile(None)
+            .await
+            .unwrap();
+        let strict = StudyProfile {
+            id: Uuid::new_v4(),
+            is_default: false,
+            new_cards_per_day: 1,
+            ..default
+        };
+        profile_repo.create(&strict).await.unwrap();
+        let cards = create_new_cards(&card_repo, 4).await;
+        let meta_repo = scope.resolve::<dyn MetaRepository>().await;
+        for card in &cards[..2] {
+            meta_repo
+                .set_study_profile(*card, Some(strict.id))
+                .await
+                .unwrap();
+        }
+
+        // Act
+
+        let due = ids(service.get_due_elements(None).await.unwrap());
+
+        // Assert
+
+        assert_eq!(vec![cards[0], cards[2], cards[3]], due);
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_cards_in_folder_with_profile_caps_them_at_inherited_limit() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let meta_repo = scope.resolve::<dyn MetaRepository>().await;
+        let profile_repo = scope.resolve::<dyn StudyProfileRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        set_new_cards_per_day(&scope, 5).await;
+        let default = scope
+            .resolve::<dyn ProfileResolutionService>()
+            .await
+            .resolve_profile(None)
+            .await
+            .unwrap();
+        let strict = StudyProfile {
+            id: Uuid::new_v4(),
+            is_default: false,
+            new_cards_per_day: 1,
+            ..default
+        };
+        profile_repo.create(&strict).await.unwrap();
+        let deck = ElementId::Folder(Uuid::new_v4());
+        let subdeck = ElementId::Folder(Uuid::new_v4());
+        meta_repo
+            .create_meta(&Meta {
+                study_profile_id: Some(strict.id),
+                ..make_meta(deck)
+            })
+            .await
+            .unwrap();
+        meta_repo
+            .create_meta(&Meta {
+                parent: Some(deck),
+                ..make_meta(subdeck)
+            })
+            .await
+            .unwrap();
+        let mut priority = FractionalIndex::default();
+        let mut cards = Vec::new();
+        for parent in [Some(subdeck), Some(subdeck), None, None] {
+            let card_id = ElementId::Card(Uuid::new_v4());
+            card_repo
+                .create(Card {
+                    meta: Meta {
+                        parent,
+                        priority: priority.clone(),
+                        ..make_meta(card_id)
+                    },
+                    front: String::new(),
+                    back: String::new(),
+                })
+                .await
+                .unwrap();
+            cards.push(card_id);
+            priority = FractionalIndex::new_after(&priority);
+        }
+
+        // Act
+
+        let due = ids(service.get_due_elements(None).await.unwrap());
+
+        // Assert
+
+        assert_eq!(vec![cards[0], cards[2], cards[3]], due);
     }
 }

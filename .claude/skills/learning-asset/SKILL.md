@@ -14,7 +14,7 @@ document each) as a virtualized stack: live editors near the viewport, placehold
 
 - `core/` — `ReaderCoreProvider` owns mounting, heights, content roots, navigation and reading
   anchors; plugins read it via `useReaderCore()`.
-- `plugins/` — features (`readPoint`, `marks`, `search`, `tableOfContents`), each a `LearningAssetPlugin`
+- `plugins/` — features (`readPoint`, `marks`, `search`, `tableOfContents`, `sourceReveal`), each a `LearningAssetPlugin`
   (`plugins/types.ts`) listed in `plugins/index.ts`.
 - `../marks/`, `../readPoint/` — shared with the PDF view (mark storage and UI, read point
   precedence and saving); keep them renderer-agnostic.
@@ -68,6 +68,19 @@ split; seq from `useSplit()`), `ContextMenuItems` (a menu section; the host adds
 - Land with `scrollGeometry.ts`'s `contentTopOf`/`jumpTo`, which hide the header past its fixed
   zone like every other landing.
 - Per-split ref callbacks must be stable: use `useKeyedRefCallbacks`.
+
+## Opening at a spot
+
+A navigation that opens an asset at one place, not to read it (a global search result, the Origin
+panel's "Derived from" link), passes `spotNavigationState()` (`src/types/elements/`) as router
+state. Outside its review the read point then opens at `lookup` precedence
+(`useOpeningReadPointSource`), so only a manual set moves it. `revealHighlightOf` asks the view to
+scroll to the highlight that element was made from: `sourceReveal` looks it up with
+`find_learning_asset_highlight`, the PDF view's `PdfSourceReveal` from its loaded highlights, and an
+extract with `RevealHighlightPlugin`.
+
+The read point's gutter marker shows how far through it is in its tooltip, as marks do, from
+`useMarksContext().progressOf`.
 
 ## Testing
 

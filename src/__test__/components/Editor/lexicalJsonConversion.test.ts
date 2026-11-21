@@ -1,6 +1,7 @@
 import {
 	htmlToLexicalJson,
 	lexicalJsonsToHtml,
+	lexicalJsonToText,
 	markdownToLexicalJson,
 	SerializedLexicalNodeTree,
 } from "../../../components/Editor/lexicalJsonConversion";
@@ -269,5 +270,49 @@ describe("lexicalJsonConversion", () => {
 
 		expect(first).toContain("const a = 1;");
 		expect(second).toBe(first);
+	});
+
+	it("Should return an empty string when the content is empty, as a cloze card's back is", () => {
+		// Arrange
+
+		const content = "";
+
+		// Act
+
+		const actual = lexicalJsonToText(content);
+
+		// Assert
+
+		expect(actual).toBe("");
+	});
+
+	it("Should return the plain text when the content has text", () => {
+		// Arrange
+
+		const content = markdownToLexicalJson("Hello **world**");
+
+		// Act
+
+		const actual = lexicalJsonToText(content);
+
+		// Assert
+
+		expect(actual).toBe("Hello world");
+	});
+
+	it("Should spell out the hidden phrase in braces when the content has a cloze", () => {
+		// Arrange
+
+		const content = markdownToLexicalJson(
+			'The capital of France is <mark data-cloze-hidden="Paris">[...]</mark>.',
+		);
+
+		// Act
+
+		const actual = lexicalJsonToText(content);
+
+		// Assert
+
+		expect(actual).toBe("The capital of France is {{Paris}}.");
 	});
 });

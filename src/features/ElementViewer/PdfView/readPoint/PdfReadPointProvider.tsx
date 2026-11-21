@@ -4,6 +4,7 @@ import { ReadPointContext } from "../../readPoint/readPointContext";
 import { usePdfCore } from "../core/pdfCoreContext";
 import { usePdfReadPoint } from "./usePdfReadPoint";
 import { useReviewResume } from "../../hooks/useReviewResume";
+import { useOpeningReadPointSource } from "../../readPoint/useOpeningReadPointSource";
 
 /** Saves the read point as the reader goes, and handles the set/clear/go-to read point commands. */
 export default function PdfReadPointProvider({ children }: PropsWithChildren) {
@@ -18,7 +19,12 @@ export default function PdfReadPointProvider({ children }: PropsWithChildren) {
 		getCurrentPage,
 		getMenuPage,
 	} = usePdfCore();
-	const { resume, reportLeft } = useReviewResume(learningAssetId);
+	const { resume, reportLeft, underReview } =
+		useReviewResume(learningAssetId);
+	const openingSource = useOpeningReadPointSource(
+		resume?.readPointSource,
+		underReview,
+	);
 	const handleLeave = useCallback(
 		(source: ReadPointSource) => reportLeft({ readPointSource: source }),
 		[reportLeft],
@@ -28,7 +34,7 @@ export default function PdfReadPointProvider({ children }: PropsWithChildren) {
 		documentId,
 		initial: initialReadPoint,
 		initialViewPosition,
-		resumeSource: resume?.readPointSource,
+		resumeSource: openingSource,
 		onLeave: handleLeave,
 		layoutReady,
 		pageCount,

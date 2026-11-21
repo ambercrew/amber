@@ -15,6 +15,7 @@ use crate::study::dto::card_review_response_dto::CardReviewResponseDto;
 use crate::study::dto::card_scheduling_dto::CardSchedulingDto;
 use crate::study::dto::due_element_dto::DueElementDto;
 use crate::study::dto::learning_asset_review_dto::LearningAssetReviewResponseDto;
+use crate::study::dto::registered_card_review_response_dto::RegisteredCardReviewResponseDto;
 use crate::study::dto::study_scope_request_dto::StudyScopeRequestDto;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
@@ -71,6 +72,8 @@ pub async fn get_due_elements(
         .await
         .get_due_elements(study_scope.map(Into::into))
         .await?;
+    // Keeps a default profile created on the way, so later calls cap against the same one.
+    scope.save_changes().await?;
     Ok(due_elements.into_iter().map(Into::into).collect())
 }
 
@@ -98,7 +101,7 @@ pub async fn register_card_review(
     review: CardReviewRequestDto,
     rating: Rating,
     duration_ms: Option<u32>,
-) -> Result<CardReviewResponseDto, ApiError> {
+) -> Result<RegisteredCardReviewResponseDto, ApiError> {
     let scope = injector.start_scope();
     let result = scope
         .resolve::<dyn CardGradingService>()

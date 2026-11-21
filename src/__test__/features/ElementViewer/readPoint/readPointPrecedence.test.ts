@@ -13,6 +13,9 @@ describe("canPlaceReadPoint", () => {
 		[true, "manual", "automatic"],
 		[true, "manual", "extract"],
 		[true, "manual", "manual"],
+		[false, "automatic", "lookup"],
+		[false, "extract", "lookup"],
+		[true, "manual", "lookup"],
 	])(
 		"Should return %s when a %s placement comes after a %s one",
 		(expected, incoming, current) => {

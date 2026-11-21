@@ -188,13 +188,18 @@ impl CardReviewRepository for SqliteCardReviewRepository {
         let tx = tx.as_mut();
 
         let due = sqlx::query!(
-            r#"SELECT c.id as "id: uuid::fmt::Hyphenated", m.name, m.priority
-            FROM cards c
-            JOIN meta m ON m.element_id = c.id
-            LEFT JOIN card_reviews cr ON cr.card_id = c.id
-            WHERE m.trashed_at IS NULL
+            // Scans `meta` in table order: walking it through the priority index reads its rows at random.
+            r#"SELECT m.element_id as "id: uuid::fmt::Hyphenated", m.name, m.priority,
+                (cr.card_id IS NULL OR cr.state = 'new') AS "is_new_card!: bool",
+                m.study_profile_id AS "study_profile_id: uuid::fmt::Hyphenated",
+                m.parent_id AS "parent_id: uuid::fmt::Hyphenated"
+            FROM meta m NOT INDEXED
+            LEFT JOIN card_reviews cr ON cr.card_id = m.element_id
+            WHERE m.element_type = 'card'
+              AND m.trashed_at IS NULL
               AND m.suspended = 0
-              AND (cr.card_id IS NULL OR cr.due <= datetime($1))"#,
+              AND (cr.card_id IS NULL OR cr.due <= datetime($1))
+              AND EXISTS (SELECT 1 FROM cards c WHERE c.id = m.element_id)"#,
             as_of
         )
         .fetch_all(&mut *tx)
@@ -204,6 +209,9 @@ impl CardReviewRepository for SqliteCardReviewRepository {
             element_id: ElementId::Card(row.id.into_uuid()),
             name: row.name,
             priority: FractionalIndex::from_bytes(row.priority).expect("Invalid fractional index"),
+            is_new_card: row.is_new_card,
+            study_profile_id: row.study_profile_id.map(|id| id.into_uuid()),
+            parent_id: row.parent_id.map(|id| id.into_uuid()),
         })
         .collect();
 

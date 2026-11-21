@@ -44,6 +44,12 @@ pub trait LearningAssetRepository: Send + Sync {
         &self,
         learning_asset_id: Uuid,
     ) -> Result<Vec<LearningAssetHeading>, RepositoryError>;
+    /// Where the highlight of `element_id`, an extract or card made from this learning asset, is.
+    async fn find_highlight(
+        &self,
+        learning_asset_id: Uuid,
+        element_id: Uuid,
+    ) -> Result<Option<ReadingPosition>, RepositoryError>;
     async fn update_content(
         &self,
         learning_asset_id: Uuid,

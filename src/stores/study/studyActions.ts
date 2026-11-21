@@ -15,7 +15,10 @@ import { DueElementDto } from "../../api/study/dto/dueElementDto";
 import { ElementId } from "../../types/elements/elementId";
 import { Rating } from "../../types/study/rating";
 import { AppDispatch, RootState } from "../store";
-import { loadCurrentElementAction } from "../elements/elementsActions";
+import {
+	loadCurrentElementAction,
+	reloadEditedCurrentElementAction,
+} from "../elements/elementsActions";
 import {
 	cardGraded,
 	elementRequeued,
@@ -36,6 +39,7 @@ import {
 	selectStudyIndex,
 	selectStudyScope,
 	selectStudySessionElement,
+	selectStudyStatus,
 } from "./studySelectors";
 import { STUDY_SESSION_FINISHED } from "../../types/events/studySessionFinishedEvent";
 import { REVIEW_NAVIGATION_STATE } from "../../types/study/reviewNavigationState";
@@ -70,7 +74,7 @@ export function gradeCardAction(
 		const elementId: ElementId = { type: "card", id: cardId };
 		const currentIndex = selectStudyIndex(getState());
 
-		const review = await registerCardReview(
+		const { review, leeched, suspended } = await registerCardReview(
 			scheduledReview,
 			rating,
 			durationMs,
@@ -78,7 +82,7 @@ export function gradeCardAction(
 		dispatch(cardGraded());
 
 		const dueInMs = new Date(review.due).getTime() - Date.now();
-		const needsRequeue = dueInMs <= SESSION_HORIZON_MS;
+		const needsRequeue = !suspended && dueInMs <= SESSION_HORIZON_MS;
 		if (needsRequeue) {
 			dispatch(elementRequeued({ elementId }));
 		}
@@ -91,6 +95,9 @@ export function gradeCardAction(
 			!needsRequeue,
 			currentIndex,
 		);
+		// The grade sends no card-changed event; only a session that ended still shows the card.
+		if (leeched && selectStudyStatus(getState()) !== "studying")
+			await dispatch(reloadEditedCurrentElementAction([cardId]));
 	};
 }
 

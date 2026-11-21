@@ -37,11 +37,12 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
         let placement_kind = placement.kind();
         let placement_percentile = placement.percentile();
         let ceiling_percentile = profile.priority_inheritance_policy.ceiling_percentile;
+        let leech_action = profile.leech_action.as_str();
 
         sqlx::query!(
             r#"INSERT INTO study_profiles
-                (id, created_at, modified_at, name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, maximum_interval_days, initial_interval_multiplier, initial_interval_days, min_interval_days, priority_inheritance_placement, priority_inheritance_percentile, priority_inheritance_ceiling_percentile)
-            VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)"#,
+                (id, created_at, modified_at, name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, maximum_interval_days, new_cards_per_day, leech_threshold, leech_action, initial_interval_multiplier, initial_interval_days, min_interval_days, priority_inheritance_placement, priority_inheritance_percentile, priority_inheritance_ceiling_percentile)
+            VALUES ($1, datetime($2), datetime($3), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)"#,
             profile.id.hyphenated(),
             profile.created_at,
             profile.modified_at,
@@ -52,6 +53,9 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             learning_steps,
             relearning_steps,
             profile.maximum_interval_days,
+            profile.new_cards_per_day,
+            profile.leech_threshold,
+            leech_action,
             profile.initial_interval_multiplier,
             profile.initial_interval_days,
             profile.min_interval_days,
@@ -85,6 +89,7 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
         let placement_kind = placement.kind();
         let placement_percentile = placement.percentile();
         let ceiling_percentile = profile.priority_inheritance_policy.ceiling_percentile;
+        let leech_action = profile.leech_action.as_str();
 
         sqlx::query!(
             r#"UPDATE study_profiles SET
@@ -95,13 +100,16 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 learning_steps = $5,
                 relearning_steps = $6,
                 maximum_interval_days = $7,
-                initial_interval_multiplier = $8,
-                initial_interval_days = $9,
-                min_interval_days = $10,
-                priority_inheritance_placement = $11,
-                priority_inheritance_percentile = $12,
-                priority_inheritance_ceiling_percentile = $13
-            WHERE id = $14"#,
+                new_cards_per_day = $8,
+                leech_threshold = $9,
+                leech_action = $10,
+                initial_interval_multiplier = $11,
+                initial_interval_days = $12,
+                min_interval_days = $13,
+                priority_inheritance_placement = $14,
+                priority_inheritance_percentile = $15,
+                priority_inheritance_ceiling_percentile = $16
+            WHERE id = $17"#,
             profile.name,
             profile.is_default,
             profile.desired_retention,
@@ -109,6 +117,9 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
             learning_steps,
             relearning_steps,
             profile.maximum_interval_days,
+            profile.new_cards_per_day,
+            profile.leech_threshold,
+            leech_action,
             profile.initial_interval_multiplier,
             profile.initial_interval_days,
             profile.min_interval_days,
@@ -152,6 +163,9 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 learning_steps,
                 relearning_steps,
                 maximum_interval_days,
+                new_cards_per_day,
+                leech_threshold,
+                leech_action,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days,
@@ -185,6 +199,9 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 learning_steps,
                 relearning_steps,
                 maximum_interval_days,
+                new_cards_per_day,
+                leech_threshold,
+                leech_action,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days,
@@ -226,6 +243,9 @@ impl StudyProfileRepository for SqliteStudyProfileRepository {
                 learning_steps,
                 relearning_steps,
                 maximum_interval_days,
+                new_cards_per_day,
+                leech_threshold,
+                leech_action,
                 initial_interval_multiplier,
                 initial_interval_days,
                 min_interval_days,
@@ -286,6 +306,9 @@ mod tests {
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
             maximum_interval_days: 365,
+            new_cards_per_day: 5,
+            leech_threshold: 4,
+            leech_action: crate::study::value_objects::leech_action::LeechAction::Suspend,
             priority_inheritance_policy: PriorityInheritancePolicy {
                 placement: Placement::OffsetFromParent {
                     offset_percentile: 15.0,
@@ -316,6 +339,9 @@ mod tests {
         assert_eq!(profile.learning_steps, actual.learning_steps);
         assert_eq!(profile.relearning_steps, actual.relearning_steps);
         assert_eq!(profile.maximum_interval_days, actual.maximum_interval_days);
+        assert_eq!(profile.new_cards_per_day, actual.new_cards_per_day);
+        assert_eq!(profile.leech_threshold, actual.leech_threshold);
+        assert_eq!(profile.leech_action, actual.leech_action);
         assert_eq!(
             profile.priority_inheritance_policy,
             actual.priority_inheritance_policy

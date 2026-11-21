@@ -14,6 +14,7 @@ import { MetaResponseDto } from "../../../api/elements/dto/anyElementDto";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectCurrentElementDetails } from "../../../stores/elementDetails/elementDetailsSelectors";
 import { paths } from "../../../paths";
+import { spotNavigationState } from "../../../types/elements/spotNavigationState";
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import DisclosureCaret from "../../../components/DisclosureCaret/DisclosureCaret";
 
@@ -73,14 +74,20 @@ export default function ContentOriginPanel({ meta }: ContentOriginPanelProps) {
 										<Anchor
 											size="sm"
 											style={{ overflowWrap: "anywhere" }}
-											onClick={() => {
+											// Opens at the highlight this element was made from, leaving the read point alone.
+											onClick={() =>
 												void navigate(
 													paths.element(
 														derivedFrom.type,
 														derivedFrom.id,
 													),
-												);
-											}}>
+													{
+														state: spotNavigationState(
+															meta.elementId.id,
+														),
+													},
+												)
+											}>
 											{derivedFromName ?? "…"}
 										</Anchor>
 									</Group>

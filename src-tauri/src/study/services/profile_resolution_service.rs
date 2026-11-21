@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use thiserror::Error;
@@ -24,6 +24,12 @@ pub trait ProfileResolutionService: Send + Sync {
         &self,
         element_id: ElementId,
     ) -> Result<EffectiveProfile, ProfileResolutionError>;
+
+    /// The effective profile's id for each of `ids`, by the same resolution as `resolve_profile` but in one walk.
+    async fn resolve_profile_ids(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, Uuid>, ProfileResolutionError>;
 
     /// The cards among `card_ids` whose effective profile is `profile_id`, by the same
     /// resolution as `resolve_profile`.

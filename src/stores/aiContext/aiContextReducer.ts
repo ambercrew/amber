@@ -1,4 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { ElementId } from "../../types/elements/elementId";
 
 export interface AiContextSnippet {
 	id: string;
@@ -9,11 +10,14 @@ export interface AiContextState {
 	snippets: AiContextSnippet[];
 	/** Asked from outside the chat (e.g. the editor's menu); the AI panel sends it once shown. */
 	pendingPrompt: string | null;
+	/** The element the pending prompt is about, sent in place of the open one, which may not have loaded yet. */
+	pendingPromptElementId: ElementId | null;
 }
 
 const initialState: AiContextState = {
 	snippets: [],
 	pendingPrompt: null,
+	pendingPromptElementId: null,
 };
 
 const aiSlice = createSlice({
@@ -31,11 +35,24 @@ const aiSlice = createSlice({
 				snippet => snippet.id !== action.payload,
 			);
 		},
-		requestAiPrompt: (state, action: PayloadAction<string>) => {
-			state.pendingPrompt = action.payload;
+		requestAiPrompt: {
+			reducer: (
+				state,
+				action: PayloadAction<{
+					prompt: string;
+					elementId: ElementId | null;
+				}>,
+			) => {
+				state.pendingPrompt = action.payload.prompt;
+				state.pendingPromptElementId = action.payload.elementId;
+			},
+			prepare: (prompt: string, elementId: ElementId | null = null) => ({
+				payload: { prompt, elementId },
+			}),
 		},
 		clearPendingAiPrompt: state => {
 			state.pendingPrompt = null;
+			state.pendingPromptElementId = null;
 		},
 		clearAiContextSnippets: state => {
 			state.snippets = [];

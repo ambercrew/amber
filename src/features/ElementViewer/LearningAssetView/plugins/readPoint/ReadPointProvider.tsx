@@ -8,6 +8,7 @@ import { useReaderCore } from "../../core/readerCoreContext";
 import { ReadPointContext } from "../../../readPoint/readPointContext";
 import { useReadPoint } from "./useReadPoint";
 import { useReviewResume } from "../../../hooks/useReviewResume";
+import { useOpeningReadPointSource } from "../../../readPoint/useOpeningReadPointSource";
 
 /** Saves the read point as the reader goes, and handles the set/clear/go-to read point commands. */
 export default function ReadPointProvider({ children }: PropsWithChildren) {
@@ -22,7 +23,12 @@ export default function ReadPointProvider({ children }: PropsWithChildren) {
 		onViewportChange,
 	} = useReaderCore();
 	const [displayed, setDisplayed] = useState(initial);
-	const { resume, reportLeft } = useReviewResume(learningAssetId);
+	const { resume, reportLeft, underReview } =
+		useReviewResume(learningAssetId);
+	const openingSource = useOpeningReadPointSource(
+		resume?.readPointSource,
+		underReview,
+	);
 	const handleLeave = useCallback(
 		(source: ReadPointSource) => reportLeft({ readPointSource: source }),
 		[reportLeft],
@@ -31,7 +37,7 @@ export default function ReadPointProvider({ children }: PropsWithChildren) {
 	const { recordExtractReadPoint } = useReadPoint({
 		learningAssetId,
 		initial,
-		resumeSource: resume?.readPointSource,
+		resumeSource: openingSource,
 		onLeave: handleLeave,
 		getContentRoot,
 		lastSplitSeq: splits[splits.length - 1]?.seq,

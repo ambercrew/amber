@@ -1,6 +1,7 @@
 import { marksPlugin } from "./marks";
 import { readPointPlugin } from "./readPoint";
 import { searchPlugin } from "./search";
+import { sourceRevealPlugin } from "./sourceReveal";
 import { tableOfContentsPlugin } from "./tableOfContents";
 import { LearningAssetPlugin } from "./types";
 
@@ -10,4 +11,5 @@ export const learningAssetPlugins: LearningAssetPlugin[] = [
 	marksPlugin,
 	searchPlugin,
 	tableOfContentsPlugin,
+	sourceRevealPlugin,
 ];

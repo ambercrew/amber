@@ -25,7 +25,7 @@ use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::origin::Origin;
 
 /// What the front shows in place of the hidden part, as the editor's cloze does.
-const CLOZE_PLACEHOLDER: &str = "[...]";
+pub(super) const CLOZE_PLACEHOLDER: &str = "[...]";
 
 #[derive(Deserialize, Debug, Clone, Serialize, schemars::JsonSchema)]
 pub struct CreateClozeCardArgs {
@@ -47,14 +47,14 @@ pub enum CreateClozeCardError {
 
 /// The text split around its one hidden part.
 #[derive(Debug, PartialEq, Eq)]
-struct Cloze<'a> {
+pub(super) struct Cloze<'a> {
     before: &'a str,
-    hidden: &'a str,
+    pub(super) hidden: &'a str,
     after: &'a str,
 }
 
 impl<'a> Cloze<'a> {
-    fn parse(text: &'a str) -> Option<Self> {
+    pub(super) fn parse(text: &'a str) -> Option<Self> {
         let (before, rest) = text.split_once("{{")?;
         let (hidden, after) = rest.split_once("}}")?;
         let stray_braces = [before, hidden, after]
@@ -68,12 +68,12 @@ impl<'a> Cloze<'a> {
     }
 
     /// The text with the hidden part replaced by `placeholder`.
-    fn with(&self, placeholder: &str) -> String {
+    pub(super) fn with(&self, placeholder: &str) -> String {
         format!("{}{placeholder}{}", self.before, self.after)
     }
 
     /// The front, hiding the part behind the editor's cloze node so the back can reveal it.
-    fn front_markdown(&self) -> String {
+    pub(super) fn front_markdown(&self) -> String {
         self.with(&format!(
             "<mark data-cloze-hidden=\"{}\">{CLOZE_PLACEHOLDER}</mark>",
             escape_html_attribute(self.hidden)

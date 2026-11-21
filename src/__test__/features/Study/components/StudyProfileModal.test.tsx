@@ -6,6 +6,7 @@ import {
 	cloneStudyProfile,
 	getEffectiveStudyProfile,
 	listStudyProfiles,
+	renameStudyProfile,
 	updateStudyProfile,
 } from "../../../../api/study/api/studyProfileApi";
 import { StudyProfileDto } from "../../../../api/study/dto/studyProfileDto";
@@ -29,6 +30,9 @@ function makeProfile(overrides: Partial<StudyProfileDto>): StudyProfileDto {
 		initialIntervalDays: 1,
 		minIntervalDays: 1,
 		maximumIntervalDays: 36500,
+		newCardsPerDay: 20,
+		leechThreshold: 8,
+		leechAction: "tagOnly",
 		priorityInheritancePolicy: {
 			placement: { type: "aboveParent" },
 			ceilingPercentile: null,
@@ -156,9 +160,9 @@ describe("StudyProfileModal", () => {
 		// Assert
 
 		await waitFor(() => {
-			expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
-				firstProfile.name,
-			);
+			expect(
+				screen.getByRole("combobox", { name: "Profile" }),
+			).toHaveValue(firstProfile.name);
 		});
 	});
 
@@ -210,9 +214,9 @@ describe("StudyProfileModal", () => {
 			});
 		});
 		await waitFor(() => {
-			expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
-				secondProfile.name,
-			);
+			expect(
+				screen.getByRole("combobox", { name: "Profile" }),
+			).toHaveValue(secondProfile.name);
 		});
 	});
 
@@ -258,9 +262,9 @@ describe("StudyProfileModal", () => {
 
 		expect(getEffectiveStudyProfile).not.toHaveBeenCalled();
 		await waitFor(() => {
-			expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
-				firstProfile.name,
-			);
+			expect(
+				screen.getByRole("combobox", { name: "Profile" }),
+			).toHaveValue(firstProfile.name);
 		});
 	});
 
@@ -294,7 +298,7 @@ describe("StudyProfileModal", () => {
 				},
 			},
 		});
-		await screen.findByRole("textbox", { name: "Name" });
+		await screen.findByRole("button", { name: "Save" });
 
 		// Act
 
@@ -306,9 +310,9 @@ describe("StudyProfileModal", () => {
 		// Assert
 
 		await waitFor(() => {
-			expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
-				secondProfile.name,
-			);
+			expect(
+				screen.getByRole("combobox", { name: "Profile" }),
+			).toHaveValue(secondProfile.name);
 		});
 	});
 
@@ -342,7 +346,7 @@ describe("StudyProfileModal", () => {
 				},
 			},
 		});
-		await screen.findByRole("textbox", { name: "Name" });
+		await screen.findByRole("button", { name: "Save" });
 
 		// Act
 
@@ -353,8 +357,8 @@ describe("StudyProfileModal", () => {
 
 		// Assert
 
-		expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
-			"New profile",
+		expect(screen.getByRole("combobox", { name: "Profile" })).toHaveValue(
+			"Create new profile…",
 		);
 		expect(screen.getByRole("button", { name: "Create" })).toBeVisible();
 	});
@@ -390,7 +394,7 @@ describe("StudyProfileModal", () => {
 				},
 			},
 		});
-		await screen.findByRole("textbox", { name: "Name" });
+		await screen.findByRole("button", { name: "Save" });
 
 		// Act
 
@@ -402,6 +406,133 @@ describe("StudyProfileModal", () => {
 			expect(updateStudyProfile).toHaveBeenCalledTimes(1);
 		});
 		expect(store.getState().app.studyProfileModalOpened).toBe(false);
+	});
+
+	it("Should rename the selected profile when a new name is confirmed", async () => {
+		// Arrange
+
+		vi.mocked(renameStudyProfile).mockResolvedValue(
+			makeProfile({ ...firstProfile, name: "Languages" }),
+		);
+		const user = userEvent.setup();
+		renderWithProviders(<StudyProfileModal />, {
+			preloadedState: {
+				app: {
+					startedInitialStateLoading: false,
+					importModalOpened: false,
+					studyProfileModalOpened: true,
+					settingsModalOpened: false,
+					priorityModalOpened: false,
+					dueDateModalOpened: false,
+					shortcutsModalOpened: false,
+					aiPromptLibraryModalOpened: false,
+					aiPromptLibraryNewPromptRequest: 0,
+					studySessionSettingsModalOpened: false,
+					authModalOpened: false,
+					authModalInitialTab: "sign-in",
+					verifyEmailModalOpened: false,
+					manageAccountModalOpened: false,
+					virtualKeyboardSuppressed: false,
+					pendingFocus: null,
+					mainScrollPinned: true,
+					headroomOverride: null,
+					pendingTreeReveal: null,
+					lastPriorityPreview: null,
+				},
+			},
+		});
+		await screen.findByRole("button", { name: "Save" });
+
+		// Act
+
+		await user.click(
+			screen.getByRole("button", { name: "Rename profile" }),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: "Rename profile",
+		});
+		const nameInput = within(dialog).getByRole("textbox", {
+			name: "Profile name",
+		});
+		await user.clear(nameInput);
+		await user.type(nameInput, "Languages");
+		await user.click(
+			within(dialog).getByRole("button", { name: "Rename" }),
+		);
+
+		// Assert
+
+		await waitFor(() => {
+			expect(renameStudyProfile).toHaveBeenCalledWith(
+				firstProfile.id,
+				"Languages",
+			);
+		});
+		expect(listStudyProfiles).toHaveBeenCalledTimes(2);
+	});
+
+	it("Should keep the rename dialog open with the error when renaming fails", async () => {
+		// Arrange
+
+		vi.mocked(renameStudyProfile).mockRejectedValue(
+			new Error("Database is locked"),
+		);
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		const user = userEvent.setup();
+		renderWithProviders(<StudyProfileModal />, {
+			preloadedState: {
+				app: {
+					startedInitialStateLoading: false,
+					importModalOpened: false,
+					studyProfileModalOpened: true,
+					settingsModalOpened: false,
+					priorityModalOpened: false,
+					dueDateModalOpened: false,
+					shortcutsModalOpened: false,
+					aiPromptLibraryModalOpened: false,
+					aiPromptLibraryNewPromptRequest: 0,
+					studySessionSettingsModalOpened: false,
+					authModalOpened: false,
+					authModalInitialTab: "sign-in",
+					verifyEmailModalOpened: false,
+					manageAccountModalOpened: false,
+					virtualKeyboardSuppressed: false,
+					pendingFocus: null,
+					mainScrollPinned: true,
+					headroomOverride: null,
+					pendingTreeReveal: null,
+					lastPriorityPreview: null,
+				},
+			},
+		});
+		await screen.findByRole("button", { name: "Save" });
+
+		// Act
+
+		await user.click(
+			screen.getByRole("button", { name: "Rename profile" }),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: "Rename profile",
+		});
+		const nameInput = within(dialog).getByRole("textbox", {
+			name: "Profile name",
+		});
+		await user.clear(nameInput);
+		await user.type(nameInput, "Languages");
+		await user.click(
+			within(dialog).getByRole("button", { name: "Rename" }),
+		);
+
+		// Assert
+
+		expect(
+			await within(dialog).findByText("Database is locked"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("dialog", { name: "Rename profile" }),
+		).toBeInTheDocument();
+		expect(listStudyProfiles).toHaveBeenCalledTimes(1);
 	});
 
 	it("Should keep the modal open and refresh the list when cloning a profile", async () => {
@@ -437,7 +568,7 @@ describe("StudyProfileModal", () => {
 				},
 			},
 		});
-		await screen.findByRole("textbox", { name: "Name" });
+		await screen.findByRole("button", { name: "Save" });
 
 		// Act
 

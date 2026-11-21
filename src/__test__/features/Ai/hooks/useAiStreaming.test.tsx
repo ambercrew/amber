@@ -47,7 +47,9 @@ function getCapturedChannel() {
 }
 
 function makeStore(snippets: { id: string; text: string }[] = []) {
-	return setupStore({ ai: { snippets, pendingPrompt: null } });
+	return setupStore({
+		ai: { snippets, pendingPrompt: null, pendingPromptElementId: null },
+	});
 }
 
 function makeWrapper(store: ReturnType<typeof makeStore>) {
@@ -152,6 +154,45 @@ describe("useAiStreaming", () => {
 			prompt: "hello",
 			chatId: null,
 			elementId,
+			contextSnippets: [],
+		});
+	});
+
+	it("Should forward the prompt's own element instead of the open one when a prompt is about another element", async () => {
+		// Arrange
+
+		vi.mocked(streamAiResponse).mockImplementation(() => new Promise(noop));
+		const openElement: ElementId = { type: "card", id: "next-card" };
+		const leech: ElementId = { type: "card", id: "leech-card" };
+
+		const { result } = renderHook(
+			() => {
+				const chats = useAiChats();
+				return {
+					...chats,
+					...useAiStreaming({
+						...chats,
+						currentElementId: openElement,
+						contextSnippets: [],
+					}),
+				};
+			},
+			{ wrapper: makeWrapper(makeStore()) },
+		);
+
+		// Act
+
+		await act(async () => {
+			void result.current.sendPrompt("rewrite it", leech);
+			await Promise.resolve();
+		});
+
+		// Assert
+
+		expect(streamAiResponse).toHaveBeenCalledWith(expect.anything(), {
+			prompt: "rewrite it",
+			chatId: null,
+			elementId: leech,
 			contextSnippets: [],
 		});
 	});

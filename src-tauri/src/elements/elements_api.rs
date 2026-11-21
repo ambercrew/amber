@@ -45,6 +45,7 @@ use crate::elements::services::element_tree_service::ElementTreeService;
 use crate::elements::services::priority_service::PriorityService;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::name_source::NameSource;
+use crate::elements::value_objects::reading_position::ReadingPosition;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use injector::injector::Injector;
@@ -246,6 +247,22 @@ pub async fn get_learning_asset_headings(
         .into_iter()
         .map(LearningAssetHeadingDto::from)
         .collect())
+}
+
+/// Where in the learning asset the highlight that became `element_id` is, if it's still there.
+#[tauri::command]
+pub async fn find_learning_asset_highlight(
+    injector: State<'_, Arc<Injector>>,
+    learning_asset_id: Uuid,
+    element_id: Uuid,
+) -> Result<Option<ReadingPosition>, ApiError> {
+    let scope = injector.start_scope();
+    let position = scope
+        .resolve::<dyn LearningAssetRepository>()
+        .await
+        .find_highlight(learning_asset_id, element_id)
+        .await?;
+    Ok(position)
 }
 
 #[tauri::command]

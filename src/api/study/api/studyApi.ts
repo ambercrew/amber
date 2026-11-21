@@ -6,6 +6,7 @@ import { CardReviewDto } from "../dto/cardReviewDto";
 import { CardSchedulingDto } from "../dto/cardSchedulingDto";
 import { DueElementDto } from "../dto/dueElementDto";
 import { LearningAssetReviewDto } from "../dto/learningAssetReviewDto";
+import { RegisteredCardReviewDto } from "../dto/registeredCardReviewDto";
 import { StudyScopeDto } from "../dto/studyScopeDto";
 
 export function getDueElements(
@@ -23,7 +24,7 @@ export function registerCardReview(
 	review: CardReviewDto,
 	rating: Rating,
 	durationMs: number | null,
-): Promise<CardReviewDto> {
+): Promise<RegisteredCardReviewDto> {
 	return invoke("register_card_review", { review, rating, durationMs });
 }
 

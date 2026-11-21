@@ -62,6 +62,22 @@ pub async fn update_study_profile(
 }
 
 #[tauri::command]
+pub async fn rename_study_profile(
+    injector: State<'_, Arc<Injector>>,
+    id: Uuid,
+    name: String,
+) -> Result<StudyProfileResponseDto, ApiError> {
+    let scope = injector.start_scope();
+    let profile = scope
+        .resolve::<dyn StudyProfileService>()
+        .await
+        .rename_profile(id, name)
+        .await?;
+    scope.save_changes().await?;
+    Ok(profile.into())
+}
+
+#[tauri::command]
 pub async fn delete_study_profile(
     injector: State<'_, Arc<Injector>>,
     id: Uuid,

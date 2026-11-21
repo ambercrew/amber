@@ -1,8 +1,11 @@
 pub mod app_tool;
 pub mod app_tools;
+pub mod clear_leech;
 pub mod create_card;
 pub mod create_cloze_card;
 pub mod element_reference;
 pub mod finish_extract;
 pub mod search_documents;
 pub mod search_open_element;
+pub mod update_card;
+pub mod update_cloze_card;

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use fractional_index::FractionalIndex;
 #[cfg(test)]
@@ -69,6 +71,12 @@ pub trait MetaRepository: Send + Sync {
         ids: &[ElementId],
         suspended: bool,
     ) -> Result<Vec<ElementId>, RepositoryError>;
+
+    /// Each of `ids` with a `study_profile_id` on itself or an ancestor, mapped to the nearest one's.
+    async fn get_assigned_profile_ids(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, Uuid>, RepositoryError>;
 
     /// The subset of `ids` that exist and aren't trashed.
     async fn filter_live(&self, ids: &[ElementId]) -> Result<Vec<ElementId>, RepositoryError>;

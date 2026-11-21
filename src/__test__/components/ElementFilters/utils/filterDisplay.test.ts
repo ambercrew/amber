@@ -53,6 +53,9 @@ const profiles: StudyProfileDto[] = [
 		initialIntervalDays: 1,
 		minIntervalDays: 1,
 		maximumIntervalDays: 36500,
+		newCardsPerDay: 20,
+		leechThreshold: 8,
+		leechAction: "tagOnly",
 		priorityInheritancePolicy: {
 			placement: { type: "aboveParent" },
 			ceilingPercentile: null,

@@ -18,7 +18,7 @@ pub trait CardGradingService: Send + Sync {
         review: CardReview,
         rating: Rating,
         duration_ms: Option<u32>,
-    ) -> Result<CardReview, GradeCardError>;
+    ) -> Result<RegisteredReview, GradeCardError>;
 
     /// The card's review state and the profile it inherits, the frontend scheduler's inputs; a card not
     /// reviewed yet gets the profile's new-card defaults.
@@ -38,6 +38,14 @@ pub trait CardGradingService: Send + Sync {
         card_id: Uuid,
         due: DateTime<Utc>,
     ) -> Result<CardReview, GradeCardError>;
+}
+
+/// A stored review, and whether it made the card a leech and suspended it, which the grading
+/// session applies itself instead of through events.
+pub struct RegisteredReview {
+    pub review: CardReview,
+    pub leeched: bool,
+    pub suspended: bool,
 }
 
 #[derive(Debug, Error)]

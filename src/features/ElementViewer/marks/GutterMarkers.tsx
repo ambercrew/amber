@@ -17,13 +17,19 @@ import {
 } from "./gutterLayout";
 import {
 	findMark,
+	formatProgress,
 	goToMarkLabel,
 	markFillColor,
 	READ_POINT_COLOR,
 } from "./markLogic";
 import { useMarksContext } from "./marksContext";
+import { useDisplayedReadPoint } from "../readPoint/readPointContext";
 
-const READ_POINT_LABEL = "You'll resume here next time";
+/** "You'll resume here next time", with how far through it is once that's known, as a mark's tooltip shows. */
+function readPointLabel(progress: number | null): string {
+	const label = "You'll resume here next time";
+	return progress === null ? label : `${label} (${formatProgress(progress)})`;
+}
 
 /** A thin color tab standing in for a marker when the gutter is too narrow for it. */
 function CompactMarker({ color }: { color: string }) {
@@ -38,19 +44,23 @@ function CompactMarker({ color }: { color: string }) {
 }
 
 function ReadPointMarker({ compact }: { compact: boolean }) {
+	const readPoint = useDisplayedReadPoint();
+	const { progressOf } = useMarksContext();
+	const label = readPointLabel(readPoint ? progressOf(readPoint) : null);
+
 	return (
 		<AppTooltip
-			label={READ_POINT_LABEL}
+			label={label}
 			shortcut={commandsById["go-to-read-point"].shortcut}
 			position="left"
 			withArrow>
 			{compact ? (
-				<Box aria-label={READ_POINT_LABEL}>
+				<Box aria-label={label}>
 					<CompactMarker color={READ_POINT_COLOR} />
 				</Box>
 			) : (
 				<ThemeIcon
-					aria-label={READ_POINT_LABEL}
+					aria-label={label}
 					size={GUTTER_MARKER_SIZE_IN_PX}
 					radius="xl"
 					color={READ_POINT_COLOR}>

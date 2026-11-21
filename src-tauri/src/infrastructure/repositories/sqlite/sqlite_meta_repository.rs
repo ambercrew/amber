@@ -358,6 +358,36 @@ impl MetaRepository for SqliteMetaRepository {
             .collect())
     }
 
+    async fn get_assigned_profile_ids(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, Uuid>, RepositoryError> {
+        let ids = ids_json(ids.iter().copied());
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        // Walks each element up its ancestors until one has a profile.
+        let rows = sqlx::query!(
+            r#"WITH RECURSIVE chain(start_id, profile_id, parent_id) AS (
+                   SELECT element_id, study_profile_id, parent_id
+                   FROM meta WHERE element_id IN (SELECT value FROM json_each($1))
+                   UNION ALL
+                   SELECT chain.start_id, parent.study_profile_id, parent.parent_id
+                   FROM chain JOIN meta parent ON parent.element_id = chain.parent_id
+                   WHERE chain.profile_id IS NULL
+               )
+               SELECT start_id AS "start_id!: uuid::fmt::Hyphenated",
+                      profile_id AS "profile_id!: uuid::fmt::Hyphenated"
+               FROM chain WHERE profile_id IS NOT NULL"#,
+            ids
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.start_id.into_uuid(), row.profile_id.into_uuid()))
+            .collect())
+    }
+
     async fn filter_live(&self, ids: &[ElementId]) -> Result<Vec<ElementId>, RepositoryError> {
         let ids = ids_json(ids.iter().map(|id| id.id()));
         let mut tx = self.tx.lock().await;

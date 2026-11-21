@@ -24,6 +24,7 @@ import errorToString from "../../utils/errorToString";
 import { AppDispatch, RootState } from "../store";
 import { loadElementDetailsAction } from "../elementDetails/elementDetailsActions";
 import { resetStaleStudyScopeAction } from "../study/studyScopeActions";
+import { bumpElementRefreshCount } from "../sync/syncReducer";
 import {
 	addTreeNodes,
 	moveTreeNode,
@@ -54,6 +55,16 @@ export function loadCurrentElementAction(
 			dispatch(loadElementDetailsAction(elementId)),
 		]);
 		return true;
+	};
+}
+
+/** Shows the open card's new content when one of `editedCards` is open, after a sync from Anki or an AI rewrite. */
+export function reloadEditedCurrentElementAction(editedCards: string[]) {
+	return async (dispatch: AppDispatch, getState: () => RootState) => {
+		const current = getState().elements.currentElement?.data.meta.elementId;
+		if (!current || !editedCards.includes(current.id)) return;
+		if (await dispatch(loadCurrentElementAction(current)))
+			dispatch(bumpElementRefreshCount());
 	};
 }
 

@@ -107,6 +107,28 @@ meaning, so search for words the element likely uses, and try a shorter or diffe
 nothing comes back. If the element still doesn't mention it, say so rather than answering as \
 if it had.";
 
+/// The `clear_leech` tool's description.
+pub(in crate::ai_integration) const CLEAR_LEECH_DESCRIPTION: &str = "\
+Clears the leech flag of the card the user has open: removes its `leech` tag and, if it's \
+suspended, resumes reviewing it. It leaves the card's text and review history as they are. Use \
+this when the user asks for it, and right after rewriting a leech, as rewriting a card doesn't \
+clear it; the user approves the call.";
+
+/// The `update_card` tool's description; the preamble holds the card-writing guidelines.
+pub(in crate::ai_integration) const UPDATE_CARD_DESCRIPTION: &str = "\
+Rewrites the card the user has open, replacing its front (question) and back (answer), and keeps \
+its review history and tags. Use this when the user asks you to improve, fix or rewrite their card, such \
+as a leech they keep forgetting. Follow the card-writing guidelines in your instructions. If the \
+card asks for several things, rewrite it to test one of them and create cards for the rest. To \
+turn it into a cloze deletion, use `update_cloze_card` instead.";
+
+/// The `update_cloze_card` tool's description; the preamble holds the card-writing guidelines.
+pub(in crate::ai_integration) const UPDATE_CLOZE_CARD_DESCRIPTION: &str = "\
+Rewrites the card the user has open as a cloze deletion: a passage with one part hidden, which \
+the user recalls from the rest. It keeps the card's review history. Use this to improve a cloze \
+card, or when a passage with a hidden part tests the card's idea better than a question. Hide \
+one key part, as `create_cloze_card` does; use `update_card` for a question and answer.";
+
 /// The `finish_extract` tool's description.
 pub(in crate::ai_integration) const FINISH_EXTRACT_DESCRIPTION: &str = "\
 Marks the extract the user has open as finished, so it stops coming up for review. Use \

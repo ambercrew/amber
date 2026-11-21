@@ -19,6 +19,7 @@ import PdfPage from "./core/PdfPage";
 import PdfScrollbar from "./core/PdfScrollbar";
 import PdfStatus from "./core/PdfStatus";
 import PdfHighlightsProvider from "./highlights/PdfHighlightsProvider";
+import PdfSourceReveal from "./highlights/PdfSourceReveal";
 import PdfSelectionMenu from "./highlights/PdfSelectionMenu";
 import { usePdfHighlightRemoval } from "./highlights/usePdfHighlightRemoval";
 import PdfMarksProvider from "./marks/PdfMarksProvider";
@@ -89,6 +90,7 @@ function LoadedPdfDocument({
 			initialViewPosition={resume?.pdfViewPosition}
 			onLeave={underReview ? handleLeave : undefined}>
 			<PdfHighlightsProvider learningAssetId={learningAssetId}>
+				<PdfSourceReveal />
 				<PdfReadPointProvider>
 					<PdfMarksProvider>
 						<PdfReader />

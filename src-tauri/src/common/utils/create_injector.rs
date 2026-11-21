@@ -169,6 +169,8 @@ use crate::trash::services::implementations::trashed_subtree_post_sync_task::Tra
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
 use crate::study::services::element_status_service::ElementStatusService;
+use crate::study::services::implementations::default_leech_service::DefaultLeechService;
+use crate::study::services::leech_service::LeechService;
 use crate::study::services::implementations::default_element_status_service::DefaultElementStatusService;
 use crate::study::services::study_profile_service::StudyProfileService;
 use crate::{
@@ -401,6 +403,7 @@ pub async fn create_injector<R: tauri::Runtime>(
     );
     register_scope!(injector, dyn DueElementsService, DefaultDueElementsService);
     register_scope!(injector, dyn CardGradingService, DefaultCardGradingService);
+    register_scope!(injector, dyn LeechService, DefaultLeechService);
     register_scope!(
         injector,
         dyn LearningAssetSchedulingService,

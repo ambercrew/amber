@@ -122,11 +122,17 @@ impl AgentProvider for DefaultAgentProvider {
 
 #[cfg(test)]
 pub mod tests {
+    use crate::ai_integration::tools::update_card::tests::RecordingContentService;
+    use crate::elements::services::element_content_service::ElementContentService;
     use crate::elements::value_objects::name_source::NameSource;
     use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_log_repository::SqliteLearningAssetReviewLogRepository;
     use crate::study::repositories::learning_asset_review_log_repository::LearningAssetReviewLogRepository;
+    use crate::study::services::element_status_service::ElementStatusService;
+    use crate::study::services::implementations::default_element_status_service::DefaultElementStatusService;
     use crate::study::services::implementations::default_learning_asset_scheduling_service::DefaultLearningAssetSchedulingService;
+    use crate::study::services::implementations::default_leech_service::DefaultLeechService;
     use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
+    use crate::study::services::leech_service::LeechService;
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use chrono::Utc;
@@ -318,7 +324,22 @@ pub mod tests {
             dyn ContentSearchService,
             DefaultContentSearchService
         );
+        // The update tools are only offered for an open card, which these chats don't have.
+        injector.register_singleton::<dyn ElementContentService>(Arc::new(
+            RecordingContentService(Arc::default()),
+        ));
+        register_scope!(
+            injector,
+            dyn ElementStatusService,
+            DefaultElementStatusService
+        );
+        register_scope!(injector, dyn LeechService, DefaultLeechService);
         register_scope!(injector, dyn ToolsProvider, DefaultToolsProvider);
+        register_scope!(
+            injector,
+            dyn crate::image_occlusion::repositories::image_occlusion_repository::ImageOcclusionRepository,
+            crate::infrastructure::repositories::sqlite::sqlite_image_occlusion_repository::SqliteImageOcclusionRepository
+        );
         register_scope!(injector, dyn AgentProvider, DefaultAgentProvider);
 
         injector

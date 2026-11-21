@@ -16,12 +16,11 @@ import AnkiSyncProgress from "../../features/AnkiSync/components/AnkiSyncProgres
 import { describeAnkiSync } from "../../features/AnkiSync/utils/ankiSyncSummary";
 import errorToString from "../../utils/errorToString";
 import {
-	loadCurrentElementAction,
 	loadElementTree,
+	reloadEditedCurrentElementAction,
 } from "../elements/elementsActions";
 import { AppDispatch, RootState } from "../store";
 import { sync } from "../sync/syncActions";
-import { bumpElementRefreshCount } from "../sync/syncReducer";
 import { selectIsSyncing } from "../sync/syncSelectors";
 import {
 	selectIsOffline,
@@ -115,7 +114,9 @@ export function runAnkiSync(deckChoices: AnkiDeckChoiceDto[]) {
 			// An occlusion edited in Anki trashes the cards of its removed masks.
 			treeChanged =
 				summary.trashedCards > 0 || summary.editedCards.length > 0;
-			await dispatch(reloadEditedCurrentElement(summary.editedCards));
+			await dispatch(
+				reloadEditedCurrentElementAction(summary.editedCards),
+			);
 			notifications.update({
 				id,
 				autoClose: 6000,
@@ -141,15 +142,5 @@ export function runAnkiSync(deckChoices: AnkiDeckChoiceDto[]) {
 		}
 		// Even after a failure, which may have taken things from Anki already.
 		await dispatch(syncWithOtherDevices());
-	};
-}
-
-/** Shows the open card's new content when the sync replaced it with an edit from Anki. */
-function reloadEditedCurrentElement(editedCards: string[]) {
-	return async (dispatch: AppDispatch, getState: () => RootState) => {
-		const current = getState().elements.currentElement?.data.meta.elementId;
-		if (!current || !editedCards.includes(current.id)) return;
-		if (await dispatch(loadCurrentElementAction(current)))
-			dispatch(bumpElementRefreshCount());
 	};
 }

@@ -9,7 +9,10 @@ use crate::common::event_manager::EventManager;
 use crate::common::repository_error::RepositoryError;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
-use crate::study::entities::study_profile::{MAX_MAXIMUM_INTERVAL_DAYS, StudyProfile};
+use crate::study::entities::study_profile::{
+    MAX_LEECH_THRESHOLD, MAX_MAXIMUM_INTERVAL_DAYS, MAX_NEW_CARDS_PER_DAY, StudyProfile,
+};
+use crate::study::events::element_due_changed_event::emit_element_due_changed;
 use crate::study::events::study_profiles_changed_event::STUDY_PROFILES_CHANGED_EVENT;
 use crate::study::repositories::study_profile_repository::StudyProfileRepository;
 use crate::study::services::study_profile_service::{
@@ -33,7 +36,7 @@ impl StudyProfileService for DefaultStudyProfileService {
         &self,
         fields: StudyProfileFields,
     ) -> Result<StudyProfile, StudyProfileServiceError> {
-        validate_maximum_interval(fields.maximum_interval_days)?;
+        validate_limits(&fields)?;
         let fsrs_params = validate_fsrs_params(fields.fsrs_params)?
             .unwrap_or_else(|| fsrs::DEFAULT_PARAMETERS.to_vec());
         let now = Utc::now();
@@ -51,6 +54,9 @@ impl StudyProfileService for DefaultStudyProfileService {
             initial_interval_days: fields.initial_interval_days,
             min_interval_days: fields.min_interval_days,
             maximum_interval_days: fields.maximum_interval_days,
+            new_cards_per_day: fields.new_cards_per_day,
+            leech_threshold: fields.leech_threshold,
+            leech_action: fields.leech_action,
             priority_inheritance_policy: fields.priority_inheritance_policy,
         };
         self.study_profile_repository.create(&profile).await?;
@@ -63,12 +69,12 @@ impl StudyProfileService for DefaultStudyProfileService {
         id: Uuid,
         fields: StudyProfileFields,
     ) -> Result<StudyProfile, StudyProfileServiceError> {
-        validate_maximum_interval(fields.maximum_interval_days)?;
+        validate_limits(&fields)?;
         let existing = self.study_profile_repository.get_by_id(id).await?;
+        let existing_new_cards_per_day = existing.new_cards_per_day;
         let fsrs_params =
             validate_fsrs_params(fields.fsrs_params)?.or_else(|| existing.fsrs_params.clone());
         let profile = StudyProfile {
-            name: fields.name,
             desired_retention: fields.desired_retention,
             fsrs_params,
             learning_steps: fields.learning_steps,
@@ -77,9 +83,27 @@ impl StudyProfileService for DefaultStudyProfileService {
             initial_interval_days: fields.initial_interval_days,
             min_interval_days: fields.min_interval_days,
             maximum_interval_days: fields.maximum_interval_days,
+            new_cards_per_day: fields.new_cards_per_day,
+            leech_threshold: fields.leech_threshold,
+            leech_action: fields.leech_action,
             priority_inheritance_policy: fields.priority_inheritance_policy,
             ..existing
         };
+        self.study_profile_repository.update(&profile).await?;
+        self.emit_profiles_changed().await;
+        if profile.new_cards_per_day != existing_new_cards_per_day {
+            emit_element_due_changed(&self.event_manager).await;
+        }
+        Ok(profile)
+    }
+
+    async fn rename_profile(
+        &self,
+        id: Uuid,
+        name: String,
+    ) -> Result<StudyProfile, RepositoryError> {
+        let existing = self.study_profile_repository.get_by_id(id).await?;
+        let profile = StudyProfile { name, ..existing };
         self.study_profile_repository.update(&profile).await?;
         self.emit_profiles_changed().await;
         Ok(profile)
@@ -88,6 +112,8 @@ impl StudyProfileService for DefaultStudyProfileService {
     async fn delete_profile(&self, id: Uuid) -> Result<(), RepositoryError> {
         self.study_profile_repository.delete(id).await?;
         self.emit_profiles_changed().await;
+        // Its cards now use the default profile's new card allowance.
+        emit_element_due_changed(&self.event_manager).await;
         Ok(())
     }
 
@@ -115,6 +141,7 @@ impl StudyProfileService for DefaultStudyProfileService {
         };
         self.study_profile_repository.update(&profile).await?;
         self.emit_profiles_changed().await;
+        emit_element_due_changed(&self.event_manager).await;
         Ok(profile)
     }
 
@@ -125,7 +152,9 @@ impl StudyProfileService for DefaultStudyProfileService {
     ) -> Result<(), RepositoryError> {
         self.meta_repository
             .set_study_profile(element_id, profile_id)
-            .await
+            .await?;
+        emit_element_due_changed(&self.event_manager).await;
+        Ok(())
     }
 
     async fn assign_profile_many(
@@ -138,6 +167,7 @@ impl StudyProfileService for DefaultStudyProfileService {
                 .set_study_profile(element_id, profile_id)
                 .await?;
         }
+        emit_element_due_changed(&self.event_manager).await;
         Ok(())
     }
 }
@@ -163,12 +193,23 @@ fn validate_fsrs_params(
     }
 }
 
-fn validate_maximum_interval(days: u32) -> Result<(), StudyProfileServiceError> {
-    if (1..=MAX_MAXIMUM_INTERVAL_DAYS).contains(&days) {
-        Ok(())
-    } else {
-        Err(StudyProfileServiceError::InvalidMaximumInterval { actual: days })
+fn validate_limits(fields: &StudyProfileFields) -> Result<(), StudyProfileServiceError> {
+    if !(1..=MAX_MAXIMUM_INTERVAL_DAYS).contains(&fields.maximum_interval_days) {
+        return Err(StudyProfileServiceError::InvalidMaximumInterval {
+            actual: fields.maximum_interval_days,
+        });
     }
+    if fields.new_cards_per_day > MAX_NEW_CARDS_PER_DAY {
+        return Err(StudyProfileServiceError::InvalidNewCardsPerDay {
+            actual: fields.new_cards_per_day,
+        });
+    }
+    if fields.leech_threshold > MAX_LEECH_THRESHOLD {
+        return Err(StudyProfileServiceError::InvalidLeechThreshold {
+            actual: fields.leech_threshold,
+        });
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -190,6 +231,7 @@ mod tests {
 
     use super::*;
     use crate::study::entities::study_profile::DEFAULT_MAXIMUM_INTERVAL_DAYS;
+    use crate::study::events::element_due_changed_event::ELEMENT_DUE_CHANGED_EVENT;
 
     fn permissive_event_manager() -> Arc<dyn EventManager> {
         let mut mock = MockEventManager::new();
@@ -225,6 +267,9 @@ mod tests {
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
             maximum_interval_days: DEFAULT_MAXIMUM_INTERVAL_DAYS,
+            new_cards_per_day: crate::study::entities::study_profile::DEFAULT_NEW_CARDS_PER_DAY,
+            leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
+            leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }
@@ -248,24 +293,141 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_profile_existing_profile_changes_fields() {
+    async fn update_profile_existing_profile_changes_fields_but_keeps_name() {
         // Arrange
 
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
         let service = scope.resolve::<dyn StudyProfileService>().await;
         let profile = service.create_profile(make_fields("Custom")).await.unwrap();
+        let fields = StudyProfileFields {
+            new_cards_per_day: 7,
+            ..make_fields("Stale")
+        };
 
         // Act
 
-        let updated = service
-            .update_profile(profile.id, make_fields("Renamed"))
+        let updated = service.update_profile(profile.id, fields).await.unwrap();
+
+        // Assert
+
+        assert_eq!(7, updated.new_cards_per_day);
+        assert_eq!("Custom", updated.name);
+    }
+
+    /// A service whose pushed event names are recorded.
+    async fn recording_service(
+        scope: &injector::injector_scope::InjectorScope<'_>,
+    ) -> (
+        DefaultStudyProfileService,
+        Arc<std::sync::Mutex<Vec<String>>>,
+    ) {
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let recorded = events.clone();
+        let mut event_manager = MockEventManager::new();
+        event_manager.expect_push().returning(move |name, _| {
+            recorded.lock().unwrap().push(name.to_string());
+            Box::pin(async {})
+        });
+        let service = DefaultStudyProfileService {
+            study_profile_repository: scope.resolve::<dyn StudyProfileRepository>().await,
+            meta_repository: scope.resolve::<dyn MetaRepository>().await,
+            event_manager: Arc::new(event_manager),
+        };
+        (service, events)
+    }
+
+    #[tokio::test]
+    async fn update_profile_new_cards_per_day_changed_emits_due_changed() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let (service, events) = recording_service(&scope).await;
+        let profile = service.create_profile(make_fields("Custom")).await.unwrap();
+        events.lock().unwrap().clear();
+        let fields = StudyProfileFields {
+            new_cards_per_day: profile.new_cards_per_day + 1,
+            ..make_fields("Custom")
+        };
+
+        // Act
+
+        service.update_profile(profile.id, fields).await.unwrap();
+
+        // Assert
+
+        assert!(
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|name| name == ELEMENT_DUE_CHANGED_EVENT)
+        );
+    }
+
+    #[tokio::test]
+    async fn update_profile_new_cards_per_day_unchanged_does_not_emit_due_changed() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let (service, events) = recording_service(&scope).await;
+        let profile = service.create_profile(make_fields("Custom")).await.unwrap();
+        events.lock().unwrap().clear();
+        let fields = StudyProfileFields {
+            desired_retention: 0.85,
+            ..make_fields("Custom")
+        };
+
+        // Act
+
+        service.update_profile(profile.id, fields).await.unwrap();
+
+        // Assert
+
+        assert!(
+            !events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|name| name == ELEMENT_DUE_CHANGED_EVENT)
+        );
+    }
+
+    #[tokio::test]
+    async fn rename_profile_existing_profile_changes_only_name() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn StudyProfileService>().await;
+        let fields = StudyProfileFields {
+            desired_retention: 0.85,
+            new_cards_per_day: 7,
+            ..make_fields("Custom")
+        };
+        let profile = service.create_profile(fields).await.unwrap();
+
+        // Act
+
+        service
+            .rename_profile(profile.id, "Renamed".into())
             .await
             .unwrap();
 
         // Assert
 
-        assert_eq!("Renamed", updated.name);
+        let stored = service
+            .list_profiles()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|candidate| candidate.id == profile.id)
+            .unwrap();
+        assert_eq!("Renamed", stored.name);
+        assert_eq!(0.85, stored.desired_retention);
+        assert_eq!(7, stored.new_cards_per_day);
     }
 
     #[tokio::test]

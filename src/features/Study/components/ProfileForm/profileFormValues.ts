@@ -1,4 +1,5 @@
 import {
+	LeechAction,
 	Placement,
 	PlacementType,
 	StudyProfileDto,
@@ -21,10 +22,17 @@ const DEFAULT_RELEARNING_STEPS = ["10m"];
 export const DEFAULT_MAXIMUM_INTERVAL_DAYS = 36500;
 export const MAX_MAXIMUM_INTERVAL_DAYS = 36500;
 
+// Mirror the DEFAULT_ and MAX_ new-card and leech constants in study_profile.rs (src-tauri).
+export const DEFAULT_NEW_CARDS_PER_DAY = 20;
+export const MAX_NEW_CARDS_PER_DAY = 9999;
+export const DEFAULT_LEECH_THRESHOLD = 8;
+export const MAX_LEECH_THRESHOLD = 99;
+
 export const FSRS_PARAM_COUNT = 21;
 
 export interface ProfileFormValues extends Omit<
 	StudyProfileRequestDto,
+	| "name"
 	| "fsrsParams"
 	| "learningSteps"
 	| "relearningSteps"
@@ -124,11 +132,20 @@ export function isValidMaximumInterval(value: number): boolean {
 	);
 }
 
+/** A whole number from 0 to `max`. */
+export function isValidCount(value: number, max: number): boolean {
+	return Number.isInteger(value) && value >= 0 && value <= max;
+}
+
+export const LEECH_ACTION_OPTIONS: { value: LeechAction; label: string }[] = [
+	{ value: "tagOnly", label: "Tag only" },
+	{ value: "suspend", label: "Tag and suspend" },
+];
+
 export function initialValues(
 	profile: StudyProfileDto | null,
 ): ProfileFormValues {
 	return {
-		name: profile?.name ?? "New profile",
 		desiredRetention: profile?.desiredRetention ?? 0.9,
 		fsrsParams: (profile?.fsrsParams ?? DEFAULT_FSRS_PARAMS).join(", "),
 		learningSteps: (profile?.learningSteps ?? DEFAULT_LEARNING_STEPS).join(
@@ -139,6 +156,9 @@ export function initialValues(
 		).join(" "),
 		maximumIntervalDays:
 			profile?.maximumIntervalDays ?? DEFAULT_MAXIMUM_INTERVAL_DAYS,
+		newCardsPerDay: profile?.newCardsPerDay ?? DEFAULT_NEW_CARDS_PER_DAY,
+		leechThreshold: profile?.leechThreshold ?? DEFAULT_LEECH_THRESHOLD,
+		leechAction: profile?.leechAction ?? "tagOnly",
 		initialIntervalMultiplier: profile?.initialIntervalMultiplier ?? 1.2,
 		initialIntervalDays: profile?.initialIntervalDays ?? 1,
 		minIntervalDays: profile?.minIntervalDays ?? 1,
@@ -154,9 +174,10 @@ export function initialValues(
 	};
 }
 
-/** Drops the form-only fields, so only what the backend declares is sent. */
+/** Drops the form-only fields, so only what the backend declares is sent. The name is edited outside the form. */
 export function toRequestDto(
 	values: ProfileFormValues,
+	name: string,
 ): StudyProfileRequestDto {
 	const {
 		placementType,
@@ -167,6 +188,7 @@ export function toRequestDto(
 	} = values;
 	return {
 		...rest,
+		name,
 		fsrsParams: parseFsrsParams(values.fsrsParams),
 		learningSteps: parseSteps(values.learningSteps),
 		relearningSteps: parseSteps(values.relearningSteps),

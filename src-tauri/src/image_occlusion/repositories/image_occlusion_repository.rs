@@ -29,6 +29,9 @@ pub trait ImageOcclusionRepository: Send + Sync {
 
     async fn unlink_card(&self, card_id: Uuid) -> Result<(), RepositoryError>;
 
+    /// Whether the card is one of an occlusion's, built from its image and masks.
+    async fn is_card_linked(&self, card_id: Uuid) -> Result<bool, RepositoryError>;
+
     async fn get_links(
         &self,
         occlusion_id: Uuid,

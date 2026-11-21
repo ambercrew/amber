@@ -77,7 +77,11 @@ export default function useAiStreaming({
 	const [streamChatId, setStreamChatId] = useState<string | null>(null);
 
 	const sendPrompt = useCallback(
-		async (prompt: string) => {
+		// `elementId` is what the chat's tools act on; the open element unless the prompt is about another.
+		async (
+			prompt: string,
+			elementId: ElementId | null = currentElementId,
+		) => {
 			setStreamError(null);
 			clearErrorMessage();
 			setPendingHumanText(prompt);
@@ -146,7 +150,7 @@ export default function useAiStreaming({
 						await streamAiResponse(channel, {
 							prompt,
 							chatId: selectedChatId,
-							elementId: currentElementId,
+							elementId,
 							contextSnippets,
 						});
 					} catch (e) {

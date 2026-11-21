@@ -1,9 +1,11 @@
 import { useMemo } from "react";
+import { useLocation } from "react-router";
 import { Alert, Container, Divider, Group, Stack, Text } from "@mantine/core";
 import { QuestionIcon, CheckCircleIcon, InfoIcon } from "@phosphor-icons/react";
 import ContentOriginPanel from "./ContentOriginPanel";
 import ElementEditor from "./ElementEditor";
 import SearchHighlightPlugin from "../../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightPlugin";
+import RevealHighlightPlugin from "../../../components/Editor/plugins/HighlightPlugin/RevealHighlightPlugin";
 import { CardResponseDto } from "../../../api/elements/dto/anyElementDto";
 import { FloatingMenuItem } from "../../../components/Editor/plugins/FloatingMenuPlugin";
 import { HighlightCreatedPayload } from "../../../components/Editor/plugins/HighlightPlugin/highlightCommands";
@@ -15,6 +17,7 @@ import {
 import { isSameElement } from "../../../utils/elementKey";
 import { selectElementRefreshCount } from "../../../stores/sync/syncSelectors";
 import { ElementId } from "../../../types/elements/elementId";
+import { readSpotNavigationState } from "../../../types/elements/spotNavigationState";
 import { useEditorFindInPage } from "../hooks/useEditorFindInPage";
 import { useIsCardSyncedFromAnki } from "../hooks/useIsCardSyncedFromAnki";
 import { useLineWidthContainerProps } from "../../../hooks/useLineWidthContainerProps";
@@ -53,6 +56,8 @@ export default function CardElementViewer({
 	const { query, caseSensitive, onMatches, matchIndexFor } =
 		useEditorFindInPage(editorKeys);
 	const containerProps = useLineWidthContainerProps();
+	const location = useLocation();
+	const { revealHighlightOf } = readSpotNavigationState(location.state);
 
 	return (
 		<Container {...containerProps} py="lg">
@@ -84,6 +89,10 @@ export default function CardElementViewer({
 							currentMatchLocalIndex={matchIndexFor("front")}
 							onMatches={onMatches}
 						/>
+						<RevealHighlightPlugin
+							highlightOf={revealHighlightOf}
+							revealKey={location.key}
+						/>
 					</ElementEditor>
 				</Stack>
 				<Divider />
@@ -110,6 +119,10 @@ export default function CardElementViewer({
 								caseSensitive={caseSensitive}
 								currentMatchLocalIndex={matchIndexFor("back")}
 								onMatches={onMatches}
+							/>
+							<RevealHighlightPlugin
+								highlightOf={revealHighlightOf}
+								revealKey={location.key}
 							/>
 						</ElementEditor>
 					)}

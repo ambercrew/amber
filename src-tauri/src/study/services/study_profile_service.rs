@@ -4,7 +4,10 @@ use uuid::Uuid;
 
 use crate::common::repository_error::RepositoryError;
 use crate::elements::value_objects::element_id::ElementId;
-use crate::study::entities::study_profile::{MAX_MAXIMUM_INTERVAL_DAYS, StudyProfile};
+use crate::study::entities::study_profile::{
+    MAX_LEECH_THRESHOLD, MAX_MAXIMUM_INTERVAL_DAYS, MAX_NEW_CARDS_PER_DAY, StudyProfile,
+};
+use crate::study::value_objects::leech_action::LeechAction;
 use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
 use crate::study::value_objects::step_unit::StepUnit;
 
@@ -26,6 +29,9 @@ pub struct StudyProfileFields {
     pub initial_interval_days: f32,
     pub min_interval_days: f32,
     pub maximum_interval_days: u32,
+    pub new_cards_per_day: u32,
+    pub leech_threshold: u32,
+    pub leech_action: LeechAction,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
@@ -36,11 +42,15 @@ pub trait StudyProfileService: Send + Sync {
         &self,
         fields: StudyProfileFields,
     ) -> Result<StudyProfile, StudyProfileServiceError>;
+    /// Keeps the stored name, so a save can't undo a rename made since (see `rename_profile`).
     async fn update_profile(
         &self,
         id: Uuid,
         fields: StudyProfileFields,
     ) -> Result<StudyProfile, StudyProfileServiceError>;
+    /// Changes only the name, leaving the other fields as stored.
+    async fn rename_profile(&self, id: Uuid, name: String)
+    -> Result<StudyProfile, RepositoryError>;
     async fn delete_profile(&self, id: Uuid) -> Result<(), RepositoryError>;
     async fn clone_profile(&self, id: Uuid) -> Result<StudyProfile, RepositoryError>;
 
@@ -74,4 +84,10 @@ pub enum StudyProfileServiceError {
 
     #[error("expected a maximum interval from 1 to {MAX_MAXIMUM_INTERVAL_DAYS} days, got {actual}")]
     InvalidMaximumInterval { actual: u32 },
+
+    #[error("expected at most {MAX_NEW_CARDS_PER_DAY} new cards per day, got {actual}")]
+    InvalidNewCardsPerDay { actual: u32 },
+
+    #[error("expected a leech threshold of at most {MAX_LEECH_THRESHOLD} lapses, got {actual}")]
+    InvalidLeechThreshold { actual: u32 },
 }

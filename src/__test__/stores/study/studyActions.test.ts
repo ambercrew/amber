@@ -43,6 +43,7 @@ import { AnyElementDto } from "../../../api/elements/dto/anyElementDto";
 import { ElementId } from "../../../types/elements/elementId";
 import { ElementsState } from "../../../stores/elements/elementsReducer";
 import { CardReviewDto } from "../../../api/study/dto/cardReviewDto";
+import { RegisteredCardReviewDto } from "../../../api/study/dto/registeredCardReviewDto";
 import { LearningAssetReviewDto } from "../../../api/study/dto/learningAssetReviewDto";
 
 vi.mock(import("../../../api/study/api/studyApi.ts"));
@@ -153,6 +154,13 @@ function makeCardReview(due: string): CardReviewDto {
 
 // The review the caller schedules with ts-fsrs before dispatching; the action
 // only forwards it, so its contents don't affect these tests.
+function registered(
+	review: CardReviewDto,
+	outcome: Partial<RegisteredCardReviewDto> = {},
+): RegisteredCardReviewDto {
+	return { review, leeched: false, suspended: false, ...outcome };
+}
+
 const SCHEDULED_REVIEW = makeCardReview("2024-02-01T00:00:00Z");
 
 const LEARNING_ASSET_REVIEW: LearningAssetReviewDto = {
@@ -255,7 +263,7 @@ describe("gradeCardAction", () => {
 		// Arrange
 
 		vi.mocked(registerCardReview).mockResolvedValue(
-			makeCardReview(IN_TWO_DAYS()),
+			registered(makeCardReview(IN_TWO_DAYS())),
 		);
 		const navigate = vi.fn() as unknown as NavigateFunction;
 		const store = setupStore({
@@ -290,7 +298,7 @@ describe("gradeCardAction", () => {
 		// Arrange
 
 		vi.mocked(registerCardReview).mockResolvedValue(
-			makeCardReview(IN_TWO_DAYS()),
+			registered(makeCardReview(IN_TWO_DAYS())),
 		);
 		vi.mocked(elementExists).mockResolvedValue(true);
 		vi.mocked(getElementById).mockImplementation(id =>
@@ -338,7 +346,7 @@ describe("gradeCardAction", () => {
 		// Arrange
 
 		vi.mocked(registerCardReview).mockResolvedValue(
-			makeCardReview(IN_TWO_DAYS()),
+			registered(makeCardReview(IN_TWO_DAYS())),
 		);
 		vi.mocked(elementExists).mockResolvedValue(true);
 		vi.mocked(getElementById).mockImplementation(id =>
@@ -385,7 +393,7 @@ describe("gradeCardAction", () => {
 		// Arrange
 
 		vi.mocked(registerCardReview).mockResolvedValue(
-			makeCardReview(IN_TWO_DAYS()),
+			registered(makeCardReview(IN_TWO_DAYS())),
 		);
 		const navigate = vi.fn() as unknown as NavigateFunction;
 		const store = setupStore({
@@ -414,7 +422,7 @@ describe("gradeCardAction", () => {
 		// Arrange
 
 		vi.mocked(registerCardReview).mockResolvedValue(
-			makeCardReview(IN_ONE_MINUTE()),
+			registered(makeCardReview(IN_ONE_MINUTE())),
 		);
 		const navigate = vi.fn() as unknown as NavigateFunction;
 		const queue = Array.from({ length: 10 }, (_, i) =>
@@ -441,11 +449,76 @@ describe("gradeCardAction", () => {
 		});
 	});
 
+	it("Should remove the card and advance once when the grade suspends it as a leech", async () => {
+		// Arrange
+
+		vi.mocked(registerCardReview).mockResolvedValue(
+			registered(makeCardReview(IN_ONE_MINUTE()), {
+				leeched: true,
+				suspended: true,
+			}),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: {
+				...BASE_STUDY_STATE,
+				queue: [
+					cardQueueItem("1"),
+					cardQueueItem("2"),
+					cardQueueItem("3"),
+				],
+			},
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(
+			gradeCardAction("1", SCHEDULED_REVIEW, "again", navigate),
+		);
+
+		// Assert
+
+		const state = store.getState().study;
+		expect(state.queue.map(item => item.elementId.id)).toEqual(["2", "3"]);
+		expect(navigate).toHaveBeenCalledTimes(1);
+		expect(navigate).toHaveBeenCalledWith("/card/2", {
+			state: REVIEW_NAVIGATION_STATE,
+		});
+	});
+
+	it("Should reload the card when its grade makes it a leech and ends the session", async () => {
+		// Arrange
+
+		vi.mocked(registerCardReview).mockResolvedValue(
+			registered(makeCardReview(IN_TWO_DAYS()), { leeched: true }),
+		);
+		vi.mocked(elementExists).mockResolvedValue(true);
+		vi.mocked(getElementById).mockImplementation(id =>
+			Promise.resolve(elementFor(id)),
+		);
+		const navigate = vi.fn() as unknown as NavigateFunction;
+		const store = setupStore({
+			study: { ...BASE_STUDY_STATE, queue: [cardQueueItem("1")] },
+			elements: elementsStateFor(cardElement("1")),
+		});
+
+		// Act
+
+		await store.dispatch(
+			gradeCardAction("1", SCHEDULED_REVIEW, "again", navigate),
+		);
+
+		// Assert
+
+		expect(getElementById).toHaveBeenCalledWith({ type: "card", id: "1" });
+	});
+
 	it("Should wrap around to the front of the queue when the last element is completed and others remain", async () => {
 		// Arrange
 
 		vi.mocked(registerCardReview).mockResolvedValue(
-			makeCardReview(IN_TWO_DAYS()),
+			registered(makeCardReview(IN_TWO_DAYS())),
 		);
 		const navigate = vi.fn() as unknown as NavigateFunction;
 		const store = setupStore({
@@ -479,7 +552,7 @@ describe("gradeCardAction", () => {
 		// Arrange
 
 		vi.mocked(registerCardReview).mockResolvedValue(
-			makeCardReview(IN_TWO_DAYS()),
+			registered(makeCardReview(IN_TWO_DAYS())),
 		);
 		const navigate = vi.fn() as unknown as NavigateFunction;
 		const store = setupStore({
@@ -513,7 +586,7 @@ describe("gradeCardAction", () => {
 		// Arrange
 
 		vi.mocked(registerCardReview).mockResolvedValue(
-			makeCardReview(IN_TWO_DAYS()),
+			registered(makeCardReview(IN_TWO_DAYS())),
 		);
 		const navigate = vi.fn() as unknown as NavigateFunction;
 		const store = setupStore({
