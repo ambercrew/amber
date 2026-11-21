@@ -57,6 +57,8 @@ const profiles: StudyProfileDto[] = [
 		leechThreshold: 8,
 		leechAction: "tagOnly",
 		cardInitialIntervalDays: 1,
+		buryNewSiblings: false,
+		buryReviewSiblings: false,
 		priorityInheritancePolicy: {
 			placement: { type: "aboveParent" },
 			ceilingPercentile: null,

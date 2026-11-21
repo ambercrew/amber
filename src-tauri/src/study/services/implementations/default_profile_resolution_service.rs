@@ -192,6 +192,8 @@ impl DefaultProfileResolutionService {
             leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
             leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
             card_initial_interval_days: DEFAULT_INITIAL_INTERVAL_DAYS,
+            bury_new_siblings: crate::study::entities::study_profile::DEFAULT_BURY_NEW_SIBLINGS,
+            bury_review_siblings: false,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }

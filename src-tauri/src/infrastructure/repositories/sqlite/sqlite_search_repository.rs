@@ -1405,6 +1405,8 @@ mod tests {
                 leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
                 leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
                 card_initial_interval_days: 1.0,
+                bury_new_siblings: false,
+                bury_review_siblings: false,
                 priority_inheritance_policy: PriorityInheritancePolicy::default(),
             })
             .await

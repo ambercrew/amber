@@ -31,6 +31,8 @@ export interface StudyProfileDto {
 	leechThreshold: number;
 	leechAction: LeechAction;
 	cardInitialIntervalDays: number;
+	buryNewSiblings: boolean;
+	buryReviewSiblings: boolean;
 	initialIntervalMultiplier: number;
 	initialIntervalDays: number;
 	minIntervalDays: number;
@@ -48,6 +50,8 @@ export interface StudyProfileRequestDto {
 	leechThreshold: number;
 	leechAction: LeechAction;
 	cardInitialIntervalDays: number;
+	buryNewSiblings: boolean;
+	buryReviewSiblings: boolean;
 	initialIntervalMultiplier: number;
 	initialIntervalDays: number;
 	minIntervalDays: number;

@@ -41,6 +41,8 @@ function makeProfile(
 		leechThreshold: 8,
 		leechAction: "tagOnly",
 		cardInitialIntervalDays: 1,
+		buryNewSiblings: false,
+		buryReviewSiblings: false,
 		priorityInheritancePolicy: {
 			placement: { type: "aboveParent" },
 			ceilingPercentile: null,
@@ -423,7 +425,44 @@ describe("ProfileForm", () => {
 				profile.id,
 				expect.objectContaining({
 					cardInitialIntervalDays: 4,
+					buryNewSiblings: false,
+					buryReviewSiblings: false,
 					initialIntervalDays: profile.initialIntervalDays,
+				}),
+			);
+		});
+	});
+
+	it("Should submit burying review siblings when its checkbox is checked on the Cards tab", async () => {
+		// Arrange
+
+		const profile = makeProfile();
+		vi.mocked(updateStudyProfile).mockResolvedValue(profile);
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+
+		// Act
+
+		await user.click(
+			screen.getByRole("checkbox", { name: "Bury review siblings" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// Assert
+
+		await waitFor(() => {
+			expect(updateStudyProfile).toHaveBeenCalledWith(
+				profile.id,
+				expect.objectContaining({
+					buryNewSiblings: false,
+					buryReviewSiblings: true,
 				}),
 			);
 		});

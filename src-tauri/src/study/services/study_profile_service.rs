@@ -33,6 +33,8 @@ pub struct StudyProfileFields {
     pub leech_threshold: u32,
     pub leech_action: LeechAction,
     pub card_initial_interval_days: f32,
+    pub bury_new_siblings: bool,
+    pub bury_review_siblings: bool,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 

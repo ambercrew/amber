@@ -31,6 +31,9 @@ export const MAX_NEW_CARDS_PER_DAY = 9999;
 export const DEFAULT_LEECH_THRESHOLD = 8;
 export const MAX_LEECH_THRESHOLD = 99;
 
+// Mirrors DEFAULT_BURY_NEW_SIBLINGS in study_profile.rs (src-tauri).
+const DEFAULT_BURY_NEW_SIBLINGS = true;
+
 export const FSRS_PARAM_COUNT = 21;
 
 export interface ProfileFormValues extends Omit<
@@ -174,6 +177,8 @@ export function initialValues(
 		leechAction: profile?.leechAction ?? "tagOnly",
 		cardInitialIntervalDays:
 			profile?.cardInitialIntervalDays ?? DEFAULT_INITIAL_INTERVAL_DAYS,
+		buryNewSiblings: profile?.buryNewSiblings ?? DEFAULT_BURY_NEW_SIBLINGS,
+		buryReviewSiblings: profile?.buryReviewSiblings ?? false,
 		initialIntervalMultiplier: profile?.initialIntervalMultiplier ?? 1.2,
 		initialIntervalDays:
 			profile?.initialIntervalDays ?? DEFAULT_INITIAL_INTERVAL_DAYS,

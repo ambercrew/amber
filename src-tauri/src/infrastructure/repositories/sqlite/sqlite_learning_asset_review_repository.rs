@@ -162,6 +162,8 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
                 priority: FractionalIndex::from_bytes(row.priority)
                     .expect("Invalid fractional index"),
                 is_new_card: false,
+                is_review_card: false,
+                sibling_group: None,
                 study_profile_id: row.study_profile_id.map(|id| id.into_uuid()),
                 parent_id: row.parent_id.map(|id| id.into_uuid()),
             })

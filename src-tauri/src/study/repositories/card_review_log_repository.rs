@@ -17,4 +17,11 @@ pub trait CardReviewLogRepository: Send + Sync {
         &self,
         since: DateTime<Utc>,
     ) -> Result<Vec<Uuid>, RepositoryError>;
+
+    /// `(sibling group, card)` for each card with siblings (same image occlusion, else same parent
+    /// extract) reviewed at or after `since`.
+    async fn get_sibling_reviews_since(
+        &self,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<(Uuid, Uuid)>, RepositoryError>;
 }

@@ -24,6 +24,10 @@ ALTER TABLE study_profiles ADD COLUMN new_cards_per_day INTEGER NOT NULL DEFAULT
 ALTER TABLE study_profiles ADD COLUMN leech_threshold INTEGER NOT NULL DEFAULT 8;
 ALTER TABLE study_profiles ADD COLUMN leech_action TEXT NOT NULL DEFAULT 'tag_only';
 
+-- Anki's bury new and review siblings; burying new ones mirrors DEFAULT_BURY_NEW_SIBLINGS in study_profile.rs.
+ALTER TABLE study_profiles ADD COLUMN bury_new_siblings INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE study_profiles ADD COLUMN bury_review_siblings INTEGER NOT NULL DEFAULT 0;
+
 -- New cards' first due date, split from learning assets' and extracts'; each profile keeps what it had.
 -- The default mirrors DEFAULT_INITIAL_INTERVAL_DAYS; every device copies the same synced value, so it isn't staged.
 ALTER TABLE study_profiles ADD COLUMN card_initial_interval_days REAL NOT NULL DEFAULT 1.0;
@@ -34,7 +38,7 @@ DELETE FROM sync_applying;
 DROP TRIGGER study_profiles_update_modified_at_after_update;
 
 CREATE TRIGGER study_profiles_update_modified_at_after_update
-    AFTER UPDATE OF name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, maximum_interval_days, new_cards_per_day, leech_threshold, leech_action, card_initial_interval_days, initial_interval_multiplier, initial_interval_days, min_interval_days, priority_inheritance_placement, priority_inheritance_percentile, priority_inheritance_ceiling_percentile ON study_profiles
+    AFTER UPDATE OF name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, maximum_interval_days, new_cards_per_day, leech_threshold, leech_action, card_initial_interval_days, bury_new_siblings, bury_review_siblings, initial_interval_multiplier, initial_interval_days, min_interval_days, priority_inheritance_placement, priority_inheritance_percentile, priority_inheritance_ceiling_percentile ON study_profiles
 BEGIN
     UPDATE study_profiles
     SET modified_at = datetime('now')

@@ -31,6 +31,8 @@ pub struct StudyProfileResponseDto {
     pub leech_threshold: u32,
     pub leech_action: LeechAction,
     pub card_initial_interval_days: f32,
+    pub bury_new_siblings: bool,
+    pub bury_review_siblings: bool,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
@@ -76,6 +78,8 @@ impl From<StudyProfile> for StudyProfileResponseDto {
             leech_threshold: profile.leech_threshold,
             leech_action: profile.leech_action,
             card_initial_interval_days: profile.card_initial_interval_days,
+            bury_new_siblings: profile.bury_new_siblings,
+            bury_review_siblings: profile.bury_review_siblings,
             priority_inheritance_policy: profile.priority_inheritance_policy,
         }
     }
@@ -99,6 +103,8 @@ pub struct StudyProfileRequestDto {
     pub leech_threshold: u32,
     pub leech_action: LeechAction,
     pub card_initial_interval_days: f32,
+    pub bury_new_siblings: bool,
+    pub bury_review_siblings: bool,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
@@ -118,6 +124,8 @@ impl From<StudyProfileRequestDto> for StudyProfileFields {
             leech_threshold: dto.leech_threshold,
             leech_action: dto.leech_action,
             card_initial_interval_days: dto.card_initial_interval_days,
+            bury_new_siblings: dto.bury_new_siblings,
+            bury_review_siblings: dto.bury_review_siblings,
             priority_inheritance_policy: dto.priority_inheritance_policy,
         }
     }

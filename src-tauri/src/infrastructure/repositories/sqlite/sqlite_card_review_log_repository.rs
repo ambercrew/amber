@@ -100,6 +100,35 @@ impl CardReviewLogRepository for SqliteCardReviewLogRepository {
             .map(|row| row.card_id.into_uuid())
             .collect())
     }
+
+    async fn get_sibling_reviews_since(
+        &self,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<(Uuid, Uuid)>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        // Siblings as in `get_due_cards`: same occlusion, else same parent extract.
+        let rows = sqlx::query!(
+            r#"SELECT DISTINCT
+                COALESCE(ioc.occlusion_id, p.element_id) AS "sibling_group!: uuid::fmt::Hyphenated",
+                l.card_id AS "card_id!: uuid::fmt::Hyphenated"
+            FROM card_review_logs l INDEXED BY card_review_logs_reviewed_at_index
+            JOIN meta m ON m.element_id = l.card_id
+            LEFT JOIN image_occlusion_cards ioc ON ioc.card_id = l.card_id
+            LEFT JOIN meta p ON p.element_id = m.parent_id AND p.element_type = 'extract'
+            WHERE l.reviewed_at >= datetime($1)
+              AND COALESCE(ioc.occlusion_id, p.element_id) IS NOT NULL"#,
+            since
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.sibling_group.into_uuid(), row.card_id.into_uuid()))
+            .collect())
+    }
 }
 
 #[cfg(test)]

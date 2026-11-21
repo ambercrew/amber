@@ -58,6 +58,8 @@ impl StudyProfileService for DefaultStudyProfileService {
             leech_threshold: fields.leech_threshold,
             leech_action: fields.leech_action,
             card_initial_interval_days: fields.card_initial_interval_days,
+            bury_new_siblings: fields.bury_new_siblings,
+            bury_review_siblings: fields.bury_review_siblings,
             priority_inheritance_policy: fields.priority_inheritance_policy,
         };
         self.study_profile_repository.create(&profile).await?;
@@ -72,7 +74,12 @@ impl StudyProfileService for DefaultStudyProfileService {
     ) -> Result<StudyProfile, StudyProfileServiceError> {
         validate_limits(&fields)?;
         let existing = self.study_profile_repository.get_by_id(id).await?;
-        let existing_new_cards_per_day = existing.new_cards_per_day;
+        // What moves the due queue, so a change refreshes the preview and a running session.
+        let existing_queue_settings = (
+            existing.new_cards_per_day,
+            existing.bury_new_siblings,
+            existing.bury_review_siblings,
+        );
         let fsrs_params =
             validate_fsrs_params(fields.fsrs_params)?.or_else(|| existing.fsrs_params.clone());
         let profile = StudyProfile {
@@ -88,12 +95,19 @@ impl StudyProfileService for DefaultStudyProfileService {
             leech_threshold: fields.leech_threshold,
             leech_action: fields.leech_action,
             card_initial_interval_days: fields.card_initial_interval_days,
+            bury_new_siblings: fields.bury_new_siblings,
+            bury_review_siblings: fields.bury_review_siblings,
             priority_inheritance_policy: fields.priority_inheritance_policy,
             ..existing
         };
         self.study_profile_repository.update(&profile).await?;
         self.emit_profiles_changed().await;
-        if profile.new_cards_per_day != existing_new_cards_per_day {
+        let queue_settings = (
+            profile.new_cards_per_day,
+            profile.bury_new_siblings,
+            profile.bury_review_siblings,
+        );
+        if queue_settings != existing_queue_settings {
             emit_element_due_changed(&self.event_manager).await;
         }
         Ok(profile)
@@ -283,6 +297,8 @@ mod tests {
             leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
             leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
             card_initial_interval_days: 1.0,
+            bury_new_siblings: false,
+            bury_review_siblings: false,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }

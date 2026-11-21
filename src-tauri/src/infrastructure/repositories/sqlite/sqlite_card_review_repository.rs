@@ -191,10 +191,15 @@ impl CardReviewRepository for SqliteCardReviewRepository {
             // Scans `meta` in table order: walking it through the priority index reads its rows at random.
             r#"SELECT m.element_id as "id: uuid::fmt::Hyphenated", m.name, m.priority,
                 (cr.card_id IS NULL OR cr.state = 'new') AS "is_new_card!: bool",
+                (cr.state IS 'review') AS "is_review_card!: bool",
                 m.study_profile_id AS "study_profile_id: uuid::fmt::Hyphenated",
-                m.parent_id AS "parent_id: uuid::fmt::Hyphenated"
+                m.parent_id AS "parent_id: uuid::fmt::Hyphenated",
+                COALESCE(ioc.occlusion_id, p.element_id) AS "sibling_group: uuid::fmt::Hyphenated"
             FROM meta m NOT INDEXED
             LEFT JOIN card_reviews cr ON cr.card_id = m.element_id
+            -- Siblings as in `get_sibling_reviews_since`: same occlusion, else same parent extract.
+            LEFT JOIN image_occlusion_cards ioc ON ioc.card_id = m.element_id
+            LEFT JOIN meta p ON p.element_id = m.parent_id AND p.element_type = 'extract'
             WHERE m.element_type = 'card'
               AND m.trashed_at IS NULL
               AND m.suspended = 0
@@ -210,6 +215,8 @@ impl CardReviewRepository for SqliteCardReviewRepository {
             name: row.name,
             priority: FractionalIndex::from_bytes(row.priority).expect("Invalid fractional index"),
             is_new_card: row.is_new_card,
+            is_review_card: row.is_review_card,
+            sibling_group: row.sibling_group.map(|id| id.into_uuid()),
             study_profile_id: row.study_profile_id.map(|id| id.into_uuid()),
             parent_id: row.parent_id.map(|id| id.into_uuid()),
         })

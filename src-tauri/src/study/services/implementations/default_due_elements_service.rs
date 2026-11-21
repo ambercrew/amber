@@ -91,90 +91,116 @@ impl DefaultDueElementsService {
         Ok(())
     }
 
-    /// Drops the new cards past each profile's daily limit, less the cards it introduced today. Resolves
-    /// each new card's profile only when it can matter, as a large import leaves many new cards.
-    async fn limit_new_cards(
+    /// Applies each profile's sibling burying and daily new-card limit in one walk, so a new card the
+    /// limit drops never buries its siblings, and a buried one frees its slot for another.
+    async fn apply_daily_rules(
         &self,
         ordered: Vec<DueElement>,
     ) -> Result<Vec<DueElement>, ProfileResolutionError> {
-        let new_card_ids: Vec<Uuid> = ordered
-            .iter()
-            .filter(|entry| entry.is_new_card)
-            .map(|entry| entry.element_id.id())
-            .collect();
-        if new_card_ids.is_empty() {
+        let new_count = ordered.iter().filter(|entry| entry.is_new_card).count();
+        let any_buryable = ordered.iter().any(buryable);
+        if new_count == 0 && !any_buryable {
             return Ok(ordered);
         }
 
-        let introduced = self
-            .card_review_log_repository
-            .get_cards_first_reviewed_since(start_of_today_utc())
-            .await?;
-        // Created first if missing (e.g. a database filled by a sync pull), so it's among the limits.
+        // Created first if missing (e.g. a database filled by a sync pull), so it's among the rules.
         let default_id = self
             .profile_resolution_service
             .resolve_profile(None)
             .await?
             .id;
-        let limits: HashMap<Uuid, u32> = self
+        let mut rules: HashMap<Uuid, DailyRule> = self
             .study_profile_repository
             .get_all()
             .await?
             .into_iter()
-            .map(|profile| (profile.id, profile.new_cards_per_day))
+            .map(|profile| {
+                let rule = DailyRule {
+                    bury_new: profile.bury_new_siblings,
+                    bury_review: profile.bury_review_siblings,
+                    new_left: profile.new_cards_per_day,
+                };
+                (profile.id, rule)
+            })
             .collect();
-
-        // With one profile every card uses it, so there's nothing to resolve.
-        if let [(&profile_id, &limit)] = limits.iter().collect::<Vec<_>>()[..] {
-            let remaining =
-                HashMap::from([(profile_id, limit.saturating_sub(introduced.len() as u32))]);
-            return Ok(keep_allowed_new_cards(
-                ordered,
-                |_| Some(profile_id),
-                remaining,
-                profile_id,
-            ));
-        }
-
-        let introduced_profiles = self
-            .profile_resolution_service
-            .resolve_profile_ids(&introduced)
-            .await?;
-        let mut remaining = limits;
-        for profile_id in introduced_profiles.values() {
-            let profile_id = known_or_default(&remaining, *profile_id, default_id);
-            if let Some(left) = remaining.get_mut(&profile_id) {
-                *left = left.saturating_sub(1);
-            }
-        }
-        // No profile can run out when even the smallest allowance covers every new card.
-        let smallest = remaining.values().copied().min().unwrap_or(0);
-        if new_card_ids.len() <= smallest as usize {
+        let burying = any_buryable && rules.values().any(DailyRule::buries_any);
+        let limiting = new_count > 0
+            && self
+                .take_introduced(&mut rules, default_id, new_count)
+                .await?;
+        if !burying && !limiting {
             return Ok(ordered);
         }
 
-        let profile_of = self.new_card_profiles(&ordered, default_id).await?;
-        Ok(keep_allowed_new_cards(
+        // With one profile every card uses it, so there's nothing to resolve.
+        let profile_of = if rules.len() == 1 {
+            HashMap::new()
+        } else {
+            let included = |entry: &DueElement| {
+                (limiting && entry.is_new_card) || (burying && buryable(entry))
+            };
+            self.card_profiles(&ordered, included, default_id).await?
+        };
+        let reviewed = if burying {
+            self.card_review_log_repository
+                .get_sibling_reviews_since(start_of_today_utc())
+                .await?
+        } else {
+            Vec::new()
+        };
+        Ok(keep_daily_cards(
             ordered,
             |card_id| profile_of.get(&card_id).copied(),
-            remaining,
+            rules,
+            &reviewed,
             default_id,
         ))
     }
 
-    /// Each new card's effective profile: its own, else its parent's, resolved once per parent, as a big
-    /// import puts thousands of cards in each deck.
-    async fn new_card_profiles(
+    /// Takes the cards introduced today off their profiles' allowances, and returns whether one could
+    /// run out with `new_count` new cards due, as resolving every new card's profile is costly.
+    async fn take_introduced(
+        &self,
+        rules: &mut HashMap<Uuid, DailyRule>,
+        default_id: Uuid,
+        new_count: usize,
+    ) -> Result<bool, ProfileResolutionError> {
+        let introduced = self
+            .card_review_log_repository
+            .get_cards_first_reviewed_since(start_of_today_utc())
+            .await?;
+        if rules.len() == 1 {
+            for rule in rules.values_mut() {
+                rule.new_left = rule.new_left.saturating_sub(introduced.len() as u32);
+            }
+        } else {
+            let introduced_profiles = self
+                .profile_resolution_service
+                .resolve_profile_ids(&introduced)
+                .await?;
+            for profile_id in introduced_profiles.values() {
+                let profile_id = known_or_default(rules, *profile_id, default_id);
+                if let Some(rule) = rules.get_mut(&profile_id) {
+                    rule.new_left = rule.new_left.saturating_sub(1);
+                }
+            }
+        }
+        let smallest = rules.values().map(|rule| rule.new_left).min().unwrap_or(0);
+        Ok(new_count > smallest as usize)
+    }
+
+    /// Each `included` card's effective profile: its own, else its parent's, resolved once per parent, as
+    /// a big import puts thousands of cards in each deck.
+    async fn card_profiles(
         &self,
         entries: &[DueElement],
+        included: impl Fn(&DueElement) -> bool,
         default_id: Uuid,
     ) -> Result<HashMap<Uuid, Uuid>, ProfileResolutionError> {
-        let new_cards = entries.iter().filter(|entry| entry.is_new_card);
-        let inheriting = new_cards
+        let cards = entries.iter().filter(|entry| included(entry));
+        let parents: Vec<Uuid> = cards
             .clone()
-            .filter(|entry| entry.study_profile_id.is_none());
-        let parents: Vec<Uuid> = inheriting
-            .clone()
+            .filter(|entry| entry.study_profile_id.is_none())
             .filter_map(|entry| entry.parent_id)
             .collect::<HashSet<_>>()
             .into_iter()
@@ -184,7 +210,7 @@ impl DefaultDueElementsService {
             .resolve_profile_ids(&parents)
             .await?;
 
-        Ok(new_cards
+        Ok(cards
             .map(|entry| {
                 let profile_id = entry
                     .study_profile_id
@@ -223,7 +249,7 @@ impl DueElementsService for DefaultDueElementsService {
         let priorities = self.meta_repository.get_priorities_ordered().await?;
         let ordered =
             order_by_priority_with_fuzz(due, &priorities, fuzz_factor, local_date(Utc::now()));
-        let ordered = self.limit_new_cards(ordered).await?;
+        let ordered = self.apply_daily_rules(ordered).await?;
 
         let skipped = self
             .learning_asset_skip_repository
@@ -233,35 +259,75 @@ impl DueElementsService for DefaultDueElementsService {
     }
 }
 
-/// Keeps the first `remaining` new cards of each profile in queue order. A card without a known
-/// profile (none resolved, or one deleted on another device) uses the default's allowance.
-fn keep_allowed_new_cards(
+/// A profile's rules for today's queue: which siblings it buries, and how many new cards it has left.
+#[derive(Debug, Clone, Copy)]
+struct DailyRule {
+    bury_new: bool,
+    bury_review: bool,
+    new_left: u32,
+}
+
+impl DailyRule {
+    fn buries_any(&self) -> bool {
+        self.bury_new || self.bury_review
+    }
+
+    fn buries(&self, entry: &DueElement) -> bool {
+        (entry.is_new_card && self.bury_new) || (entry.is_review_card && self.bury_review)
+    }
+}
+
+/// A new or review card in a sibling group, the only kinds burying holds back.
+fn buryable(entry: &DueElement) -> bool {
+    entry.sibling_group.is_some() && (entry.is_new_card || entry.is_review_card)
+}
+
+/// Drops, in queue order, cards buried behind a sibling reviewed today (`reviewed`: `(group, card)`) or
+/// kept ahead by a burying profile, then new cards past their allowance; unknown profiles use the default's.
+fn keep_daily_cards(
     mut entries: Vec<DueElement>,
     profile_of: impl Fn(Uuid) -> Option<Uuid>,
-    mut remaining: HashMap<Uuid, u32>,
+    mut rules: HashMap<Uuid, DailyRule>,
+    reviewed: &[(Uuid, Uuid)],
     default_id: Uuid,
 ) -> Vec<DueElement> {
+    let reviewed_groups: HashSet<Uuid> = reviewed.iter().map(|(group, _)| *group).collect();
+    // A card seen today is due again on purpose (moved back, or a short interval), so it's never buried.
+    let reviewed_cards: HashSet<Uuid> = reviewed.iter().map(|(_, card_id)| *card_id).collect();
+    let mut shown = HashSet::new();
     entries.retain(|entry| {
-        if !entry.is_new_card {
-            return true;
-        }
-        let profile_id = profile_of(entry.element_id.id()).unwrap_or(default_id);
-        let profile_id = known_or_default(&remaining, profile_id, default_id);
-        let Some(left) = remaining.get_mut(&profile_id) else {
+        let id = entry.element_id.id();
+        let profile_id = known_or_default(&rules, profile_of(id).unwrap_or(default_id), default_id);
+        let Some(rule) = rules.get_mut(&profile_id) else {
             return true;
         };
-        if *left == 0 {
+        if let Some(group) = entry.sibling_group
+            && !reviewed_cards.contains(&id)
+            && (shown.contains(&group) || reviewed_groups.contains(&group))
+            && rule.buries(entry)
+        {
             return false;
         }
-        *left -= 1;
+        if entry.is_new_card {
+            if rule.new_left == 0 {
+                return false;
+            }
+            rule.new_left -= 1;
+        }
+        if let Some(group) = entry.sibling_group
+            && buryable(entry)
+            && rule.buries_any()
+        {
+            shown.insert(group);
+        }
         true
     });
     entries
 }
 
-/// `profile_id` when it has an allowance, else the default profile, which inherits its cards.
-fn known_or_default(remaining: &HashMap<Uuid, u32>, profile_id: Uuid, default_id: Uuid) -> Uuid {
-    if remaining.contains_key(&profile_id) {
+/// `profile_id` when it has rules, else the default profile, which inherits its cards.
+fn known_or_default(rules: &HashMap<Uuid, DailyRule>, profile_id: Uuid, default_id: Uuid) -> Uuid {
+    if rules.contains_key(&profile_id) {
         profile_id
     } else {
         default_id
@@ -349,9 +415,9 @@ mod tests {
             priority_service::PriorityService,
         },
         elements::{
-            entities::{card::Card, learning_asset::LearningAsset},
+            entities::{card::Card, extract::Extract, learning_asset::LearningAsset},
             repositories::{
-                card_repository::CardRepository,
+                card_repository::CardRepository, extract_repository::ExtractRepository,
                 learning_asset_repository::LearningAssetRepository,
                 meta_repository::MetaRepository,
             },
@@ -361,6 +427,7 @@ mod tests {
             sqlite_card_repository::SqliteCardRepository,
             sqlite_card_review_log_repository::SqliteCardReviewLogRepository,
             sqlite_card_review_repository::SqliteCardReviewRepository,
+            sqlite_extract_repository::SqliteExtractRepository,
             sqlite_learning_asset_repository::SqliteLearningAssetRepository,
             sqlite_learning_asset_review_repository::SqliteLearningAssetReviewRepository,
             sqlite_learning_asset_skip_repository::SqliteLearningAssetSkipRepository,
@@ -391,6 +458,7 @@ mod tests {
     async fn initialize_test_injector() -> Injector {
         let mut injector = create_test_injector().await;
         register_scope!(injector, dyn CardRepository, SqliteCardRepository);
+        register_scope!(injector, dyn ExtractRepository, SqliteExtractRepository);
         register_scope!(
             injector,
             dyn LearningAssetRepository,
@@ -464,6 +532,75 @@ mod tests {
             priority = FractionalIndex::new_after(&priority);
         }
         card_ids
+    }
+
+    /// Creates an extract, not due, with `count` never-reviewed cards under it, in priority order.
+    async fn create_sibling_cards(
+        scope: &injector::injector_scope::InjectorScope<'_>,
+        count: usize,
+    ) -> Vec<ElementId> {
+        let extract_repo = scope.resolve::<dyn ExtractRepository>().await;
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let extract_id = ElementId::Extract(Uuid::new_v4());
+        extract_repo
+            .create(Extract {
+                meta: make_meta(extract_id),
+                content: String::new(),
+                interval_multiplier: 1.0,
+            })
+            .await
+            .unwrap();
+        scope
+            .resolve::<dyn LearningAssetReviewRepository>()
+            .await
+            .upsert(&LearningAssetReview {
+                element_id: extract_id,
+                due: Utc::now() + Duration::days(30),
+                interval_days: 30.0,
+                last_reviewed: Some(Utc::now()),
+                finished_at: None,
+            })
+            .await
+            .unwrap();
+        let mut priority = FractionalIndex::default();
+        let mut card_ids = Vec::with_capacity(count);
+        for _ in 0..count {
+            let card_id = ElementId::Card(Uuid::new_v4());
+            card_repo
+                .create(Card {
+                    meta: Meta {
+                        parent: Some(extract_id),
+                        priority: priority.clone(),
+                        ..make_meta(card_id)
+                    },
+                    front: String::new(),
+                    back: String::new(),
+                })
+                .await
+                .unwrap();
+            card_ids.push(card_id);
+            priority = FractionalIndex::new_after(&priority);
+        }
+        card_ids
+    }
+
+    /// Sets whether the default profile buries new and review siblings.
+    async fn set_bury_siblings(
+        scope: &injector::injector_scope::InjectorScope<'_>,
+        new: bool,
+        review: bool,
+    ) {
+        let resolution = scope.resolve::<dyn ProfileResolutionService>().await;
+        let profile_repo = scope.resolve::<dyn StudyProfileRepository>().await;
+        let profile = resolution.resolve_profile(None).await.unwrap();
+        profile_repo
+            .update(&StudyProfile {
+                bury_new_siblings: new,
+                bury_review_siblings: review,
+                ..profile
+            })
+            .await
+            .unwrap();
     }
 
     /// Makes the default profile let `limit` new cards in per day.
@@ -828,6 +965,8 @@ mod tests {
             name: String::new(),
             priority: priority.clone(),
             is_new_card: false,
+            is_review_card: false,
+            sibling_group: None,
             study_profile_id: None,
             parent_id: None,
         });
@@ -838,6 +977,8 @@ mod tests {
                 name: String::new(),
                 priority: priority.clone(),
                 is_new_card: false,
+                is_review_card: false,
+                sibling_group: None,
                 study_profile_id: None,
                 parent_id: None,
             });
@@ -1007,6 +1148,432 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn get_due_elements_bury_new_siblings_keeps_only_the_first_sibling() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        set_bury_siblings(&scope, true, false).await;
+        let siblings = create_sibling_cards(&scope, 3).await;
+
+        // Act
+
+        let due = ids(service.get_due_elements(None).await.unwrap());
+
+        // Assert
+
+        assert_eq!(siblings[..1], due);
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_bury_siblings_off_keeps_every_sibling() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        set_bury_siblings(&scope, false, false).await;
+        let siblings = create_sibling_cards(&scope, 3).await;
+
+        // Act
+
+        let due = ids(service.get_due_elements(None).await.unwrap());
+
+        // Assert
+
+        assert_eq!(siblings, due);
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_sibling_reviewed_today_buries_the_others() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_review_repo = scope.resolve::<dyn CardReviewRepository>().await;
+        let log_repo = scope.resolve::<dyn CardReviewLogRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        set_bury_siblings(&scope, true, false).await;
+        let siblings = create_sibling_cards(&scope, 2).await;
+        card_review_repo
+            .upsert(&CardReview {
+                card_id: siblings[0].id(),
+                due: Utc::now() + Duration::days(3),
+                stability: 3.0,
+                difficulty: 5.0,
+                reps: 1,
+                lapses: 0,
+                state: CardState::Review,
+                last_reviewed: Some(Utc::now()),
+                scheduled_days: 3,
+                learning_steps: 0,
+            })
+            .await
+            .unwrap();
+        log_repo
+            .create(&CardReviewLog {
+                id: Uuid::new_v4(),
+                card_id: Some(siblings[0].id()),
+                reviewed_at: Utc::now(),
+                rating: Rating::Good,
+                duration_ms: None,
+            })
+            .await
+            .unwrap();
+
+        // Act
+
+        let due = service.get_due_elements(None).await.unwrap();
+
+        // Assert
+
+        assert!(due.is_empty());
+    }
+
+    #[tokio::test]
+    async fn get_due_elements_buried_new_siblings_leave_their_slots_to_other_cards() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let service = scope.resolve::<dyn DueElementsService>().await;
+        set_bury_siblings(&scope, true, false).await;
+        set_new_cards_per_day(&scope, 2).await;
+        let siblings = create_sibling_cards(&scope, 3).await;
+        let other = create_new_card(&card_repo, "other").await;
+
+        // Act
+
+        let due: HashSet<ElementId> = ids(service.get_due_elements(None).await.unwrap())
+            .into_iter()
+            .collect();
+
+        // Assert
+
+        // Both share the default priority, so only the set is fixed.
+        assert_eq!(HashSet::from([siblings[0], other]), due);
+    }
+
+    fn sibling_entries(kinds: &[(bool, bool)], group: Uuid) -> Vec<DueElement> {
+        ordered_entries(kinds.len())
+            .into_iter()
+            .zip(kinds)
+            .map(|(entry, (is_new_card, is_review_card))| DueElement {
+                is_new_card: *is_new_card,
+                is_review_card: *is_review_card,
+                sibling_group: Some(group),
+                ..entry
+            })
+            .collect()
+    }
+
+    fn daily_rule(bury_new: bool, bury_review: bool, new_left: u32) -> DailyRule {
+        DailyRule {
+            bury_new,
+            bury_review,
+            new_left,
+        }
+    }
+
+    /// Runs `keep_daily_cards` with every card on one profile following `rule`.
+    fn keep_with_one_rule(
+        entries: Vec<DueElement>,
+        rule: DailyRule,
+        reviewed: &[(Uuid, Uuid)],
+    ) -> Vec<ElementId> {
+        let profile_id = Uuid::new_v4();
+        let rules = HashMap::from([(profile_id, rule)]);
+        ids(keep_daily_cards(
+            entries,
+            |_| None,
+            rules,
+            reviewed,
+            profile_id,
+        ))
+    }
+
+    #[test]
+    fn keep_daily_cards_review_card_ahead_buries_only_review_siblings() {
+        // Arrange
+
+        let group = Uuid::new_v4();
+        // A review card, another review card and a new card.
+        let entries = sibling_entries(&[(false, true), (false, true), (true, false)], group);
+        let expected = vec![entries[0].element_id, entries[2].element_id];
+
+        // Act
+
+        let actual = keep_with_one_rule(entries, daily_rule(false, true, 10), &[]);
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn keep_daily_cards_learning_card_ahead_keeps_its_sibling() {
+        // Arrange
+
+        let group = Uuid::new_v4();
+        // A learning card and a review card.
+        let entries = sibling_entries(&[(false, false), (false, true)], group);
+        let expected = ids(entries.clone());
+
+        // Act
+
+        let actual = keep_with_one_rule(entries, daily_rule(true, true, 10), &[]);
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn keep_daily_cards_new_sibling_past_limit_keeps_its_review_sibling() {
+        // Arrange
+
+        let group = Uuid::new_v4();
+        // A new card ahead of a review card, with no new cards left today.
+        let entries = sibling_entries(&[(true, false), (false, true)], group);
+        let expected = vec![entries[1].element_id];
+
+        // Act
+
+        let actual = keep_with_one_rule(entries, daily_rule(true, true, 0), &[]);
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn keep_daily_cards_buried_new_sibling_leaves_its_slot_to_another_card() {
+        // Arrange
+
+        let mut entries = sibling_entries(&[(true, false), (true, false)], Uuid::new_v4());
+        entries.extend(sibling_entries(&[(true, false)], Uuid::new_v4()));
+        let expected = vec![entries[0].element_id, entries[2].element_id];
+
+        // Act
+
+        let actual = keep_with_one_rule(entries, daily_rule(true, false, 2), &[]);
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn keep_daily_cards_sibling_ahead_on_non_burying_profile_keeps_the_card() {
+        // Arrange
+
+        let group = Uuid::new_v4();
+        let entries = sibling_entries(&[(false, true), (false, true)], group);
+        let (open_profile, burying_profile) = (Uuid::new_v4(), Uuid::new_v4());
+        let profile_of = HashMap::from([
+            (entries[0].element_id.id(), open_profile),
+            (entries[1].element_id.id(), burying_profile),
+        ]);
+        let rules = HashMap::from([
+            (open_profile, daily_rule(false, false, 10)),
+            (burying_profile, daily_rule(false, true, 10)),
+        ]);
+        let expected = ids(entries.clone());
+
+        // Act
+
+        let actual = ids(keep_daily_cards(
+            entries,
+            |card_id| profile_of.get(&card_id).copied(),
+            rules,
+            &[],
+            open_profile,
+        ));
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn keep_daily_cards_sibling_reviewed_today_buries_the_card() {
+        // Arrange
+
+        let group = Uuid::new_v4();
+        let entries = sibling_entries(&[(false, true)], group);
+        let reviewed = [(group, Uuid::new_v4())];
+
+        // Act
+
+        let actual = keep_with_one_rule(entries, daily_rule(false, true, 10), &reviewed);
+
+        // Assert
+
+        assert!(actual.is_empty());
+    }
+
+    #[test]
+    fn keep_daily_cards_card_reviewed_itself_today_keeps_it() {
+        // Arrange
+
+        let group = Uuid::new_v4();
+        let entries = sibling_entries(&[(false, true)], group);
+        let reviewed = [(group, entries[0].element_id.id())];
+        let expected = vec![entries[0].element_id];
+
+        // Act
+
+        let actual = keep_with_one_rule(entries, daily_rule(false, true, 10), &reviewed);
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn keep_daily_cards_every_sibling_reviewed_today_keeps_them_all() {
+        // Arrange
+
+        let group = Uuid::new_v4();
+        // Three review cards, all reviewed today and moved back to due.
+        let entries = sibling_entries(&[(false, true), (false, true), (false, true)], group);
+        let reviewed: Vec<(Uuid, Uuid)> = entries
+            .iter()
+            .map(|entry| (group, entry.element_id.id()))
+            .collect();
+        let expected = ids(entries.clone());
+
+        // Act
+
+        let actual = keep_with_one_rule(entries, daily_rule(false, true, 10), &reviewed);
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn keep_daily_cards_sibling_reviewed_today_buries_only_the_unreviewed_card() {
+        // Arrange
+
+        let group = Uuid::new_v4();
+        let entries = sibling_entries(&[(false, true), (false, true)], group);
+        let reviewed = [(group, entries[1].element_id.id())];
+        let expected = vec![entries[1].element_id];
+
+        // Act
+
+        let actual = keep_with_one_rule(entries, daily_rule(false, true, 10), &reviewed);
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn keep_daily_cards_other_groups_and_ungrouped_cards_keeps_them() {
+        // Arrange
+
+        let mut entries = sibling_entries(&[(false, true)], Uuid::new_v4());
+        entries.extend(sibling_entries(&[(false, true)], Uuid::new_v4()));
+        entries.extend(ordered_entries(1).into_iter().map(|entry| DueElement {
+            is_review_card: true,
+            ..entry
+        }));
+        let reviewed = [(Uuid::new_v4(), Uuid::new_v4())];
+        let expected = ids(entries.clone());
+
+        // Act
+
+        let actual = keep_with_one_rule(entries, daily_rule(false, true, 10), &reviewed);
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn keep_daily_cards_unknown_profile_uses_default_allowance() {
+        // Arrange
+
+        let entries: Vec<DueElement> = ordered_entries(3)
+            .into_iter()
+            .map(|entry| DueElement {
+                is_new_card: true,
+                ..entry
+            })
+            .collect();
+        let (default_profile, deleted_profile) = (Uuid::new_v4(), Uuid::new_v4());
+        let rules = HashMap::from([(default_profile, daily_rule(false, false, 1))]);
+        let expected = vec![entries[0].element_id];
+
+        // Act
+
+        let actual = ids(keep_daily_cards(
+            entries,
+            |_| Some(deleted_profile),
+            rules,
+            &[],
+            default_profile,
+        ));
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn keep_daily_cards_two_profiles_caps_each_separately() {
+        // Arrange
+
+        let entries: Vec<DueElement> = ordered_entries(4)
+            .into_iter()
+            .map(|entry| DueElement {
+                is_new_card: true,
+                ..entry
+            })
+            .collect();
+        let (capped_profile, open_profile) = (Uuid::new_v4(), Uuid::new_v4());
+        let profile_of: HashMap<Uuid, Uuid> = entries
+            .iter()
+            .enumerate()
+            .map(|(index, entry)| {
+                let profile = if index % 2 == 0 {
+                    capped_profile
+                } else {
+                    open_profile
+                };
+                (entry.element_id.id(), profile)
+            })
+            .collect();
+        let rules = HashMap::from([
+            (capped_profile, daily_rule(false, false, 1)),
+            (open_profile, daily_rule(false, false, 5)),
+        ]);
+        let expected = vec![
+            entries[0].element_id,
+            entries[1].element_id,
+            entries[3].element_id,
+        ];
+
+        // Act
+
+        let actual = ids(keep_daily_cards(
+            entries,
+            |card_id| profile_of.get(&card_id).copied(),
+            rules,
+            &[],
+            capped_profile,
+        ));
+
+        // Assert
+
+        assert_eq!(expected, actual);
+    }
+
+    #[tokio::test]
     async fn get_due_elements_no_profile_yet_caps_at_default_limit() {
         // Arrange
 
@@ -1024,35 +1591,6 @@ mod tests {
         // Assert
 
         assert_eq!(limit, due.len());
-    }
-
-    #[test]
-    fn keep_allowed_new_cards_unknown_profile_uses_default_allowance() {
-        // Arrange
-
-        let entries: Vec<DueElement> = ordered_entries(3)
-            .into_iter()
-            .map(|entry| DueElement {
-                is_new_card: true,
-                ..entry
-            })
-            .collect();
-        let (default_profile, deleted_profile) = (Uuid::new_v4(), Uuid::new_v4());
-        let remaining = HashMap::from([(default_profile, 1)]);
-        let expected = vec![entries[0].element_id];
-
-        // Act
-
-        let actual = ids(keep_allowed_new_cards(
-            entries,
-            |_| Some(deleted_profile),
-            remaining,
-            default_profile,
-        ));
-
-        // Assert
-
-        assert_eq!(expected, actual);
     }
 
     #[tokio::test]
@@ -1101,51 +1639,6 @@ mod tests {
         // Assert
 
         assert_eq!(cards[..1], due);
-    }
-
-    #[test]
-    fn keep_allowed_new_cards_two_profiles_caps_each_separately() {
-        // Arrange
-
-        let entries: Vec<DueElement> = ordered_entries(4)
-            .into_iter()
-            .map(|entry| DueElement {
-                is_new_card: true,
-                ..entry
-            })
-            .collect();
-        let (capped_profile, open_profile) = (Uuid::new_v4(), Uuid::new_v4());
-        let profile_of: HashMap<Uuid, Uuid> = entries
-            .iter()
-            .enumerate()
-            .map(|(index, entry)| {
-                let profile = if index % 2 == 0 {
-                    capped_profile
-                } else {
-                    open_profile
-                };
-                (entry.element_id.id(), profile)
-            })
-            .collect();
-        let remaining = HashMap::from([(capped_profile, 1), (open_profile, 5)]);
-        let expected = vec![
-            entries[0].element_id,
-            entries[1].element_id,
-            entries[3].element_id,
-        ];
-
-        // Act
-
-        let actual = ids(keep_allowed_new_cards(
-            entries,
-            |card_id| profile_of.get(&card_id).copied(),
-            remaining,
-            capped_profile,
-        ));
-
-        // Assert
-
-        assert_eq!(expected, actual);
     }
 
     #[tokio::test]

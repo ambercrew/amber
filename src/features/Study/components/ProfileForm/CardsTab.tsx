@@ -1,5 +1,6 @@
 import {
 	Button,
+	Checkbox,
 	Divider,
 	Group,
 	NumberInput,
@@ -148,6 +149,33 @@ function CardsTab({ form, optimization }: CardsTabProps) {
 						/>
 					</SimpleGrid>
 				</Stack>
+			</Stack>
+			<Stack gap="sm">
+				<Divider label="Siblings" labelPosition="left" />
+				<SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+					<Checkbox
+						label={
+							<FieldLabel
+								label="Bury new siblings"
+								tooltip="A new card waits for the next day when another card from its image occlusion or extract was reviewed today or comes before it in today's queue, so cards that give each other away don't follow one another."
+							/>
+						}
+						{...form.getInputProps("buryNewSiblings", {
+							type: "checkbox",
+						})}
+					/>
+					<Checkbox
+						label={
+							<FieldLabel
+								label="Bury review siblings"
+								tooltip="A card due for review waits for the next day when another card from its image occlusion or extract was reviewed today or comes before it in today's queue."
+							/>
+						}
+						{...form.getInputProps("buryReviewSiblings", {
+							type: "checkbox",
+						})}
+					/>
+				</SimpleGrid>
 			</Stack>
 			<Stack gap="sm">
 				<Divider label="Advanced" labelPosition="left" />

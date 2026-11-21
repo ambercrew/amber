@@ -28,6 +28,8 @@ pub struct StudyProfileRow {
     pub leech_threshold: i64,
     pub leech_action: String,
     pub card_initial_interval_days: f64,
+    pub bury_new_siblings: bool,
+    pub bury_review_siblings: bool,
     pub priority_inheritance_placement: Option<String>,
     pub priority_inheritance_percentile: Option<f64>,
     pub priority_inheritance_ceiling_percentile: Option<f64>,
@@ -67,6 +69,8 @@ impl From<StudyProfileRow> for StudyProfile {
             ),
             leech_action: LeechAction::from(row.leech_action.as_str()),
             card_initial_interval_days: row.card_initial_interval_days as f32,
+            bury_new_siblings: row.bury_new_siblings,
+            bury_review_siblings: row.bury_review_siblings,
             priority_inheritance_policy: PriorityInheritancePolicy {
                 placement: Placement::from_columns(
                     row.priority_inheritance_placement.as_deref(),

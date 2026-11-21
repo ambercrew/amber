@@ -12,6 +12,10 @@ pub struct DueElement {
     pub priority: FractionalIndex,
     /// A card never reviewed (or reset since), which the profile's daily new-card limit caps.
     pub is_new_card: bool,
+    /// A card in the long-term review schedule (not new or in learning steps), which can be buried.
+    pub is_review_card: bool,
+    /// The image occlusion or parent extract shared with the card's siblings, which burying holds back.
+    pub sibling_group: Option<Uuid>,
     /// The element's own study profile and parent, so its effective profile resolves without walking from each element.
     pub study_profile_id: Option<Uuid>,
     pub parent_id: Option<Uuid>,
