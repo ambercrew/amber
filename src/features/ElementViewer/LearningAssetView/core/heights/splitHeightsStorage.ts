@@ -1,7 +1,6 @@
 /**
- * Per-learning asset cache of measured split heights in localStorage, so that the very
- * first paint of a learning asset is already close to its final layout (no scroll jump
- * as neighbours mount).
+ * Measured split heights per learning asset in localStorage, so the first paint is close to the
+ * final layout and nothing jumps as neighbours mount.
  */
 
 const KEY_PREFIX = "splitHeights.";

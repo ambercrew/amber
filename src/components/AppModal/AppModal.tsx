@@ -11,9 +11,8 @@ export type AppModalProps = Omit<ModalProps, "styles"> & {
 };
 
 /**
- * Mantine's `Modal` with the app's defaults: centered, and — while full
- * screen — padded so it clears the status and gesture bars on mobile and
- * closed by Android's back button.
+ * Mantine's `Modal`, centered and, while full screen, padded clear of the mobile status and gesture
+ * bars and closed by Android's back button.
  */
 function AppModal({
 	fullScreen = false,
@@ -48,10 +47,8 @@ function AppModal({
 			styles={
 				isFullScreen
 					? {
-							// A column that fills the screen, so a body laid
-							// out with `flex`/`mt="auto"` reaches the bottom.
-							// Only the body scrolls, so the safe-area padding
-							// and header never scroll under the status bar.
+							// A full-screen column, so a body using `flex`/`mt="auto"` reaches the bottom; only the body
+							// scrolls, so the padding and header never pass under the status bar.
 							content: {
 								...safeAreaVerticalStyle(),
 								display: "flex",

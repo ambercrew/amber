@@ -3,9 +3,8 @@ use async_trait::async_trait;
 use mockall::automock;
 use serde_json::Value;
 
-/// Lets services queue up frontend-bound events during a request scope,
-/// deduplicating identical ones, without emitting them until persistence has
-/// actually succeeded.
+/// Queues frontend-bound events during a request scope, deduplicated, and emits them only once
+/// persistence has succeeded.
 #[async_trait]
 #[cfg_attr(test, automock)]
 pub trait EventManager: Send + Sync {

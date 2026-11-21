@@ -15,7 +15,7 @@ import { selectElementTree } from "../../../stores/elements/elementsSelectors";
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "../../../stores/sync/managers/syncEventManager";
+} from "../../../managers/syncEventManager";
 import { formatStudyDuration } from "../../../utils/formatStudyDuration";
 import ActivityHeatmap from "./ActivityHeatmap";
 import StatCard from "./StatCard";

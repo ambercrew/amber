@@ -29,7 +29,7 @@ use std::sync::Arc;
 
 use tauri::Manager;
 
-use ai_integration::ai_api::*;
+use ai_integration::ai_integration_api::*;
 use anki_sync::anki_sync_api::*;
 use app_info::app_info_api::*;
 use assets::assets_api::*;
@@ -40,7 +40,7 @@ use common::common_api::*;
 use elements::elements_api::*;
 use image_occlusion::image_occlusion_api::*;
 use import::import_api::*;
-use saved_searches::saved_search_api::*;
+use saved_searches::saved_searches_api::*;
 use search::search_api::*;
 use settings::settings_api::*;
 use statistics::statistics_api::*;
@@ -55,7 +55,7 @@ use tauri_plugin_window_state::StateFlags;
 use tokio::runtime::Handle;
 
 use crate::assets::background::spawn_asset_maintenance_task;
-use crate::assets::protocol::{ASSET_PROTOCOL, handle_asset_request};
+use crate::assets::protocol::{ASSET_PROTOCOL, AssetReadPermits, handle_asset_request};
 use crate::backup::background::spawn_backup_task;
 use crate::common::utils::create_injector::create_injector;
 use crate::infrastructure::value_objects::app_data_directory::AppDataDirectory;
@@ -107,6 +107,7 @@ pub async fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
         .plugin(system_chrome::plugin::init())
+        .manage(AssetReadPermits::default())
         .register_asynchronous_uri_scheme_protocol(ASSET_PROTOCOL, handle_asset_request);
 
     #[cfg(desktop)]

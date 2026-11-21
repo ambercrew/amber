@@ -7,9 +7,8 @@ const RANK: Record<ReadPointSource, number> = {
 };
 
 /**
- * Whether a placement from `incoming` may replace one from `current`. Manual
- * beats extract/cloze creation, which beats automatic tracking. Once a higher
- * source has placed the read point, lower ones stop until the next open.
+ * Whether a placement from `incoming` may replace one from `current`: manual beats extract or cloze
+ * creation, which beats tracking, and lower sources stop until the next open.
  */
 export function canPlaceReadPoint(
 	incoming: ReadPointSource,

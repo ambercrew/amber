@@ -7,9 +7,8 @@ const HIDDEN_STYLE =
 const RAW_CLOZE = /\{\{c\d+::/;
 
 /**
- * Drops what a card never shows: controls, script data (also when folded into a collapsed `<details>`),
- * and hidden images, cloze source or repeats of visible text. Other hidden content stays, as a scripted
- * template may hide parts of the card, or all of it, for its script to reveal.
+ * Drops what a card never shows (controls, script data, hidden images, cloze source, repeated text);
+ * other hidden content stays, as a template's script may reveal it.
  */
 export function removeHiddenElements(doc: Document): void {
 	for (const control of Array.from(

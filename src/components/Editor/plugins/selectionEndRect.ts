@@ -8,9 +8,8 @@ export function isBackwardSelection(selection: Selection, range: Range) {
 }
 
 /**
- * A zero-width rect at the selection's moving end (where the pointer let go), spanning that
- * line's height. Placing the menu there keeps it near the pointer and on screen even when the
- * selection's other end has scrolled away.
+ * A zero-width rect at the selection's moving end, a line tall, so the menu stays near the pointer and
+ * on screen when the other end has scrolled away.
  */
 export function selectionEndRect(range: Range, backward: boolean): DOMRect {
 	const rects = Array.from(range.getClientRects()).filter(

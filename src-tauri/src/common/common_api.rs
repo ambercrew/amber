@@ -7,9 +7,8 @@ use uuid::Uuid;
 use crate::common::api_error::ApiError;
 use crate::common::request_bridge::RequestBridge;
 
-/// Delivers the frontend's answer to a pending `RequestBridge::request` call
-/// (e.g. a Lexical JSON conversion), identified by the request id the
-/// backend generated when it emitted the request event.
+/// Delivers the frontend's answer to a pending `RequestBridge::request` (e.g. a Lexical conversion),
+/// by the request id the backend emitted.
 #[tauri::command]
 pub async fn resolve_frontend_request(
     injector: State<'_, Arc<Injector>>,

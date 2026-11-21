@@ -1,7 +1,11 @@
 import { PayloadAction, createSlice } from "@reduxjs/toolkit";
 import { loadVirtualKeyboardSuppressed } from "./virtualKeyboardStorage";
+import { PriorityNeighborsResponseDto } from "../../api/elements/dto/priorityNeighborsDto";
 
 export type AuthModalTab = "sign-in" | "sign-up";
+
+/** What a focus shortcut can focus. */
+export type FocusTarget = "tree" | "aiChat" | "globalSearch";
 
 export interface AppState {
 	startedInitialStateLoading: boolean;
@@ -22,6 +26,20 @@ export interface AppState {
 	/** When true the editor never asks for the on-screen keyboard, so a touch
 	 * user can select text and make extracts without it covering the page. */
 	virtualKeyboardSuppressed: boolean;
+	/** A focus request waiting for its target to mount. */
+	pendingFocus: FocusTarget | null;
+	/** Whether the main scroll area's headroom shows the header (and footer, while studying). */
+	mainScrollPinned: boolean;
+	/** Set by a view that scrolls its own container (the PDF view) to drive the header instead; null hands it back. */
+	headroomOverride: boolean | null;
+	/** An element the tree expands down to once it's in the tree (its creation arrives in a batch). */
+	pendingTreeReveal: string | null;
+	/** The priority modal remounts after each commit, sooner than its preview's debounce;
+	 * starting from the element's last neighbors keeps the preview from flashing. */
+	lastPriorityPreview: {
+		key: string;
+		neighbors: PriorityNeighborsResponseDto;
+	} | null;
 }
 
 const initialState: AppState = {
@@ -40,6 +58,11 @@ const initialState: AppState = {
 	verifyEmailModalOpened: false,
 	manageAccountModalOpened: false,
 	virtualKeyboardSuppressed: loadVirtualKeyboardSuppressed(),
+	pendingFocus: null,
+	mainScrollPinned: true,
+	headroomOverride: null,
+	pendingTreeReveal: null,
+	lastPriorityPreview: null,
 };
 
 const appSlice = createSlice({
@@ -130,6 +153,34 @@ const appSlice = createSlice({
 		) => {
 			state.virtualKeyboardSuppressed = action.payload;
 		},
+		/** Asks `target` to take focus, now if it's mounted or else as soon as it mounts. */
+		requestFocus: (state, action: PayloadAction<FocusTarget>) => {
+			state.pendingFocus = action.payload;
+		},
+		focusTaken: (state, action: PayloadAction<FocusTarget>) => {
+			if (state.pendingFocus === action.payload)
+				state.pendingFocus = null;
+		},
+		mainScrollPinnedChanged: (state, action: PayloadAction<boolean>) => {
+			state.mainScrollPinned = action.payload;
+		},
+		headroomOverrideSet: (state, action: PayloadAction<boolean | null>) => {
+			state.headroomOverride = action.payload;
+		},
+		/** Asks the element tree to expand down to element `id`, without taking focus. */
+		requestTreeReveal: (state, action: PayloadAction<string>) => {
+			state.pendingTreeReveal = action.payload;
+		},
+		setLastPriorityPreview: (
+			state,
+			action: PayloadAction<AppState["lastPriorityPreview"]>,
+		) => {
+			state.lastPriorityPreview = action.payload;
+		},
+		treeRevealed: (state, action: PayloadAction<string>) => {
+			if (state.pendingTreeReveal === action.payload)
+				state.pendingTreeReveal = null;
+		},
 	},
 });
 
@@ -160,4 +211,11 @@ export const {
 	openManageAccountModal,
 	closeManageAccountModal,
 	setVirtualKeyboardSuppressed,
+	requestFocus,
+	focusTaken,
+	requestTreeReveal,
+	mainScrollPinnedChanged,
+	headroomOverrideSet,
+	treeRevealed,
+	setLastPriorityPreview,
 } = appSlice.actions;

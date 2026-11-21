@@ -40,10 +40,10 @@ the existing tool closest to what you need and follow its shape.
 - **Return ids** for anything a tool creates or finds. The model can only link to elements whose ids
   it has seen, and links use `element_reference`.
 - **Use the app's wording** in names, descriptions and approval text (e.g. "finished", not "done").
-- **Keep calls bounded** and outputs short; running tools are never cancelled (rig only keeps a batch's
-  results once every call in it settles, so `StateCancellationHook` stops model calls, never tools). Clamp any size the
-  model picks in `call` (e.g. `search_documents`' `max_results` to `MAX_RESULTS`); a schema hint alone
-  isn't enforced.
+- **Keep calls bounded** and outputs short, as running tools are never cancelled: rig only keeps a
+  batch's results once every call in it settles, so `StateCancellationHook` stops model calls, never
+  tools. Clamp any size the model picks in `call` (e.g. `search_documents`' `max_results` to
+  `MAX_RESULTS`); a schema hint alone isn't enforced.
 - Text a tool turns into element content (like card sides) goes through the Markdown-to-Lexical
   bridge, so it's Markdown with TeX math; tell the model so in the guidelines.
 - Put descriptions and any preamble changes in `prompts.rs`. On the frontend, give the tool an
@@ -66,9 +66,10 @@ by text (`search_documents`, `search_open_element`), so a provider only needs ch
 
 An upload stores its text in `ai_documents` (one row per PDF page, or per file), kept on the
 device and not synced. A PDF page's printed lines are joined into paragraphs (`join_lines`), so a
-phrase wrapping onto the next line still matches. `search_documents` matches it exactly with the search module's matcher and
-`TextPrefilter`, like the global search, so tell the model to try other words when nothing comes
-back. Branching a chat copies the files uploaded up to the branch point.
+phrase wrapping onto the next line still matches. `search_documents` matches it exactly with the
+search module's matcher and `TextPrefilter`, like the global search, so tell the model to try
+other words when nothing comes back. Branching a chat copies the files uploaded up to the branch
+point.
 
 ## Starting a chat from elsewhere in the app
 

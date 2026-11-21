@@ -3,13 +3,13 @@ import { useComputedColorScheme, useMantineColorScheme } from "@mantine/core";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { AppDispatch } from "../../../stores/store";
-import { selectSettings } from "../../../stores/settings/settingsSelector";
+import { selectSettings } from "../../../stores/settings/settingsSelectors";
 import SettingsDto, { Theme } from "../../../api/settings/dto/settingsDto";
 import { sync } from "../../../stores/sync/syncActions";
 import { defaultCloseRequestedEventManager } from "../../../managers/closeRequestedEventManager";
 import { tryGetCurrentWebView, isMobile } from "../../../utils/tauriUtils";
-import { applyFontVariable } from "./fontCssUtils";
-import { applySystemChrome, syncThemeColorMeta } from "./systemChrome";
+import { applyFontVariable } from "../utils/fontCssUtils";
+import { applySystemChrome, syncThemeColorMeta } from "../utils/systemChrome";
 
 const SETTINGS_CLOSE_REQUESTED_HANDLER_NAME = "Settings handler";
 
@@ -23,9 +23,8 @@ const THEME_TO_COLOR_SCHEME: Record<
 };
 
 /**
- * Applies the user's settings to the environment: OS chrome (title/status
- * bar), webview zoom, fonts and the body classes. Also (re)registers the
- * sync-on-close handler. The color scheme is applied separately, see `SettingsSync`.
+ * Applies the settings to the environment (OS chrome, zoom, fonts, body classes) and re-registers the
+ * sync-on-close handler; the color scheme is applied separately.
  */
 async function applySettings(settings: SettingsDto, dispatch: AppDispatch) {
 	applyFontVariable("--mantine-font-family", settings.font);
@@ -63,9 +62,8 @@ async function applySettings(settings: SettingsDto, dispatch: AppDispatch) {
 }
 
 /**
- * Keeps the environment in sync with the user's settings. Settings are loaded
- * into the store by `loadSettings`; this component reacts to those changes and
- * applies them, so applying is decoupled from the load/save thunks.
+ * Applies the settings whenever `loadSettings` changes them in the store, keeping
+ * applying apart from the load and save thunks.
  */
 function SettingsSync() {
 	const settings = useAppSelector(selectSettings);

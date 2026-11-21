@@ -1,9 +1,8 @@
 /**
  * Aggregates match ranges from every mounted editor, plus the current match.
- * `SearchHighlightOverlay` paints them by subscribing to changes. A module
- * singleton so editors and the overlay share it without prop drilling.
+ * `SearchHighlightOverlay` paints them by subscribing to changes.
  */
-class SearchHighlightRegistry {
+export class SearchHighlightRegistry {
 	// Index-aligned with the editor's matches; `null` where a match has no DOM range yet.
 	private readonly allRanges = new Map<string, (Range | null)[]>();
 	private currentRange: Range | null = null;
@@ -55,5 +54,3 @@ class SearchHighlightRegistry {
 		for (const listener of this.listeners) listener();
 	}
 }
-
-export const searchHighlightRegistry = new SearchHighlightRegistry();

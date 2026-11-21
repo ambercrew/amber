@@ -1,6 +1,7 @@
 import { Text } from "@mantine/core";
 import TableOfContents from "../../../components/TableOfContents/TableOfContents";
 import { runReadingCommand } from "../../../commands/readingCommands";
+import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { useIsSmallScreen } from "../../../hooks/useIsSmallScreen";
 import {
@@ -16,6 +17,7 @@ interface TableOfContentsPanelProps {
 export default function TableOfContentsPanel({
 	onCollapse,
 }: TableOfContentsPanelProps) {
+	const dispatch = useAppDispatch();
 	const tableOfContents = useAppSelector(selectTableOfContents);
 	const activeEntryId = useAppSelector(selectActiveTableOfContentsEntryId);
 	const isSmallScreen = useIsSmallScreen();
@@ -36,10 +38,12 @@ export default function TableOfContentsPanel({
 			entries={tableOfContents.entries}
 			activeEntryId={activeEntryId}
 			onSelect={entry => {
-				runReadingCommand({
-					type: "go-to-table-of-contents-entry",
-					entryId: entry.id,
-				});
+				dispatch(
+					runReadingCommand({
+						type: "go-to-table-of-contents-entry",
+						entryId: entry.id,
+					}),
+				);
 				// The panel covers the content on small screens, so it gets out of the way of the jump.
 				if (isSmallScreen) onCollapse();
 			}}

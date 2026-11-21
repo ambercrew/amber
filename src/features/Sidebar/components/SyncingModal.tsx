@@ -1,7 +1,7 @@
 import { Loader, Stack, Text } from "@mantine/core";
 import AppModal from "../../../components/AppModal/AppModal";
 import useAppSelector from "../../../hooks/useAppSelector";
-import { selectIsSyncing } from "../../../stores/sync/syncSelector";
+import { selectIsSyncing } from "../../../stores/sync/syncSelectors";
 
 function SyncingModal() {
 	const isSyncing = useAppSelector(selectIsSyncing);

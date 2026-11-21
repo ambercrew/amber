@@ -470,13 +470,8 @@ mod tests {
         folder_repo.create(second).await.unwrap();
         folder_repo.create(third).await.unwrap();
 
-        // Force first and second to be adjacent with no representable midpoint:
-        // Use bytes where new_between would return None.
-        // [1, 128] and [2, 128] have a midpoint, so we use bytes that are as close as possible.
-        // Easiest: set both to adjacent single-byte values the library considers exhausted.
-        // We put first at the byte just before second's position with no room in between
-        // by reusing the same bytes for both (equal positions, strict < ensures no sibling found).
-        // Instead: place first directly before the gap using a computed adjacent pair.
+        // Adjacent positions with no representable midpoint between them, so
+        // `new_between` returns `None`.
         let adjacent_before = FractionalIndex::from_bytes(vec![127, 128]).unwrap();
         let adjacent_after = FractionalIndex::from_bytes(vec![128, 128]).unwrap();
         {

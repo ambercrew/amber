@@ -10,7 +10,9 @@ description: >
 
 # Anki sync
 
-Amber talks to a running Anki desktop over **AnkiConnect** (`anki_connect.rs`, localhost HTTP).
+The backend lives in `src-tauri/src/anki_sync/`. Amber talks to a running Anki desktop over
+**AnkiConnect** (`clients/anki_connect.rs`, localhost HTTP, implemented by
+`infrastructure/clients/http_anki_connect_client.rs`).
 `active_profile` first asks `apiReflect` for every action the sync uses (`REQUIRED_ACTIONS`) and refuses an
 older add-on with `AnkiConnectError::Outdated`; add any new action there.
 
@@ -19,10 +21,10 @@ One service, `DefaultAnkiSyncService`, runs everything. Each phase lives in its 
 
 ## Flow
 
-1. **Preview** (`preview_anki_sync`): `plan()` reads both sides and changes nothing. The frontend always
-   opens `AnkiSyncReviewModal` first (`startAnkiSync` in `stores/ankiSync/ankiSyncActions.ts`), at once with a
-   loader (`review.status`: `loading`, then `ready` or `failed`). It shows decks to import, Amber's decks being
-   sent, how many cards Amber's edits update, reviews going each way (`count_reviews`, over
+1. **Preview** (`preview_anki_sync`): `plan()` reads both sides and changes nothing. The frontend always opens
+   `AnkiSyncReviewModal` first (`startAnkiSync` in `stores/ankiSync/ankiSyncActions.ts`), at once with a
+   loader (`review.status`: `loading`, then `ready` or `failed`). It shows decks to import, Amber's decks
+   being sent, how many cards Amber's edits update, reviews going each way (`count_reviews`, over
    `NoteChanges::cards_to_pair` as the sync pairs them) and deletions.
 2. **Sync** (`sync_anki`, with the deck choices), in this order:
     - `plan.rs`: plan, then trash cards deleted in Anki and remove notes deleted in Amber.
@@ -55,14 +57,16 @@ calls. Writes to Anki can't be undone, so they come after the Amber writes they 
     - An edit that leaves the card as it was (a tag added in Anki, say) isn't sent back; its record takes the
       edit's time (`seen_edits`), so the next sync doesn't take it again.
     - Such an edit is found by rendering the card and comparing it with Anki's sides (`edits_to_sides`), never
-      by converting Anki's HTML back: that round trip isn't exact (tables, links), so it would replace the card.
+      by converting Anki's HTML back: that round trip isn't exact (tables, links), so it would replace the
+      card.
 - **Amber's occlusions: Amber only.** Amber draws them, so an occlusion note Anki edited since it was last
   sent (`plan.occlusions_edited_in_anki`) is sent again, dated after Anki's edit so its importer takes it, and
   counted as an edit sent to Anki.
 - **Imported cards: Anki only.** Amber never writes their notes. One whose fields changed since the last sync
   is rendered again from an exported package, as the importer would (`refresh_imported.rs`).
     - `anki_imported_notes` keeps each note's `fields_hash` (a deck import records them, read before its
-      export), so a tag or deck change in Anki isn't an edit. Only a note without a hash falls back to its `mod`.
+      export), so a tag or deck change in Anki isn't an edit. Only a note without a hash falls back to its
+      `mod`.
     - The hash decides, not `mod`, as an edit made on another device before the last sync can reach this Anki
       after it. So the `edited:` search reaches `LATE_EDIT_DAYS` further back than the last sync, plus a day
       as Anki counts its days from the end of today (`edited_days`).
@@ -84,12 +88,13 @@ calls. Writes to Anki can't be undone, so they come after the Amber writes they 
 - **One decision per card.** `card_decision::decide` works out, for each pair, the reviews each side lacks,
   whether Anki answers Amber's newest one, and whose due date wins. Both `preview` (through `count_reviews`)
   and `prepare_reviews` call it, so the preview counts exactly what the sync does.
-- **One timeline per card.** `card_timeline::CardTimeline` lists every review, due move and reset from both apps
-  (Anki's log entries sorted by kind, Amber's from its logs, `due_moved_at` and `reset_at`). `decide` reads a
-  `Verdict` from it, in this order: a reset in Anki, a reset in Amber, a due move, else the reviews decide. Due
-  moves are read two ways: when both apps hold the card by the day, by which app's day changed since the last
-  sync (`schedule_to_take`); otherwise by which app moved it last (`moved_last`, in `moved_without_a_due_day`).
-  Add a new rule as a question to the timeline, not by re-deriving times from the raw logs.
+- **One timeline per card.** `card_timeline::CardTimeline` lists every review, due move and reset from both
+  apps (Anki's log entries sorted by kind, Amber's from its logs, `due_moved_at` and `reset_at`). `decide`
+  reads a `Verdict` from it, in this order: a reset in Anki, a reset in Amber, a due move, else the reviews
+  decide. Due moves are read two ways: when both apps hold the card by the day, by which app's day changed
+  since the last sync (`schedule_to_take`); otherwise by which app moved it last (`moved_last`, in
+  `moved_without_a_due_day`). Add a new rule as a question to the timeline, not by re-deriving times from the
+  raw logs.
 - **Merging reviews.** Logs merge by the second (`reviews.rs`). A pulled review's id is a UUIDv5 of its card
   and second (`pulled_review_id`), so two devices pulling the same Anki review make one row in cloud sync.
   Anki's revlog keeps deleted cards' reviews, so `insert_reviews` moves a clashing id to a free millisecond of
@@ -124,6 +129,8 @@ calls. Writes to Anki can't be undone, so they come after the Amber writes they 
   `schedule_in_anki` suspends those again.
 - **Anki's days.** AnkiConnect doesn't report Anki's today, so `anki_today` finds it with a binary search over
   `prop:due`. The rollover hour is assumed to be 4am.
+- **Due from midnight.** A card due a day or more ahead is due from local midnight of its day, in both
+  ts-fsrs's output and the backend, so it keeps its date in Anki (`schedules.rs`).
 - **(Re)learning cards** have no due day to store, so when either app holds a card by the minute, the sync
   compares Anki's days instead (`anki_due_date`: a due time before 4am counts as the day before). A due date
   moved by hand that is the newest thing either app did to the card wins (`moved_without_a_due_day`), as
@@ -133,18 +140,19 @@ calls. Writes to Anki can't be undone, so they come after the Amber writes they 
   the due date didn't, or was undone there (Anki's undo reverts `setDueDate`, not `insertReviews`).
 - **Resets in Anki.** "Forget" logs a manual entry with no interval (`is_reset`; a set due date logs a day or
   more). When the reset is later than anything Amber did to the card and Anki has only reviewed it since (or
-  still holds it as new), Amber resets the card too (`reset_in_amber`, counted as a due date to Amber). Reviews
-  either side lacks still travel as logs, and only Anki's reviews since the reset are replayed, from a new card.
-  A card Amber holds as new is reset too when its newest event is a due move; applying that clears
+  still holds it as new), Amber resets the card too (`reset_in_amber`, counted as a due date to Amber).
+  Reviews either side lacks still travel as logs, and only Anki's reviews since the reset are replayed, from a
+  new card. A card Amber holds as new is reset too when its newest event is a due move; applying that clears
   `due_moved_at` (`clear_due_moved`), so the reset is taken once.
 - **Resets in Amber.** A reset writes `card_reviews.reset_at` itself (`mark_reset`), not through a trigger, so
   cloud sync's applies keep its device's time and the sync's own resets don't set it. When it's later than
   every entry in Anki's log and Anki still schedules the card, Anki forgets it (`forgetCards`,
   `amber_reset_last`, counted as a due date to Anki) and a suspended one is suspended again. Anki's reviews
   from before the reset are only logged; a due date Amber moved after the reset follows the forget.
-- **New cards.** Neither app has a due day to store for one Amber holds as new, so `moved_without_a_due_day` compares
-  Anki's days: the newest move wins, as long as nothing came after it. Amber keeps the card new and only moves
-  its due date, while Anki's `setDueDate` makes it a review card, so `AnkiSchedule::values` is None for it.
+- **New cards.** Neither app has a due day to store for one Amber holds as new, so `moved_without_a_due_day`
+  compares Anki's days: the newest move wins, as long as nothing came after it. Amber keeps the card new and
+  only moves its due date, while Anki's `setDueDate` makes it a review card, so `AnkiSchedule::values` is None
+  for it.
 
 ## Deletions and transport
 
@@ -160,8 +168,8 @@ calls. Writes to Anki can't be undone, so they come after the Amber writes they 
     - Otherwise it sends packages as base64 (`storeMediaFile`), split by `write_packages` under
       `SENT_PACKAGE_BYTES` as AnkiConnect refuses requests over 16 MiB, and reads an export back with
       `retrieveMediaFile`.
-    - Every package is removed afterwards, even on failure; Anki trashes any Amber couldn't delete, as one left
-      behind would sync to AnkiWeb.
+    - Every package is removed afterwards, even on failure; Anki trashes any Amber couldn't delete, as one
+      left behind would sync to AnkiWeb.
 
 ## Several devices
 

@@ -195,9 +195,8 @@ export const theme = createTheme({
 				},
 			},
 		}),
-		// Dropzone's own background reads as an extra box when
-		// it's embedded in a surface that already has a background (e.g. a
-		// Modal), so make it transparent by default.
+		// Dropzone's own background reads as an extra box inside a surface that has one
+		// (e.g. a Modal), so it's transparent by default.
 		Dropzone: Dropzone.extend({
 			styles: {
 				root: {

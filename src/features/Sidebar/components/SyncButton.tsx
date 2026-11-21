@@ -2,7 +2,7 @@ import { ActionIcon } from "@mantine/core";
 import { commandIcon } from "../../../commands/commandIcon";
 import { useRunCommand } from "../../../commands/useRunCommand";
 import useAppSelector from "../../../hooks/useAppSelector";
-import { selectIsSyncing } from "../../../stores/sync/syncSelector";
+import { selectIsSyncing } from "../../../stores/sync/syncSelectors";
 import {
 	selectIsSignedIn,
 	selectUserInformation,

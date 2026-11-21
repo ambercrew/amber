@@ -34,8 +34,10 @@ split; seq from `useSplit()`), `ContextMenuItems` (a menu section; the host adds
   `Provider`, using `splits` metadata and `getHeight`.
 - React to editor events with a Lexical command listener in a `SplitPlugin` (e.g.
   `HIGHLIGHT_CREATED_COMMAND` in `readPoint/ExtractReadPointPlugin`), not a core event bus.
-- Read point and mark commands are typed `ReadingCommand`s: send with `runReadingCommand`, handle
-  with `useReadingCommand` (`src/commands/readingCommands.ts`). Both views handle the same ones.
+- Read point and mark commands are typed `ReadingCommand`s: send with
+  `dispatch(runReadingCommand(command))`, handle with `useReadingCommand`
+  (`src/commands/readingCommands.ts`). Both views handle the same ones. A command is a Redux request
+  with a `seq`, so it reaches a handler after the next render, and never one that mounts later.
 
 ## Positions and scrolling
 
@@ -48,14 +50,23 @@ split; seq from `useSplit()`), `ContextMenuItems` (a menu section; the host adds
 - While a jump (including the read point restore on open) lands, the mount window is locked onto its
   split and neighbours, so the viewport observer can't move it until the jump has landed.
 - A fast scroll or a long scrollbar drag doesn't mount the splits it flies past: the mount window
-  follows `primarySeq` only while reading, and otherwise waits for the scroll to settle. So a split can
-  mount after scrolling stops, and `primarySeq`'s content root may briefly not exist. Measure "on scroll"
-  through `onViewportChange(listener)` (once a frame; also fires when the top split mounts after a fast scroll settles),
-  never a raw scroll listener — as `readPoint` and `tableOfContents` do.
-- `initialViewPosition` (a `ViewPosition`: top block plus `scrollTop`'s offset past it) opens there instead of the read point, and `onLeave` reports where the reader last was on unmount (`null` if they never scrolled; scrolling is only measured while it's set, so pass it only for the asset under review); any open of the study session's asset under review (Return, the sidebar, back) uses both through `useReviewResume`, as the read point does for its precedence (`resumeSource`/`onLeave` on `useReadPointPlacement`).
+  follows `primarySeq` only while reading, and otherwise waits for the scroll to settle. So a split
+  can mount after scrolling stops, and `primarySeq`'s content root may briefly not exist.
+- Measure "on scroll" through `onViewportChange(listener)`, never a raw scroll listener, as
+  `readPoint` and `tableOfContents` do. It fires once a frame, and also when the top split mounts
+  after a fast scroll settles.
+- **Resuming a review.** `initialViewPosition` (a `ViewPosition`: top block plus `scrollTop`'s
+  offset past it) opens there instead of the read point. `onLeave` reports where the reader was on
+  unmount (`null` if they never scrolled). Scrolling is only measured while `onLeave` is set, so
+  pass it only for the study session's asset under review. Every open of that asset (Return, the
+  sidebar, back) uses both through `useReviewResume`; the read point does the same for its
+  precedence (`resumeSource`/`onLeave` on `useReadPointPlacement`).
 - `getContentRoot(seq)` is `undefined` for unmounted splits — handle it; don't query the DOM.
-- For "here" actions use `anchors.resolveVisibleAnchor()`; for the block at the viewport top, `anchors.topVisibleBlock()`, as the read point does; `anchors.topVisible()` adds the scroll offset past it at the cost of another layout read, for the remembered view position.
-- Land with `scrollGeometry.ts`'s `contentTopOf`/`jumpTo`, which hide the header past its fixed zone like every other landing.
+- **Anchors.** For "here" actions use `anchors.resolveVisibleAnchor()`. For the block at the viewport
+  top use `anchors.topVisibleBlock()`, as the read point does. `anchors.topVisible()` adds the scroll
+  offset past it, at the cost of another layout read, for the remembered view position.
+- Land with `scrollGeometry.ts`'s `contentTopOf`/`jumpTo`, which hide the header past its fixed
+  zone like every other landing.
 - Per-split ref callbacks must be stable: use `useKeyedRefCallbacks`.
 
 ## Testing
@@ -63,5 +74,3 @@ split; seq from `useSplit()`), `ContextMenuItems` (a menu section; the host adds
 Tests mirror the source under `src/__test__/features/ElementViewer/LearningAssetView/`. Fake roots
 as `div`s with stubbed `getBoundingClientRect`, and fake the core contexts as in
 `SplitSlot.test.tsx`. jsdom has no layout, so check scrolling changes in `npm run tauri dev`.
-
-Keep this skill and CLAUDE.md's "Learning Asset View" section current.

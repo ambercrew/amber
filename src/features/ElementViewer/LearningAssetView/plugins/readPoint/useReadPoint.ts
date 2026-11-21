@@ -3,7 +3,7 @@ import { useReadingCommand } from "../../../../../commands/readingCommands";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
 import { NO_READ_POINT } from "../../../readPoint/readingPosition";
 import { OnViewportChange } from "../../core/useViewportChange";
-import { useMainScrollElement } from "../../../../App/context/mainScrollContext";
+import { useMainScrollElement } from "../../../../../components/AppLayout/appLayoutContext";
 import { ReadPointSource } from "../../../../../types/elements/readPointSource";
 import { useReadPointPlacement } from "../../../readPoint/useReadPointPlacement";
 import { ReadingAnchors } from "../../core/useReadingAnchors";

@@ -1,8 +1,8 @@
 import { Group, Pill } from "@mantine/core";
 import useAppSelector from "../../../hooks/useAppSelector";
 import useAppDispatch from "../../../hooks/useAppDispatch";
-import { selectAiContextSnippets } from "../../../stores/aiContext/aiSelectors";
-import { removeAiContextSnippet } from "../../../stores/aiContext/aiReducer";
+import { selectAiContextSnippets } from "../../../stores/aiContext/aiContextSelectors";
+import { removeAiContextSnippet } from "../../../stores/aiContext/aiContextReducer";
 import { previewText } from "../utils/contextSnippetPreview";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 

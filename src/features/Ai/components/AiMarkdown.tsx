@@ -5,7 +5,7 @@ import ElementReference from "../../../components/ElementReference/ElementRefere
 import {
 	ELEMENT_REFERENCE_TAG,
 	parseElementReference,
-} from "../../../api/aiIntegration/elementReference";
+} from "../../../api/aiIntegration/dto/elementReference";
 import { ElementId } from "../../../types/elements/elementId";
 import { renderMarkdown } from "../utils/renderMarkdown";
 

@@ -5,9 +5,8 @@ export const selectElementDetailsIsLoading = (state: RootState) =>
 	state.elementDetails.isLoading;
 
 /**
- * Only returns the loaded details when they match the current element —
- * while a different element's details are still in flight, callers should
- * see `null` rather than the previous element's stale data.
+ * The loaded details only when they're the current element's, so callers see `null`, not the
+ * previous element's, while another's are loading.
  */
 export function selectCurrentElementDetails(state: RootState) {
 	const currentElement = selectCurrentElement(state);

@@ -1,43 +1,38 @@
-import { useCallback, useEffect, useReducer } from "react";
+import { useEffect } from "react";
 import { getImageOcclusion } from "../../../api/imageOcclusion/api/imageOcclusionApi";
-import { ImageOcclusionLookupDto } from "../../../api/imageOcclusion/dto/imageOcclusionLookupDto";
 import useApi from "../../../hooks/useApi";
+import useAppDispatch from "../../../hooks/useAppDispatch";
+import useAppSelector from "../../../hooks/useAppSelector";
+import { imageOcclusionLoaded } from "../../../stores/imageOcclusion/imageOcclusionReducer";
+import {
+	selectImageOcclusionLookup,
+	selectImageOcclusionVersion,
+} from "../../../stores/imageOcclusion/imageOcclusionSelectors";
 
-// Sibling cards share one occlusion, so reviewing them back to back shows it at once;
-// it's still refetched on mount, since a sync may have changed it.
-const cache = new Map<string, ImageOcclusionLookupDto>();
-const listeners = new Set<(id: string) => void>();
-
-/** Refetches the occlusion wherever it's shown, e.g. after the mask editor saves it. */
-export function invalidateImageOcclusion(id: string) {
-	cache.delete(id);
-	listeners.forEach(listener => listener(id));
-}
-
+/** The occlusion `id`, shown from the last fetch at once but refetched on mount, as a sync may have changed it. */
 export function useImageOcclusion(id: string) {
 	const { callApi, errorMessage } = useApi();
-	const [, rerender] = useReducer((count: number) => count + 1, 0);
-
-	const fetchOcclusion = useCallback(
-		() =>
-			callApi(async () => {
-				cache.set(id, await getImageOcclusion(id));
-				rerender();
-			}),
-		[id, callApi],
+	const dispatch = useAppDispatch();
+	const lookup = useAppSelector(state =>
+		selectImageOcclusionLookup(state, id),
+	);
+	const version = useAppSelector(state =>
+		selectImageOcclusionVersion(state, id),
 	);
 
 	useEffect(() => {
-		void fetchOcclusion();
-		const listener = (changedId: string) => {
-			if (changedId === id) void fetchOcclusion();
-		};
-		listeners.add(listener);
+		// A fetch superseded by a newer version mustn't write back older masks.
+		let superseded = false;
+		void callApi(async () => {
+			const fetched = await getImageOcclusion(id);
+			if (!superseded)
+				dispatch(imageOcclusionLoaded({ id, lookup: fetched }));
+		});
 		return () => {
-			listeners.delete(listener);
+			superseded = true;
 		};
-	}, [id, fetchOcclusion]);
+	}, [callApi, dispatch, id, version]);
 
 	// Null until the first fetch answers.
-	return { lookup: cache.get(id) ?? null, errorMessage };
+	return { lookup, errorMessage };
 }

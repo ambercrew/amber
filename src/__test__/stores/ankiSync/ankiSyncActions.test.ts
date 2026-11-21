@@ -7,7 +7,7 @@ import {
 } from "../../../api/elements/api/elementsApi";
 import { AnyElementDto } from "../../../api/elements/dto/anyElementDto";
 import { setCurrentElement } from "../../../stores/elements/elementsReducer";
-import { selectElementRefreshCount } from "../../../stores/sync/syncSelector";
+import { selectElementRefreshCount } from "../../../stores/sync/syncSelectors";
 import {
 	previewAnkiSync,
 	syncAnki,
@@ -117,9 +117,7 @@ describe("ankiSyncActions", () => {
 
 		// Assert
 
-		expect(selectAnkiSyncReview(store.getState())).toEqual({
-			status: "loading",
-		});
+		expect(selectAnkiSyncReview(store.getState())?.status).toBe("loading");
 	});
 
 	it("Should keep the review closed when its preview arrives after closing it", async () => {

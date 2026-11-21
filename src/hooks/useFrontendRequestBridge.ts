@@ -7,10 +7,8 @@ export interface FrontendRequestEvent {
 }
 
 /**
- * Answers a backend request call: listens for `event`,
- * runs `handler` on its payload, and reports the result back via
- * `resolve_frontend_request` under the same request id — the frontend
- * counterpart of the backend's generic request/response bridge.
+ * Answers backend requests: runs `handler` on each `event`'s payload and reports the result through
+ * `resolve_frontend_request` under its request id.
  */
 export function useFrontendRequestBridge<TEvent extends FrontendRequestEvent>(
 	event: string,

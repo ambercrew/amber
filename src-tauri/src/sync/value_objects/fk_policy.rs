@@ -1,8 +1,7 @@
 use crate::sync::errors::SyncError;
 
-/// What to do with a synced row whose foreign key references a row missing
-/// locally, once a full sync pass confirms it really is dangling rather than
-/// just not arrived yet.
+/// What to do with a synced row whose foreign key is dangling, once a full pass confirms it is,
+/// rather than its parent just not having arrived.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FkPolicy {
     SetNull,

@@ -389,18 +389,16 @@ fn push_filter_clause(query_builder: &mut QueryBuilder<Sqlite>, filter: &Element
     }
 }
 
-/// Which way a `withinDays` window points. A due date lies ahead of today, a
-/// creation date behind it, so the same "within N days" operator has to build
-/// the window in opposite directions per field.
+/// Which way a `withinDays` window points: a due date lies ahead of today, a creation date
+/// behind it.
 #[derive(Debug, Clone, Copy)]
 enum DateDirection {
     Past,
     Future,
 }
 
-/// Today's calendar date in the user's own timezone. Timestamps are stored in
-/// UTC, but the rest of the app rolls the day over at local midnight (see
-/// `study::utils::day_boundary`), so the filters have to agree with it.
+/// Today in the user's timezone: timestamps are UTC, but the app rolls the day over at local
+/// midnight (`study::utils::day_boundary`).
 const TODAY: &str = "date('now', 'localtime')";
 
 /// The stored UTC timestamp in `column_expr` as a local calendar date, so it

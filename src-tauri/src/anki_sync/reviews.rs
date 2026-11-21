@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use uuid::Uuid;
 
-use super::anki_connect::{
+use super::clients::anki_connect::{
     AGAIN_EASE, AnkiCardValues, AnkiReview, AnkiReviewRow, free_id_in_second,
 };
 use super::schedules::{AnkiCardSchedule, AnkiToday, anki_date};
@@ -194,9 +194,8 @@ pub fn match_answered_reviews(
     }
 }
 
-/// Whether Anki should answer the card for Amber's newest review rather than log it, so it enters Anki's
-/// (re)learning steps as it did Amber's: Amber reviewed last and left the card (re)learning. Only Again
-/// answers a review card, as another rating would give it days Amber didn't.
+/// Whether Anki answers Amber's newest review rather than logging it, so the card enters Anki's
+/// (re)learning steps as it did Amber's; a review card is only answered Again, as others would add days.
 pub fn answers_in_anki(
     merge: &ReviewMerge,
     review: Option<&CardReview>,

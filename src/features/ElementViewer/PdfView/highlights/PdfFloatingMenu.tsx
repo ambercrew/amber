@@ -23,13 +23,13 @@ import {
 	existsInTree,
 } from "../../../../stores/elements/elementsActions";
 import { RootState } from "../../../../stores/store";
-import { selectSettings } from "../../../../stores/settings/settingsSelector";
+import { selectSettings } from "../../../../stores/settings/settingsSelectors";
 import {
 	addAiContextSnippet,
 	requestAiPrompt,
-} from "../../../../stores/aiContext/aiReducer";
+} from "../../../../stores/aiContext/aiContextReducer";
 import { requestFocus } from "../../../../hooks/useFocusRequest";
-import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../../Ai/aiPrompts";
+import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../../Ai/utils/aiPrompts";
 import {
 	ADD_AI_CONTEXT_BUTTON,
 	AI_CARDS_BUTTON,
@@ -37,7 +37,7 @@ import {
 	EXTRACT_BUTTON,
 	OPEN_HIGHLIGHT_BUTTON,
 	REMOVE_HIGHLIGHT_BUTTON,
-} from "../../highlightFloatingMenuButtons";
+} from "../../utils/highlightFloatingMenuButtons";
 import { buildClozeCardDto, buildExtractDto } from "./pdfFloatingMenuContent";
 import {
 	buildHighlightAnnotations,
@@ -165,7 +165,7 @@ export default function PdfFloatingMenu({
 				dispatch(addAiContextSnippet(text));
 				if (prompt) {
 					dispatch(requestAiPrompt(prompt));
-					requestFocus("aiChat");
+					dispatch(requestFocus("aiChat"));
 				}
 				selection.clear();
 			});

@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use super::{AMBER_NOTES_QUERY, ANKI_CARDS_QUERY, DefaultAnkiSyncService, FILTERED_CARDS_QUERY};
-use crate::anki_sync::anki_connect::{
+use crate::anki_sync::clients::anki_connect::{
     AnkiNoteInfo, cards_info, decks_of_cards, delete_notes, find_cards, find_notes, notes_info,
     suspend_cards,
 };
@@ -349,10 +349,8 @@ impl DefaultAnkiSyncService {
         Ok(())
     }
 
-    /// Amber never writes to the notes of cards it imported, so one whose fields no longer match the hash
-    /// Amber keeps was edited in Anki; a tag or deck change leaves the card as it was. The hash decides
-    /// rather than the note's time, as an edit made on another device before `since` can arrive after it.
-    /// A note without a hash counts when it changed since `since`. Filtered cards wait.
+    /// Imported notes edited in Anki: fields no longer matching Amber's hash (the hash, not the note's time, as
+    /// another device's edit can arrive late); a note without one counts if changed since `since`.
     async fn imported_changed_since(
         &self,
         profile: &str,

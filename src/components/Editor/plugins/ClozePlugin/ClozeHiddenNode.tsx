@@ -22,12 +22,8 @@ export const CLOZE_HIDDEN_TAG_NAME = "mark";
 export const CLOZE_HIDDEN_ATTRIBUTE = "data-cloze-hidden";
 export const CLOZE_PLACEHOLDER = "[...]";
 
-// The node's own (editable, displayed) text is always the literal "[...]"
-// placeholder; the real hidden phrase is kept separately as node data, purely
-// so it can be read back out for other purposes (e.g. seeding a nested
-// cloze). Extending TextNode instead of using a DecoratorNode lets the
-// placeholder edit like any other styled text run (bold, code, etc.) — the
-// caret moves through it and typing/backspace act on it directly.
+// Displays a literal "[...]" and keeps the hidden phrase as data (e.g. to seed a nested cloze). A
+// TextNode rather than a DecoratorNode, so the placeholder styles and edits like any text run.
 export class ClozeHiddenNode extends TextNode {
 	__hiddenText: string;
 

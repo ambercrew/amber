@@ -1,8 +1,8 @@
-pub mod anki_connect;
 pub mod anki_sync_api;
 pub mod anki_sync_lock;
 mod card_decision;
 mod card_timeline;
+pub mod clients;
 pub mod dto;
 pub mod entities;
 pub mod events;

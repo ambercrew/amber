@@ -137,7 +137,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::anki_sync::anki_connect::AnkiReview;
+    use crate::anki_sync::clients::anki_connect::AnkiReview;
     use crate::study::entities::card_review_log::CardReviewLog;
     use crate::study::value_objects::rating::Rating;
 

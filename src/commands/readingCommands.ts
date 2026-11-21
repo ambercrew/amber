@@ -1,4 +1,6 @@
-import { useEffect } from "react";
+import { addListener, createAction } from "@reduxjs/toolkit";
+import { useEffect, useEffectEvent } from "react";
+import useAppDispatch from "../hooks/useAppDispatch";
 import { MarkSlot } from "../types/elements/learningAssetMark";
 
 /** Commands carried out by whichever learning asset view (text or PDF) is open. */
@@ -15,26 +17,31 @@ type ReadingCommandOf<T extends ReadingCommandType> = Extract<
 	ReadingCommand,
 	{ type: T }
 >;
-type Handler = (command: ReadingCommand) => void;
 
-const handlers = new Map<ReadingCommandType, Set<Handler>>();
+/** Sends `command` to the open learning asset view, when dispatched; does nothing when none is open. */
+export const runReadingCommand = createAction<ReadingCommand>(
+	"readingCommands/run",
+);
 
-/** Sends `command` to the open learning asset view; does nothing when none is open. */
-export function runReadingCommand(command: ReadingCommand): void {
-	handlers.get(command.type)?.forEach(handler => handler(command));
-}
-
-/** Handles `type` reading commands while the calling component is mounted. */
+/** Handles `type` reading commands sent while the calling component is mounted. */
 export function useReadingCommand<T extends ReadingCommandType>(
 	type: T,
 	handler: (command: ReadingCommandOf<T>) => void,
 ): void {
-	useEffect(() => {
-		const registered = handler as Handler;
-		const forType = handlers.get(type) ?? new Set();
-		handlers.set(type, forType.add(registered));
-		return () => {
-			forType.delete(registered);
-		};
-	}, [type, handler]);
+	const dispatch = useAppDispatch();
+	const handle = useEffectEvent(handler);
+
+	useEffect(
+		() =>
+			dispatch(
+				addListener({
+					actionCreator: runReadingCommand,
+					effect: ({ payload }) => {
+						if (payload.type === type)
+							handle(payload as ReadingCommandOf<T>);
+					},
+				}),
+			),
+		[dispatch, type],
+	);
 }

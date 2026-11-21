@@ -16,7 +16,7 @@ import {
 	updateIntervalMultiplier,
 } from "../../../api/elements/api/elementsApi";
 import { selectCurrentElementDetails } from "../../../stores/elementDetails/elementDetailsSelectors";
-import { selectElementRefreshCount } from "../../../stores/sync/syncSelector";
+import { selectElementRefreshCount } from "../../../stores/sync/syncSelectors";
 import { formatRelativeDueDate } from "../../../utils/formatRelativeDueDate";
 import { formatPriorityPercentile } from "../../../utils/formatPriorityPercentile";
 import { ElementId } from "../../../types/elements/elementId";

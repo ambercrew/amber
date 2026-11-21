@@ -9,9 +9,8 @@ export interface MatchTarget {
 export type ResolveLocalMatchAtOrBelow = (seq: number) => number | null;
 
 /**
- * Picks the match to land on when search first opens: the nearest one at or
- * below the viewport, scanning forward from `primarySeq`. Wraps to the very
- * first match overall if nothing qualifies.
+ * The match search opens on: the nearest at or below the viewport scanning from `primarySeq`,
+ * else the very first match.
  */
 export function findNearestMatchAtOrBelowViewport(
 	splits: LearningAssetSplitMetaDto[],

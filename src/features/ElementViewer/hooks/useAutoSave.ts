@@ -4,7 +4,7 @@ import { AUTO_SAVE_DELAY_IN_MILLISECONDS } from "../../../config/constants";
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "../../../stores/sync/managers/syncEventManager";
+} from "../../../managers/syncEventManager";
 import { defaultCloseRequestedEventManager } from "../../../managers/closeRequestedEventManager";
 import { CallApiFn } from "../../../hooks/useApi";
 
@@ -30,16 +30,12 @@ function useAutoSave<T = string>({
 	onSaveComplete,
 	callApi,
 }: Props<T>): ReturnValue<T> {
-	// Holds a getter for the latest content that is not yet saved. Producing
-	// the content (e.g. serializing the editor state to JSON) can be
-	// expensive on large documents, so it is deferred until a save actually
-	// happens instead of running on every update.
+	// A getter for the latest unsaved content, so serializing a large document waits
+	// until a save rather than running on every update.
 	const pendingContent = useRef<(() => T) | null>(null);
 	const autoSaveTimeoutId = useRef<number>(null);
-	// Multiple ElementEditor instances (e.g. a card's front and back) can be
-	// mounted at once, each with their own useAutoSave instance, so the
-	// handler name must be unique per instance to avoid one instance's
-	// close-requested handler overwriting another's.
+	// Several editors (a card's front and back) can be mounted at once, so each needs its
+	// own handler name or one's close-requested handler overwrites another's.
 	const closeRequestedHandlerName = `${CLOSE_REQUESTED_HANDLER_NAME_PREFIX}-${useId()}`;
 
 	const saveChanges = useCallback(async () => {

@@ -5,8 +5,8 @@ use injector_derive::ScopeInjectable;
 
 use crate::{
     backend::{
-        backend_dto::UserInformationDto,
         clients::amber_backend_client::AmberBackendClient,
+        dto::backend_dto::UserInformationDto,
         dto::sign_up_request_dto::SignUpRequestDto,
         services::authenticator::{Authenticator, AuthenticatorError},
     },

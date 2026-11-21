@@ -4,7 +4,7 @@ import { $getRoot } from "lexical";
 import { createDOMRange } from "@lexical/selection";
 import { findMatches } from "./findMatches";
 import { buildOffsetMap, offsetToPoint } from "./offsetToPoint";
-import { searchHighlightRegistry } from "./searchHighlightRegistry";
+import { useSearchHighlightRegistry } from "./searchHighlightRegistryContext";
 
 interface SearchHighlightPluginProps {
 	/** Unique key identifying this editor instance among any others on screen. */
@@ -29,6 +29,7 @@ export default function SearchHighlightPlugin({
 	onMatches,
 }: SearchHighlightPluginProps) {
 	const [editor] = useLexicalComposerContext();
+	const searchHighlightRegistry = useSearchHighlightRegistry();
 
 	useEffect(() => {
 		const recompute = () => {
@@ -79,6 +80,7 @@ export default function SearchHighlightPlugin({
 	}, [
 		editor,
 		editorKey,
+		searchHighlightRegistry,
 		query,
 		caseSensitive,
 		currentMatchLocalIndex,
@@ -90,7 +92,7 @@ export default function SearchHighlightPlugin({
 		return () => {
 			searchHighlightRegistry.clear(editorKey);
 		};
-	}, [editorKey]);
+	}, [editorKey, searchHighlightRegistry]);
 
 	return null;
 }

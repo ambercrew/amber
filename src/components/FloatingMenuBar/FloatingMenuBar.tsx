@@ -44,10 +44,8 @@ type Props = PaperProps &
 	};
 
 /**
- * Presentational button bar for a floating text-selection menu: a `Paper`
- * containing a row of `Button`/`ActionIcon` items (with dividers collapsed
- * when they'd otherwise dangle). Positioning is the caller's responsibility —
- * pass it through `style`/`className`/other `Paper` props.
+ * The button bar of a floating selection menu (a `Paper` row, dangling dividers collapsed);
+ * the caller positions it through `style`, `className` or other `Paper` props.
  */
 const FloatingMenuBar = forwardRef<HTMLDivElement, Props>(
 	({ items, ...paperProps }, ref) => {

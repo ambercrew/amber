@@ -3,9 +3,10 @@ import { UserInformationDto } from "../../api/backend/dto/userInformationDto";
 
 export interface UserState {
 	isSignedIn: boolean;
-	/** True when signed in but the last refresh from the backend failed
-	 * (e.g. no internet) — userInformation is then the last cached value,
-	 * which may be stale. */
+	/**
+	 * Signed in but the last backend refresh failed (e.g. offline), so `userInformation`
+	 * is the cached, possibly stale value.
+	 */
 	isOffline: boolean;
 	userInformation: UserInformationDto | null;
 }

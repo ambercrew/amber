@@ -20,11 +20,8 @@ pub async fn create_sqlite_pool_from_location(
     Ok(create_sqlite_pool(&format!("sqlite:///{}", database_location)).await?)
 }
 
-/// Opens `url` and returns it together with the [`SyncClock`] that belongs to
-/// it: the clock is registered on every connection this pool opens, so the
-/// sync SQL functions used by change-tracking triggers issue HLCs under this
-/// database's own device id, and is handed to callers to pass on through DI
-/// (see `DbPool`) instead of being reachable as process-wide state.
+/// Opens `url` with its own [`SyncClock`], registered on every connection so triggers issue HLCs under
+/// this database's device id, and returned to pass through DI (`DbPool`) rather than held globally.
 pub async fn create_sqlite_pool(url: &str) -> Result<(SqlitePool, Arc<SyncClock>), sqlx::Error> {
     let sync_clock = SyncClock::new();
 
@@ -36,10 +33,8 @@ pub async fn create_sqlite_pool(url: &str) -> Result<(SqlitePool, Arc<SyncClock>
         .pragma("cache_size", "-65536")
         .pragma("temp_store", "memory")
         .pragma("recursive_triggers", "true")
-        // Without this, a connection that finds the database locked by
-        // another writer (e.g. startup's sync-table registration overlapping
-        // an early frontend query) fails immediately with "database is
-        // locked" instead of waiting for the lock to clear.
+        // Wait for another writer (e.g. startup's sync registration overlapping an early query)
+        // instead of failing at once with "database is locked".
         .busy_timeout(Duration::from_secs(10))
         .create_if_missing(true);
     let pool = SqlitePoolOptions::new()
@@ -54,9 +49,8 @@ pub async fn create_sqlite_pool(url: &str) -> Result<(SqlitePool, Arc<SyncClock>
         .await?;
     sqlx::migrate!("./migrations/").run(&pool).await?;
 
-    // Only possible once the migrations above have created the sync tables the
-    // clock seeds itself from; until then the SQL functions registered on this
-    // pool's connections report that sync isn't initialized.
+    // Only once the migrations created the sync tables it seeds from; until then the SQL functions
+    // report sync isn't initialized.
     sync_clock.initialize(&pool).await?;
 
     Ok((pool, sync_clock))

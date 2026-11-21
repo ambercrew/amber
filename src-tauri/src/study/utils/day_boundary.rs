@@ -1,8 +1,7 @@
 use chrono::{DateTime, Duration, Local, NaiveDate, NaiveTime, TimeZone, Utc};
 
-/// Local midnight of the current day, in UTC. Used as the schedule anchor for
-/// incremental reading intervals so repeated `Next` calls on the same day compound
-/// predictably regardless of what time of day the user actually studies.
+/// Today's local midnight in UTC, anchoring reading intervals so repeated `Next`s on one day compound
+/// the same whatever time the user studies.
 pub fn start_of_today_utc() -> DateTime<Utc> {
     start_of_day_utc(Local::now().date_naive())
 }

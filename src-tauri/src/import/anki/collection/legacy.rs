@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use rusqlite::Connection;
 use serde::Deserialize;
 
-use super::NotetypesAndDecks;
+use super::read_collection::NotetypesAndDecks;
 use crate::import::anki::entities::notetype::Notetype;
 use crate::import::anki::entities::template::Template;
 

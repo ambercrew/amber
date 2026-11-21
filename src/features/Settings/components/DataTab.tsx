@@ -4,7 +4,7 @@ import { FolderOpenIcon } from "@phosphor-icons/react";
 import { open } from "@tauri-apps/plugin-dialog";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
-import { selectSettings } from "../../../stores/settings/settingsSelector";
+import { selectSettings } from "../../../stores/settings/settingsSelectors";
 import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
 import FieldLabel from "../../../components/FieldLabel/FieldLabel";
 import FieldInfoIcon from "../../../components/FieldLabel/FieldInfoIcon";

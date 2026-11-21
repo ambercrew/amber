@@ -18,9 +18,8 @@ const SPECIAL: Record<string, string> = {
 };
 
 /**
- * Shortcut key letters/digits name the physical key at its US-QWERTY
- * position (that's what `KeyboardEvent.code` always encodes), so this maps
- * onto the same `code` a layout map is keyed by.
+ * A shortcut's letters and digits name the physical key at its US-QWERTY spot (what `KeyboardEvent.code`
+ * encodes), so this maps onto the `code` a layout map is keyed by.
  */
 function codeForKey(key: string): string | undefined {
 	if (/^[a-z]$/.test(key)) return `Key${key.toUpperCase()}`;
@@ -29,9 +28,8 @@ function codeForKey(key: string): string | undefined {
 }
 
 /**
- * Labels a shortcut's key for display, preferring the character the user's
- * active keyboard layout produces at that physical key (e.g. `"К"` on
- * Russian) over the US-layout letter baked into the shortcut string.
+ * A shortcut key's label, preferring the character the active layout produces there (e.g. `"К"` on
+ * Russian) over the US letter in the shortcut string.
  */
 function displayKey(key: string, layoutMap?: ReadonlyMap<string, string>) {
 	const code = codeForKey(key);

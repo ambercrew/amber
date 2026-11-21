@@ -35,9 +35,8 @@ pub trait BibliographicalSourceService: Send + Sync {
         id: Uuid,
     ) -> Result<BibliographicalSourceWithElementCount, RepositoryError>;
 
-    /// Creates a new bibliographical source, unless one with the same `location` already
-    /// exists, in which case that existing bibliographical source is returned unchanged.
-    /// Bibliographical sources without a `location` are never deduplicated.
+    /// Creates a source, or returns the one already at the same `location` unchanged;
+    /// sources without a location are never deduplicated.
     async fn create_or_reuse_bibliographical_source(
         &self,
         fields: BibliographicalSourceFields,

@@ -5,7 +5,7 @@ import { TrashedElementDto } from "../../../api/trash/dto/trashedElementDto";
 import ConfirmModal from "../../../components/AppModal/ConfirmModal";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
-import { selectSettings } from "../../../stores/settings/settingsSelector";
+import { selectSettings } from "../../../stores/settings/settingsSelectors";
 import {
 	deleteElementPermanentlyAction,
 	emptyTrashAction,

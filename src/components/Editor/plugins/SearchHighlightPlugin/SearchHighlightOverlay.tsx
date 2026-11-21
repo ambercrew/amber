@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { SEARCH_HIGHLIGHT_HOST_ATTRIBUTE } from "./searchHighlightHost";
-import { searchHighlightRegistry } from "./searchHighlightRegistry";
+import { useSearchHighlightRegistry } from "./searchHighlightRegistryContext";
 import styles from "./SearchHighlightOverlay.module.css";
 
 interface Box {
@@ -15,6 +15,8 @@ interface Box {
 /** Boxes painted together: inside `host`'s layer, or fixed to the viewport when `host` is null. */
 interface BoxGroup {
 	host: HTMLElement | null;
+	/** Stable per host while mounted, for keying its portal. */
+	key: string;
 	layer: HTMLElement | null;
 	boxes: Box[];
 }
@@ -82,12 +84,11 @@ function boxClassName(box: Box) {
 }
 
 /**
- * Paints find-in-page matches as boxes over the text. Used instead of the CSS
- * Custom Highlight API, which some Android WebViews and outdated WebView2
- * runtimes lack. Inside a host the boxes sit in a layer in the scrolled
- * content, so scrolling moves them with the text and needs no repainting here.
+ * Paints find-in-page matches as boxes, as some WebViews lack the CSS Custom Highlight API; inside a
+ * host they sit in a layer in the scrolled content, so they scroll with the text.
  */
 export default function SearchHighlightOverlay() {
+	const searchHighlightRegistry = useSearchHighlightRegistry();
 	const [groups, setGroups] = useState<BoxGroup[]>([]);
 
 	useEffect(() => {
@@ -99,7 +100,17 @@ export default function SearchHighlightOverlay() {
 		let hasFixedRanges = false;
 		/** One zero-height layer per host, kept in the host's flow so it scrolls with its content. */
 		const layers = new Map<HTMLElement, HTMLElement>();
+		const hostKeys = new WeakMap<HTMLElement, string>();
 		let listening = false;
+
+		const keyFor = (host: HTMLElement) => {
+			let key = hostKeys.get(host);
+			if (key === undefined) {
+				key = `host-${crypto.randomUUID()}`;
+				hostKeys.set(host, key);
+			}
+			return key;
+		};
 
 		const layerFor = (host: HTMLElement) => {
 			let layer = layers.get(host);
@@ -136,6 +147,7 @@ export default function SearchHighlightOverlay() {
 				if (!group) {
 					group = {
 						host,
+						key: host ? keyFor(host) : "fixed",
 						layer: host ? layerFor(host) : null,
 						boxes: [],
 					};
@@ -280,9 +292,9 @@ export default function SearchHighlightOverlay() {
 			observer?.disconnect();
 			removeUnusedLayers(new Set());
 		};
-	}, []);
+	}, [searchHighlightRegistry]);
 
-	return groups.map(({ host, layer, boxes }) => {
+	return groups.map(({ key, layer, boxes }) => {
 		if (boxes.length === 0) return null;
 		const rendered = boxes.map((box, index) => (
 			<div
@@ -298,25 +310,11 @@ export default function SearchHighlightOverlay() {
 			/>
 		));
 		return layer ? (
-			createPortal(rendered, layer, `host-${groupKey(host)}`)
+			createPortal(rendered, layer, key)
 		) : (
 			<div key="fixed" aria-hidden className={styles.layer}>
 				{rendered}
 			</div>
 		);
 	});
-}
-
-const hostKeys = new WeakMap<HTMLElement, number>();
-let nextHostKey = 0;
-
-/** A stable key per host element, for rendering each host's portal. */
-function groupKey(host: HTMLElement | null): number {
-	if (!host) return -1;
-	let key = hostKeys.get(host);
-	if (key === undefined) {
-		key = nextHostKey++;
-		hostKeys.set(host, key);
-	}
-	return key;
 }

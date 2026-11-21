@@ -9,7 +9,7 @@ import useApi from "../../../hooks/useApi";
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "../../../stores/sync/managers/syncEventManager";
+} from "../../../managers/syncEventManager";
 import {
 	LearningAssetMark,
 	MarkSlot,

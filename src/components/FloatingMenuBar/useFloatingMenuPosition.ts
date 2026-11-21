@@ -12,7 +12,7 @@ import {
 	type ReferenceElement,
 	type Strategy,
 } from "@floating-ui/dom";
-import { useVisibleAreaElement } from "./visibleAreaContext";
+import { useVisibleAreaElement } from "../AppLayout/appLayoutContext";
 
 const MENU_GAP_PX = 8;
 const EDGE_PADDING_PX = 8;

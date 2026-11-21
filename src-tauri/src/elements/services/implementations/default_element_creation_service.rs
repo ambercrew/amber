@@ -401,9 +401,8 @@ impl DefaultElementCreationService {
         }
     }
 
-    /// New elements are placed relative to what they were derived from (or,
-    /// failing that, their tree parent) so the user needn't re-triage them.
-    /// How exactly is the effective study profile's priority inheritance policy.
+    /// Places a new element relative to what it was derived from (else its tree parent), so it needn't be
+    /// triaged again, following the effective profile's priority inheritance.
     async fn resolve_priority(
         &self,
         derived_from: Option<ElementId>,

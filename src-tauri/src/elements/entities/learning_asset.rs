@@ -10,9 +10,8 @@ pub struct LearningAsset {
     pub r#type: LearningAssetType,
     /// Where the user last read up to. Device-independent.
     pub read_point: ReadingPosition,
-    /// Interval multiplier applied each time this learning asset is revisited. Seeded from
-    /// the effective study profile's `initial_interval_multiplier` at creation time and kept
-    /// fixed afterwards, independent of later profile edits.
+    /// Multiplier applied on each revisit, seeded from the effective profile's `initial_interval_multiplier`
+    /// at creation and fixed afterwards, whatever the profile later says.
     pub interval_multiplier: f32,
 }
 

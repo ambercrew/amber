@@ -26,10 +26,8 @@ interface Props<Target> {
 }
 
 /**
- * Keeps the `search` Redux slice's `totalMatches`/`currentIndex` in sync with
- * a surface's own match aggregation, and scrolls to the current match
- * whenever it changes. Shared by all three find-in-page surfaces (learning asset,
- * extract, card).
+ * Keeps the `search` slice's `totalMatches`/`currentIndex` in step with a view's own match counts and
+ * scrolls to the current match; shared by the learning asset, extract and card views.
  */
 export function useSyncSearchMatches<Target>({
 	totalMatches,
@@ -50,9 +48,8 @@ export function useSyncSearchMatches<Target>({
 			? pendingMatch.index
 			: null;
 
-	// Seeds `currentIndex` whenever there isn't one yet; otherwise just
-	// re-clamps it. `reduxCurrentIndex` is read but not a dep, since including
-	// it would fight `goToNextMatch`/`goToPreviousMatch`.
+	// Seeds `currentIndex` when there's none yet, else re-clamps it. `reduxCurrentIndex` isn't a
+	// dependency, as it would fight `goToNextMatch`/`goToPreviousMatch`.
 	useEffect(() => {
 		if (!opened) return;
 

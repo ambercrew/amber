@@ -1,11 +1,11 @@
 use std::{sync::Arc, sync::Mutex, time::Duration};
 
 use crate::backend::{
-    backend_dto::{
+    clients::amber_backend_client::{AmberBackendClient, AmberBackendClientError},
+    dto::backend_dto::{
         GoogleSignInDto, ProblemDetails, SignInDto, SignInResponseDto, SignUpDto,
         UpdatePasswordDto, UpdateUserInformationDto, UserInformationDto, VerifyEmailDto,
     },
-    clients::amber_backend_client::{AmberBackendClient, AmberBackendClientError},
     dto::sign_up_request_dto::SignUpRequestDto,
 };
 use crate::generated_code::{ChangeBatch, PullResponse};
@@ -75,11 +75,8 @@ impl AmberBackendHttpClient {
         }
     }
 
-    /// Parses a `SignInResponseDto` body, persists its token as the new
-    /// bearer token, and returns the user it carries. Every endpoint that
-    /// re-authenticates (sign-in, sign-up, verify-email, update-password)
-    /// returns a fresh token this way, since the backend has no session
-    /// state of its own to keep it valid otherwise.
+    /// Parses a `SignInResponseDto`, saves its token as the new bearer token and returns its user; every
+    /// re-authenticating endpoint answers this way, as the backend keeps no session.
     async fn handle_sign_in_response(
         &self,
         response: Response,
@@ -218,10 +215,8 @@ impl AmberBackendClient for AmberBackendHttpClient {
             .await;
         let result = ensure_success_response(response).await;
 
-        // A 401 means the server already considers this token invalid, so
-        // there is nothing left to revoke remotely — clear it locally the
-        // same as a successful sign-out instead of leaving the user stuck
-        // signed in with an error.
+        // A 401 means the server already rejects the token, so nothing is left to revoke: clear it
+        // like a successful sign-out rather than leaving the user stuck signed in.
         if let Err(AmberBackendClientError::Unauthorized) = result {
             self.clear_auth_token().await?;
             return Ok(());
@@ -410,18 +405,14 @@ impl AmberBackendClient for AmberBackendHttpClient {
     }
 }
 
-/// Ensures that there was no error sending the response and that
-/// the status code of the response is 200, otherwise convert to an
-/// appropriate error.
-/// On 400 response it tries to parse the problem details and return it in a
-/// an appropriate error.
+/// Turns a send error or a non-200 status into an error, with the problem details
+/// parsed from a 400.
 async fn ensure_success_response(
     response: Result<Response, reqwest_middleware::Error>,
 ) -> Result<Response, AmberBackendClientError> {
     if let Err(err) = response {
-        // reqwest_retry wraps the final error as:
-        //   reqwest_middleware::Error::Middleware(anyhow<RetryError>)
-        // so we must unwrap through RetryError to reach the reqwest::Error.
+        // reqwest_retry wraps the final error as `Middleware(anyhow<RetryError>)`, so unwrap
+        // through `RetryError` to reach the `reqwest::Error`.
         let inner = match &err {
             reqwest_middleware::Error::Reqwest(_) => Some(&err),
             reqwest_middleware::Error::Middleware(e) => {

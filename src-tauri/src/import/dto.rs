@@ -44,14 +44,6 @@ pub struct PdfExtractionDto {
     pub page_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PdfImportProgressEvent {
-    pub request_id: String,
-    pub done: usize,
-    pub total: usize,
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpubExtractionDto {

@@ -6,9 +6,8 @@ interface AutosizeTextInputProps extends TextareaProps {
 }
 
 /**
- * A single-line text field that grows vertically so long values wrap and stay
- * fully visible instead of scrolling horizontally. Enter is suppressed to keep
- * the value single-line, but is still forwarded to `onKeyDown`.
+ * A single-line field that grows vertically, so long values wrap instead of scrolling sideways;
+ * Enter is suppressed but still forwarded to `onKeyDown`.
  */
 function AutosizeTextInput({ onKeyDown, ...props }: AutosizeTextInputProps) {
 	function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {

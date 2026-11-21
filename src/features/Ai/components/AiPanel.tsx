@@ -19,8 +19,8 @@ import { selectCurrentElement } from "../../../stores/elements/elementsSelectors
 import {
 	selectAiContextSnippets,
 	selectPendingAiPrompt,
-} from "../../../stores/aiContext/aiSelectors";
-import { clearPendingAiPrompt } from "../../../stores/aiContext/aiReducer";
+} from "../../../stores/aiContext/aiContextSelectors";
+import { clearPendingAiPrompt } from "../../../stores/aiContext/aiContextReducer";
 import { openAiPromptLibraryModal } from "../../../stores/app/appReducer";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import ChatMessages from "./ChatMessages";

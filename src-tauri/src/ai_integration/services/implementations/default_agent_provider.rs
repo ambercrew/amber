@@ -31,10 +31,8 @@ pub struct DefaultAgentProvider {
 }
 
 impl DefaultAgentProvider {
-    /// Builds the "**Context:**" section of the preamble: the name of the
-    /// element the user is currently viewing, how the model can see its content, and
-    /// if relevant the bibliographical source (title + authors) it was derived from.
-    /// Snippets travel with the message they were attached to instead.
+    /// The preamble's "**Context:**": the open element's name, how the model can see its content, and its
+    /// source's title and authors; snippets travel with their message instead.
     async fn build_context(
         &self,
         element_id: Option<ElementId>,

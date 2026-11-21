@@ -11,7 +11,7 @@ import {
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
 import useApi from "../../../hooks/useApi";
-import { selectSettings } from "../../../stores/settings/settingsSelector";
+import { selectSettings } from "../../../stores/settings/settingsSelectors";
 import { saveSettings } from "../../../stores/settings/settingsActions";
 import {
 	buildUpdateSettingsRequest,

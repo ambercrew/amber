@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::DefaultAnkiSyncService;
 use super::plan::{AnkiEdit, SyncPlan};
-use crate::anki_sync::anki_connect::retrieve_media_file;
+use crate::anki_sync::clients::anki_connect::retrieve_media_file;
 use crate::anki_sync::notes::{anki_tags, basic_note, fingerprint, sent_asset_id};
 use crate::anki_sync::services::anki_sync_service::AnkiSyncError;
 use crate::assets::utils::image_mime::sniff_image_mime;
@@ -20,9 +20,8 @@ use crate::import::services::imported_html_converter::ImportedHtmlConverterError
 const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024;
 
 impl DefaultAnkiSyncService {
-    /// Takes Anki's edits to Amber's cards, unless Amber saved the card later: then Amber's version goes to
-    /// Anki as usual. Runs before the export, which sends each result back as Amber renders it. Returns
-    /// the cards it updated.
+    /// Takes Anki's edits to Amber's cards unless Amber saved the card later, before the export sends each
+    /// back as Amber renders it. Returns the cards it updated.
     pub(super) async fn pull_edits(&self, plan: &SyncPlan) -> Result<Vec<Uuid>, AnkiSyncError> {
         let mut edits = Vec::new();
         for edit in &plan.edited_in_anki {

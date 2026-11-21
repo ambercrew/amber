@@ -8,23 +8,15 @@ import { useLocalStorage } from "@mantine/hooks";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getAncestorsOf } from "../utils/elementTreeUtils";
 
-let lastFilter: {
+interface SearchFilter {
 	data: TreeNodeData[];
 	query: string;
 	filtered: TreeNodeData[];
-} | null = null;
-
-/** Both the shown nodes and their expansion need the filtered tree, which is slow to get on a big one. */
-function filterTree(data: TreeNodeData[], query: string) {
-	if (lastFilter?.data !== data || lastFilter.query !== query)
-		lastFilter = { data, query, filtered: filterTreeData(data, query) };
-	return lastFilter.filtered;
 }
 
 /**
- * The tree's expanded nodes. Only the user expands them: by hand, by searching,
- * by creating from a node's menu, by revealing an element or by importing one
- * (`useTreeRevealRequest`), never by opening one.
+ * The tree's expanded nodes, expanded only by the user: by hand, searching, creating from a node's
+ * menu, revealing or importing an element (`useTreeRevealRequest`), never by opening one.
  */
 export function useElementTreeExpansion(data: TreeNodeData[]) {
 	const [persistedExpandedState, setPersistedExpandedState] = useLocalStorage<
@@ -53,21 +45,28 @@ export function useElementTreeExpansion(data: TreeNodeData[]) {
 	}, [data, persistedExpandedState, treeController]);
 
 	const [search, setSearch] = useState("");
+	// Both the shown nodes and their expansion need the filtered tree, which is slow to get on a big one.
+	const [searchFilter, setSearchFilter] = useState<SearchFilter | null>(null);
 	const preSearchExpandedState = useRef<Record<string, boolean> | null>(null);
 
-	const filteredData = useMemo(
-		() => (search.trim() ? filterTree(data, search) : data),
-		[data, search],
-	);
+	const filteredData = useMemo(() => {
+		if (!search.trim()) return data;
+		if (searchFilter?.data === data && searchFilter.query === search)
+			return searchFilter.filtered;
+		return filterTreeData(data, search);
+	}, [data, search, searchFilter]);
 
 	function handleSearchChange(value: string) {
 		setSearch(value);
 		if (value.trim()) {
+			const filtered = filterTreeData(data, value);
+			setSearchFilter({ data, query: value, filtered });
 			preSearchExpandedState.current ??= persistedExpandedState;
 			treeController.setExpandedState(
-				getTreeExpandedState(filterTree(data, value), "*"),
+				getTreeExpandedState(filtered, "*"),
 			);
 		} else {
+			setSearchFilter(null);
 			treeController.setExpandedState(
 				preSearchExpandedState.current ?? {},
 			);
@@ -88,6 +87,7 @@ export function useElementTreeExpansion(data: TreeNodeData[]) {
 			? (preSearchExpandedState.current ?? {})
 			: treeController.expandedState;
 		setSearch("");
+		setSearchFilter(null);
 		preSearchExpandedState.current = null;
 		setPersistedExpandedState(prev => ({ ...prev, ...extra }));
 		treeController.setExpandedState({ ...base, ...extra });

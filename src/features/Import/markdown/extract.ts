@@ -1,5 +1,5 @@
 import { markdownToHtml } from "../../../utils/markdownToHtml";
-import { deriveTitle } from "../deriveTitle";
+import { deriveTitle } from "../utils/deriveTitle";
 
 export interface MarkdownExtraction {
 	title: string | null;

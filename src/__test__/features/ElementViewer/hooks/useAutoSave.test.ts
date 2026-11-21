@@ -7,11 +7,11 @@ import { defaultCloseRequestedEventManager } from "../../../../managers/closeReq
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "../../../../stores/sync/managers/syncEventManager";
+} from "../../../../managers/syncEventManager";
 import callApiMock from "../../../test-utils/callApiMock";
 
 vi.mock(import("../../../../managers/closeRequestedEventManager"));
-vi.mock(import("../../../../stores/sync/managers/syncEventManager"));
+vi.mock(import("../../../../managers/syncEventManager"));
 
 const renderAutoSave = () => {
 	const onSaveCb = vi.fn().mockResolvedValue(undefined);
@@ -33,7 +33,7 @@ const renderAutoSave = () => {
 };
 
 describe("useAutoSave", () => {
-	it("Saves automatically after delay", async () => {
+	it("Should save when the auto-save delay passes", async () => {
 		// Arrange
 
 		vi.useFakeTimers();
@@ -52,7 +52,7 @@ describe("useAutoSave", () => {
 		vi.clearAllTimers();
 	});
 
-	it("Does not save if timeout did not pass", () => {
+	it("Should not save when the delay hasn't passed", () => {
 		// Act
 
 		const { returnValue, onSaveCb } = renderAutoSave();
@@ -63,7 +63,7 @@ describe("useAutoSave", () => {
 		expect(onSaveCb).not.toHaveBeenCalled();
 	});
 
-	it("Does not save again when there is no pending content", async () => {
+	it("Should not save again when there is no pending content", async () => {
 		// Arrange
 
 		vi.useFakeTimers();
@@ -82,7 +82,7 @@ describe("useAutoSave", () => {
 		vi.clearAllTimers();
 	});
 
-	it("Stops and saves before unload", async () => {
+	it("Should save when the page unloads", async () => {
 		// Arrange
 
 		const event = new Event("beforeunload");
@@ -101,7 +101,7 @@ describe("useAutoSave", () => {
 		expect(onSaveCompleteCb).toHaveBeenCalled();
 	});
 
-	it("Saves on window close request", async () => {
+	it("Should save when the window is asked to close", async () => {
 		// Arrange
 
 		const addHandlerSpy = vi.spyOn(
@@ -127,7 +127,7 @@ describe("useAutoSave", () => {
 		expect(onSaveCompleteCb).toHaveBeenCalled();
 	});
 
-	it("Saves on unmount", async () => {
+	it("Should save when it unmounts", async () => {
 		// Act
 
 		const { returnValue, onSaveCb, onSaveCompleteCb } = renderAutoSave();
@@ -144,7 +144,7 @@ describe("useAutoSave", () => {
 		expect(onSaveCompleteCb).toHaveBeenCalled();
 	});
 
-	it("Saves on pre-sync start", async () => {
+	it("Should save when a sync is about to start", async () => {
 		// Arrange
 
 		const addListenerSpy = vi.spyOn(
@@ -166,7 +166,7 @@ describe("useAutoSave", () => {
 		expect(onSaveCompleteCb).toHaveBeenCalled();
 	});
 
-	it("Calls onSaveComplete on pre-sync complete", async () => {
+	it("Should call onSaveComplete when the pre-sync save completes", async () => {
 		// Arrange
 
 		const addListenerSpy = vi.spyOn(
@@ -186,7 +186,7 @@ describe("useAutoSave", () => {
 		expect(onSaveCompleteCb).toHaveBeenCalled();
 	});
 
-	it("Registers a separate close-requested handler per instance when multiple editors are mounted at once", async () => {
+	it("Should register a close-requested handler per instance when several editors are mounted at once", async () => {
 		// Arrange
 
 		const addHandlerSpy = vi.spyOn(
@@ -215,7 +215,7 @@ describe("useAutoSave", () => {
 		expect(secondOnSaveCb).not.toHaveBeenCalled();
 	});
 
-	it("Unregister useEffect dependencies on unmount", () => {
+	it("Should unregister its listeners when it unmounts", () => {
 		// Arrange
 
 		const removeHandlerSpy = vi.spyOn(

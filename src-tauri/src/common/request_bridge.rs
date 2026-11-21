@@ -28,12 +28,8 @@ struct RequestEnvelope<T: Serialize> {
     payload: T,
 }
 
-/// A reusable backend-to-frontend request/response channel over Tauri
-/// events, for cases where an answer can only be produced on the frontend
-/// (e.g. running the Lexical editor headlessly). One call to `request`
-/// emits an event carrying a request id and payload, then awaits the
-/// frontend's answer, which it delivers by calling the
-/// `resolve_frontend_request` command with the same request id.
+/// A backend-to-frontend request over Tauri events, for answers only the frontend can give (e.g. headless
+/// Lexical): `request` emits an id and payload, the frontend answers via `resolve_frontend_request`.
 pub struct RequestBridge<R: tauri::Runtime> {
     app_handle: Arc<tauri::AppHandle<R>>,
     pending: Mutex<HashMap<Uuid, oneshot::Sender<String>>>,
@@ -55,9 +51,8 @@ impl<R: tauri::Runtime> RequestBridge<R> {
         }
     }
 
-    /// Emits `event` with `payload` (plus a generated request id) and
-    /// awaits the frontend's response to that request id, failing after
-    /// `DEFAULT_TIMEOUT` if the frontend never resolves it.
+    /// Emits `event` with `payload` and a new request id, and awaits the frontend's answer,
+    /// failing after `DEFAULT_TIMEOUT`.
     pub async fn request<T: Serialize + Send + Clone>(
         &self,
         event: &str,

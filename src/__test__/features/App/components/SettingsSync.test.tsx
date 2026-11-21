@@ -5,7 +5,7 @@ import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { setSettings } from "../../../../stores/settings/settingsReducer";
 import SettingsDto from "../../../../api/settings/dto/settingsDto";
 
-vi.mock(import("../../../../features/App/components/systemChrome"), () => ({
+vi.mock(import("../../../../features/App/utils/systemChrome"), () => ({
 	applySystemChrome: vi.fn().mockResolvedValue(undefined),
 	applyDocumentColorScheme: vi.fn(),
 	syncThemeColorMeta: vi.fn(),

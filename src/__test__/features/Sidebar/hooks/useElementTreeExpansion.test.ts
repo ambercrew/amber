@@ -24,11 +24,8 @@ const DATA: TreeNodeData[] = [
 	leaf("art-folder"),
 ];
 
-// @mantine/hooks' useLocalStorage dispatches its cross-instance sync event via
-// `queueMicrotask`, so a functional state update (used for expanded-state
-// persistence here) settles one microtask tick after the triggering act().
-// Flush it inside another act() so the resulting re-render isn't reported as
-// an update outside of act.
+// useLocalStorage syncs instances via `queueMicrotask`, so its functional update settles a tick
+// after act(); flush it in another act() so the re-render isn't reported outside act.
 async function flushMicrotasks() {
 	await act(async () => {
 		/* Nothing */

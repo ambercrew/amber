@@ -90,10 +90,8 @@ impl SettingsUpdater for DefaultSettingsUpdater {
         if change_database_location {
             let new_location = settings.database_location();
 
-            // If nothing lives at the new location yet (e.g. the first time
-            // this device signs in as a given user), move the current local
-            // database there instead of connecting to a fresh empty one, so
-            // local changes made before switching aren't discarded.
+            // With nothing at the new location yet (e.g. this device's first sign-in as that user), move the
+            // current database there, so changes made before switching aren't lost.
             let database_already_exists = tokio::fs::try_exists(settings.database_directory())
                 .await
                 .unwrap_or(false);
@@ -296,7 +294,6 @@ mod tests {
                     AiProviderSettings {
                         model_name: Some("gpt-4o".to_string()),
                         api_key: Some("sk-test-key".to_string()),
-                        ..Default::default()
                     },
                 )]
                 .into(),

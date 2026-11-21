@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use crate::{
-    backend::{backend_dto::UserInformationDto, clients::amber_backend_client::AmberBackendClient},
+    backend::{
+        clients::amber_backend_client::AmberBackendClient, dto::backend_dto::UserInformationDto,
+    },
     common::api_error::ApiError,
 };
 use injector::injector::Injector;

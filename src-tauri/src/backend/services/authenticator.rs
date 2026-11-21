@@ -3,8 +3,8 @@ use thiserror::Error;
 
 use crate::{
     backend::{
-        backend_dto::UserInformationDto, clients::amber_backend_client::AmberBackendClientError,
-        dto::sign_up_request_dto::SignUpRequestDto,
+        clients::amber_backend_client::AmberBackendClientError,
+        dto::backend_dto::UserInformationDto, dto::sign_up_request_dto::SignUpRequestDto,
     },
     settings::services::settings_updater::SettingsUpdaterError,
 };

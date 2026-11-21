@@ -37,11 +37,8 @@ pub fn validate_cell_shape(
     }
 }
 
-/// Decides what to do with an incoming cell that already won the per-cell HLC
-/// race. `tombstone_hlc` is the row's current `__deleted` HLC, if any; an update
-/// newer than it is a legitimate resurrection — re-adding a row with a natural
-/// (e.g. composite) key reuses its row id, whose tombstone never clears on its
-/// own the way a synthetic-id row's would.
+/// Decides an incoming cell that won its HLC race. An update newer than the row's `tombstone_hlc` is a
+/// resurrection: re-adding a natural-key row reuses its id, whose tombstone never clears.
 pub fn decide(
     col: &str,
     value: Option<&[u8]>,

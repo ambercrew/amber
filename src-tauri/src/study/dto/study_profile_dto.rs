@@ -29,9 +29,8 @@ pub struct StudyProfileResponseDto {
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
-/// Mirrors ts-fsrs's own `default_learning_steps`/`default_relearning_steps`
-/// so a profile that hasn't set its own steps reports the same values the
-/// frontend scheduler would otherwise silently fall back to.
+/// ts-fsrs's own default steps, so a profile without its own reports what the scheduler
+/// would fall back to.
 fn default_learning_steps() -> Vec<StepUnit> {
     ["1m", "10m"]
         .into_iter()

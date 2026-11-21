@@ -10,10 +10,10 @@ const LAZY_SRC_ATTRS = [
 ];
 const LAZY_SRCSET_ATTRS = ["data-srcset", "data-lazy-srcset"];
 
-/** Promotes lazy-loaded image URLs (held in data-* attributes of the
- * server-rendered HTML) into a real src, so Defuddle keeps the images
- * instead of dropping those without a usable src. Must run before
- * Defuddle parses the document. */
+/**
+ * Promotes lazy images' data-* URLs to a real src, so Defuddle keeps them;
+ * must run before Defuddle parses the document.
+ */
 export function hydrateLazyImages(doc: Document): void {
 	doc.querySelectorAll("img").forEach(img => {
 		if (!img.getAttribute("src")) {

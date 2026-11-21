@@ -1,8 +1,7 @@
 use crate::elements::utils::block_counter::count_top_level_blocks;
 
-/// A single chunk of a learning asset's content. Large learning assets are broken into splits so
-/// that each can be reviewed independently; a non-split learning asset is just a single
-/// split with `seq = 0`. Its content is only set through `new`, so `block_count` can't drift from it.
+/// One chunk of a learning asset's content, reviewed on its own (an unsplit asset has one, `seq = 0`).
+/// Content is only set through `new`, so `block_count` can't drift from it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LearningAssetSplit {
     pub seq: u32,

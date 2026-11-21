@@ -135,12 +135,8 @@ fn defer_skipped(mut entries: Vec<DueElement>, skipped: &[Uuid]) -> Vec<DueEleme
     entries
 }
 
-/// Orders elements by their rank among `priorities` (every live element's, ascending), nudged by
-/// a random amount fixed per element and day.
-///
-/// `fuzz_factor` (0-100) weighs the nudge against the rank: 0 keeps the exact priority order,
-/// 100 shuffles the queue. Ranks count elements that aren't due, so reviewing elements never
-/// moves the rest; creating or deleting one can only swap a few neighbours.
+/// Orders elements by rank among every live element's `priorities`, nudged per element and day by
+/// `fuzz_factor` (0 exact, 100 shuffled); ranks count elements not due, so reviews never move the rest.
 fn order_by_priority_with_fuzz(
     mut entries: Vec<DueElement>,
     priorities: &[Vec<u8>],

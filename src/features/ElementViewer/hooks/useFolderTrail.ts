@@ -27,9 +27,10 @@ function findPath(nodes: NodeDto[], id: string): NodeDto[] | null {
 	return null;
 }
 
-/** The folders from the root down to the given one, for the breadcrumb trail.
- * Empty at Home, and for a folder missing from the tree (e.g. trashed) it's
- * just that folder. */
+/**
+ * The folders from the root down to this one, for the breadcrumbs; empty at Home, and just the folder
+ * itself when it's missing from the tree (e.g. trashed).
+ */
 export function useFolderTrail(
 	folderId: ElementId | null,
 	folderName: string | null,

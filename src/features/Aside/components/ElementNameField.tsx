@@ -53,9 +53,8 @@ function ElementNameField({
 	const [name, setName] = useState(nameSource === "manual" ? storedName : "");
 
 	useEffect(() => {
-		// Renames from elsewhere (e.g. the sidebar) must land in the field, but
-		// the echo of our own debounced rename must not clobber what is being
-		// typed here.
+		// Renames from elsewhere (e.g. the sidebar) land in the field, but the echo of our own
+		// debounced rename mustn't clobber what's being typed.
 		if (document.activeElement === nameRef.current) return;
 		setName(source === "manual" ? storedName : "");
 	}, [storedName, source]);

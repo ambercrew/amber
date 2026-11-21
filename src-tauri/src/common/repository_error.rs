@@ -20,10 +20,8 @@ pub enum RepositoryError {
     QueryFailed(#[source] SourceError),
 }
 
-/// SQLite's `SQLITE_BUSY`/`SQLITE_LOCKED` primary result codes (5 and 6 —
-/// extended codes like `SQLITE_BUSY_SNAPSHOT` preserve these in their low
-/// byte). Both surface as "database is locked"/"database table is locked"
-/// and mean a writer collided with another connection, not a real query bug.
+/// SQLite's `SQLITE_BUSY`/`SQLITE_LOCKED` (5 and 6, kept in extended codes' low byte): a writer
+/// collided with another connection, not a bug in the query.
 fn is_sqlite_busy(db_err: &dyn sqlx::error::DatabaseError) -> bool {
     db_err
         .code()
@@ -72,11 +70,10 @@ mod tests {
 
     #[tokio::test]
     async fn from_sqlx_error_database_locked_by_another_writer_returns_busy() {
-        // Arrange — SQLite's default (non-WAL) journal mode locks the whole
+        // Arrange
 
-        // file for the duration of a write transaction, so a second
-        // connection with no busy timeout fails immediately with
-        // `SQLITE_BUSY` when it tries to write concurrently.
+        // Non-WAL SQLite locks the whole file during a write transaction, so a second connection
+        // with no busy timeout fails at once with `SQLITE_BUSY`.
 
         let db_path = std::env::temp_dir().join(format!("amber_busy_test_{}.db", Uuid::new_v4()));
 

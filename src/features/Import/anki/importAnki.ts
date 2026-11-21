@@ -1,7 +1,7 @@
 import { importAnki as importAnkiPackage } from "../../../api/import/api/importApi";
 import { ElementId } from "../../../types/elements/elementId";
 import { bytesToBase64 } from "../../../utils/bytesToBase64";
-import { ImportContext } from "../importContext";
+import { ImportContext } from "../utils/importContext";
 
 /** Recreates the package's decks as folders of cards; resolves to the first top-level deck's folder, given the import's tags. */
 export function importAnki(

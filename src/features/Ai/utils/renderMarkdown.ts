@@ -2,7 +2,7 @@ import { marked } from "marked";
 import markedKatex from "marked-katex-extension";
 import "katex/dist/katex.min.css";
 import { sanitizeHtml } from "../../../utils/sanitizeHtml";
-import { ELEMENT_REFERENCE_TAG } from "../../../api/aiIntegration/elementReference";
+import { ELEMENT_REFERENCE_TAG } from "../../../api/aiIntegration/dto/elementReference";
 
 marked.use(markedKatex({ throwOnError: false, output: "html" }));
 

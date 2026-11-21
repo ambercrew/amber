@@ -10,8 +10,8 @@ import { setZoomOwnedByCurrentView } from "../../../stores/elements/elementsRedu
 import { ReadingPosition } from "../../../types/elements/readingPosition";
 import { PdfViewPosition } from "../../../types/elements/pdfViewPosition";
 import { useReviewResume } from "../hooks/useReviewResume";
-import FindInPageBar from "../FindInPageBar";
-import RemoveHighlightModal from "../RemoveHighlightModal";
+import FindInPageBar from "../components/FindInPageBar";
+import RemoveHighlightModal from "../components/RemoveHighlightModal";
 import PdfContextMenu from "./core/PdfContextMenu";
 import PdfCoreProvider from "./core/PdfCoreProvider";
 import PdfHeadroomBridge from "./core/PdfHeadroomBridge";

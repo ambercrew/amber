@@ -14,7 +14,7 @@ import { SAVED_SEARCHES_CHANGED } from "../../../types/events/savedSearchesChang
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "../../../stores/sync/managers/syncEventManager";
+} from "../../../managers/syncEventManager";
 
 const TARGET_ICON_SIZE = 24;
 const ACTION_ICON_SIZE = 18;

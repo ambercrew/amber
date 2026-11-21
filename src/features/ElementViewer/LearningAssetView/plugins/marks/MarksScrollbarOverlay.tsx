@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useChromeInsets } from "../../../../App/context/chromeInsetsContext";
+import { useChromeInsets } from "../../../../../hooks/useChromeInsets";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
 import MarkScrollbarTicks from "../../../marks/MarkScrollbarTicks";
 import { useReaderCore } from "../../core/readerCoreContext";

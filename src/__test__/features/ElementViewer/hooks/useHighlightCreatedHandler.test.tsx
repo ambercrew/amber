@@ -62,9 +62,8 @@ function clozeHidden(hiddenText: string): SerializedLexicalNodeTree {
 	return { type: "cloze-hidden", version: 1, text: "[...]", hiddenText };
 }
 
-// Assertion helpers over the persisted editor-state JSON produced by the
-// handler (parsing it back out is the simplest way to verify the real
-// strip/cloze-build logic ran against real Lexical nodes).
+// Helpers over the saved editor-state JSON, the simplest way to check the real strip
+// and cloze logic ran on real Lexical nodes.
 function parseRoot(json: string): SerializedLexicalNodeTree {
 	return (JSON.parse(json) as { root: SerializedLexicalNodeTree }).root;
 }

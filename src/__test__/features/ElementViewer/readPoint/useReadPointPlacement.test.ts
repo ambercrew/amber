@@ -13,7 +13,7 @@ vi.mock("../../../../managers/closeRequestedEventManager", () => ({
 	},
 }));
 
-vi.mock("../../../../stores/sync/managers/syncEventManager", () => ({
+vi.mock("../../../../managers/syncEventManager", () => ({
 	defaultGlobalSyncEventManager: {
 		addListener: vi.fn(),
 		removeListener: vi.fn(),

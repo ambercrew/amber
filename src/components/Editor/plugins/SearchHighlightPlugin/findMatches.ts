@@ -4,10 +4,8 @@ export interface TextMatch {
 }
 
 /**
- * Finds every occurrence of `query` in `text` as plain substring matches
- * (no regex — the query is literal user input, not a pattern). Matches are
- * allowed to overlap (e.g. "aa" in "aaa" yields two matches), matching how
- * native browser find-in-page behaves.
+ * Every literal occurrence of `query` in `text` (user input, not a regex), overlapping like the
+ * browser's find in page ("aa" in "aaa" is two).
  */
 export function findMatches(
 	text: string,

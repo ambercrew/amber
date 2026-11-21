@@ -7,17 +7,8 @@ use crate::study::entities::study_profile::StudyProfile;
 use crate::study::services::study_profile_service::StudyProfileService;
 use crate::sync::post_sync_task::{PostSyncTask, PostSyncTaskError};
 
-/// Restores the "exactly one default study profile" invariant after a sync.
-///
-/// `study_profiles` syncs at row granularity, so last-writer-wins resolves each
-/// row on its own and knows nothing about a flag meant to be unique across rows:
-/// two devices can each end up with their own default, and deleting the only
-/// default leaves none.
-///
-/// The winner is picked from `created_at` and `id` alone — both immutable and
-/// synced, so every device lands on the same profile. `modified_at` is unusable
-/// here: a local trigger rewrites it whenever a row is written, applying a
-/// remote row included.
+/// Restores "exactly one default study profile" after a sync, which row-level LWW can break. Picks by
+/// `created_at` and `id`, as `modified_at` is rewritten locally whenever a row is applied.
 #[derive(ScopeInjectable)]
 pub struct SingleDefaultProfilePostSyncTask {
     study_profile_service: Arc<dyn StudyProfileService>,

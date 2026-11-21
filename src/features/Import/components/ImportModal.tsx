@@ -27,11 +27,14 @@ import { selectCurrentElement } from "../../../stores/elements/elementsSelectors
 import { closeImportModal } from "../../../stores/app/appReducer";
 import { ElementId } from "../../../types/elements/elementId";
 import { ElementNodeType } from "../../../types/elements/elementNodeType";
-import { asUrl, classifyPaste } from "../classify";
-import { FILE_FORMATS_ACCEPT, SUPPORTED_FORMATS_ALL } from "../fileFormats";
+import { asUrl, classifyPaste } from "../utils/classify";
+import {
+	FILE_FORMATS_ACCEPT,
+	SUPPORTED_FORMATS_ALL,
+} from "../utils/fileFormats";
 import { PdfProgress } from "../pdf/extract";
-import { ImportContext } from "../importContext";
-import { openImportedElement } from "../openImportedElement";
+import { ImportContext } from "../utils/importContext";
+import { openImportedElement } from "../utils/openImportedElement";
 import {
 	addContent,
 	addFiles,
@@ -39,7 +42,7 @@ import {
 	ImportItem,
 	ImportItemError,
 	runImportItem,
-} from "../importItems";
+} from "../utils/importItems";
 import ImportPrioritySection from "./ImportPrioritySection";
 import ImportItemList from "./ImportItemList";
 import ImportFilePicker from "./ImportFilePicker";
@@ -173,12 +176,13 @@ function ImportModal() {
 				setPhase({ kind: "error", key: item.key, error: result.error });
 				if (placed > 0) priority.advance(ctx.priorityPosition, placed);
 				if (lastCreated)
-					await openImportedElement(navigate, lastCreated);
+					await openImportedElement(dispatch, navigate, lastCreated);
 				return;
 			}
 		}
 
-		if (lastCreated) await openImportedElement(navigate, lastCreated);
+		if (lastCreated)
+			await openImportedElement(dispatch, navigate, lastCreated);
 		reset();
 		dispatch(closeImportModal());
 	}

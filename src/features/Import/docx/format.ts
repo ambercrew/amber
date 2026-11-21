@@ -1,4 +1,4 @@
-import { FileFormat } from "../fileFormat";
+import { FileFormat } from "../utils/fileFormat";
 import { extractDocx } from "./extract";
 
 export const docxFormat: FileFormat = {

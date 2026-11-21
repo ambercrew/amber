@@ -5,12 +5,12 @@ import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { runFileImport } from "../../../../features/Import/flows/file";
 import { runUrlImport } from "../../../../features/Import/flows/url";
 import { getPriorityPositionForNewElement } from "../../../../api/elements/api/elementsApi";
-import { openImportedElement } from "../../../../features/Import/openImportedElement";
+import { openImportedElement } from "../../../../features/Import/utils/openImportedElement";
 
 vi.mock(import("../../../../features/Import/flows/file"));
 vi.mock(import("../../../../features/Import/flows/url"));
 vi.mock(import("../../../../api/elements/api/elementsApi.ts"));
-vi.mock(import("../../../../features/Import/openImportedElement"));
+vi.mock(import("../../../../features/Import/utils/openImportedElement"));
 
 const NO_TEXT_LAYER = {
 	ok: false as const,
@@ -68,6 +68,11 @@ async function renderOpenedModal() {
 				verifyEmailModalOpened: false,
 				manageAccountModalOpened: false,
 				virtualKeyboardSuppressed: false,
+				pendingFocus: null,
+				mainScrollPinned: true,
+				headroomOverride: null,
+				pendingTreeReveal: null,
+				lastPriorityPreview: null,
 			},
 		},
 	});
@@ -387,6 +392,7 @@ describe("ImportModal", () => {
 
 		await waitFor(() => {
 			expect(openImportedElement).toHaveBeenCalledExactlyOnceWith(
+				expect.any(Function),
 				expect.any(Function),
 				{ type: "learningAsset", id: "second-id" },
 			);

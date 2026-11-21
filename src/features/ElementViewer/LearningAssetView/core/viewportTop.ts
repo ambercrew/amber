@@ -1,4 +1,4 @@
-import { HEADROOM_FIXED_AT } from "../../../App/components/App";
+import { HEADROOM_FIXED_AT } from "../../../../config/layout";
 import { safeAreaTopInPx } from "../../../../utils/safeArea";
 import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "./learningAssetViewConstants";
 

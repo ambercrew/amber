@@ -16,7 +16,7 @@ import {
 } from "../../../../../stores/elements/elementsActions";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
 import SettingsDto from "../../../../../api/settings/dto/settingsDto";
-import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../../../../features/Ai/aiPrompts";
+import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../../../../features/Ai/utils/aiPrompts";
 
 vi.mock(import("../../../../../stores/elements/elementsActions"));
 

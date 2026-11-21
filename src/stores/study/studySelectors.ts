@@ -8,9 +8,8 @@ export const selectStudyTotalCount = (state: RootState) =>
 	state.study.totalCount;
 export const selectStudyScope = (state: RootState) => state.study.studyScope;
 
-// The queue has no index of its own — "current" is whichever queue item
-// matches the element actually being viewed, so it can never point at a
-// stale position after navigating away (e.g. via the priority queue).
+// "Current" is the queue item matching the element on screen, not a stored index, so it can't
+// point at a stale slot after navigating away.
 export const selectStudyIndex = createSelector(
 	[
 		selectStudyQueue,

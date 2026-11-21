@@ -1,7 +1,18 @@
 import { act, render } from "@testing-library/react";
 import SearchHighlightOverlay from "../../../../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightOverlay";
 import { searchHighlightHostProps } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightHost";
-import { searchHighlightRegistry } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
+import { SearchHighlightRegistry } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
+import { SearchHighlightRegistryContext } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistryContext";
+
+let searchHighlightRegistry: SearchHighlightRegistry;
+
+function renderOverlay() {
+	return render(
+		<SearchHighlightRegistryContext value={searchHighlightRegistry}>
+			<SearchHighlightOverlay />
+		</SearchHighlightRegistryContext>,
+	);
+}
 
 function rect(top: number, left: number, width = 20, height = 10): DOMRect {
 	return {
@@ -35,6 +46,7 @@ function paragraph(parent: HTMLElement) {
 
 describe("SearchHighlightOverlay", () => {
 	beforeEach(() => {
+		searchHighlightRegistry = new SearchHighlightRegistry();
 		vi.spyOn(window, "requestAnimationFrame").mockImplementation(
 			callback => {
 				callback(0);
@@ -63,7 +75,7 @@ describe("SearchHighlightOverlay", () => {
 			HTMLElement.prototype,
 			"getBoundingClientRect",
 		).mockReturnValue(rect(100, 10, 0, 0));
-		render(<SearchHighlightOverlay />);
+		renderOverlay();
 
 		// Act
 
@@ -83,7 +95,7 @@ describe("SearchHighlightOverlay", () => {
 		// Arrange
 
 		const range = rangeIn(paragraph(document.body), 150, 40);
-		const { container } = render(<SearchHighlightOverlay />);
+		const { container } = renderOverlay();
 
 		// Act
 
@@ -108,7 +120,7 @@ describe("SearchHighlightOverlay", () => {
 		const content = document.createElement("div");
 		host.appendChild(content);
 		document.body.appendChild(host);
-		render(<SearchHighlightOverlay />);
+		renderOverlay();
 		act(() =>
 			searchHighlightRegistry.setAll("editor", [
 				rangeIn(paragraph(content), 150, 40),

@@ -6,13 +6,8 @@ use tokio::sync::Mutex;
 
 use super::models::{PendingCell, RowKey};
 
-/// Column-mode `SetColumn` cells buffered per `(tbl, row_id)` until flushed into
-/// the base table as a single upsert, so a new row's columns — which may arrive
-/// split across pages — are all supplied by the initial insert instead of
-/// tripping a `NOT NULL` column with no `DEFAULT`.
-///
-/// Per-DI-scope (`register_scoped_pending_buffer`), so it survives repeated
-/// `SyncEngine::apply_remote` calls within one sync session.
+/// Column-mode cells buffered per `(tbl, row_id)` until one upsert can supply a new row's columns,
+/// which may span pages. Scoped per DI scope, so it lasts across one session's `apply_remote` calls.
 #[derive(Default)]
 pub(super) struct PendingBuffer {
     rows: Mutex<HashMap<RowKey, Vec<PendingCell>>>,

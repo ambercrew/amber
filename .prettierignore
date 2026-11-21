@@ -6,3 +6,7 @@ tsconfig.*
 
 # Editor
 .vscode
+
+# Third-party skills and their lockfile, owned by `npx skills`
+.agents
+skills-lock.json

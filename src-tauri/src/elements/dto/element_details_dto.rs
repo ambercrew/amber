@@ -19,9 +19,8 @@ pub struct ElementDetailsResponseDto {
     pub learning_asset_review: Option<LearningAssetReviewResponseDto>,
     pub effective_profile: EffectiveProfileResponseDto,
     pub profiles: Vec<StudyProfileResponseDto>,
-    /// Name to display for the "inherit from parent" option: the parent's
-    /// (or app-wide default's) profile name when this element's profile is
-    /// direct, otherwise the effective profile's own name.
+    /// The "inherit from parent" option's name: the parent's (or app default's) profile name when this
+    /// element's profile is direct, else the effective profile's own.
     pub inherited_profile_name: Option<String>,
     pub priority: PriorityInfoResponseDto,
     /// `None` for folders.

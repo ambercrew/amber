@@ -19,7 +19,7 @@ import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon
 import {
 	ELEMENT_REFERENCE_TAG,
 	parseElementReference,
-} from "../../../api/aiIntegration/elementReference";
+} from "../../../api/aiIntegration/dto/elementReference";
 import ToolCallLocation from "./ToolCallLocation";
 import { ElementId } from "../../../types/elements/elementId";
 

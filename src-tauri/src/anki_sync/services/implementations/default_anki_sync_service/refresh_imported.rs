@@ -16,9 +16,8 @@ use crate::import::services::anki_import_service::AnkiImportError;
 use crate::import::services::imported_html_converter::ImportedHtmlConverterError;
 
 impl DefaultAnkiSyncService {
-    /// Renders imported cards whose note changed in Anki again, the way importing them did, and replaces
-    /// Amber's copy: Anki holds the note's fields, which Amber's front and back can't be split back into.
-    /// Image occlusions are left as they are. Returns the cards whose content changed.
+    /// Re-renders imported cards whose note changed in Anki as importing them did, since the note's fields
+    /// can't be split back out of Amber's sides. Skips occlusions; returns the cards that changed.
     pub(super) async fn refresh_imported_cards(
         &self,
         plan: &SyncPlan,

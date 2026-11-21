@@ -7,9 +7,8 @@ import { parseSteps, ProfileFormValues } from "./profileFormValues";
 export type FsrsOptimization = ReturnType<typeof useFsrsOptimization>;
 
 /**
- * Trains FSRS weights on the profile's review history and fills them into the
- * form. Owned by the form rather than its Cards tab, so a result landing after
- * a tab switch is still applied and announced.
+ * Trains FSRS weights on the profile's history and fills them into the form, which owns it rather than
+ * its Cards tab, so a result landing after a tab switch is still applied.
  */
 export function useFsrsOptimization(
 	form: UseFormReturnType<ProfileFormValues>,

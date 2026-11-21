@@ -33,10 +33,8 @@ export class BackButtonManager {
 	private listener: Promise<PluginListener> | null = null;
 
 	/**
-	 * Registers a handler for Android's back button and returns a function that
-	 * unregisters it. Only the highest priority handler runs; among equal
-	 * priorities the most recently registered one does, so nested overlays
-	 * unwind one press at a time.
+	 * Registers an Android back button handler and returns its unregister function. Only the highest
+	 * priority runs, the newest among equals, so nested overlays unwind one press at a time.
 	 */
 	public addHandler(
 		cb: () => void,

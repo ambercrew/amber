@@ -1,6 +1,6 @@
 import { importAnki } from "../../../../features/Import/anki/importAnki";
 import { importAnki as importAnkiPackage } from "../../../../api/import/api/importApi";
-import { ImportContext } from "../../../../features/Import/importContext";
+import { ImportContext } from "../../../../features/Import/utils/importContext";
 
 vi.mock(import("../../../../api/import/api/importApi"));
 

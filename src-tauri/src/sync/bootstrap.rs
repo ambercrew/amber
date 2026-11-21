@@ -19,18 +19,8 @@ use crate::sync::value_objects::table_sync_config::TableSyncConfig;
 const ASSETS_DELETE_GUARD: &str = "EXISTS (SELECT 1 FROM element_assets WHERE asset_id = ?1)
     OR EXISTS (SELECT 1 FROM asset_claims WHERE asset_id = ?1 AND claimed_at > datetime('now', '-14 days'))";
 
-/// Every domain table synced to the cloud, paired with its tracking granularity
-/// and FK repair policies. `meta` uses column granularity so concurrent edits to
-/// different fields of the same element merge independently; everything else is
-/// row granularity. `local_configurations` is per-machine and excluded, as are
-/// sync's own bookkeeping tables, the locally derived `element_assets`/`asset_gc`/`asset_claims`,
-/// and `ai_documents`, the text of files uploaded to an AI chat, kept on the device it was uploaded on.
-///
-/// FK policies mirror the schema's `ON DELETE` semantics (`SET NULL` →
-/// `FkPolicy::SetNull`, `CASCADE` → `FkPolicy::DiscardRow`), plus references
-/// enforced only by triggers (`meta.parent_id`/`derived_from_id`, each element
-/// table's `id` back to `meta.element_id`) that the FK repair pass still needs
-/// an explicit policy for.
+/// Every cloud-synced table with its granularity (`meta` by column, so edits to different fields merge)
+/// and FK policies, mirroring the schema's `ON DELETE` plus trigger-enforced references; per-device tables stay out.
 fn table_configs() -> Vec<TableSyncConfig> {
     vec![
         TableSyncConfig {
@@ -345,9 +335,8 @@ fn table_configs() -> Vec<TableSyncConfig> {
     ]
 }
 
-/// Registers every synced domain table for change tracking. Idempotent, and
-/// must run before the app is usable: writes to an unregistered table are
-/// never tracked.
+/// Registers every synced table for change tracking. Idempotent, and must run before the app is
+/// usable, as writes to an unregistered table are never tracked.
 pub async fn register_sync_tables(injector: &Arc<Injector>) -> Result<(), SyncError> {
     let scope = injector.start_scope();
     let store = scope.resolve::<dyn SyncStore>().await;
@@ -367,9 +356,8 @@ pub async fn register_sync_tables(injector: &Arc<Injector>) -> Result<(), SyncEr
     Ok(())
 }
 
-/// Same as [`register_sync_tables`], but runs directly against `pool` instead of
-/// a DI scope's [`SyncStore`]. Needed right after the active database is swapped
-/// to `pool`, since an in-flight scope still holds a transaction on the old one.
+/// [`register_sync_tables`] run directly on `pool`, for right after the active database is swapped,
+/// while an in-flight scope still holds a transaction on the old one.
 pub async fn register_sync_tables_on_pool(pool: &SqlitePool) -> Result<(), SyncError> {
     let mut tx = pool.begin().await?;
 

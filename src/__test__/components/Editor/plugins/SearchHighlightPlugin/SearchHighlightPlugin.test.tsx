@@ -3,7 +3,8 @@ import { createDOMRange } from "@lexical/selection";
 import { describe, expect, it, vi } from "vitest";
 import Editor from "../../../../../components/Editor/Editor";
 import SearchHighlightPlugin from "../../../../../components/Editor/plugins/SearchHighlightPlugin/SearchHighlightPlugin";
-import { searchHighlightRegistry } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
+import { SearchHighlightRegistry } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
+import { SearchHighlightRegistryContext } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistryContext";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
 
 vi.mock(import("@lexical/selection"), async importOriginal => ({
@@ -44,6 +45,12 @@ const CONTENT = JSON.stringify({
 });
 
 describe("SearchHighlightPlugin", () => {
+	let searchHighlightRegistry: SearchHighlightRegistry;
+
+	beforeEach(() => {
+		searchHighlightRegistry = new SearchHighlightRegistry();
+	});
+
 	it("Should report every match in the text when its ranges can't be placed in the DOM yet", async () => {
 		// Arrange
 
@@ -53,15 +60,17 @@ describe("SearchHighlightPlugin", () => {
 		// Act
 
 		renderWithProviders(
-			<Editor initialContent={CONTENT}>
-				<SearchHighlightPlugin
-					editorKey="split"
-					query="cat"
-					caseSensitive={false}
-					currentMatchLocalIndex={null}
-					onMatches={onMatches}
-				/>
-			</Editor>,
+			<SearchHighlightRegistryContext value={searchHighlightRegistry}>
+				<Editor initialContent={CONTENT}>
+					<SearchHighlightPlugin
+						editorKey="split"
+						query="cat"
+						caseSensitive={false}
+						currentMatchLocalIndex={null}
+						onMatches={onMatches}
+					/>
+				</Editor>
+			</SearchHighlightRegistryContext>,
 		);
 		await act(async () => {});
 
@@ -82,15 +91,17 @@ describe("SearchHighlightPlugin", () => {
 		// Act
 
 		renderWithProviders(
-			<Editor initialContent={CONTENT}>
-				<SearchHighlightPlugin
-					editorKey="split"
-					query="cat"
-					caseSensitive={false}
-					currentMatchLocalIndex={1}
-					onMatches={vi.fn()}
-				/>
-			</Editor>,
+			<SearchHighlightRegistryContext value={searchHighlightRegistry}>
+				<Editor initialContent={CONTENT}>
+					<SearchHighlightPlugin
+						editorKey="split"
+						query="cat"
+						caseSensitive={false}
+						currentMatchLocalIndex={1}
+						onMatches={vi.fn()}
+					/>
+				</Editor>
+			</SearchHighlightRegistryContext>,
 		);
 		await act(async () => {});
 

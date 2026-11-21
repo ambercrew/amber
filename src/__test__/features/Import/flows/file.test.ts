@@ -9,11 +9,11 @@ import { extractHtml } from "../../../../features/Import/html/extract";
 import { extractText } from "../../../../features/Import/text/extract";
 import { normalize } from "../../../../features/Import/normalize";
 import { importAnki } from "../../../../features/Import/anki/importAnki";
-import { createImportedLearningAsset } from "../../../../features/Import/createImportedLearningAsset";
-import { createImportedPdfLearningAsset } from "../../../../features/Import/createImportedPdfLearningAsset";
+import { createImportedLearningAsset } from "../../../../features/Import/utils/createImportedLearningAsset";
+import { createImportedPdfLearningAsset } from "../../../../features/Import/utils/createImportedPdfLearningAsset";
 import { createBibliographicalSource } from "../../../../api/bibliographicalSources/api/bibliographicalSourcesApi";
 import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
-import { ImportContext } from "../../../../features/Import/importContext";
+import { ImportContext } from "../../../../features/Import/utils/importContext";
 import { AppDispatch, RootState } from "../../../../stores/store";
 
 type Thunk = (dispatch: AppDispatch, getState: () => RootState) => unknown;
@@ -25,8 +25,12 @@ vi.mock(import("../../../../features/Import/html/extract"));
 vi.mock(import("../../../../features/Import/text/extract"));
 vi.mock(import("../../../../features/Import/normalize"));
 vi.mock(import("../../../../features/Import/anki/importAnki"));
-vi.mock(import("../../../../features/Import/createImportedLearningAsset"));
-vi.mock(import("../../../../features/Import/createImportedPdfLearningAsset"));
+vi.mock(
+	import("../../../../features/Import/utils/createImportedLearningAsset"),
+);
+vi.mock(
+	import("../../../../features/Import/utils/createImportedPdfLearningAsset"),
+);
 vi.mock(
 	import("../../../../api/bibliographicalSources/api/bibliographicalSourcesApi"),
 );

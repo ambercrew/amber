@@ -11,11 +11,10 @@ function keyOf(parent: ElementId | null): string {
 	return parent ? `${parent.type}:${parent.id}` : "";
 }
 
-/** Queue size (including the element about to be created) and the position
- * within it new imports will take. Defaults to the spot the element would get
- * on its own under the effective profile's placement policy, fetched once per
- * time the import modal opens so it's ready before the user ever touches the
- * collapsible priority section. */
+/**
+ * Queue size (counting the element to create) and the position new imports take: by default where the
+ * profile's policy would put it, fetched each time the modal opens so it's ready before it's touched.
+ */
 export function useImportPriority(opened: boolean, parent: ElementId | null) {
 	const [total, setTotal] = useState<number | null>(null);
 	const [position, setPosition] = useState<number | null>(null);

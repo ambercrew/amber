@@ -1,4 +1,4 @@
-pub mod ai_api;
+pub mod ai_integration_api;
 pub mod ai_state;
 pub mod approval_hook;
 pub mod clients;

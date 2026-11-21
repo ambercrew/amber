@@ -1,126 +1,65 @@
+import { useState } from "react";
+import { AppShell, Box } from "@mantine/core";
+import useAppSelector from "../../../hooks/useAppSelector";
+import { SMALL_SCREEN_BREAKPOINT } from "../../../hooks/useIsSmallScreen";
+import { selectAreSettingsLoaded } from "../../../stores/settings/settingsSelectors";
+import { selectStudyStatus } from "../../../stores/study/studySelectors";
+import { selectCurrentElementIsTrashed } from "../../../stores/elements/elementsSelectors";
 import {
-	useEffect,
-	useRef,
-	useState,
-	useMemo,
-	type CSSProperties,
-} from "react";
-import { Outlet } from "react-router";
-import {
-	AppShell,
-	AppShellResizeSection,
-	Box,
-	rem,
-	ScrollArea,
-	useAppShellResize,
-} from "@mantine/core";
-import { useViewportSize } from "@mantine/hooks";
-import { Notifications } from "@mantine/notifications";
-import notificationsClasses from "./Notifications.module.css";
-import useAppDispatch from "../../../hooks/useAppDispatch";
-import { useRedirectIfElementMissing } from "../../../hooks/useRedirectIfElementMissing";
-import {
-	SMALL_SCREEN_BREAKPOINT,
-	useIsSmallScreen,
-} from "../../../hooks/useIsSmallScreen";
-import { useCurrentElementSync } from "../../../hooks/useCurrentElementSync";
-import { useElementSyncRefresh } from "../../../hooks/useElementSyncRefresh";
-import { useStudySessionFinishedRefresh } from "../../../hooks/useStudySessionFinishedRefresh";
-import { useElementDueChangedRefresh } from "../../../hooks/useElementDueChangedRefresh";
-import { useElementRenamedSync } from "../../../hooks/useElementRenamedSync";
-import { usePostSyncRefresh } from "../../../hooks/usePostSyncRefresh";
-import { useCloseSidebarOnSmallScreenNavigation } from "../../../hooks/useCloseSidebarOnSmallScreenNavigation";
-import { useSessionScheduleChanges } from "../../Study/hooks/useSessionScheduleChanges";
-import { useStudySessionAway } from "../../Study/hooks/useStudySessionAway";
-import { useStudySessionSummaryToast } from "../../Study/hooks/useStudySessionSummaryToast";
-import Updater from "../../Updater/components/Updater";
-import CommandPalette from "../../../commands/CommandPalette";
-import ImageLightbox from "../../../components/ImageLightbox/ImageLightbox";
-import StudySessionBar from "../../Study/components/StudySessionBar.tsx";
-import { initialLoadApplicationState } from "../../../stores/app/appActions.ts";
-import useAppSelector from "../../../hooks/useAppSelector.ts";
-import { selectAreSettingsLoaded } from "../../../stores/settings/settingsSelector.ts";
-import { selectStudyStatus } from "../../../stores/study/studySelectors.ts";
-import { selectCurrentElementIsTrashed } from "../../../stores/elements/elementsSelectors.ts";
-import Sidebar from "../../Sidebar/components/Sidebar.tsx";
-import Aside from "../../Aside/components/Aside.tsx";
-import ImportModal from "../../Import/components/ImportModal.tsx";
-import StudyProfileModal from "../../Study/components/StudyProfileModal.tsx";
-import SettingsModal from "../../Settings/components/SettingsModal.tsx";
-import AnkiSyncReviewModal from "../../AnkiSync/components/AnkiSyncReviewModal";
-import PriorityModal from "../../Aside/components/PriorityModal.tsx";
-import DueDateModal from "../../Aside/components/DueDateModal.tsx";
-import ShortcutsModal from "./ShortcutsModal.tsx";
-import AiPromptLibraryModal from "../../Ai/components/AiPromptLibraryModal.tsx";
-import StudySessionSettingsModal from "../../Study/components/StudySessionSettingsModal.tsx";
-import AuthModal from "../../Auth/components/AuthModal.tsx";
-import VerifyEmailModal from "../../Auth/components/VerifyEmailModal.tsx";
-import ManageAccountModal from "../../Auth/components/ManageAccountModal.tsx";
-import SyncingModal from "../../Sidebar/components/SyncingModal.tsx";
-import AppHeader from "./AppHeader.tsx";
+	selectIsFooterShown,
+	selectIsHeaderPinned,
+} from "../../../stores/app/appSelectors";
+import StudySessionBar from "../../Study/components/StudySessionBar";
+import Sidebar from "../../Sidebar/components/Sidebar";
+import Aside from "../../Aside/components/Aside";
 import TrashedElementBanner, {
 	TRASHED_ELEMENT_BANNER_HEIGHT,
-} from "../../ElementViewer/TrashedElementBanner.tsx";
-import SafeAreaTopBackdrop from "../../../components/SafeAreaTopBackdrop/SafeAreaTopBackdrop.tsx";
-import { isMobile } from "../../../utils/tauriUtils.ts";
+} from "../../ElementViewer/components/TrashedElementBanner";
+import SafeAreaTopBackdrop from "../../../components/SafeAreaTopBackdrop/SafeAreaTopBackdrop";
+import { AppLayoutContext } from "../../../components/AppLayout/appLayoutContext";
+import { HEADER_AND_FOOTER_HEIGHT } from "../../../config/layout";
+import { isMobile } from "../../../utils/tauriUtils";
 import {
 	SAFE_AREA_BOTTOM,
 	SAFE_AREA_TOP,
 	safeAreaTopStyle,
 	safeAreaVerticalStyle,
-} from "../../../utils/safeArea.ts";
-import useBackButtonPress from "../../../hooks/useBackButtonPress.ts";
-import { BackButtonPriority } from "../../../managers/backButtonManager.ts";
-import { useLexicalConversionBridge } from "../hooks/useLexicalConversionBridge.ts";
-import { useOcclusionCardContentsBridge } from "../../ImageOcclusion/hooks/useOcclusionCardContentsBridge";
-import { useImportedHtmlConversionBridge } from "../../Import/hooks/useImportedHtmlConversionBridge";
-import { useAnkiSyncBridge } from "../../AnkiSync/hooks/useAnkiSyncBridge";
-import { MainScrollContext } from "../context/mainScrollContext.ts";
-import { searchHighlightHostProps } from "../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightHost";
-import { HeadroomOverrideContext } from "../context/headroomOverrideContext.ts";
-import {
-	chromeInsets,
-	ChromeInsetsContext,
-} from "../context/chromeInsetsContext.ts";
-import { VisibleAreaContext } from "../../../components/FloatingMenuBar/visibleAreaContext.ts";
-import { useElementHeadroom } from "../../../hooks/useElementHeadroom.ts";
-import { useWheelZoom } from "../../../hooks/useWheelZoom.ts";
+} from "../../../utils/safeArea";
+import { useAppPanels } from "../hooks/useAppPanels";
+import { useAppGlobalEffects } from "../hooks/useAppGlobalEffects";
+import AppHeader from "./AppHeader";
+import AppMain from "./AppMain";
+import AppModals from "./AppModals";
+import AppNotifications from "./AppNotifications";
+import MainScrollHeadroom from "./MainScrollHeadroom";
 
-// Must be defined manually otherwise hiding header or footer when scrolling won't work.
-export const HEADER_AND_FOOTER_HEIGHT = 56;
-// Shared with anything that needs to mirror the header's pinned state.
-export const HEADROOM_FIXED_AT = 120;
 const SIDEBAR_DEFAULT = 320;
 const ASIDE_DEFAULT = 320;
-const PANEL_MIN = 160;
-// Dragging a panel narrower than this collapses it.
-const PANEL_COLLAPSE_AT = 120;
 
 function App() {
-	const [mainElement, setMainElement] = useState<HTMLElement | null>(null);
+	const [mainScrollElement, setMainScrollElement] =
+		useState<HTMLElement | null>(null);
 	const [visibleAreaElement, setVisibleAreaElement] =
 		useState<HTMLElement | null>(null);
-	const { pinned: mainScrollPinned } = useElementHeadroom({
-		element: mainElement,
-		fixedAt: HEADROOM_FIXED_AT,
-	});
-	const [pinnedOverride, setPinnedOverride] = useState<boolean | null>(null);
-	const pinned = pinnedOverride ?? mainScrollPinned;
+	useAppGlobalEffects();
+	const {
+		resize,
+		sidebarExpanded,
+		setSidebarExpanded,
+		asideExpanded,
+		setAsideExpanded,
+	} = useAppPanels();
 
-	const isSmallScreen = useIsSmallScreen();
-	const [sidebarExpanded, setSidebarExpanded] = useState(!isSmallScreen);
-	const [asideExpanded, setAsideExpanded] = useState(false);
-	const dispatch = useAppDispatch();
 	const areSettingsLoaded = useAppSelector(selectAreSettingsLoaded);
-	const studyStatus = useAppSelector(selectStudyStatus);
+	const studying = useAppSelector(selectStudyStatus) === "studying";
+	const pinned = useAppSelector(selectIsHeaderPinned);
+	const footerShown = useAppSelector(selectIsFooterShown);
 	const isCurrentElementTrashed = useAppSelector(
 		selectCurrentElementIsTrashed,
 	);
 	const mobile = isMobile();
 	const safeAreaTop = safeAreaTopStyle();
-	const safeAreaVertical = safeAreaVerticalStyle();
-	const studying = studyStatus === "studying";
-	const footerCollapsed = !studying || !pinned;
+
 	// The headroom slides the header and footer by inline transform, never through AppShell's `collapsed`:
 	// that rewrites :root CSS variables, restyling every element on the page (slow with many equations).
 	const headerStyle = {
@@ -129,294 +68,99 @@ function App() {
 			? undefined
 			: "translateY(calc(var(--app-shell-header-height) * -1))",
 	};
-	const footerStyle = footerCollapsed
-		? {
+	const footerStyle = footerShown
+		? undefined
+		: {
 				transform: `translateY(calc(var(--app-shell-footer-height) + ${
 					mobile ? SAFE_AREA_BOTTOM : "0px"
 				}))`,
-			}
-		: undefined;
-
-	// Chrome floats above the scroll viewport; these reserve the space it covers
-	// via the fixed *-height variables (not *-offset), so hiding it never reflows
-	// the content.
-	const headerSpace = "var(--app-shell-header-height, 0px)";
-	const footerSpace = `calc(${
-		studying ? "var(--app-shell-footer-height, 0px)" : "0px"
-	} + ${SAFE_AREA_BOTTOM})`;
-
-	// What the chrome covers right now, unlike the fixed spaces above; scrollbars and their ticks follow it.
-	const insets = useMemo(
-		() =>
-			chromeInsets(
-				pinned,
-				!footerCollapsed,
-				SAFE_AREA_TOP,
-				SAFE_AREA_BOTTOM,
-			),
-		[pinned, footerCollapsed],
-	);
-
-	const { width: viewportWidth } = useViewportSize();
-	// Width each panel had before a drag collapsed it, keyed by panel.
-	const dragCollapsed = useRef<
-		Partial<Record<AppShellResizeSection, number | undefined>>
-	>({});
-	const resize = useAppShellResize({
-		navbar: {
-			min: PANEL_MIN,
-			max: viewportWidth ? viewportWidth * 0.4 : undefined,
-			collapseThreshold: PANEL_COLLAPSE_AT,
-			label: "Resize sidebar",
-		},
-		aside: {
-			min: PANEL_MIN,
-			max: viewportWidth ? viewportWidth * 0.35 : undefined,
-			collapseThreshold: PANEL_COLLAPSE_AT,
-			label: "Resize side panel",
-		},
-		onCollapseChange: (section, collapsed) => {
-			if (collapsed)
-				dragCollapsed.current[section] = resize[section].size;
-			else delete dragCollapsed.current[section];
-			if (section === "navbar") setSidebarExpanded(!collapsed);
-			if (section === "aside") setAsideExpanded(!collapsed);
-		},
-		onResizeEnd: () => {
-			// Otherwise a panel collapsed by dragging reopens at its minimum width.
-			for (const [section, width] of Object.entries(
-				dragCollapsed.current,
-			)) {
-				const controller = resize[section as AppShellResizeSection];
-				if (width === undefined) controller.reset();
-				else controller.setSize(width);
-			}
-			dragCollapsed.current = {};
-		},
-	});
-
-	useCloseSidebarOnSmallScreenNavigation(() => {
-		setSidebarExpanded(false);
-		setAsideExpanded(false);
-	});
-
-	// The panels cover the screen on small viewports, so back closes whichever
-	// is on top — but only once nothing is layered over them.
-	useBackButtonPress(
-		() => {
-			if (asideExpanded) setAsideExpanded(false);
-			else setSidebarExpanded(false);
-		},
-		isSmallScreen && (sidebarExpanded || asideExpanded),
-		BackButtonPriority.Low,
-	);
-	useRedirectIfElementMissing();
-	useCurrentElementSync();
-	useElementSyncRefresh();
-	useStudySessionFinishedRefresh();
-	useElementDueChangedRefresh();
-	useElementRenamedSync();
-	usePostSyncRefresh();
-	useStudySessionAway();
-	useSessionScheduleChanges();
-	useStudySessionSummaryToast();
-	useLexicalConversionBridge();
-	useOcclusionCardContentsBridge();
-	useImportedHtmlConversionBridge();
-	useAnkiSyncBridge();
-	useWheelZoom();
-
-	useEffect(() => {
-		const contextMenuCb = (e: MouseEvent) => e.preventDefault();
-		window.addEventListener("contextmenu", contextMenuCb);
-		return () => window.removeEventListener("contextmenu", contextMenuCb);
-	}, []);
-
-	useEffect(() => {
-		void dispatch(initialLoadApplicationState());
-	}, [dispatch]);
+			};
+	const bannerHeight = isCurrentElementTrashed
+		? TRASHED_ELEMENT_BANNER_HEIGHT
+		: 0;
 
 	if (!areSettingsLoaded) return null;
 
 	return (
-		<MainScrollContext value={mainElement}>
-			<HeadroomOverrideContext value={setPinnedOverride}>
-				<ChromeInsetsContext value={insets}>
-					<VisibleAreaContext value={visibleAreaElement}>
-						<AppShell
-							resize={resize}
-							mode="fixed"
-							layout="alt"
-							h="100dvh"
-							style={{
-								overflow: "hidden",
-								"--app-shell-transition-duration":
-									"calc(200ms * 2)",
-							}}
-							navbar={{
-								width: SIDEBAR_DEFAULT,
-								breakpoint: SMALL_SCREEN_BREAKPOINT,
-								collapsed: {
-									desktop: !sidebarExpanded,
-									mobile: !sidebarExpanded,
-								},
-							}}
-							aside={{
-								width: ASIDE_DEFAULT,
-								breakpoint: SMALL_SCREEN_BREAKPOINT,
-								collapsed: {
-									desktop: !asideExpanded,
-									mobile: !asideExpanded,
-								},
-							}}
-							header={{
-								height: mobile
-									? `calc(${HEADER_AND_FOOTER_HEIGHT}px + ${SAFE_AREA_TOP}${
-											isCurrentElementTrashed
-												? ` + ${TRASHED_ELEMENT_BANNER_HEIGHT}px`
-												: ""
-										})`
-									: HEADER_AND_FOOTER_HEIGHT +
-										(isCurrentElementTrashed
-											? TRASHED_ELEMENT_BANNER_HEIGHT
-											: 0),
-								offset: false,
-							}}
-							footer={{
-								height: HEADER_AND_FOOTER_HEIGHT,
-								collapsed: !studying,
-								offset: false,
-							}}
-							padding="md">
-							{!mobile && <Updater />}
-							<CommandPalette />
-							<ImageLightbox />
-							<ImportModal />
-							<StudyProfileModal />
-							<SettingsModal />
-							<AnkiSyncReviewModal />
-							<PriorityModal />
-							<DueDateModal />
-							<ShortcutsModal />
-							<AiPromptLibraryModal />
-							<StudySessionSettingsModal />
-							<AuthModal />
-							<VerifyEmailModal />
-							<ManageAccountModal />
-							<SyncingModal />
-							<Notifications
-								classNames={notificationsClasses}
-								// Bottom notifications sit above the study session footer while it's shown.
-								// Portaled outside the AppShell, so its scoped --app-shell-footer-height isn't visible here.
-								style={
-									{
-										"--notifications-chrome-bottom": `calc(${
-											footerCollapsed
-												? "0px"
-												: rem(HEADER_AND_FOOTER_HEIGHT)
-										} + ${SAFE_AREA_BOTTOM})`,
-									} as CSSProperties
-								}
-							/>
-							<SafeAreaTopBackdrop />
+		<AppLayoutContext value={{ mainScrollElement, visibleAreaElement }}>
+			<AppShell
+				resize={resize}
+				mode="fixed"
+				layout="alt"
+				h="100dvh"
+				style={{
+					overflow: "hidden",
+					"--app-shell-transition-duration": "calc(200ms * 2)",
+				}}
+				navbar={{
+					width: SIDEBAR_DEFAULT,
+					breakpoint: SMALL_SCREEN_BREAKPOINT,
+					collapsed: {
+						desktop: !sidebarExpanded,
+						mobile: !sidebarExpanded,
+					},
+				}}
+				aside={{
+					width: ASIDE_DEFAULT,
+					breakpoint: SMALL_SCREEN_BREAKPOINT,
+					collapsed: {
+						desktop: !asideExpanded,
+						mobile: !asideExpanded,
+					},
+				}}
+				header={{
+					height: mobile
+						? `calc(${HEADER_AND_FOOTER_HEIGHT + bannerHeight}px + ${SAFE_AREA_TOP})`
+						: HEADER_AND_FOOTER_HEIGHT + bannerHeight,
+					offset: false,
+				}}
+				footer={{
+					height: HEADER_AND_FOOTER_HEIGHT,
+					collapsed: !studying,
+					offset: false,
+				}}
+				padding="md">
+				<MainScrollHeadroom element={mainScrollElement} />
+				<AppModals />
+				<AppNotifications />
+				<SafeAreaTopBackdrop />
 
-							<AppShell.Header style={headerStyle}>
-								<Box h={HEADER_AND_FOOTER_HEIGHT}>
-									<AppHeader
-										onToggleSidebar={() =>
-											setSidebarExpanded(v => !v)
-										}
-										onToggleAside={() =>
-											setAsideExpanded(v => !v)
-										}
-									/>
-								</Box>
-								<TrashedElementBanner />
-							</AppShell.Header>
+				<AppShell.Header style={headerStyle}>
+					<Box h={HEADER_AND_FOOTER_HEIGHT}>
+						<AppHeader
+							onToggleSidebar={() => setSidebarExpanded(v => !v)}
+							onToggleAside={() => setAsideExpanded(v => !v)}
+						/>
+					</Box>
+					<TrashedElementBanner />
+				</AppShell.Header>
 
-							<AppShell.Footer style={footerStyle}>
-								<StudySessionBar />
-							</AppShell.Footer>
+				<AppShell.Footer style={footerStyle}>
+					<StudySessionBar />
+				</AppShell.Footer>
 
-							<AppShell.Navbar style={safeAreaTop}>
-								<Sidebar
-									onCollapse={() => setSidebarExpanded(false)}
-									onExpand={() => setSidebarExpanded(true)}
-									onToggle={() => setSidebarExpanded(v => !v)}
-								/>
-							</AppShell.Navbar>
+				<AppShell.Navbar style={safeAreaTop}>
+					<Sidebar
+						onCollapse={() => setSidebarExpanded(false)}
+						onExpand={() => setSidebarExpanded(true)}
+						onToggle={() => setSidebarExpanded(v => !v)}
+					/>
+				</AppShell.Navbar>
 
-							<AppShell.Main
-								p={0}
-								style={{
-									position: "fixed",
-									minHeight: 0,
-									top: 0,
-									bottom: 0,
-									insetInlineStart:
-										"var(--app-shell-navbar-offset, 0rem)",
-									insetInlineEnd:
-										"var(--app-shell-aside-offset, 0rem)",
-									transitionProperty:
-										"inset-inline-start, inset-inline-end",
-								}}>
-								<ScrollArea
-									h="100%"
-									scrollbars="y"
-									viewportRef={setMainElement}
-									viewportProps={{
-										...searchHighlightHostProps,
-										style: {
-											// Opaque, so Chromium scrolls it on the compositor; otherwise it repaints every frame (slow with many equations).
-											backgroundColor:
-												"var(--mantine-color-body)",
-											paddingInline:
-												"var(--app-shell-padding)",
-											paddingTop: `calc(${headerSpace} + var(--app-shell-padding))`,
-											paddingBottom: `calc(${footerSpace} + var(--app-shell-padding))`,
-											scrollPaddingTop: headerSpace,
-											scrollPaddingBottom: footerSpace,
-										},
-									}}
-									styles={{
-										scrollbar: {
-											top: insets.top,
-											bottom: insets.bottom,
-											// Keeps Mantine's own hover fade alongside the inset animation.
-											transition: `${insets.transition}, background-color 150ms ease, opacity 150ms ease`,
-										},
-										content: { display: "block" },
-									}}>
-									<Outlet />
-								</ScrollArea>
-								{/* What the header and footer leave visible, for floating menus to stay inside. */}
-								<div
-									ref={setVisibleAreaElement}
-									aria-hidden
-									style={{
-										position: "absolute",
-										insetInline: 0,
-										top: insets.top,
-										bottom: insets.bottom,
-										transition: insets.transition,
-										visibility: "hidden",
-										pointerEvents: "none",
-									}}
-								/>
-							</AppShell.Main>
+				<AppMain
+					onMainScrollElement={setMainScrollElement}
+					onVisibleAreaElement={setVisibleAreaElement}
+				/>
 
-							<AppShell.Aside style={safeAreaVertical}>
-								<Aside
-									onCollapse={() => setAsideExpanded(false)}
-									onExpand={() => setAsideExpanded(true)}
-									onToggle={() => setAsideExpanded(v => !v)}
-								/>
-							</AppShell.Aside>
-						</AppShell>
-					</VisibleAreaContext>
-				</ChromeInsetsContext>
-			</HeadroomOverrideContext>
-		</MainScrollContext>
+				<AppShell.Aside style={safeAreaVerticalStyle()}>
+					<Aside
+						onCollapse={() => setAsideExpanded(false)}
+						onExpand={() => setAsideExpanded(true)}
+						onToggle={() => setAsideExpanded(v => !v)}
+					/>
+				</AppShell.Aside>
+			</AppShell>
+		</AppLayoutContext>
 	);
 }
 

@@ -6,10 +6,8 @@ use crate::ai_integration::entities::message::{Message, MessageContent};
 use crate::ai_integration::tools::app_tools::{ApprovalMarkdown, ToolCallDescription};
 use crate::elements::value_objects::element_id::ElementId;
 
-/// A `Message` combined with the context snippets it was sent with, fetched
-/// separately since they live in their own table. Only assembled where the
-/// caller actually needs snippets (displaying a chat) rather than on every
-/// message fetch.
+/// A `Message` with the context snippets it was sent with, which live in their own table, so it's
+/// only assembled where snippets are shown (a chat), not on every fetch.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageResponseDto {

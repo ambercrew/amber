@@ -8,10 +8,8 @@ use thiserror::Error;
 static STEP_UNIT_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\d+(\.\d+)?[mhd]$").expect("valid step unit regex"));
 
-/// Mirrors ts-fsrs's own `StepUnit`: a positive amount of time expressed as a
-/// number followed by a unit ("m"inutes, "h"ours or "d"ays), e.g. "1m",
-/// "10m", "1d". Used for the same-day learning/relearning step lists on a
-/// `StudyProfile`.
+/// Mirrors ts-fsrs's `StepUnit`: a positive amount plus a unit ("m", "h" or "d"), e.g. "10m", for a
+/// `StudyProfile`'s same-day learning and relearning steps.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StepUnit(String);
 

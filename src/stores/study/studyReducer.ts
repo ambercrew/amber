@@ -85,7 +85,8 @@ const studySlice = createSlice({
 			state.queue = action.payload;
 			state.totalCount = action.payload.length;
 			state.cardPhase = "question";
-			state.shownAt = Date.now();
+			const now = Date.now();
+			state.shownAt = now;
 			state.timedElementId = action.payload[0]?.elementId ?? null;
 			state.timeSpent = {};
 			state.counts = {
@@ -96,7 +97,7 @@ const studySlice = createSlice({
 			};
 			state.summary = null;
 			state.away = false;
-			state.startedAt = Date.now();
+			state.startedAt = now;
 		},
 		answerShown: state => {
 			state.cardPhase = "answer";
@@ -219,10 +220,8 @@ const studySlice = createSlice({
 			state.counts.finished += 1;
 			restartClock(state);
 		},
-		// Removes the reviewed element (if any — a requeued card isn't done
-		// yet, so it isn't passed here) and moves on to whichever pending
-		// element is now at the front of the queue, regardless of where the
-		// just-reviewed element used to sit.
+		// Removes the reviewed element, if given (a requeued card isn't done), and moves on to the pending
+		// element now at the front, wherever the reviewed one sat.
 		sessionAdvanced: (
 			state,
 			action: PayloadAction<{

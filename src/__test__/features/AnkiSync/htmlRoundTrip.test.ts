@@ -2,7 +2,7 @@ import {
 	htmlToLexicalJson,
 	lexicalJsonsToHtml,
 } from "../../../components/Editor/lexicalJsonConversion";
-import { convertImportedHtml } from "../../../features/Import/convertImportedHtml";
+import { convertImportedHtml } from "../../../features/Import/utils/convertImportedHtml";
 
 /** The HTML Amber sends Anki for a card written as `html`. */
 function rendered(html: string): string {

@@ -200,9 +200,8 @@ impl DefaultPriorityService {
         Ok(PriorityNeighbors { before, after })
     }
 
-    /// The 1-based slot a brand new element takes under `policy`: its
-    /// placement relative to `parent`, held back by the policy's ceiling and
-    /// clamped to the queue.
+    /// The 1-based slot a new element takes under `policy`: placed relative to `parent`, held back by
+    /// the policy's ceiling and clamped to the queue.
     async fn new_element_position(
         &self,
         parent: Option<ElementId>,
@@ -216,12 +215,8 @@ impl DefaultPriorityService {
         Ok(clamp_new_element_position(position, total))
     }
 
-    /// Holds `position` back to the ceiling, so a parent near the front of the
-    /// queue doesn't drag every element derived from it up there with it.
-    ///
-    /// A parent-relative placement with no parent has nothing to cap: the
-    /// element is untriaged, so it keeps the middle-of-the-queue default
-    /// rather than being pushed down to the ceiling.
+    /// Holds `position` back to the ceiling, so a parent near the front doesn't drag its descendants there;
+    /// with no parent there's nothing to cap, and the element keeps the mid-queue default.
     fn apply_ceiling(
         &self,
         position: i64,
@@ -294,13 +289,8 @@ impl DefaultPriorityService {
         Ok(())
     }
 
-    /// Same placement math as `try_set_priority_by_position`, but for an
-    /// element that doesn't exist yet: nothing needs excluding, and the
-    /// result is returned rather than persisted.
-    /// Two elements can end up with the same priority (e.g. a duplicate
-    /// introduced by sync), which leaves no midpoint between them. Surface
-    /// that as `PriorityExhausted` rather than silently reusing a key, so
-    /// callers rebalance instead of masking the collision.
+    /// `try_set_priority_by_position`'s placement for an element not created yet, returned, not saved.
+    /// Equal neighbors (a sync duplicate) leave no midpoint: report `PriorityExhausted` so callers rebalance.
     async fn try_get_priority_for_position(
         &self,
         position: i64,
@@ -357,13 +347,8 @@ impl DefaultPriorityService {
         Ok(result)
     }
 
-    /// A value strictly between two bounds isn't necessarily free: since
-    /// `FractionalIndex::new_between`/`new_after`/`new_before` are pure
-    /// functions of their inputs, splitting the same bounds always produces
-    /// the same bytes — so if a live element was inserted between the exact
-    /// same neighbors a restored element used to sit between, splitting
-    /// again reproduces its value exactly. Keep narrowing from the bottom
-    /// until an unclaimed value turns up.
+    /// Splitting the same bounds always gives the same bytes, so a value between them may belong to an
+    /// element inserted there since; narrow from the bottom until an unclaimed one turns up.
     async fn next_free_priority(
         &self,
         lower_bound: Option<&FractionalIndex>,
@@ -441,9 +426,8 @@ fn clamp_new_element_position(position: i64, total: i64) -> i64 {
 /// of the queue, so an untriaged element neither jumps the line nor sinks.
 const NO_PARENT_PERCENTILE: f64 = 50.0;
 
-/// 1-based slot a not-yet-created element must take to report `percentile`
-/// once it exists. See [`DefaultPriorityService::get_priority_for_percentile`]
-/// for why the span is `total` rather than `total - 1`.
+/// The 1-based slot an element not created yet takes to report `percentile`; see
+/// [`DefaultPriorityService::get_priority_for_percentile`] for why the span is `total`, not `total - 1`.
 fn position_for_percentile(percentile: f64, total: i64) -> i64 {
     let clamped = percentile.clamp(0.0, 100.0);
     (clamped * total as f64 / 100.0).round() as i64 + 1
@@ -1490,9 +1474,8 @@ mod tests {
 
     #[tokio::test]
     async fn get_priority_for_position_does_not_move_existing_elements() {
-        // Arrange — inserting a brand new element must never touch anyone
-        // else's priority, unlike set_priority_by_position which relocates
-        // the moved element out from among the others.
+        // Arrange — inserting a new element must never move anyone else's priority, unlike
+        // set_priority_by_position, which relocates the moved element.
 
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
@@ -1687,11 +1670,8 @@ mod tests {
 
     #[tokio::test]
     async fn get_priorities_for_restore_old_range_was_reclaimed_avoids_the_new_owner() {
-        // Arrange — while the batch was trashed, a live element was inserted
-        // between the exact same two neighbors the batch's old priority used
-        // to sit between. Splitting that same gap the same way would
-        // reproduce the reclaimer's value bit-for-bit, since
-        // `FractionalIndex::new_between` is a pure function of its bounds.
+        // Arrange — while trashed, a live element took the batch's old gap, which splitting the same
+        // bounds would reproduce bit for bit.
 
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();

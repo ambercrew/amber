@@ -18,12 +18,8 @@ import {
 	dropSuspendedElementsAction,
 } from "../../../stores/study/studyActions";
 
-// A running session owns its queue on the frontend, so it has to hear about
-// schedule changes made outside it (the aside's due date, finishing an
-// element, resetting its repetitions) — otherwise the session stays on an
-// element that is no longer due and the next review overwrites the new
-// schedule. Elements that become due meanwhile join the queue, and suspended
-// ones leave it, as do trashed ones.
+// Applies schedule changes made outside the running session (due date, finish, reset) to its queue, or
+// a review would overwrite them; newly due elements join, suspended or trashed ones leave.
 export function useSessionScheduleChanges() {
 	const dispatch = useAppDispatch();
 	const navigate = useNavigate();

@@ -3,7 +3,8 @@ import { AnkiSyncPreviewDto } from "../../api/ankiSync/dto/ankiSyncPreviewDto";
 
 /** The review shown before a sync: open while its preview loads, then the preview or why it failed. */
 export type AnkiSyncReview =
-	| { status: "loading" }
+	/** `requestId` tells a preview whether the review it loads for is still open. */
+	| { status: "loading"; requestId: string }
 	| {
 			status: "ready";
 			preview: AnkiSyncPreviewDto;

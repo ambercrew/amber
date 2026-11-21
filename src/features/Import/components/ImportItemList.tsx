@@ -27,9 +27,9 @@ import {
 	ImportItem,
 	ImportItemError,
 	isPdfItem,
-} from "../importItems";
-import { SUPPORTED_FORMATS_ANY } from "../fileFormats";
-import { FileFormat } from "../fileFormat";
+} from "../utils/importItems";
+import { SUPPORTED_FORMATS_ANY } from "../utils/fileFormats";
+import { FileFormat } from "../utils/fileFormat";
 import { pdfFormat } from "../pdf/format";
 import { epubFormat } from "../epub/format";
 import { docxFormat } from "../docx/format";

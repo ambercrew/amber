@@ -107,6 +107,11 @@ function appStateFor(priorityModalOpened: boolean): AppState {
 		verifyEmailModalOpened: false,
 		manageAccountModalOpened: false,
 		virtualKeyboardSuppressed: false,
+		pendingFocus: null,
+		mainScrollPinned: true,
+		headroomOverride: null,
+		pendingTreeReveal: null,
+		lastPriorityPreview: null,
 	};
 }
 

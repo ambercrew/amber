@@ -1,11 +1,13 @@
-import { searchHighlightRegistry } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
+import { SearchHighlightRegistry } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
 
 function makeRange(): Range {
 	return {} as Range;
 }
 
+let searchHighlightRegistry: SearchHighlightRegistry;
+
 beforeEach(() => {
-	searchHighlightRegistry.clearAll();
+	searchHighlightRegistry = new SearchHighlightRegistry();
 });
 
 describe("searchHighlightRegistry", () => {

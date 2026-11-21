@@ -8,14 +8,8 @@ use crate::sync::hlc::{DeviceId, Hlc, HlcClock};
 /// it lives in.
 pub const DEVICE_ID_CONFIG: &str = "sync_device_id";
 
-/// The HLC clock of one database: created by `create_sqlite_pool` alongside its
-/// pool, given to every connection as the `hlc_now()` / `device_id()` SQL
-/// functions' app data, and injected into services through `DbPool`. Owned per
-/// database rather than process-wide so a second database open in the same
-/// process issues HLCs under its own device id.
-///
-/// Empty between opening the pool and [`SyncClock::initialize`]; nothing can
-/// write a cell in that window, since the sync tables don't exist yet.
+/// One database's HLC clock, the `hlc_now()`/`device_id()` functions' app data, owned per database so
+/// a second one issues HLCs under its own device id. Empty until [`SyncClock::initialize`].
 #[derive(Default)]
 pub struct SyncClock {
     clock: OnceLock<HlcClock>,
@@ -26,9 +20,8 @@ impl SyncClock {
         Arc::new(Self::default())
     }
 
-    /// Resolves (or creates) `pool`'s persistent device id and seeds the clock
-    /// past the highest HLC that database has stored, so a restart can never
-    /// reissue an HLC. Runs once per clock, after the sync tables are migrated.
+    /// Resolves or creates `pool`'s device id and seeds the clock past its highest stored HLC, so a
+    /// restart can't reissue one. Runs once, after the sync tables are migrated.
     pub async fn initialize(&self, pool: &SqlitePool) -> Result<(), sqlx::Error> {
         let device_id = get_or_create_device_id(pool).await?;
 

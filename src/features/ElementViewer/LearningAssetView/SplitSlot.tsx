@@ -7,7 +7,7 @@ import {
 import CursorTrackerPlugin from "../../../components/Editor/plugins/CursorTrackerPlugin";
 import { FloatingMenuItem } from "../../../components/Editor/plugins/FloatingMenuPlugin";
 import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAssetSplitMetaDto";
-import ElementEditor from "../ElementEditor";
+import ElementEditor from "../components/ElementEditor";
 import { blockIndexOf } from "./core/blockIndexOf";
 import { SplitContext, useReaderCore } from "./core/readerCoreContext";
 import { useSplitStackWiring } from "./core/splitStackContext";
@@ -24,9 +24,8 @@ interface SplitSlotProps {
 }
 
 /**
- * One split in the learning asset stack: a live editor when mounted, a cheap
- * placeholder otherwise. Renders a labeled divider at its top edge (every
- * split except the first) so the seam between Lexical instances is legible.
+ * One split: a live editor when mounted, a cheap placeholder otherwise, with a labeled divider on top
+ * (but for the first) so the seam between editors is visible.
  */
 export default function SplitSlot({
 	split,

@@ -88,9 +88,8 @@ export default function useAiDocumentUpload({
 						return;
 					}
 					const msgs = await getChatMessagesOrdered(chatId);
-					// Only apply the refreshed messages if the user hasn't
-					// since switched to a different chat, otherwise this
-					// would overwrite whatever chat is now being viewed.
+					// Only if the user is still on this chat, or it would overwrite
+					// the chat now shown.
 					if (chatId === activeChatIdRef.current) {
 						setMessages(msgs);
 					}

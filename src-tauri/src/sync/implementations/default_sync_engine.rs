@@ -32,9 +32,8 @@ pub struct DefaultSyncEngine {
 #[async_trait]
 impl SyncEngine for DefaultSyncEngine {
     async fn sync(&self) -> Result<(), SyncError> {
-        // Serializes overlapping sync cycles: out-of-causal-order pushes (child
-        // before parent) would trip FK repair into deleting the "orphaned" child
-        // and propagating that delete to other devices.
+        // Serializes overlapping cycles: a child pushed before its parent would trip FK repair into
+        // deleting the "orphaned" child everywhere.
         let _guard = self.sync_lock.0.lock().await;
 
         let result = self.sync_inner().await;
@@ -82,10 +81,8 @@ impl DefaultSyncEngine {
             }
             since_server_seq = Some(next_server_seq);
 
-            // Only persist the cursor and commit once nothing is left
-            // half-materialized: a crash would strand columns past the cursor,
-            // and a child pulled ahead of its parent would trip the deferred FK
-            // check.
+            // Persist the cursor only once nothing is half-materialized: a crash would strand columns past it,
+            // and a child pulled ahead of its parent would trip the deferred FK check.
             if !self.store.has_pending_changes().await?
                 && !self.store.has_unresolved_foreign_keys().await?
             {
@@ -121,9 +118,8 @@ impl DefaultSyncEngine {
         Ok(())
     }
 
-    /// Groups cells into batches whose encoded size stays under `max_bytes`,
-    /// preserving order. A single cell over the cap still ships alone rather
-    /// than being dropped or split.
+    /// Groups cells into batches under `max_bytes`, in order; a single cell over the cap ships alone
+    /// rather than being dropped or split.
     fn chunk_by_size(cells: Vec<CellChange>, max_bytes: usize) -> Vec<Vec<CellChange>> {
         let mut chunks = Vec::new();
         let mut current = Vec::new();

@@ -1,7 +1,7 @@
 import { createElement, ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MainScrollContext } from "../../../../../features/App/context/mainScrollContext";
+import { AppLayoutContext } from "../../../../../components/AppLayout/appLayoutContext";
 import { landOnBlock } from "../../../../../features/ElementViewer/LearningAssetView/core/landOnBlock";
 import {
 	Land,
@@ -57,8 +57,13 @@ function renderNavigator(overrides: {
 		{
 			wrapper: ({ children }: { children: ReactNode }) =>
 				createElement(
-					MainScrollContext,
-					{ value: scrollElement },
+					AppLayoutContext,
+					{
+						value: {
+							mainScrollElement: scrollElement,
+							visibleAreaElement: null,
+						},
+					},
 					children,
 				),
 		},
@@ -360,9 +365,8 @@ describe("useSplitNavigator", () => {
 			const root = makeRoot(5);
 			const scrollIntoView = vi.fn();
 			(root.children[1] as HTMLElement).scrollIntoView = scrollIntoView;
-			// Not mounted yet at `navigate` time, mounted by the time
-			// `notifySplitReady` fires — matches a split swapping from a
-			// placeholder to a live editor after being forced into the window.
+			// Unmounted at `navigate`, mounted by `notifySplitReady`, as a split forced into the window
+			// swaps its placeholder for an editor.
 			const state: { root?: HTMLElement } = {};
 			const { result } = renderNavigator({
 				initial: { split: 0, block: 0 },

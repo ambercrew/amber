@@ -1,14 +1,8 @@
 import { DateTimePickerProps } from "@mantine/dates";
 
 /**
- * The dropdown (calendar + time row + submit button) can be taller than the
- * space actually available around its trigger — e.g. a due-date field inside
- * a centered modal only has roughly half the window's height to grow into on
- * either side, so a static `vh` cap can still overflow. The `size`
- * middleware measures the real available height at the popover's resolved
- * position and writes it as `maxHeight` on the dropdown, so combined with
- * `overflowY: auto` the dropdown always fits and scrolls internally instead
- * of clipping.
+ * The dropdown can be taller than the room around its trigger (e.g. in a centered modal), so the
+ * `size` middleware sets `maxHeight` to the space really there and it scrolls instead of clipping.
  */
 export const dueDateTimePickerProps: Pick<
 	DateTimePickerProps,

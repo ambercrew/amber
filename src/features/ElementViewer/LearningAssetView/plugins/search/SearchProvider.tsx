@@ -1,6 +1,7 @@
 import { PropsWithChildren, useCallback, useMemo } from "react";
 import { scrollToRange } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/scrollToRange";
-import { searchHighlightRegistry } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
+import { SearchHighlightRegistry } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
+import { useSearchHighlightRegistry } from "../../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistryContext";
 import useAppSelector from "../../../../../hooks/useAppSelector";
 import {
 	selectSearchCaseSensitive,
@@ -15,8 +16,11 @@ import { SearchContext } from "./searchContext";
 import { MatchTarget, useLearningAssetSearch } from "./useLearningAssetSearch";
 
 /** Index of the first of split `seq`'s live matches at or below the viewport top, or `null` if none. */
-function localMatchAtOrBelowViewport(seq: number): number | null {
-	const ranges = searchHighlightRegistry.getRanges(String(seq));
+function localMatchAtOrBelowViewport(
+	registry: SearchHighlightRegistry,
+	seq: number,
+): number | null {
+	const ranges = registry.getRanges(String(seq));
 	if (!ranges) return null;
 	const index = ranges.findIndex(
 		range =>
@@ -31,6 +35,7 @@ function localMatchAtOrBelowViewport(seq: number): number | null {
 export default function SearchProvider({ children }: PropsWithChildren) {
 	const { learningAssetId, splits, mountedSeqs, primarySeq, navigate } =
 		useReaderCore();
+	const searchHighlightRegistry = useSearchHighlightRegistry();
 	const query = useAppSelector(selectSearchQuery);
 	const caseSensitive = useAppSelector(selectSearchCaseSensitive);
 	const currentIndex = useAppSelector(selectSearchCurrentIndex);
@@ -60,17 +65,23 @@ export default function SearchProvider({ children }: PropsWithChildren) {
 				if (range) scrollToRange(range);
 				else root.scrollIntoView({ block: "start" });
 			}),
-		[navigate],
+		[navigate, searchHighlightRegistry],
 	);
 	const resolveInitialIndex = useCallback(() => {
 		const target = findNearestMatchAtOrBelowViewport(
 			splits,
 			countsBySeq,
 			primarySeq,
-			localMatchAtOrBelowViewport,
+			seq => localMatchAtOrBelowViewport(searchHighlightRegistry, seq),
 		);
 		return target ? toGlobalIndex(target) : 0;
-	}, [splits, countsBySeq, primarySeq, toGlobalIndex]);
+	}, [
+		splits,
+		countsBySeq,
+		primarySeq,
+		toGlobalIndex,
+		searchHighlightRegistry,
+	]);
 	useSyncSearchMatches({
 		totalMatches,
 		resolveMatchTarget,

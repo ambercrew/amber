@@ -9,7 +9,9 @@ use uuid::Uuid;
 
 use super::review_sync::all_newer_than_amber;
 use super::*;
-use crate::anki_sync::anki_connect::{AnkiConnectError, AnkiNoteInfo, MockAnkiConnectClient};
+use crate::anki_sync::clients::anki_connect::{
+    AnkiConnectError, AnkiNoteInfo, MockAnkiConnectClient,
+};
 use crate::anki_sync::entities::anki_card_pair::AnkiCardPair;
 use crate::anki_sync::entities::exported_note::ExportedNote;
 use crate::anki_sync::entities::synced_schedule::SyncedSchedule;

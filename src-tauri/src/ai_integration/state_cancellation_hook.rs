@@ -10,9 +10,8 @@ use crate::ai_integration::ai_state::AiState;
 
 const CANCELLED_REASON: &str = "Cancelled due to state update.";
 
-/// Stops the run between model calls and while one streams. Tools aren't stopped:
-/// rig keeps a batch's results only once every call in it settles, and a tool may
-/// already have changed the user's data.
+/// Stops the run between model calls and while one streams. Tools aren't stopped: rig keeps a batch's
+/// results only once every call settles, and a tool may already have changed the user's data.
 #[derive(Clone)]
 pub struct StateCancellationHook {
     state: Arc<AiState>,

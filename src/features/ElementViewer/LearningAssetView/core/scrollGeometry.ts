@@ -1,4 +1,4 @@
-import { HEADROOM_FIXED_AT } from "../../../App/components/App";
+import { HEADROOM_FIXED_AT } from "../../../../config/layout";
 import { hideHeadroom } from "../../../../hooks/useElementHeadroom";
 
 /** `element`'s top within the scroller's content, independent of the current scroll. */

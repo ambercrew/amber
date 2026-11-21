@@ -12,9 +12,8 @@ pub trait BibliographicalSourceRepository: Send + Sync {
     async fn get_by_id(&self, id: Uuid) -> Result<BibliographicalSource, RepositoryError>;
     async fn get_all(&self) -> Result<Vec<BibliographicalSource>, RepositoryError>;
 
-    /// Looks up a source by its exact `location`, used to deduplicate
-    /// re-imports of the same origin. Sources without a location are never
-    /// matched.
+    /// The source at exactly `location`, to deduplicate re-imports; one without a
+    /// location never matches.
     async fn find_by_location(
         &self,
         location: &str,

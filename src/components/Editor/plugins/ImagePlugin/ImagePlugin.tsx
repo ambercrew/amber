@@ -178,12 +178,8 @@ function hasTextItem(items: DataTransferItemList): boolean {
 	return false;
 }
 
-// Some webviews (notably WebKitGTK, which Tauri uses on Linux) don't expose
-// a pasted image through clipboardData at all -- copying a screenshot or a
-// file from a file manager shows up as a single "text/uri-list" string item,
-// with no "file" kind item to read. The clipboard-manager plugin reads the
-// OS clipboard natively instead of through the webview's DOM paste event, so
-// it sees the actual image bytes regardless of what the DOM exposed.
+// Some webviews (WebKitGTK on Linux) expose a pasted image only as a "text/uri-list" string,
+// so read the OS clipboard natively through the clipboard-manager plugin.
 async function insertImageFromNativeClipboard(
 	editor: LexicalEditor,
 	callApi: CallApiFn,

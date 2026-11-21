@@ -56,11 +56,11 @@ use crate::elements::repositories::learning_asset_mark_repository::LearningAsset
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::services::element_content_service::ElementContentService;
 use crate::elements::services::element_creation_service::ElementCreationService;
-use crate::anki_sync::anki_connect::AnkiConnectClient;
+use crate::anki_sync::clients::anki_connect::AnkiConnectClient;
 use crate::anki_sync::repositories::anki_sync_repository::AnkiSyncRepository;
 use crate::anki_sync::services::anki_sync_service::AnkiSyncService;
 use crate::anki_sync::services::implementations::default_anki_sync_service::DefaultAnkiSyncService;
-use crate::anki_sync::services::implementations::http_anki_connect_client::HttpAnkiConnectClient;
+use crate::infrastructure::clients::http_anki_connect_client::HttpAnkiConnectClient;
 use crate::anki_sync::services::implementations::tauri_sync_frontend::TauriSyncFrontend;
 use crate::anki_sync::services::sync_frontend::SyncFrontend;
 use crate::import::repositories::anki_card_link_repository::AnkiCardLinkRepository;

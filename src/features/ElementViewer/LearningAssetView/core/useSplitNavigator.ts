@@ -2,7 +2,7 @@ import { RefObject, useCallback, useRef } from "react";
 import { LearningAssetSplitMetaDto } from "../../../../types/elements/learningAssetSplitMetaDto";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { isNoReadPoint } from "../../readPoint/readingPosition";
-import { useMainScrollElement } from "../../../App/context/mainScrollContext";
+import { useMainScrollElement } from "../../../../components/AppLayout/appLayoutContext";
 import { estimateOffsetBeforeSplit } from "./heights/estimateCumulativeOffset";
 import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "./learningAssetViewConstants";
 import { landOnBlock } from "./landOnBlock";

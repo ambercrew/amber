@@ -5,9 +5,8 @@ use crate::study::dto::study_profile_dto::StudyProfileResponseDto;
 use crate::study::entities::card_review::CardReview;
 use crate::study::entities::study_profile::StudyProfile;
 
-/// Everything the frontend needs to schedule a card with ts-fsrs: its current
-/// review state and the study profile that applies to it, resolved through the
-/// element tree.
+/// What the frontend needs to schedule a card with ts-fsrs: its review state and the study profile
+/// it inherits.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CardSchedulingDto {

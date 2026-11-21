@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use super::export::{AnkiCardKey, Export};
 use super::{AMBER_NOTES_QUERY, DefaultAnkiSyncService};
-use crate::anki_sync::anki_connect::{
+use crate::anki_sync::clients::anki_connect::{
     cards_info, change_deck, find_notes, notes_info, suspend_cards,
 };
 use crate::anki_sync::entities::anki_note::AnkiNote;

@@ -9,7 +9,7 @@ import {
 } from "@mantine/core";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
-import { selectSettings } from "../../../stores/settings/settingsSelector";
+import { selectSettings } from "../../../stores/settings/settingsSelectors";
 import { saveSettings } from "../../../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../../../api/settings/dto/updateSettingsRequestDto";
 import FieldLabel from "../../../components/FieldLabel/FieldLabel";

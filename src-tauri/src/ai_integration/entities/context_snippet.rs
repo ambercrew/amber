@@ -48,9 +48,7 @@ impl ContextSnippet {
     }
 }
 
-/// Groups snippets (already ordered by position) by the message they belong
-/// to, discarding entity identity, for consumers that only care about the
-/// snippet text per message.
+/// Groups snippets (already in position order) by their message, keeping only the text.
 pub fn group_snippets_by_message(snippets: Vec<ContextSnippet>) -> HashMap<Uuid, Vec<String>> {
     let mut grouped: HashMap<Uuid, Vec<String>> = HashMap::new();
     for snippet in snippets {

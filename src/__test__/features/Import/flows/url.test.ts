@@ -5,11 +5,11 @@ import {
 import { fetchPage } from "../../../../api/import/api/importApi";
 import { normalize } from "../../../../features/Import/normalize";
 import { hydrateLazyImages } from "../../../../features/Import/normalize/hydrateLazyImages";
-import { createImportedLearningAsset } from "../../../../features/Import/createImportedLearningAsset";
+import { createImportedLearningAsset } from "../../../../features/Import/utils/createImportedLearningAsset";
 import { runFileImport } from "../../../../features/Import/flows/file";
 import { createBibliographicalSource } from "../../../../api/bibliographicalSources/api/bibliographicalSourcesApi";
 import { BibliographicalSourceResponseDto } from "../../../../api/bibliographicalSources/dto/bibliographicalSourceDto";
-import { ImportContext } from "../../../../features/Import/importContext";
+import { ImportContext } from "../../../../features/Import/utils/importContext";
 import { AppDispatch, RootState } from "../../../../stores/store";
 
 type Thunk = (dispatch: AppDispatch, getState: () => RootState) => unknown;
@@ -17,7 +17,9 @@ type Thunk = (dispatch: AppDispatch, getState: () => RootState) => unknown;
 vi.mock(import("../../../../api/import/api/importApi"));
 vi.mock(import("../../../../features/Import/normalize"));
 vi.mock(import("../../../../features/Import/normalize/hydrateLazyImages"));
-vi.mock(import("../../../../features/Import/createImportedLearningAsset"));
+vi.mock(
+	import("../../../../features/Import/utils/createImportedLearningAsset"),
+);
 vi.mock(import("../../../../features/Import/flows/file"));
 vi.mock(
 	import("../../../../api/bibliographicalSources/api/bibliographicalSourcesApi"),

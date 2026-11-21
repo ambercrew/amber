@@ -7,10 +7,10 @@ mod pending_buffer;
 mod push_pull;
 pub(crate) mod register;
 pub(crate) mod schema_gate;
-mod sqlite_sync_store;
+mod store;
 #[cfg(test)]
 mod tests;
 mod trigger_sql;
 
 pub(crate) use pending_buffer::register_scoped_pending_buffer;
-pub use sqlite_sync_store::SqliteSyncStore;
+pub use store::SqliteSyncStore;

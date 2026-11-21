@@ -1,4 +1,4 @@
-import { FileFormat } from "../fileFormat";
+import { FileFormat } from "../utils/fileFormat";
 import { extractMarkdown } from "./extract";
 
 export const markdownFormat: FileFormat = {

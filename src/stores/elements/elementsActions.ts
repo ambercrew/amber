@@ -36,10 +36,8 @@ import {
 	setTreeLoading,
 } from "./elementsReducer";
 
-// Shared by every place that needs `elements.currentElement` to reflect a
-// specific element right away (a route change, a study-session advance, a
-// post-sync refresh) rather than a later effect catching up to it. Resolves
-// to whether the element existed and was actually loaded.
+// Sets `elements.currentElement` to an element right away (a route change, a session advance, a sync
+// refresh) rather than waiting on an effect; resolves to whether it existed and loaded.
 /** `onShown` runs in the same tick as the element is set, so its dispatches render together with it. */
 export function loadCurrentElementAction(
 	elementId: ElementId,

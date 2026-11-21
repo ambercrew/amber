@@ -16,9 +16,8 @@ import { ImageNode } from "./plugins/ImagePlugin/ImageNode";
 import styles from "./Editor.module.css";
 
 /**
- * Custom node types and extension dependencies shared by the interactive
- * editor (Editor.tsx) and the headless HTML-to-JSON converter used by
- * Import, so both parse the same set of node types from HTML/JSON.
+ * Node types and extension dependencies shared by the editor (Editor.tsx) and the headless converter,
+ * so both parse the same nodes from HTML and JSON.
  */
 export const editorNodes = [
 	EquationNode,
@@ -28,9 +27,8 @@ export const editorNodes = [
 ];
 
 /**
- * Static portion of the editor theme, shared by the interactive editor
- * (Editor.tsx) and the headless HTML/JSON converter — TableExtension warns
- * if a table-scrollable editor is built without `tableScrollableWrapper` set.
+ * The static editor theme shared with the headless converter; TableExtension warns when a scrollable-table
+ * editor lacks `tableScrollableWrapper`.
  */
 export const editorTheme = {
 	tableScrollableWrapper: styles["table-scrollable-wrapper"],

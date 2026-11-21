@@ -11,9 +11,8 @@ import {
 export type AppDrawerProps = Omit<DrawerProps, "styles">;
 
 /**
- * Mantine's `Drawer` with the app's defaults: padded so it clears the status
- * and gesture bars on mobile and closed by Android's back button. A drawer
- * outranks the modal it may be opened from, so back closes the drawer first.
+ * Mantine's `Drawer`, padded clear of the mobile status and gesture bars and closed by Android's back
+ * button, which closes it before the modal it may be opened from.
  */
 function AppDrawer({
 	closeButtonProps,

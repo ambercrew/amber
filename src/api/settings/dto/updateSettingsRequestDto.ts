@@ -25,9 +25,8 @@ export default interface UpdateSettingsRequestDto {
 }
 
 /**
- * Builds an {@link UpdateSettingsRequestDto} that leaves every field unchanged
- * (all `null`), overriding only the fields provided. Use this so callers only
- * specify the settings they actually want to change.
+ * An {@link UpdateSettingsRequestDto} leaving every field unchanged (`null`) but those given,
+ * so callers name only the settings they change.
  */
 export function buildUpdateSettingsRequest(
 	overrides: Partial<UpdateSettingsRequestDto>,

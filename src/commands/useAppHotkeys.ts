@@ -29,9 +29,8 @@ function normalizeKey(key: string) {
 }
 
 /**
- * `event.code` names the physical key, so it spells characters differently
- * from `event.key` (`KeyK`, `Digit1`, `Equal`, `NumpadAdd`). Normalize it onto
- * the same names a shortcut string uses.
+ * `event.code` spells keys differently from `event.key` (`KeyK`, `Digit1`, `Equal`, `NumpadAdd`);
+ * normalize it onto a shortcut string's names.
  */
 function normalizeCode(code: string) {
 	const stripped = code
@@ -83,11 +82,8 @@ function modifiersMatch(shortcut: ParsedShortcut, event: KeyboardEvent) {
 }
 
 /**
- * Non-latin layouts (Russian, Greek, Hebrew, ...) report a non-latin
- * `event.key` for the very same physical key, so a latin shortcut such as
- * `mod+K` never matches by key alone. Match on the produced key first, and
- * fall back to the physical key only when that character isn't latin — that
- * way a latin layout can never fire two different commands from one press.
+ * Non-latin layouts report a non-latin `event.key`, so `mod+K` can't match by key alone: match the produced
+ * key first and the physical key only when that isn't latin, so one press never fires two commands.
  */
 export function matchesShortcut(shortcut: string, event: KeyboardEvent) {
 	const parsed = parseShortcut(shortcut);

@@ -36,9 +36,8 @@ pub struct Settings {
     #[serde(default = "default_spell_check")]
     pub spell_check: bool,
 
-    /// How many days elements stay in the trash before they are purged.
-    /// Defaulted so a settings file written before the trash existed still
-    /// parses instead of taking the whole app down on startup.
+    /// Days elements stay in the trash before they're purged, defaulted so a settings file from before
+    /// the trash still parses.
     #[serde(default = "default_trash_retention_days")]
     pub trash_retention_days: u32,
 

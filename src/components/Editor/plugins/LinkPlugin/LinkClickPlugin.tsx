@@ -15,10 +15,8 @@ interface LinkClickPluginProps {
 }
 
 /**
- * The editor is always editable, so a plain click on a link must place the
- * cursor rather than navigate. Only ctrl/cmd+click opens the link, and only
- * after the user confirms the URL in a modal — it opens in the user's
- * default browser rather than navigating the webview.
+ * The editor is always editable, so a click on a link places the caret; ctrl/cmd+click opens it, once
+ * confirmed in a modal, in the default browser rather than the webview.
  */
 export function LinkClickPlugin({ onContextMenuLink }: LinkClickPluginProps) {
 	const [editor] = useLexicalComposerContext();

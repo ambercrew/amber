@@ -5,10 +5,8 @@ use uuid::Uuid;
 use crate::study::entities::card_review::CardReview;
 use crate::study::value_objects::card_state::CardState;
 
-/// A review the frontend has already scheduled with ts-fsrs, sent back for
-/// persistence. Scheduling lives on the frontend because ts-fsrs implements
-/// the full FSRS scheduler (state machine, learning steps, interval clamping)
-/// that the `fsrs` crate leaves to its caller.
+/// A review the frontend scheduled with ts-fsrs, sent back to save. Scheduling is on the frontend as
+/// ts-fsrs implements the whole scheduler, which the `fsrs` crate leaves to its caller.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CardReviewRequestDto {

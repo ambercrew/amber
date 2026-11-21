@@ -1,6 +1,5 @@
-/// Lightweight description of a split, without its content. Used to lay out the
-/// learning asset view without loading every split into memory: `char_count` drives the
-/// height estimate for splits that haven't been mounted yet.
+/// A split without its content, for laying out the view without loading every split;
+/// `char_count` estimates the height of splits not mounted yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LearningAssetSplitMeta {
     pub seq: u32,

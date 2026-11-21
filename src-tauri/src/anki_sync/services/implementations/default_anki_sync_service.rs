@@ -18,8 +18,8 @@ use chrono::Utc;
 use injector_derive::ScopeInjectable;
 use uuid::Uuid;
 
-use crate::anki_sync::anki_connect::{AnkiConnectClient, active_profile};
 use crate::anki_sync::anki_sync_lock::AnkiSyncLock;
+use crate::anki_sync::clients::anki_connect::{AnkiConnectClient, active_profile};
 use crate::anki_sync::repositories::anki_sync_repository::AnkiSyncRepository;
 use crate::anki_sync::services::anki_sync_service::{
     AnkiDeckChoice, AnkiDeckPreview, AnkiSendingDeck, AnkiSyncError, AnkiSyncPreview,

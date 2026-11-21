@@ -34,16 +34,8 @@ impl DatabaseConnectionManager for SqliteDatabaseConnectionManager {
                 Ok(pool) => pool,
             };
 
-        // This scope's own transaction may still be holding a connection
-        // checked out from the *old* pool, which would otherwise keep it
-        // open until this scope's `save_changes()` runs — well after this
-        // call returns. Commit it now (against the old pool it was actually
-        // begun on) and replace it with a fresh transaction on the new pool,
-        // mirroring what `SqliteTransactionManager::save_changes` does. This
-        // releases the old pool's connection up front, so it can be closed
-        // synchronously below instead of racing its background closure with
-        // whoever needs the old database file next (e.g. deleting it after a
-        // profile switch — see `move_database_to`).
+        // Commit this scope's transaction on the old pool and reopen it on the new one, as `save_changes` does,
+        // so the old pool's connection is released and it can close before its file is moved or deleted.
         {
             let mut guard = self.tx.lock().await;
             let new_tx = new_pool.begin().await.map_err(|err| {
@@ -63,11 +55,8 @@ impl DatabaseConnectionManager for SqliteDatabaseConnectionManager {
             .await;
         old_pool.close().await;
 
-        // The database just swapped underneath any in-flight DI scope, whose
-        // own transaction (if any) is still bound to the old one — so the
-        // new database's tables need registering for change tracking again
-        // here, against the new pool directly, rather than leaving it to
-        // every caller that can end up switching databases to remember.
+        // Register the new database's tables for change tracking here, on the new pool directly, as in-flight
+        // scopes are still bound to the old one and callers shouldn't have to remember.
         let pool_guard = self.pool.pool().await;
         register_sync_tables_on_pool(&pool_guard)
             .await

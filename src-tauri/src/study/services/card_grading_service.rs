@@ -20,9 +20,8 @@ pub trait CardGradingService: Send + Sync {
         duration_ms: Option<u32>,
     ) -> Result<CardReview, GradeCardError>;
 
-    /// The card's current review state plus the study profile it inherits,
-    /// which together are the inputs the frontend's scheduler needs. Cards
-    /// without a stored review yet get the profile's new-card defaults.
+    /// The card's review state and the profile it inherits, the frontend scheduler's inputs; a card not
+    /// reviewed yet gets the profile's new-card defaults.
     async fn scheduling_inputs(
         &self,
         card_id: Uuid,

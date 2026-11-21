@@ -1,4 +1,5 @@
 import { NavigateFunction } from "react-router";
+import { paths } from "../../paths";
 import { loadSettings, saveSettings } from "../settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../../api/settings/dto/updateSettingsRequestDto";
 import { AppDispatch, RootState } from "../store";
@@ -41,9 +42,10 @@ export function reloadApplicationState(
 	};
 }
 
-/** Persists a new database directory and reloads the application state:
- * the backend reconnects to the database in the new directory, so its contents
- * must be reloaded. */
+/**
+ * Saves a new database directory and reloads the app state, as the backend reconnects
+ * to the database there.
+ */
 export function changeDatabaseDirectory(
 	directory: string,
 	navigate: NavigateFunction,
@@ -87,7 +89,7 @@ async function loadAppState(
 		// The previously open element may not exist in the reloaded state
 		// (e.g. after switching database directories), so clear it.
 		dispatch(setCurrentElement(null));
-		await navigate("/");
+		await navigate(paths.root());
 	}
 
 	// Load elements in parallel with the user/sync calls below, so a slow or
@@ -104,9 +106,8 @@ async function loadAppState(
 	// Sync on app close is registered as an event by the SettingsSync component.
 	if (settings?.autoSync) await dispatch(sync({ skipIfKnownOffline: true }));
 
-	// Re-check the user's profile once more now that sync may have confirmed
-	// connectivity, so a transient offline state at startup doesn't linger
-	// for the rest of the session.
+	// Check the profile again now that sync may have confirmed connectivity, so a brief
+	// offline start doesn't linger all session.
 	if (!userInformationDto) await dispatch(loadUserState());
 
 	await elementTreePromise;

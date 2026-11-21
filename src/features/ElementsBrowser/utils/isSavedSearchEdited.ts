@@ -2,9 +2,8 @@ import deepEqual from "fast-deep-equal";
 import { ElementFilter } from "../../../api/savedSearches/dto/elementFilter";
 
 /**
- * True when a saved search is loaded and its persisted filters differ from
- * the live filters currently shown. `null` (no saved search loaded, i.e.
- * "Untitled search") is never considered edited.
+ * Whether a loaded saved search's stored filters differ from the live ones;
+ * `null` ("Untitled search") is never edited.
  */
 export function isSavedSearchEdited(
 	filters: ElementFilter[],

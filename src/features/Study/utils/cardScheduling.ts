@@ -14,11 +14,8 @@ import { CardState } from "../../../types/study/cardState";
 import { Rating } from "../../../types/study/rating";
 import { startOfLocalDay } from "../../../utils/startOfLocalDay";
 
-// Cards are scheduled here rather than in the backend because ts-fsrs
-// implements the whole FSRS scheduler — the New/Learning/Review/Relearning
-// state machine, the learning and relearning steps, whole-day rounding and the
-// maximum-interval cap — while the Rust `fsrs` crate only exposes the memory
-// model and leaves that wrapper to its caller.
+// Scheduled here, not in the backend, because ts-fsrs implements the whole scheduler (states, steps,
+// rounding, the maximum interval), while the `fsrs` crate only offers the memory model.
 
 // FSRS-6 matches the weights the Rust `fsrs` crate optimizes and the stored memory states.
 export type CardScheduler = DefaultScheduler<"FSRS-6">;
@@ -110,9 +107,8 @@ function toCardReview(cardId: string, card: FsrsCard): CardReviewDto {
 }
 
 /**
- * The review each rating would produce for `review` if it were graded at
- * `now`, so the due dates previewed on the grade buttons and the review that
- * actually gets saved come from one computation.
+ * The review each rating would give `review` graded at `now`, so the buttons' previewed due dates and
+ * the saved review come from one computation.
  */
 export function scheduleAllRatings(
 	scheduler: CardScheduler,

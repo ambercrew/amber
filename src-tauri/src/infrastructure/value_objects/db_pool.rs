@@ -35,11 +35,8 @@ impl DbPool {
         self.pool.lock().await
     }
 
-    /// Swaps in `new_pool` and returns the pool it replaced. The caller is
-    /// responsible for making sure the old pool's connections have actually
-    /// been returned (e.g. by committing whatever transaction is still
-    /// checked out from it) before awaiting `close()` on it — otherwise that
-    /// await never returns.
+    /// Swaps in `new_pool` and returns the old one. Return its connections first (e.g. commit what's still
+    /// checked out from it), or awaiting its `close()` never returns.
     pub async fn set_pool(
         &self,
         new_pool: SqlitePool,

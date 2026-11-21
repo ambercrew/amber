@@ -2,11 +2,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::{Mutex, MutexGuard, Notify};
 
-/// Manages the state and lifecycle of AI model calls.
-///
-/// This struct ensures that only one AI generation can run at a time and provides
-/// a mechanism to cancel ongoing generations. It uses interior mutability to allow
-/// cancellation from multiple threads safely.
+/// Runs one AI generation at a time and lets any thread cancel it,
+/// through interior mutability.
 pub struct AiState {
     /// Ensures only one AI generation runs at a time.
     generation_lock: Mutex<()>,

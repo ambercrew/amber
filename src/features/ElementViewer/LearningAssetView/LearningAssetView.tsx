@@ -7,7 +7,7 @@ import { HighlightCreatedPayload } from "../../../components/Editor/plugins/High
 import { LearningAssetSplitMetaDto } from "../../../types/elements/learningAssetSplitMetaDto";
 import { ReadingPosition } from "../../../types/elements/readingPosition";
 import { ViewPosition } from "../../../types/elements/viewPosition";
-import ContentOriginPanel from "../ContentOriginPanel";
+import ContentOriginPanel from "../components/ContentOriginPanel";
 import ReaderCoreProvider from "./core/ReaderCoreProvider";
 import { learningAssetPlugins } from "./plugins";
 import { PluginParts, PluginProviders } from "./plugins/PluginHost";
@@ -23,9 +23,8 @@ interface LearningAssetViewProps {
 }
 
 /**
- * Renders a learning asset as a virtualized stack of splits (the reader core),
- * with every feature on top of it — read point, marks, search — added as a
- * plugin from `plugins/`.
+ * A learning asset as a virtualized stack of splits (the reader core), with every feature (read point,
+ * marks, search) a plugin from `plugins/`.
  */
 export default function LearningAssetView({
 	learningAssetId,

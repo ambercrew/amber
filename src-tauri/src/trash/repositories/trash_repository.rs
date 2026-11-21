@@ -7,19 +7,16 @@ use crate::trash::value_objects::trashed_element::TrashedElement;
 
 #[async_trait]
 pub trait TrashRepository: Send + Sync {
-    /// Moves the element and its subtree to the trash. The element becomes a
-    /// trash root; descendants already trashed on their own keep their own
-    /// root and timestamp instead of being resurrected on restore. Returns the ids
-    /// that were newly trashed.
+    /// Trashes the element and its subtree as a new trash root; descendants trashed on their own keep their
+    /// root and time, so a restore doesn't bring them back. Returns the ids newly trashed.
     async fn trash(
         &self,
         id: ElementId,
         trashed_at: DateTime<Utc>,
     ) -> Result<Vec<ElementId>, RepositoryError>;
 
-    /// Restores the element and the subtree trashed with it. Descendants that
-    /// are trash roots of their own stay behind. Returns the ids that were
-    /// actually restored.
+    /// Restores the element and the subtree trashed with it, leaving descendants that are trash roots
+    /// themselves. Returns the ids restored.
     async fn restore(&self, id: ElementId) -> Result<Vec<ElementId>, RepositoryError>;
 
     /// The elements the user explicitly trashed, most recently trashed first.

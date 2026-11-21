@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::anki_sync::anki_connect::AnkiConnectError;
+use crate::anki_sync::clients::anki_connect::AnkiConnectError;
 use crate::anki_sync::package::writer::AnkiPackageError;
 use crate::anki_sync::services::sync_frontend::SyncFrontendError;
 use crate::common::repository_error::RepositoryError;
@@ -93,9 +93,8 @@ pub struct AnkiDeckChoice {
     pub import: bool,
 }
 
-/// Keeps Anki desktop in step with Amber through the AnkiConnect add-on: each side gets the cards made on
-/// the other, a card's content belongs to the side that made it, reviews from either side reach the other,
-/// and a card deleted on one side goes on the other: to the trash in Amber, for good in Anki.
+/// Keeps Anki desktop in step with Amber over AnkiConnect: new cards and reviews go both ways, content
+/// belongs to the side that made it, and a deletion carries over (to Amber's trash, for good in Anki).
 #[async_trait]
 pub trait AnkiSyncService: Send + Sync {
     async fn status(&self) -> Result<AnkiSyncStatus, AnkiSyncError>;

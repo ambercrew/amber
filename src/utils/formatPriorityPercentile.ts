@@ -2,10 +2,8 @@
 export const PRIORITY_PERCENTILE_DECIMALS = 2;
 
 /**
- * A priority's percentile as it is shown to the user, e.g.
- * "42.50%". Priorities are always displayed with the same number of
- * decimals so the same value never appears in two different formats across
- * the UI.
+ * A priority's percentile as shown (e.g. "42.50%"), always with the same decimals
+ * so a value never appears in two formats.
  */
 export function formatPriorityPercentile(percentile: number): string {
 	return `${percentile.toFixed(PRIORITY_PERCENTILE_DECIMALS)}%`;

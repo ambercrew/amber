@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useDebouncedCallback } from "@mantine/hooks";
 import useAppDispatch from "./useAppDispatch";
 import useAppSelector from "./useAppSelector";
-import { selectSettings } from "../stores/settings/settingsSelector";
+import { selectSettings } from "../stores/settings/settingsSelectors";
 import { saveSettings } from "../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../api/settings/dto/updateSettingsRequestDto";
 import { isMobile, tryGetCurrentWebView } from "../utils/tauriUtils";
@@ -10,9 +10,8 @@ import { ZOOM_STEP, clampZoom } from "../utils/zoom";
 import { selectCanZoomAppWide } from "../stores/elements/elementsSelectors";
 
 /**
- * Ctrl/Cmd+wheel zoom. Applies each tick to the webview immediately for
- * responsiveness, and persists the settled value (debounced) so a fast
- * scroll doesn't round-trip to the backend on every event.
+ * Ctrl/Cmd+wheel zoom, applied to the webview on each tick and saved debounced,
+ * so a fast scroll doesn't call the backend on every event.
  */
 export function useWheelZoom() {
 	const dispatch = useAppDispatch();

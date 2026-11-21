@@ -81,9 +81,8 @@ export function markdownToLexicalJson(markdown: string): string {
 }
 
 /**
- * Converts serialized Lexical nodes (e.g. from `$generateJSONFromSelectedNodes`)
- * into standalone serialized editor state JSON. `mutate` runs after insertion
- * and can further edit the tree via `$` node APIs before it's serialized.
+ * Turns serialized nodes (e.g. from `$generateJSONFromSelectedNodes`) into a standalone editor state;
+ * `mutate` can edit the tree with `$` APIs before it's serialized.
  */
 export function serializedNodesToLexicalJson(
 	nodes: SerializedLexicalNodeTree[],

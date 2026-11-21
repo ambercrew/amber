@@ -11,9 +11,8 @@ use crate::sync::errors::SyncError;
 
 #[async_trait]
 pub trait ProfileResolutionService: Send + Sync {
-    /// Resolves the effective profile for `element_id`, or the app-wide
-    /// default/oldest profile when `None` (e.g. a not-yet-created element
-    /// with no parent, whose own meta row doesn't exist yet to resolve against).
+    /// The effective profile for `element_id`, or the default (else oldest) profile for `None`, e.g. a
+    /// new element without a parent.
     async fn resolve_profile(
         &self,
         element_id: Option<ElementId>,

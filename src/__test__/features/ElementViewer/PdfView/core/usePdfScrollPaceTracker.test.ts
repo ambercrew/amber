@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StageHostCapability } from "@embedpdf/plugin-stage/contract/host";
 import { usePdfScrollPaceTracker } from "../../../../../features/ElementViewer/PdfView/core/usePdfScrollPaceTracker";
-import { SCROLL_SETTLE_IN_MILLISECONDS } from "../../../../../features/ElementViewer/scrollPace";
+import { SCROLL_SETTLE_IN_MILLISECONDS } from "../../../../../features/ElementViewer/utils/scrollPace";
 
 const VIEWPORT_HEIGHT_IN_PX = 800;
 

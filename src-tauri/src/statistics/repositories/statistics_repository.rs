@@ -14,9 +14,8 @@ pub trait StatisticsRepository: Send + Sync {
         date: NaiveDate,
     ) -> Result<ElementCounts, RepositoryError>;
 
-    /// Card and learning asset reviews since `since`, per local calendar day, oldest first.
-    /// Each review's time counts up to `max_review_duration_ms`; finishes made outside a
-    /// study session are left out.
+    /// Card and learning asset reviews since `since` per local day, oldest first, each counting up to
+    /// `max_review_duration_ms`; finishes outside a study session are left out.
     async fn get_daily_activity_since(
         &self,
         since: DateTime<Utc>,

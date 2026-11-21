@@ -11,9 +11,8 @@ import ChatResponseDto from "../../../api/aiIntegration/dto/chatResponseDto";
 import useApi from "../../../hooks/useApi";
 
 /**
- * Owns the chat list, the selected chat, and its messages, plus the shared
- * state that are handed so every AI action surfaces through the
- * same error state.
+ * Owns the chat list, the selected chat and its messages, plus the shared state every AI action
+ * reports its errors through.
  */
 export default function useAiChats() {
 	const { callApi, isSendingRequest, errorMessage, clearErrorMessage } =
@@ -24,10 +23,8 @@ export default function useAiChats() {
 	const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 	const [messages, setMessages] = useState<MessageDto[]>([]);
 
-	// The streaming/upload callbacks close over the chat id at the time the
-	// request was sent; a `createdChat` event or a first upload can change
-	// the active chat mid-request, so it's kept in a ref (shared with those
-	// hooks) rather than relying on the possibly-stale selectedChatId.
+	// A `createdChat` event or a first upload can switch chats mid-request, so callbacks read the active
+	// chat from this ref (shared with those hooks), not a stale `selectedChatId`.
 	const activeChatIdRef = useRef<string | null>(selectedChatId);
 
 	const refreshChats = useCallback(async () => {

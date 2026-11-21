@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::{
     backend::{
-        backend_dto::{UpdatePasswordDto, UserInformationDto},
         clients::amber_backend_client::AmberBackendClient,
+        dto::backend_dto::{UpdatePasswordDto, UserInformationDto},
         dto::sign_up_request_dto::SignUpRequestDto,
         services::{authenticator::Authenticator, google_oauth_flow},
     },

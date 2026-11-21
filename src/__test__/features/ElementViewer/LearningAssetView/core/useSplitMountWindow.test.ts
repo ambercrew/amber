@@ -3,9 +3,9 @@ import { createElement, ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSplitMountWindow } from "../../../../../features/ElementViewer/LearningAssetView/core/useSplitMountWindow";
-import { SCROLL_SETTLE_IN_MILLISECONDS } from "../../../../../features/ElementViewer/scrollPace";
+import { SCROLL_SETTLE_IN_MILLISECONDS } from "../../../../../features/ElementViewer/utils/scrollPace";
 import { LearningAssetSplitMetaDto } from "../../../../../types/elements/learningAssetSplitMetaDto";
-import { MainScrollContext } from "../../../../../features/App/context/mainScrollContext";
+import { AppLayoutContext } from "../../../../../components/AppLayout/appLayoutContext";
 
 function makeSplits(count: number): LearningAssetSplitMetaDto[] {
 	return Array.from({ length: count }, (_, index) => ({
@@ -17,7 +17,7 @@ function makeSplits(count: number): LearningAssetSplitMetaDto[] {
 
 /**
  * The hook observes the main content area's scroll container, so it needs one
- * from `MainScrollContext` to attach its `IntersectionObserver` to.
+ * from `AppLayoutContext` to attach its `IntersectionObserver` to.
  */
 function renderSplitMountWindow(
 	props: {
@@ -28,7 +28,16 @@ function renderSplitMountWindow(
 ) {
 	return renderHook(() => useSplitMountWindow(props), {
 		wrapper: ({ children }: { children: ReactNode }) =>
-			createElement(MainScrollContext, { value: scroller }, children),
+			createElement(
+				AppLayoutContext,
+				{
+					value: {
+						mainScrollElement: scroller,
+						visibleAreaElement: null,
+					},
+				},
+				children,
+			),
 	});
 }
 
@@ -308,9 +317,8 @@ describe("useSplitMountWindow lock/unlock gating", () => {
 		expect(result.current.primarySeq).toBe(5);
 		expect(sorted(result.current.mountedSeqs)).toEqual([4, 5, 6]);
 
-		// Act: the real viewport hasn't caught up yet, so the observer still
-		// reports the old top split as intersecting — this must not override
-		// the lock.
+		// Act: the viewport hasn't caught up, so the observer still reports the old top split;
+		// this must not override the lock.
 
 		intersect(topSlot, true);
 

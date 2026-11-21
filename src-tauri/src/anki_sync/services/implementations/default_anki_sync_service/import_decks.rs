@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use super::DefaultAnkiSyncService;
 use super::plan::{SyncPlan, fields_hash};
-use crate::anki_sync::anki_connect::{cards_info, notes_info};
+use crate::anki_sync::clients::anki_connect::{cards_info, notes_info};
 use crate::anki_sync::notes::folder_paths;
 use crate::anki_sync::services::anki_sync_service::AnkiSyncError;
 use crate::anki_sync::services::sync_frontend::AnkiSyncStage;
