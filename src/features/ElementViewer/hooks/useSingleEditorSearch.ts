@@ -24,10 +24,8 @@ interface Counts {
 }
 
 /**
- * Aggregates find-in-page match counts across a small, fixed, always-mounted
- * set of editors (an extract's editor, or a card's front/back) in
- * `editorKeys` order. Counts reported for another `countKey` (an earlier
- * element or query) are ignored, so they're never mistaken for the current ones.
+ * Match counts across a fixed, always-mounted set of editors in `editorKeys` order; counts reported
+ * for another `countKey` (an earlier element or query) are ignored.
  */
 export function useSingleEditorSearch(
 	editorKeys: string[],

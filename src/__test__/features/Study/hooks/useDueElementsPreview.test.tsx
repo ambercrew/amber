@@ -26,6 +26,7 @@ function studyStateFor(status: "editing" | "studying") {
 		timedElementId: null,
 		timeSpent: {},
 		startedAt: null,
+		resume: null,
 	};
 }
 

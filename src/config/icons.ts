@@ -9,6 +9,7 @@ import {
 	ChatCircleTextIcon,
 	CheckSquareIcon,
 	CircleHalfIcon,
+	EraserIcon,
 	ClockCounterClockwiseIcon,
 	FileTextIcon,
 	FolderIcon,
@@ -90,6 +91,9 @@ export const AI_TOOL_ICONS: Record<string, Icon> = {
 	search_documents: AiDocumentIcon,
 	create_card: CardElementIcon,
 	create_cloze_card: TextboxIcon,
+	update_card: NotePencilIcon,
+	update_cloze_card: NotePencilIcon,
+	clear_leech: EraserIcon,
 	finish_extract: ELEMENT_STATUS_ICONS.finished,
 	search_open_element: MagnifyingGlassIcon,
 };

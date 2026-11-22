@@ -1,5 +1,5 @@
 import { createElement, ReactNode } from "react";
-import { runReadingCommand } from "../../../../../../commands/readingCommands";
+import { createReadingCommandStore } from "../../../../../test-utils/readingCommandStore";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReadingAnchors } from "../../../../../../features/ElementViewer/LearningAssetView/core/useReadingAnchors";
@@ -8,7 +8,7 @@ import { useReadPoint } from "../../../../../../features/ElementViewer/LearningA
 import { AUTO_SAVE_DELAY_IN_MILLISECONDS } from "../../../../../../config/constants";
 import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "../../../../../../features/ElementViewer/LearningAssetView/core/learningAssetViewConstants";
 import { ReadingPosition } from "../../../../../../types/elements/readingPosition";
-import { MainScrollContext } from "../../../../../../features/App/context/mainScrollContext";
+import { AppLayoutContext } from "../../../../../../components/AppLayout/appLayoutContext";
 
 const { updateReadPointMock } = vi.hoisted(() => ({
 	updateReadPointMock: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock("../../../../../../managers/closeRequestedEventManager", () => ({
 	},
 }));
 
-vi.mock("../../../../../../stores/sync/managers/syncEventManager", () => ({
+vi.mock("../../../../../../managers/syncEventManager", () => ({
 	defaultGlobalSyncEventManager: {
 		addListener: vi.fn(),
 		removeListener: vi.fn(),
@@ -76,9 +76,10 @@ const BOTTOMS_TOP_VISIBLE_IS_TWO = [10, 10, 100, 100, 100];
 // Every block is on screen, so a tracked caret counts as visible.
 const BOTTOMS_ALL_ON_SCREEN = [100, 100, 100, 100, 100];
 
-/** A stand-in for the main content area's scroll container, whose bottom edge
- * matches jsdom's default `window.innerHeight` (768) so "is at document end"
- * checks behave the same as when the window itself used to scroll. */
+/**
+ * Stands in for the main scroll container, its bottom at jsdom's `window.innerHeight` (768),
+ * so "at document end" checks behave as with the window scrolling.
+ */
 function makeScrollElement(): HTMLElement {
 	// Spans the window like the app's, with the header covering its top.
 	const scrollElement = document.createElement("div");
@@ -86,6 +87,8 @@ function makeScrollElement(): HTMLElement {
 	scrollElement.getBoundingClientRect = () => rect(768);
 	return scrollElement;
 }
+
+let readingCommands = createReadingCommandStore();
 
 function renderReadPoint(overrides: {
 	root: HTMLElement | undefined;
@@ -117,7 +120,6 @@ function renderReadPoint(overrides: {
 			const { onViewportChange } = useViewportChange(scrollElement);
 			const readPoint = useReadPoint({
 				learningAssetId,
-				primarySeq,
 				initial,
 				getContentRoot,
 				lastSplitSeq,
@@ -131,9 +133,18 @@ function renderReadPoint(overrides: {
 		{
 			wrapper: ({ children }: { children: ReactNode }) =>
 				createElement(
-					MainScrollContext,
-					{ value: scrollElement },
-					children,
+					readingCommands.wrapper,
+					null,
+					createElement(
+						AppLayoutContext,
+						{
+							value: {
+								mainScrollElement: scrollElement,
+								visibleAreaElement: null,
+							},
+						},
+						children,
+					),
 				),
 		},
 	);
@@ -142,6 +153,7 @@ function renderReadPoint(overrides: {
 
 describe("useReadPoint", () => {
 	beforeEach(() => {
+		readingCommands = createReadingCommandStore();
 		vi.useFakeTimers();
 		updateReadPointMock.mockResolvedValue(undefined);
 		window.scrollBy = vi.fn();
@@ -208,9 +220,8 @@ describe("useReadPoint", () => {
 		// Arrange
 
 		const root = makeRoot(5);
-		// The last block's bottom edge (100) is within the viewport
-		// (jsdom's default window.innerHeight is 768), so the reader has
-		// scrolled all the way to the end of this, the learning asset's last split.
+		// The last block's bottom (100) is inside jsdom's 768px viewport, so the reader is at
+		// the end of the asset's last split.
 		setBlockBottoms(root, BOTTOMS_TOP_VISIBLE_IS_TWO);
 		const restoredRef = { current: true };
 		const { scrollElement } = renderReadPoint({
@@ -430,7 +441,7 @@ describe("useReadPoint", () => {
 		});
 		act(() => {
 			result.current.trackCursor(4, 3);
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 		});
 
 		// Act
@@ -464,7 +475,7 @@ describe("useReadPoint", () => {
 		await act(async () => {
 			result.current.recordExtractReadPoint(4, 1);
 			result.current.trackCursor(4, 3);
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -496,7 +507,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -527,7 +538,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -558,7 +569,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -591,7 +602,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -619,7 +630,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -650,7 +661,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 		await act(async () => {
@@ -682,7 +693,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "clear-read-point" });
+			readingCommands.send({ type: "clear-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -710,7 +721,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "clear-read-point" });
+			readingCommands.send({ type: "clear-read-point" });
 			await vi.runAllTimersAsync();
 		});
 		await act(async () => {
@@ -748,7 +759,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -774,7 +785,7 @@ describe("useReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "clear-read-point" });
+			readingCommands.send({ type: "clear-read-point" });
 			await vi.runAllTimersAsync();
 		});
 

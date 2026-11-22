@@ -1,8 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
-import { runReadingCommand } from "../../../../../commands/readingCommands";
+import { createReadingCommandStore } from "../../../../test-utils/readingCommandStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePdfReadPoint } from "../../../../../features/ElementViewer/PdfView/readPoint/usePdfReadPoint";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
+import { PdfViewPosition } from "../../../../../types/elements/pdfViewPosition";
 
 const { updateReadPointMock, stageEvents, notificationsShowMock } = vi.hoisted(
 	() => ({
@@ -33,9 +34,8 @@ vi.mock("@mantine/notifications", () => ({
 	notifications: { show: notificationsShowMock },
 }));
 
-// useAutoSave wires itself into the app-close and sync managers (both backed
-// by Tauri) on mount. Stub them so the hook exercises only its save/flush
-// logic.
+// useAutoSave hooks into the Tauri-backed app-close and sync managers on mount;
+// stub them so only its save and flush logic runs.
 vi.mock("../../../../../managers/closeRequestedEventManager", () => ({
 	defaultCloseRequestedEventManager: {
 		addHandler: vi.fn(),
@@ -43,7 +43,7 @@ vi.mock("../../../../../managers/closeRequestedEventManager", () => ({
 	},
 }));
 
-vi.mock("../../../../../stores/sync/managers/syncEventManager", () => ({
+vi.mock("../../../../../managers/syncEventManager", () => ({
 	defaultGlobalSyncEventManager: {
 		addListener: vi.fn(),
 		removeListener: vi.fn(),
@@ -84,24 +84,31 @@ const PAGE_COUNT = 10;
 /** Rerenders the last rendered hook as the core does once the first layout is ready. */
 let finishLayout: () => void;
 
+let readingCommands = createReadingCommandStore();
+
 function renderPdfReadPoint(overrides: {
 	initial: ReadingPosition;
+	initialViewPosition?: PdfViewPosition;
 	getMenuPage?: () => number | null;
 }) {
-	const { initial, getMenuPage } = overrides;
+	const { initial, initialViewPosition, getMenuPage } = overrides;
 	const rendered = renderHook(
 		({ layoutReady }) =>
 			usePdfReadPoint({
 				learningAssetId: LEARNING_ASSET_ID,
 				documentId: DOCUMENT_ID,
 				initial,
+				initialViewPosition,
 				layoutReady,
 				pageCount: PAGE_COUNT,
 				goToPage,
 				getCurrentPage: capability.getCurrentPage,
 				getMenuPage,
 			}),
-		{ initialProps: { layoutReady: false } },
+		{
+			initialProps: { layoutReady: false },
+			wrapper: readingCommands.wrapper,
+		},
 	);
 	finishLayout = () => rendered.rerender({ layoutReady: true });
 	return rendered;
@@ -111,6 +118,7 @@ let capability: ReturnType<typeof createFakeScrollCapability>["capability"];
 
 describe("usePdfReadPoint", () => {
 	beforeEach(() => {
+		readingCommands = createReadingCommandStore();
 		vi.useFakeTimers();
 		updateReadPointMock.mockResolvedValue(undefined);
 		const fake = createFakeScrollCapability();
@@ -137,6 +145,44 @@ describe("usePdfReadPoint", () => {
 		expect(goToPage).toHaveBeenCalledWith(4, {
 			behavior: "instant",
 		});
+	});
+
+	it("Should land on the view position instead of the read point when one is given", () => {
+		// Arrange
+
+		const position = { pageIndex: 6, fractionX: 0, fractionY: 0.3 };
+		renderPdfReadPoint({
+			initial: { split: 4, block: 0 },
+			initialViewPosition: position,
+		});
+
+		// Act
+
+		finishLayout();
+
+		// Assert
+
+		expect(goToPage).toHaveBeenCalledWith(7, {
+			behavior: "instant",
+			position,
+		});
+	});
+
+	it("Should fall back to the read point when the view position's page is gone", () => {
+		// Arrange
+
+		renderPdfReadPoint({
+			initial: { split: 4, block: 0 },
+			initialViewPosition: { pageIndex: 40, fractionX: 0, fractionY: 0 },
+		});
+
+		// Act
+
+		finishLayout();
+
+		// Assert
+
+		expect(goToPage).toHaveBeenCalledWith(4, { behavior: "instant" });
 	});
 
 	it("Should clamp the restored page to the document's total page count", () => {
@@ -263,7 +309,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -291,7 +337,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -316,7 +362,7 @@ describe("usePdfReadPoint", () => {
 			});
 		});
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -350,7 +396,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "clear-read-point" });
+			readingCommands.send({ type: "clear-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -368,7 +414,7 @@ describe("usePdfReadPoint", () => {
 		renderPdfReadPoint({ initial: { split: 4, block: 0 } });
 		finishLayout();
 		await act(async () => {
-			runReadingCommand({ type: "clear-read-point" });
+			readingCommands.send({ type: "clear-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -400,7 +446,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "go-to-read-point" });
+			readingCommands.send({ type: "go-to-read-point" });
 		});
 
 		// Assert
@@ -419,7 +465,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "go-to-read-point" });
+			readingCommands.send({ type: "go-to-read-point" });
 		});
 
 		// Assert
@@ -460,7 +506,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "go-to-read-point" });
+			readingCommands.send({ type: "go-to-read-point" });
 		});
 
 		// Assert
@@ -539,7 +585,7 @@ describe("usePdfReadPoint", () => {
 			});
 		});
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 
@@ -581,7 +627,7 @@ describe("usePdfReadPoint", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "set-read-point" });
+			readingCommands.send({ type: "set-read-point" });
 			await vi.runAllTimersAsync();
 		});
 

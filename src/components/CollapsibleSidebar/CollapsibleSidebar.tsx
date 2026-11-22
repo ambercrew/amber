@@ -21,15 +21,13 @@ export interface SidebarTab {
 	icon: ReactNode;
 	panel: ReactNode;
 	/**
-	 * Whether the sidebar should scroll the panel's content for it.
-	 * Set to false when the panel manages its own height and scrolling.
-	 * Defaults to true.
+	 * Whether the sidebar scrolls the panel's content (default true); false when the panel
+	 * handles its own height and scrolling.
 	 */
 	scrollable?: boolean;
 	/**
-	 * Whether the sidebar should apply the common panel padding
-	 * around the panel's content. Set to false when the panel manages its
-	 * own padding. Defaults to true.
+	 * Whether the sidebar pads the panel's content (default true); false when the panel
+	 * handles its own padding.
 	 */
 	padded?: boolean;
 }

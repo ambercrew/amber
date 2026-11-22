@@ -5,11 +5,11 @@ use uuid::Uuid;
 
 use super::DefaultAnkiSyncService;
 use super::{FILTERED_CARDS_QUERY, SUSPENDED_CARDS_QUERY};
-use crate::anki_sync::anki_connect::{
+use crate::anki_sync::card_decision::{CardDecision, CardSides, decide};
+use crate::anki_sync::clients::anki_connect::{
     AnkiReview, AnkiReviewRow, anki_today, answer_cards, card_schedules, forget_cards,
     insert_reviews, reviews_of_cards, set_cards_values, set_due_date, suspend_cards,
 };
-use crate::anki_sync::card_decision::{CardDecision, CardSides, decide};
 use crate::anki_sync::entities::anki_card_pair::AnkiCardPair;
 use crate::anki_sync::entities::synced_schedule::SyncedSchedule;
 use crate::anki_sync::events::replay_card_reviews_event::{CardHistoryDto, HistoryReviewDto};
@@ -176,9 +176,8 @@ impl DefaultAnkiSyncService {
         })
     }
 
-    /// Merges both sides' reviews. Amber reschedules cards that got reviews from their whole history,
-    /// replayed on the frontend; the side that reviewed last decides the due date, unless one was moved
-    /// without a review after every review, which then goes to the other side.
+    /// Merges both sides' reviews; cards that got reviews are replayed from their whole history. The side
+    /// that reviewed last sets the due date, unless a later manual move does.
     pub(super) async fn prepare_reviews(
         &self,
         profile: &str,

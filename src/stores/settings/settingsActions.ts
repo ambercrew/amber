@@ -6,9 +6,10 @@ import { AppDispatch } from "../store";
 import { setSettings } from "./settingsReducer";
 import UpdateSettingsRequestDto from "../../api/settings/dto/updateSettingsRequestDto";
 
-/** Loads the settings into the store. Applying them (theme, zoom, body
- * classes, sync-on-close) is handled reactively by the `SettingsSync`
- * component, not here. */
+/**
+ * Loads the settings into the store; `SettingsSync` applies them (theme, zoom,
+ * body classes, sync-on-close).
+ */
 export function loadSettings() {
 	return async function (dispatch: AppDispatch) {
 		const settings = await getSettings();

@@ -3,7 +3,7 @@ import {
 	CLOZE_HIDDEN_ATTRIBUTE,
 	CLOZE_HIDDEN_TAG_NAME,
 	CLOZE_PLACEHOLDER,
-} from "../../../../components/Editor/plugins/ClozePlugin/ClozeHiddenNode";
+} from "../../../../components/Editor/plugins/ClozePlugin/clozeHiddenConstants";
 import { CreateCardDto } from "../../../../types/elements/createCardDto";
 import { CreateExtractDto } from "../../../../types/elements/createExtractDto";
 import { ElementId } from "../../../../types/elements/elementId";

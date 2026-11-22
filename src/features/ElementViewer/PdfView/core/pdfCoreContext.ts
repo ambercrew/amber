@@ -1,5 +1,6 @@
 import { createContext, use } from "react";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
+import { PdfViewPosition } from "../../../../types/elements/pdfViewPosition";
 import { GoToPage } from "./usePdfNavigator";
 
 export interface PdfCoreValue {
@@ -7,6 +8,8 @@ export interface PdfCoreValue {
 	documentId: string;
 	/** Read point to restore to on open; `split` is the 1-based page. */
 	initialReadPoint: ReadingPosition;
+	/** Spot to open at in place of the read point, e.g. revisiting a study session's element. */
+	initialViewPosition?: PdfViewPosition;
 	pageCount: number;
 	/** Set once the first layout is ready and the saved zoom applied, so a restoring jump lands at the right scale. */
 	layoutReady: boolean;

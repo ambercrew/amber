@@ -10,16 +10,17 @@ export const selectElementTreeError = (state: RootState) =>
 export const selectCurrentElement = (state: RootState) =>
 	state.elements.currentElement;
 
-/** A view with its own independent zoom (e.g. the PDF viewer, see
- * `PdfToolbar`) registers itself via `setZoomOwnedByCurrentView` — the
- * app-wide zoom shortcuts and ctrl/cmd+wheel gesture must leave it alone
- * instead of scaling the whole app UI underneath the view's own zoom. */
+/**
+ * A view with its own zoom (e.g. the PDF viewer) registers through `setZoomOwnedByCurrentView`, so the
+ * app-wide zoom shortcuts and wheel gesture leave it alone.
+ */
 export const selectCanZoomAppWide = (state: RootState) =>
 	!state.elements.zoomOwnedByCurrentView;
 
-/** A live element always appears in the tree; trashing removes it (and its
- * whole subtree) from the tree query while leaving the row in place, so
- * "loaded but absent from the tree" is what being trashed looks like. */
+/**
+ * Trashing removes an element and its subtree from the tree but keeps its row, so
+ * loaded but missing from the tree means trashed.
+ */
 export const selectCurrentElementIsTrashed = createSelector(
 	[
 		selectElementTree,

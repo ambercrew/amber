@@ -38,9 +38,8 @@ export function loadUserState() {
 			return;
 		}
 
-		// Show the last known profile right away (as offline) so the user isn't
-		// left looking signed-out while the network call below — which can take
-		// a while to fail through its retry/backoff chain — is still pending.
+		// Show the last known profile at once (as offline) rather than looking signed out while
+		// the call below, which can retry for a while, is pending.
 		const cached = loadCachedUserInformation();
 		if (cached) dispatch(setOfflineUserInformation(cached));
 

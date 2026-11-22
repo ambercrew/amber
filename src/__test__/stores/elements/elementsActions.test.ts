@@ -4,10 +4,14 @@ import {
 	loadCurrentElementAction,
 	loadElementTree,
 	moveElementAction,
+	reloadEditedCurrentElementAction,
 	renameElementAction,
 	setDerivedFromAction,
 } from "../../../stores/elements/elementsActions";
-import { setElementName } from "../../../stores/elements/elementsReducer";
+import {
+	setCurrentElement,
+	setElementName,
+} from "../../../stores/elements/elementsReducer";
 import {
 	elementExists,
 	getElementById,
@@ -43,6 +47,13 @@ const PROFILE: StudyProfileDto = {
 	initialIntervalMultiplier: 1.2,
 	initialIntervalDays: 1,
 	minIntervalDays: 1,
+	maximumIntervalDays: 36500,
+	newCardsPerDay: 20,
+	leechThreshold: 8,
+	leechAction: "tagOnly",
+	cardInitialIntervalDays: 1,
+	buryNewSiblings: false,
+	buryReviewSiblings: false,
 	priorityInheritancePolicy: {
 		placement: { type: "aboveParent" },
 		ceilingPercentile: null,
@@ -84,6 +95,49 @@ const DETAILS: ElementDetailsResponseDto = {
 	status: "active",
 	priority: { position: 1, total: 1, percentile: 0 },
 };
+
+describe("reloadEditedCurrentElementAction", () => {
+	it("Should reload the open card and remount its view when it is among the edited cards", async () => {
+		// Arrange
+
+		vi.mocked(elementExists).mockResolvedValue(true);
+		vi.mocked(getElementById).mockResolvedValue(CARD_ELEMENT);
+		vi.mocked(getElementDetails).mockResolvedValue(DETAILS);
+		const store = setupStore();
+		store.dispatch(setCurrentElement(CARD_ELEMENT));
+		const refreshCountBefore = store.getState().sync.elementRefreshCount;
+
+		// Act
+
+		await store.dispatch(reloadEditedCurrentElementAction([ELEMENT_ID.id]));
+
+		// Assert
+
+		expect(getElementById).toHaveBeenCalledWith(ELEMENT_ID);
+		expect(store.getState().sync.elementRefreshCount).toBe(
+			refreshCountBefore + 1,
+		);
+	});
+
+	it("Should leave the open element alone when another card was edited", async () => {
+		// Arrange
+
+		const store = setupStore();
+		store.dispatch(setCurrentElement(CARD_ELEMENT));
+		const refreshCountBefore = store.getState().sync.elementRefreshCount;
+
+		// Act
+
+		await store.dispatch(reloadEditedCurrentElementAction(["other-card"]));
+
+		// Assert
+
+		expect(getElementById).not.toHaveBeenCalled();
+		expect(store.getState().sync.elementRefreshCount).toBe(
+			refreshCountBefore,
+		);
+	});
+});
 
 describe("loadCurrentElementAction", () => {
 	it("Should resolve to false and leave currentElement untouched when the element does not exist", async () => {

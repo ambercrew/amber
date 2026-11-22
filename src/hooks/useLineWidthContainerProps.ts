@@ -1,7 +1,7 @@
 import { ContainerProps } from "@mantine/core";
 import useAppSelector from "./useAppSelector";
 import { LineWidth } from "../api/settings/dto/settingsDto";
-import { selectSettings } from "../stores/settings/settingsSelector";
+import { selectSettings } from "../stores/settings/settingsSelectors";
 
 const LINE_WIDTH_CONTAINER_PROPS: Record<LineWidth, ContainerProps> = {
 	Narrow: { size: "sm" },

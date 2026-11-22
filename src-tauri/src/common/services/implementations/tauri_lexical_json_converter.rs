@@ -37,6 +37,7 @@ impl<R: tauri::Runtime> LexicalJsonConverter for TauriLexicalJsonConverter<R> {
             .map_err(|err| match err {
                 RequestBridgeError::Emit => LexicalJsonConverterError::Emit,
                 RequestBridgeError::Timeout => LexicalJsonConverterError::Timeout,
+                RequestBridgeError::Failed(message) => LexicalJsonConverterError::Failed(message),
             })
     }
 }

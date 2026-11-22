@@ -27,9 +27,8 @@ vi.mock("@tauri-apps/api/core", async importOriginal => ({
 		`http://${protocol}.localhost/${encodeURIComponent(path)}`,
 }));
 
-// Real `listen` reaches into Tauri internals jsdom doesn't provide. Tests
-// that care about a specific backend event mock this module themselves and
-// capture the handler instead.
+// The real `listen` needs Tauri internals jsdom lacks; tests about a specific event
+// mock this module themselves and capture the handler.
 vi.mock("@tauri-apps/api/event", () => ({
 	listen: vi.fn().mockResolvedValue(() => {
 		/* Empty */
@@ -93,9 +92,8 @@ class ResizeObserver {
 
 window.ResizeObserver = ResizeObserver;
 
-// jsdom has no layout engine, so IntersectionObserver isn't implemented.
-// Report everything as intersecting so components relying on useInViewport
-// (e.g. lazy-rendered images) behave as if visible during tests.
+// jsdom has no layout, so report everything as intersecting and components using
+// useInViewport (e.g. lazy images) behave as visible.
 class IntersectionObserver {
 	constructor(
 		private callback: (

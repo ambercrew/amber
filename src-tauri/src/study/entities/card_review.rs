@@ -24,7 +24,9 @@ impl CardReview {
         CardReview {
             card_id,
             due: start_of_today_utc()
-                + Duration::seconds((profile.initial_interval_days as f64 * 86400.0).round() as i64),
+                + Duration::seconds(
+                    (profile.card_initial_interval_days as f64 * 86400.0).round() as i64,
+                ),
             stability: 0.0,
             difficulty: 0.0,
             reps: 0,

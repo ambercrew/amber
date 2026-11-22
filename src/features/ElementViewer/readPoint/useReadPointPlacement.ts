@@ -1,15 +1,20 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { updateReadPoint } from "../../../api/elements/api/elementsApi";
 import useApi from "../../../hooks/useApi";
 import { ReadingPosition } from "../../../types/elements/readingPosition";
 import { isSamePosition } from "./readingPosition";
 import useAutoSave from "../hooks/useAutoSave";
-import { canPlaceReadPoint, ReadPointSource } from "./readPointPrecedence";
+import { canPlaceReadPoint } from "./readPointPrecedence";
+import { ReadPointSource } from "../../../types/elements/readPointSource";
 
 interface Props {
 	learningAssetId: string;
 	/** Read point saved when the learning asset was opened. */
 	initial: ReadingPosition;
+	/** Precedence to open with, as a study session's Return keeps the last visit's; else automatic tracking. */
+	resumeSource?: ReadPointSource;
+	/** Called on unmount with the precedence the read point was left at. */
+	onLeave?: (source: ReadPointSource) => void;
 }
 
 interface ReturnValue {
@@ -17,7 +22,7 @@ interface ReturnValue {
 	place: (readPoint: ReadingPosition, source: ReadPointSource) => boolean;
 	/** Whether a placement from `source` would currently be accepted. */
 	accepts: (source: ReadPointSource) => boolean;
-	/** Forgets earlier placements, as on a fresh open. */
+	/** Forgets this opening's placements, back to the precedence it opened with. */
 	reset: () => void;
 }
 
@@ -25,8 +30,17 @@ interface ReturnValue {
 export function useReadPointPlacement({
 	learningAssetId,
 	initial,
+	resumeSource = "automatic",
+	onLeave,
 }: Props): ReturnValue {
-	const sourceRef = useRef<ReadPointSource>("automatic");
+	const [openingSource] = useState(resumeSource);
+	const sourceRef = useRef(openingSource);
+	const onLeaveRef = useRef(onLeave);
+	useEffect(() => {
+		onLeaveRef.current = onLeave;
+	}, [onLeave]);
+	// Declared before the PDF view's own reset on unmount, so it reports the visit's precedence.
+	useEffect(() => () => onLeaveRef.current?.(sourceRef.current), []);
 	const lastSavedRef = useRef(initial);
 
 	const { callApi } = useApi();
@@ -56,8 +70,8 @@ export function useReadPointPlacement({
 		[onContentUpdate],
 	);
 	const reset = useCallback(() => {
-		sourceRef.current = "automatic";
-	}, []);
+		sourceRef.current = openingSource;
+	}, [openingSource]);
 
 	return { place, accepts, reset };
 }

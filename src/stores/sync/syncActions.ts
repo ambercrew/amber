@@ -6,7 +6,7 @@ import { setIsSyncing } from "./syncReducer";
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "./managers/syncEventManager";
+} from "../../managers/syncEventManager";
 import {
 	selectIsOffline,
 	selectIsSignedIn,

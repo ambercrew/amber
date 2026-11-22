@@ -23,12 +23,14 @@ pub type AnkiImportProgress = Arc<dyn Fn(usize) -> bool + Send + Sync>;
 #[cfg_attr(test, automock)]
 pub trait AnkiImportService: Send + Sync {
     /// Imports an `.apkg`/`.colpkg` package: a folder per deck and subdeck holding its cards and
-    /// image occlusions. Returns the first top-level folder.
+    /// image occlusions. Top-level folders get `tags` (`None` copies the parent's). Returns the
+    /// first top-level folder.
     async fn import_package(
         &self,
         bytes: Vec<u8>,
         parent: Option<ElementId>,
         bibliographical_source_id: Option<Uuid>,
+        tags: Option<Vec<String>>,
     ) -> Result<Option<ElementId>, AnkiImportError>;
 
     /// Imports only the `wanted` Anki cards of a package, the way `import_package` does, into the

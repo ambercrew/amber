@@ -1,7 +1,6 @@
 /**
- * Whether the on-screen keyboard is suppressed while editing. It describes the
- * device in front of the user (a tablet being read on, say) rather than the
- * account, so it lives in localStorage instead of the synced settings.
+ * Whether the on-screen keyboard is suppressed while editing. It describes the device, not the
+ * account, so it's in localStorage rather than the synced settings.
  */
 
 const KEY = "virtualKeyboardSuppressed";

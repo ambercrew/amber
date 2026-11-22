@@ -1,4 +1,4 @@
-import { FileFormat } from "../fileFormat";
+import { FileFormat } from "../utils/fileFormat";
 import { extractEpub } from "./extract";
 
 export const epubFormat: FileFormat = {
@@ -11,5 +11,5 @@ export const epubFormat: FileFormat = {
 		head[1] === 0x4b &&
 		head[2] === 0x03 &&
 		head[3] === 0x04,
-	extract: bytes => extractEpub(bytes),
+	extract: extractEpub,
 };

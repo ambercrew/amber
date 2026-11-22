@@ -7,6 +7,8 @@ pub enum LexicalJsonConverterError {
     Emit,
     #[error("The frontend did not respond to the conversion request in time")]
     Timeout,
+    #[error("{0}")]
+    Failed(String),
 }
 
 /// Converts Markdown into serialized Lexical editor state JSON

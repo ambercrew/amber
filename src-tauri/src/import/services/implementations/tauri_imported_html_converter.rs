@@ -46,6 +46,9 @@ impl<R: tauri::Runtime> ImportedHtmlConverter for TauriImportedHtmlConverter<R> 
                 .map_err(|err| match err {
                     RequestBridgeError::Emit => ImportedHtmlConverterError::Emit,
                     RequestBridgeError::Timeout => ImportedHtmlConverterError::Timeout,
+                    RequestBridgeError::Failed(message) => {
+                        ImportedHtmlConverterError::Failed(message)
+                    }
                 })?;
             match serde_json::from_str(&response) {
                 Ok(ConvertImportedHtmlResponseDto::Contents(contents))

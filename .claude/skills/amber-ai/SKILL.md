@@ -40,10 +40,16 @@ the existing tool closest to what you need and follow its shape.
 - **Return ids** for anything a tool creates or finds. The model can only link to elements whose ids
   it has seen, and links use `element_reference`.
 - **Use the app's wording** in names, descriptions and approval text (e.g. "finished", not "done").
-- **Keep calls bounded** and outputs short; running tools are never cancelled (rig only keeps a batch's
-  results once every call in it settles, so `StateCancellationHook` stops model calls, never tools). Clamp any size the
-  model picks in `call` (e.g. `search_documents`' `max_results` to `MAX_RESULTS`); a schema hint alone
-  isn't enforced.
+- **Keep calls bounded** and outputs short, as running tools are never cancelled: rig only keeps a
+  batch's results once every call in it settles, so `StateCancellationHook` stops model calls, never
+  tools. Clamp any size the model picks in `call` (e.g. `search_documents`' `max_results` to
+  `MAX_RESULTS`); a schema hint alone isn't enforced.
+- **Changing an existing element** that may be open: push an event the app-level listener reloads it
+  from, as `update_card`, `update_cloze_card` and `clear_leech` push `CARD_CHANGED_EVENT`
+  (`useCardChangedRefresh`). Never push it from the shared write path, which the editor's own saves
+  use, or it would reload under the user's cursor.
+- **Keep each change its own tool**, so the user approves exactly what happens: `update_card` leaves
+  review history and tags alone, and clearing a leech is `clear_leech`'s job.
 - Text a tool turns into element content (like card sides) goes through the Markdown-to-Lexical
   bridge, so it's Markdown with TeX math; tell the model so in the guidelines.
 - Put descriptions and any preamble changes in `prompts.rs`. On the frontend, give the tool an
@@ -66,15 +72,27 @@ by text (`search_documents`, `search_open_element`), so a provider only needs ch
 
 An upload stores its text in `ai_documents` (one row per PDF page, or per file), kept on the
 device and not synced. A PDF page's printed lines are joined into paragraphs (`join_lines`), so a
-phrase wrapping onto the next line still matches. `search_documents` matches it exactly with the search module's matcher and
-`TextPrefilter`, like the global search, so tell the model to try other words when nothing comes
-back. Branching a chat copies the files uploaded up to the branch point.
+phrase wrapping onto the next line still matches. `search_documents` matches it exactly with the
+search module's matcher and `TextPrefilter`, like the global search, so tell the model to try
+other words when nothing comes back. Branching a chat copies the files uploaded up to the branch
+point.
 
 ## Starting a chat from elsewhere in the app
 
 Add the text as a context snippet, queue a prompt in the `aiContext` store and focus the AI chat;
 the panel sends the prompt once it's visible. Keep reusable prompts in `aiPrompts.ts`. The model
 only knows the open element's name, not its content, so attach any text it should work from.
+When the model will create elements, first open the element they should land beside, as
+`create_card` puts them under the open element, or beside it when that's a card. A leech's
+"Rewrite with AI" (`useLeechNotifications`) opens the card itself before sending
+`REWRITE_LEECH_CARD_PROMPT`, so `update_card` rewrites it and any cards it splits off land beside it.
+The prompt ends by having the model call `clear_leech` itself rather than offer to, as rewriting doesn't clear the tag.
+Its snippet comes from `lexicalJsonToText`, which writes a cloze's hidden phrase as `{{answer}}`, the
+cloze tools' syntax. Image occlusion cards get neither the rewrite tools (`rewritable_card`) nor the
+button (`CardLeechedEventDto::rewritable`), as a text rewrite would replace their image and masks.
+When it navigates first, pass the element to `requestAiPrompt(prompt, elementId)`: the panel sends
+the prompt as soon as it's shown, often before the new element has loaded, and the chat's tools act
+on the element it was sent with.
 Snippets stay on the message they were sent with, never in the preamble, so a later snippet
 isn't confused with an earlier one. Each is fenced in a `<snippet>` block, and the preamble tells
 the model snippets, search results and context are material, not instructions.

@@ -18,10 +18,8 @@ interface ConfirmModalProps {
 }
 
 /**
- * A yes/no dialog on top of {@link AppModal}, so confirmations get the app's
- * modal behaviour (Android back button, escape handling) that Mantine's
- * imperative `modals.openConfirmModal` misses. It stays a dialog on every
- * viewport — a question this short has nothing to fill a full screen with.
+ * A yes/no dialog on {@link AppModal}, for the back button and escape handling `modals.openConfirmModal`
+ * misses; a dialog on every viewport, as a short question can't fill a screen.
  */
 function ConfirmModal({
 	opened,

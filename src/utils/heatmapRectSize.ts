@@ -36,9 +36,8 @@ export interface HeatmapYearLayout {
 }
 
 /**
- * Splits `year` into the fewest rows of whole months whose day squares are at
- * least `minRectSize` when each row spans `width` px. Falls back to one month
- * per row at `minRectSize` when even that doesn't fit.
+ * Splits `year` into the fewest rows of whole months whose squares are at least `minRectSize` in
+ * `width` px, else one month per row at `minRectSize`.
  */
 export function heatmapYearLayout(
 	year: number,

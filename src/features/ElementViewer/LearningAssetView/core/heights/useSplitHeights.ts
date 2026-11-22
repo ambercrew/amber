@@ -8,11 +8,8 @@ interface ReturnValue {
 	/** Best-known height for a split: measured/stored, else an estimate. */
 	getHeight: (seq: number, charCount: number) => number;
 	/**
-	 * Ref callback for a mounted split's root element. Measures its real height
-	 * with a `ResizeObserver` (which reports once on the initial observe, so
-	 * this also catches the mount-time placeholder-to-content swap, not just
-	 * later resizes) and caches it debounced, so the placeholder shown after it
-	 * unmounts matches exactly.
+	 * Ref callback for a mounted split's root: a `ResizeObserver` (which also reports on first observe)
+	 * measures it and caches the height debounced, so its placeholder matches once it unmounts.
 	 */
 	observeSplit: (
 		seq: number,
@@ -21,11 +18,8 @@ interface ReturnValue {
 }
 
 /**
- * Owns the in-memory split-height map for one learning asset, seeded from localStorage
- * and kept in sync as splits mount/measure. Heights live in a ref (not state):
- * they are read at render time by placeholders, and the transitions that reveal
- * placeholders (mount-window changes) already trigger re-renders, so measuring
- * never needs to force one of its own.
+ * One learning asset's split heights, seeded from localStorage. Kept in a ref, not state: placeholders
+ * read them during render, and whatever reveals a placeholder re-renders anyway.
  */
 export function useSplitHeights(
 	learningAssetId: string,

@@ -40,7 +40,7 @@ const { mockNavigate, mockTrashElementAction } = vi.hoisted(() => ({
 	),
 }));
 
-import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../../../features/Ai/aiPrompts";
+import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../../../features/Ai/utils/aiPrompts";
 
 vi.mock(
 	import("../../../../stores/trash/trashActions"),
@@ -64,6 +64,7 @@ const BASE_SETTINGS: SettingsDto = {
 	zoomPercentage: 100,
 	lineWidth: "Narrow",
 	autoSync: true,
+	spellCheck: true,
 	trashRetentionDays: 30,
 	enableAi: false,
 	aiProvider: "ollama",

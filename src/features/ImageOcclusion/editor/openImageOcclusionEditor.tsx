@@ -1,6 +1,6 @@
 import { FocusTrap } from "@mantine/core";
 import { modals } from "@mantine/modals";
-import { OcclusionEditorTarget } from "./ImageOcclusionEditor";
+import type { OcclusionEditorTarget } from "./ImageOcclusionEditor";
 import ResponsiveOcclusionEditor from "./ResponsiveOcclusionEditor";
 import { ModalHotkeysContext } from "../../../commands/useAppHotkeys";
 

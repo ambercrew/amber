@@ -4,7 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Amber is a Tauri 2 desktop app (React 19 frontend, Rust backend) for incremental learning.
+Amber is a Tauri desktop app (React 19 frontend, Rust backend) for incremental learning, on the Tauri v3 alphas (see Rust backend below).
+
+## Skills
+
+Load the matching skill in `.claude/skills/` before working in its area:
+
+- `amber-coding-standards` — **always**, when writing or reviewing code: no global mutable state, few React contexts, built-ins first and ask before adding a dependency or custom replacement
+- `amber-ai` (AI assistant), `anki-sync` (Anki desktop sync), `learning-asset` (text reader view)
+- `skill-creator` — when creating, changing or reviewing a skill, with the Amber rules in `amber-coding-standards`' "Writing skills"
+- `mantine-form`, `mantine-combobox`, `mantine-custom-components`, `vercel-react-best-practices`, `vitest`, `rust-best-practices`, `skill-creator` — third-party, installed with `npx skills` into `.agents/skills/` (symlinked here, pinned in `skills-lock.json`); update with `npx skills update -p`, don't edit them by hand
+
+CLAUDE.md and Amber's own skills win over the third-party ones: e.g. keep the test naming, AAA structure and short comments below, whatever `rust-best-practices` says. From `vercel-react-best-practices`, skip the rules that assume Next.js or a server (`server-*`, `rendering-hydration-*`, `async-api-routes`, `client-swr-dedup`) the memoization ones (`rerender-memo*`, `rerender-simple-expression-in-memo`), as the React Compiler handles those, and the code-splitting ones (`bundle-dynamic-imports`, `bundle-conditional`, `bundle-preload`), as Amber imports statically.
+
+When a change alters what one of Amber's own skills describes, update the skill in the same change.
 
 ## Code Comments
 
@@ -17,6 +30,7 @@ Keep comments to one or two lines. If a comment needs more than that, the code l
 - Use **`AppTooltip`** (`src/components/AppTooltip/AppTooltip.tsx`) instead of Mantine's `Tooltip` — it takes the same props and accepts a `shortcut` prop (raw `useHotkeys` notation, e.g. `"mod+K"`). Never hand-append a shortcut to a tooltip label. Pass `touch` to also open on tap, but only on targets whose meaning is otherwise unreachable on touch (info icons, study session buttons) — not on action buttons whose label is already visible.
 - **Never display a keyboard shortcut on touch input** — there's no keyboard to press it with. Every shortcut shown in the UI must be rendered through `useShortcutDisplay()` (`src/commands/useShortcutDisplay.ts`), which formats it and yields `undefined` on a coarse pointer; `AppTooltip`'s `shortcut` prop and `useCommandShortcut(id)` already go through it. Never call `formatShortcut` directly from a component.
 - **Every shortcut string lives in `src/config/shortcuts.ts`** — commands, `useAppHotkeys` bindings, and tooltips all import from there; never inline one (e.g. `"mod+K"`).
+- End a modal that's `fullScreenOnSmallScreen` with **`ModalActions`** (`src/components/AppModal/ModalActions.tsx`), which on a small screen makes its buttons full width and pins them to the bottom; the elements around it need `flex={1}` to reach the body's height.
 - Avoid custom CSS. Use Mantine's built-in style props (`p`, `px`, `h`, `w`, `gap`, `justify`, `align`) and inline `style` objects only when Mantine props are insufficient. Do not create `.module.css` files for layout or cosmetic concerns that Mantine already covers.
 
 ## Commands
@@ -42,6 +56,8 @@ npm run test               # Vitest unit tests
 npm run uitest              # Vitest with the interactive UI
 npm run coverage            # Coverage report
 ```
+
+Startup queries must seek, not scan, and periodic background tasks start through `deferred_interval`, which holds their first run until the startup sync has been attempted (`SyncCompletion::wait_attempted`), so they never hold the sync lock during it. Import modules statically, never with `React.lazy` or a dynamic `import()`: the app loads from local disk, so splitting saves little, and a lazy view's first render waits out React's ~300 ms Suspense reveal throttle.
 
 ### Rust backend
 
@@ -69,7 +85,7 @@ The backend follows **onion architecture** (Clean Architecture) with custom depe
 | Domain         | `entities/`, `value_objects/`                                             | Pure data models, no I/O                                                |
 | Application    | `services/`                                                               | Reusable business logic; keeps presentation handlers thin               |
 | Presentation   | `<module>_api.rs` (or an `api/` subdir for larger modules like `backend`) | Tauri command handlers; resolves dependencies and delegates to services |
-| Infrastructure | `repositories/infrastructure/`, `infrastructure/`                         | SQLite, HTTP clients                                                    |
+| Infrastructure | `infrastructure/` (`repositories/sqlite/`, `clients/`)                    | SQLite, HTTP clients                                                    |
 
 ### Dependency Injection
 
@@ -100,11 +116,17 @@ The `EventManager` trait (impl: `TauriEventManager`, `common/services/implementa
 - **study** — FSRS spaced-repetition scheduling (study profiles, card grading) and the global review-priority queue (`MetaRepository`'s priority-ordering methods)
 - **bibliographical_sources** — Registry of original works (book, article, video, etc.) that elements are imported from; one `BibliographicalSource` is shared by every element derived from it (`Meta::bibliographical_source_id`). The UI pairs it with the per-element `derived_from` lineage under the umbrella term **origin**
 - **import** — PDF/HTML/URL content import pipeline (extraction, conversion to elements)
-- **anki_sync** — Two-way sync with Anki desktop over AnkiConnect: cards travel as `.apkg` packages both ways, and reviews both ways, rescheduled with ts-fsrs over the request bridge. Planned first (`preview_anki_sync`); deletions carry over, proven only by a tombstone on a row that's gone (`deleted_rows`; a row that came back keeps its old tombstone). Bump `EXPORT_VERSION` in `notes.rs` when the rendered output changes (it's stored beside each note's fingerprint, so a bump resends notes without counting them as edits), report progress via `ankiSyncProgress` (not the `EventManager`, which only flushes on commit), and write Anki's schedule with `setDueDate`, as AnkiConnect refuses direct `due`/`queue` writes. Packages pass through Anki's media folder (`transfer.rs`), directly or as base64 when a sandbox keeps the apps apart, never through a temp path. A due date moved without a review syncs too: each pair stores both apps' due day at the last sync (`anki_paired_cards.amber_due`/`anki_due`), and the side that moved it wins (`schedules.rs`); one moved after every review also beats the replay (`card_decision.rs`, Amber's time in `card_reviews.due_moved_at`). An edit in Anki to one of Amber's basic notes comes back before the export (`pull_edits.rs`): Anki keeps the `mod` an import gives a note, so a later one means an edit, taken unless Amber saved the card's content later (`cards.content_modified_at`, set by a trigger that skips cloud sync's applies, so a pulled edit keeps its device's time). Cards imported from Anki go one way (`refresh_imported.rs`): Amber never writes their notes, so one changed since the profile's last sync (recorded as the sync's start) is rendered again from an exported package, as the importer would. Folders made in Amber sync under an `Amber` deck, while a folder the importer made from a deck keeps that deck (`folders.anki_deck`, its full name) wherever it's moved in Amber (`deck_path`, shared by `deck_name_under` and `folder_paths` for imports). AnkiConnect doesn't report Anki's today, so `anki_today` finds it with a binary search over `prop:due`. Cards due a day or more ahead are due from local midnight of their day, in both ts-fsrs's output and the backend
+- **anki_sync** — Two-way sync with Anki desktop over AnkiConnect (cards as `.apkg` packages, reviews and due dates both ways). Load the `anki-sync` skill before changing it
+- **ai_integration** — The AI assistant (chat, tools, approvals, providers) on `rig`. Load the `amber-ai` skill before changing it
+- **image_occlusion** — Image occlusion cards: an image with masks, one card per mask
+- **assets** — Image store (served over a custom protocol); a background task migrates embedded `data:` images and sweeps unreferenced ones
+- **search** — The Browser's element search (`search_elements`) and the global content search (see Global Search below); **saved_searches** stores named filters
+- **trash** — Trashing, restoring and permanent deletion, with a background retention purge
+- **system_chrome** — Forwards the theme to Android's system bars
 - **backend** — Remote auth (sign-up, sign-in, etc.)
 - **secrets** — `SecretsRepository` trait for reading/writing OS-level secrets; keyring implementation lives in `infrastructure/repositories/keyring/`
 - **settings** — User preferences
-- **local_configurations** — Per-machine config not synced to the cloud (e.g. database location)
+- **local_configurations** — Per-machine config not synced to the cloud (e.g. database location); `SyncedConfigurationRepository` is the same typed access over the synced `synced_configurations` (e.g. the fuzz factor)
 - **sync** — Cloud sync via protobuf messages (see Sync below)
 - **backup** — Background auto-backup service
 - **app_info** — Small app-level queries (e.g. store-build detection)
@@ -131,7 +153,7 @@ The `SyncEngine` (`sync/engine.rs`, impl: `sync/implementations/default_sync_eng
 
 - DTOs: `*RequestDto`, `*ResponseDto` (used at the API boundary)
 - Entities: plain struct names
-- Repository traits live in `repositories/`, implementations in `repositories/infrastructure/sqlite/`
+- Repository traits live in a module's `repositories/`, implementations in `infrastructure/repositories/sqlite/`; likewise client traits in a module's `clients/` and their HTTP implementations in `infrastructure/clients/`
 - Error types use `thiserror`; all commands return `Result<T, ApiError>`
 - IDs must be written to repositories as **hyphenated** UUID strings (`id().hyphenated()`), never `.to_string()`/`.simple()` — this also keeps them TEXT-affinity so they stay eligible as sync primary keys (see BLOB note under Sync above).
 
@@ -150,14 +172,14 @@ Elements (`Folder`, `LearningAsset`, `Extract`, `Card`) share structure via trai
 
 ## Frontend Architecture (`src/`)
 
-**React 19** with Redux Toolkit, React Router 7, and Vite.
+**React 19** (with the React Compiler) with Redux Toolkit, React Router 8, and Vite.
 
 ### Key Directories
 
-- `api/` — Typed wrappers around `invoke()` calls, mirroring backend modules (`elements`, `study`, `settings`, `sync`, `backend`, `bibliographicalSources`, `appInfo`)
-- `features/` — Route-scoped feature modules, e.g. `App` (root shell), `ElementViewer` (editor/reviewer for a selected element), `Sidebar` (file tree), `Study`, `Import`, `Settings`, `Aside`, `Updater`
+- `api/` — Typed wrappers around `invoke()` calls, mirroring backend modules (`aiIntegration`, `ankiSync`, `appInfo`, `assets`, `backend`, `bibliographicalSources`, `common`, `elements`, `imageOcclusion`, `import`, `savedSearches`, `search`, `settings`, `statistics`, `study`, `sync`, `systemChrome`, `trash`)
+- `features/` — Route-scoped feature modules, e.g. `App` (root shell), `ElementViewer` (editor/reviewer for a selected element), `Sidebar` (file tree), `Study`, `Import`, `Settings`, `Aside`, `Updater`, `Ai` (assistant chat), `AnkiSync`, `Auth`, `ElementsBrowser` (the Browser), `ImageOcclusion`
 - `components/` — Shared cross-feature components (e.g. `Editor`, the Lexical-based rich text editor, and `AppTooltip`, the tooltip every feature uses — see UI Guidelines)
-- `stores/` — Redux slices: `elements`, `elementDetails`, `user`, `sync`, `settings`, `bibliographicalSources`, `study`, `search`, `app`
+- `stores/` — Redux slices: `elements`, `elementDetails`, `user`, `sync`, `settings`, `bibliographicalSources`, `study`, `search`, `app`, `aiContext`, `aiPrompts`, `ankiSync`, `imageOcclusion`, `tableOfContents`, `trash`
 - `hooks/` — Reusable hooks; notably `useApi` for loading/error state around API calls
 - `managers/`, `utils/`, `config/`, `types/` — Helpers, constants, shared types
 
@@ -185,7 +207,7 @@ Some backend work (e.g. producing Lexical JSON) can only be done on the frontend
 1. Backend calls `bridge.request(app_handle, event, payload).await`, emitting `event` with `{ requestId, ...payload }` and awaiting the answer (with a timeout).
 2. Frontend calls `useFrontendRequestBridge<TEvent>(event, handler)` once (e.g. in `App.tsx`); it listens for `event`, runs `handler(payload)`, and auto-reports the result via `resolve_frontend_request`. `TEvent` must extend `FrontendRequestEvent` (include `requestId`).
 
-Event name/DTO live together under `src/api/<module>/events/` as usual (e.g. `CONVERT_MARKDOWN_TO_LEXICAL_EVENT` in `convertMarkdownToLexicalEvent.ts`) and must match the Rust `request()` call's `&str` by hand — no compile-time link. Reference implementation: `src/features/Ai/hooks/useLexicalConversionBridge.ts` + `common/services/implementations/tauri_lexical_json_converter.rs`.
+Event name/DTO live together under `src/api/<module>/events/` as usual (e.g. `CONVERT_MARKDOWN_TO_LEXICAL_EVENT` in `convertMarkdownToLexicalEvent.ts`) and must match the Rust `request()` call's `&str` by hand — no compile-time link. Reference implementation: `src/features/App/hooks/useLexicalConversionBridge.ts` + `common/services/implementations/tauri_lexical_json_converter.rs`.
 
 ### Element Tree
 
@@ -197,9 +219,9 @@ The sidebar renders it with `VirtualElementTree`, which adds drag and drop (`use
 
 ### Study Queue
 
-`study.queue` can hold every due element, so its reducers work on `plainQueue(state)` and assign a new array: array methods on an Immer draft proxy each item they touch, which costs seconds on a long queue. `PriorityQueueList` virtualizes it like the tree, sharing `useVirtualListScroll`; each title is truncated to one line, but rows are still measured (font sizes vary), and `getItemKey` runs per row on every remeasure, so keep it allocation-free. `get_due_elements` returns names from the same query; don't look elements up one by one.
+`study.queue` can hold every due element, so its reducers work on `plainQueue(state)` and assign a new array: array methods on an Immer draft proxy each item they touch, which costs seconds on a long queue. `PriorityQueueList` virtualizes it like the tree, sharing `useVirtualListScroll`; each title is truncated to one line, but rows are still measured (font sizes vary), and `getItemKey` runs per row on every remeasure, so keep it allocation-free. `get_due_elements` returns names from the same query; don't look elements up one by one. Its due queries scan `meta` in table order (`NOT INDEXED`), as the priority index reads every live row at random, and new cards' profiles resolve once per parent, not per card. Its order is stateless (`order_by_priority_with_fuzz`): each element's rank among every live element's priority, nudged by a seed fixed per element and day, so reviews never reorder the rest and every device agrees; today's skips (`learning_asset_skips`, synced) go last. A profile's `bury_new_siblings`/`bury_review_siblings` drop new or review cards whose sibling (same image occlusion, else same parent extract: `sibling_group`) was reviewed today (`get_sibling_reviews_since`) or is a kept new or review card of a burying profile ahead in the queue; a card reviewed today itself is never buried. Burying and the new-card cap run in one walk (`keep_daily_cards`), so buried cards free the cap's slots and a card the cap drops buries nothing. New cards (no review, or reset since) are capped per effective profile at `new_cards_per_day`, less those first reviewed today (`get_cards_first_reviewed_since`, from the synced logs, so devices share one allowance). Grading a card to its profile's `leech_threshold` lapses (and every half of it after) tags it `leech`, optionally suspends it, and emits `CARD_LEECHED_EVENT`, which `useLeechNotifications` turns into a notification offering an AI rewrite (not for image occlusion cards). A new card without a known profile (none created yet, or one deleted on another device) counts against the default profile's allowance. Profile changes that move these allowances (a new `new_cards_per_day` or bury setting, assigning, deleting or a new default) emit `ELEMENT_DUE_CHANGED_EVENT`, so the preview refreshes and a running session takes in newly allowed cards, though a lower limit never drops cards it already holds.
 
-A session ends only when its queue runs out or the user ends it (`enter-edit-mode`). Only the queue's own navigations choose the element under review (`timedElementId`): start, advance, Return and priority queue clicks pass `REVIEW_NAVIGATION_STATE`, which back and forward ignore. Any other page, even a queued element's, marks the user away (`sessionRouteChangedAction` via `useStudySessionAway`, keyed on the route, as `elements.currentElement` outlives its page); the bar then offers Return, and Review on a queued element. The priority queue highlights the element under review, not the open page. The clock keeps running while away, as a detour is part of the review, and switching elements banks the time spent (`timeSpent`, resumed into `shownAt` on return), so a review logs every visit to its element. Read the element under review through `selectStudySessionElement`, which is `null` outside a session, while away or until that element has loaded. A queued element rescheduled while visiting it leaves the queue (`applyScheduleChangeAction`).
+A session ends only when its queue runs out or the user ends it (`enter-edit-mode`). Only the queue's own navigations choose the element under review (`timedElementId`): start, advance, Return and priority queue clicks pass `REVIEW_NAVIGATION_STATE`, which back and forward ignore. Any other page, even a queued element's, marks the user away (`sessionRouteChangedAction` via `useStudySessionAway`, keyed on the route, as `elements.currentElement` outlives its page); the bar then offers Return, and Review on a queued element. Any open of the asset under review (Return, the sidebar, back) picks it up where it was left: its views report on unmount where they were scrolled and the read point's precedence (`useReviewResume` → `reviewedElementLeft`, kept as `study.resume` for the element under review only), so a learning asset reopens at that scroll position (the text view's `core/viewPosition.ts`; the PDF view's embedpdf viewpoint anchor, `PdfViewPosition`, at the current zoom), not its read point, which is left for the next session, and a manual set still holds off scroll tracking. Any other element opens afresh. The priority queue highlights the element under review, not the open page. The clock keeps running while away, as a detour is part of the review, and switching elements banks the time spent (`timeSpent`, resumed into `shownAt` on return), so a review logs every visit to its element. Read the element under review through `selectStudySessionElement`, which is `null` outside a session, while away or until that element has loaded. A queued element rescheduled while visiting it leaves the queue (`applyScheduleChangeAction`).
 
 ### Search Results
 
@@ -220,12 +242,7 @@ Keep node types, extension dependencies, and the static theme in sync between th
 
 ### Learning Asset View (`src/features/ElementViewer/LearningAssetView/`)
 
-A learning asset renders as a virtualized stack of splits: live Lexical editors near the viewport, placeholders elsewhere. It's split into a **core** and **plugins**:
-
-- `core/` — `ReaderCoreProvider` owns the mount window, split heights, content roots, reading anchors (caret, right-clicked block, top visible block) and `navigate(seq, land)`, the only way to scroll somewhere (it mounts the split first and lands once it's painted). Plugins read it via `useReaderCore()`.
-- `plugins/` — each feature (`readPoint`, `marks`, `search`, `tableOfContents`) is a `LearningAssetPlugin` (`plugins/types.ts`) with optional `Provider` (view-wide hooks + its own context), `SplitPlugin` (a Lexical plugin rendered in every mounted split, seq from `useSplit()`), `ContextMenuItems` and `Overlay`.
-
-To add a feature, add a plugin folder and list it in `plugins/index.ts` — don't add props to `LearningAssetView`, `SplitSlot` or `ElementEditor`. List order is nesting order: a plugin may read the context of one listed before it (e.g. `marks` draws the read point beside its flags). `marks/` and `readPoint/` one level up hold the logic shared with the PDF view (mark storage/UI, read point precedence and saving). Read point and mark commands go through `runReadingCommand`/`useReadingCommand` (`src/commands/readingCommands.ts`), not window events.
+A learning asset renders as a virtualized stack of splits (live Lexical editors near the viewport, placeholders elsewhere): `core/`'s `ReaderCoreProvider` owns mounting and `navigate(seq, land)`, the only way to scroll somewhere, and each feature is a `LearningAssetPlugin` listed in `plugins/index.ts` — never a new prop on `LearningAssetView`, `SplitSlot` or `ElementEditor`. Load the `learning-asset` skill before changing it. `marks/` and `readPoint/` one level up are shared with the PDF view, and read point and mark commands are dispatched with `runReadingCommand` and handled with `useReadingCommand` (`src/commands/readingCommands.ts`), not window events.
 
 The PDF view (`src/features/ElementViewer/PdfView/`) mirrors this without a plugin registry: `core/PdfCoreProvider` shares the document and `goToPage(page, options)` (`usePdfCore()`), the way to jump (it moves embedpdf 3's `Stage` and hides the header; a jump made by a plugin, like a search match, calls `announceJump()` instead), and `readPoint/`, `marks/`, `highlights/`, `search/`, `outline/` and `toolbar/` hold its features, nested as providers in `PdfDocumentContent`. Extract and cloze highlights never go into the PDF: `highlights/PdfHighlightsProvider` keeps them as our own JSON (embedpdf 2's annotation transfer format, which older builds still read) and `PdfHighlightLayer` draws them on each page. A view shows its headings in the side panel's table of contents tab by dispatching them to the `tableOfContents` slice (`src/stores/tableOfContents/`) and handles the `go-to-table-of-contents-entry` reading command, as `outline/usePdfOutline` does with the PDF's bookmarks and the text view's `tableOfContents` plugin does with its headings (stored ones from `get_learning_asset_headings`, live ones from mounted splits).
 
@@ -300,7 +317,7 @@ it("Should <expected behavior> when <input>", () => {
 
 ### File locations
 
-- Rust: inline `#[cfg(test)] mod tests { ... }` at the bottom of the source file
+- Rust: inline `#[cfg(test)] mod tests { ... }` at the bottom of the source file, or a sibling `tests.rs` (`#[cfg(test)] mod tests;`) once they outgrow it
 - TypeScript: `src/__test__/` mirroring the source tree
 
 ### React `act()` warnings in Vitest

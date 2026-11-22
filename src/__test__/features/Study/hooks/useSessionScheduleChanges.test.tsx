@@ -51,6 +51,7 @@ const STUDYING_STATE: StudyState = {
 	timedElementId: { type: "card", id: "1" },
 	timeSpent: {},
 	startedAt: null,
+	resume: null,
 };
 
 function cardReview(due: string): CardReviewDto {

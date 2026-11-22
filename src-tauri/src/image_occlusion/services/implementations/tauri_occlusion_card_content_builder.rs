@@ -48,6 +48,9 @@ impl<R: tauri::Runtime> OcclusionCardContentBuilder for TauriOcclusionCardConten
             .map_err(|err| match err {
                 RequestBridgeError::Emit => OcclusionCardContentBuilderError::Emit,
                 RequestBridgeError::Timeout => OcclusionCardContentBuilderError::Timeout,
+                RequestBridgeError::Failed(message) => {
+                    OcclusionCardContentBuilderError::Failed(message)
+                }
             })?;
 
         let contents: HashMap<String, OcclusionCardContent> = serde_json::from_str(&response)

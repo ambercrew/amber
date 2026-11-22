@@ -4,15 +4,13 @@ import { bumpElementRefreshCount } from "../stores/sync/syncReducer";
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "../stores/sync/managers/syncEventManager";
+} from "../managers/syncEventManager";
 import useAppDispatch from "./useAppDispatch";
 import { useElementParams } from "./useElementParams";
 
 /**
- * Reloads the currently open element after a sync completes, so that
- * changes pulled in from another device are reflected instead of leaving
- * stale content in the viewer and the Aside panel (which read the same
- * `elementDetails`/`currentElement` state regardless of route).
+ * Reloads the open element after a sync, so changes from another device reach the viewer and
+ * the Aside panel, which share `elementDetails`/`currentElement`.
  */
 export function useElementSyncRefresh() {
 	const params = useElementParams();

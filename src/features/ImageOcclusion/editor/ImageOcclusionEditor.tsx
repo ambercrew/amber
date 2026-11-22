@@ -52,7 +52,7 @@ import useAppDispatch from "../../../hooks/useAppDispatch";
 import { useIsSmallScreen } from "../../../hooks/useIsSmallScreen";
 import { loadElementTree } from "../../../stores/elements/elementsActions";
 import { ElementId } from "../../../types/elements/elementId";
-import { invalidateImageOcclusion } from "../hooks/useImageOcclusion";
+import { imageOcclusionChanged } from "../../../stores/imageOcclusion/imageOcclusionReducer";
 import { useLoadedImage } from "../hooks/useLoadedImage";
 import { isMask, targetKeys } from "../utils/occlusionTargets";
 import { toImageAssetId } from "../utils/toImageAssetId";
@@ -224,7 +224,7 @@ export default function ImageOcclusionEditor({
 					shapes: state.shapes,
 					mode,
 				});
-				invalidateImageOcclusion(occlusionId);
+				dispatch(imageOcclusionChanged(occlusionId));
 			}
 			// Bound before reloading the tree, which can remount the source editor and strand its node key.
 			if (!removing) onSaved?.(occlusionId);

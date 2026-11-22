@@ -17,9 +17,10 @@ interface UsePriorityControlsOptions {
 	onPercentileCommit: (percentile: number, position: number) => void;
 }
 
-/** Shared position/percentile conversion state behind `PrioritySlider`. Callers
- * decide what "commit" means — persisting immediately (`PriorityModal`) or
- * just holding the value for later (the import priority section). */
+/**
+ * The position/percentile state behind `PrioritySlider`; callers decide what committing means (saving
+ * at once in `PriorityModal`, holding the value in the import).
+ */
 export function usePriorityControls({
 	total,
 	initialPosition,

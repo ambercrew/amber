@@ -17,6 +17,7 @@ import {
 	WarningIcon,
 } from "@phosphor-icons/react";
 import AppModal from "../../../components/AppModal/AppModal";
+import ModalActions from "../../../components/AppModal/ModalActions";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import ConfirmModal from "../../../components/AppModal/ConfirmModal";
 import AiPromptDto from "../../../api/aiIntegration/dto/aiPromptDto";
@@ -146,7 +147,7 @@ function AiPromptLibraryModal() {
 				)}
 
 				{draft ? (
-					<Stack gap="sm" style={viewStyle}>
+					<Stack gap="sm" flex={1} style={viewStyle}>
 						<TextInput
 							label="Name"
 							styles={FIELD_STYLES}
@@ -181,7 +182,7 @@ function AiPromptLibraryModal() {
 								})
 							}
 						/>
-						<Group justify="flex-end" gap="xs">
+						<ModalActions>
 							<Button
 								variant="default"
 								onClick={() => setDraft(null)}>
@@ -193,7 +194,7 @@ function AiPromptLibraryModal() {
 								onClick={() => void handleSave()}>
 								Save
 							</Button>
-						</Group>
+						</ModalActions>
 					</Stack>
 				) : (
 					<Stack gap="sm" style={viewStyle}>

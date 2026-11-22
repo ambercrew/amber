@@ -1,8 +1,7 @@
 import { $isElementNode, $isTextNode, LexicalNode, TextNode } from "lexical";
 
-// Must stay in sync with `BLOCK_NODE_TYPES` in
-// `plain_text_extractor.rs`, so client- and server-computed match counts
-// describe the same string.
+// Keep in step with `BLOCK_NODE_TYPES` in `plain_text_extractor.rs`, so both sides count
+// matches in the same string.
 const BLOCK_NODE_TYPES = new Set(["paragraph", "heading", "listitem", "quote"]);
 
 export interface OffsetMapEntry {

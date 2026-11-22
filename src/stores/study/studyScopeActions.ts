@@ -15,9 +15,8 @@ export function changeStudyScopeAction(scope: StudyScopeDto | null) {
 }
 
 /**
- * Resets a scope narrowed to an element that's no longer in the tree (trashed
- * or deleted), which would otherwise study nothing on every launch. Run after
- * each tree load.
+ * Resets a scope narrowed to an element no longer in the tree, which would study nothing
+ * on every launch; runs after each tree load.
  */
 export function resetStaleStudyScopeAction() {
 	return (dispatch: AppDispatch, getState: () => RootState): void => {

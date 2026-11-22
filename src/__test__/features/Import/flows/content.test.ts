@@ -1,12 +1,14 @@
 import { runContentImport } from "../../../../features/Import/flows/content";
 import { normalize } from "../../../../features/Import/normalize";
-import { deriveTitle } from "../../../../features/Import/deriveTitle";
-import { createImportedLearningAsset } from "../../../../features/Import/createImportedLearningAsset";
-import { ImportContext } from "../../../../features/Import/importContext";
+import { deriveTitle } from "../../../../features/Import/utils/deriveTitle";
+import { createImportedLearningAsset } from "../../../../features/Import/utils/createImportedLearningAsset";
+import { ImportContext } from "../../../../features/Import/utils/importContext";
 
 vi.mock(import("../../../../features/Import/normalize"));
-vi.mock(import("../../../../features/Import/deriveTitle"));
-vi.mock(import("../../../../features/Import/createImportedLearningAsset"));
+vi.mock(import("../../../../features/Import/utils/deriveTitle"));
+vi.mock(
+	import("../../../../features/Import/utils/createImportedLearningAsset"),
+);
 
 function makeCtx(): ImportContext {
 	return {

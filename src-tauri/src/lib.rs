@@ -29,7 +29,7 @@ use std::sync::Arc;
 
 use tauri::Manager;
 
-use ai_integration::ai_api::*;
+use ai_integration::ai_integration_api::*;
 use anki_sync::anki_sync_api::*;
 use app_info::app_info_api::*;
 use assets::assets_api::*;
@@ -40,7 +40,7 @@ use common::common_api::*;
 use elements::elements_api::*;
 use image_occlusion::image_occlusion_api::*;
 use import::import_api::*;
-use saved_searches::saved_search_api::*;
+use saved_searches::saved_searches_api::*;
 use search::search_api::*;
 use settings::settings_api::*;
 use statistics::statistics_api::*;
@@ -55,7 +55,7 @@ use tauri_plugin_window_state::StateFlags;
 use tokio::runtime::Handle;
 
 use crate::assets::background::spawn_asset_maintenance_task;
-use crate::assets::protocol::{ASSET_PROTOCOL, handle_asset_request};
+use crate::assets::protocol::{ASSET_PROTOCOL, AssetReadPermits, handle_asset_request};
 use crate::backup::background::spawn_backup_task;
 use crate::common::utils::create_injector::create_injector;
 use crate::infrastructure::value_objects::app_data_directory::AppDataDirectory;
@@ -83,8 +83,10 @@ pub async fn run() {
     let mut tauri_builder = tauri::Builder::<AppRuntime>::new()
         .runtime(runtime)
         .plugin(
+            // The default 40 KB single file rotates away an error before anyone can read it.
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(3))
                 .build(),
         )
         .plugin(tauri_plugin_http::init())
@@ -105,6 +107,7 @@ pub async fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
         .plugin(system_chrome::plugin::init())
+        .manage(AssetReadPermits::default())
         .register_asynchronous_uri_scheme_protocol(ASSET_PROTOCOL, handle_asset_request);
 
     #[cfg(desktop)]
@@ -218,6 +221,7 @@ pub async fn run() {
             get_learning_asset_split_content,
             get_learning_asset_split_texts,
             get_learning_asset_headings,
+            find_learning_asset_highlight,
             get_pdf_bytes,
             get_pdf_highlights,
             update_pdf_highlights,
@@ -235,6 +239,7 @@ pub async fn run() {
             get_card_review,
             get_learning_asset_review,
             get_due_elements,
+            skip_learning_asset,
             register_card_review,
             get_card_scheduling,
             next_learning_asset,
@@ -254,6 +259,7 @@ pub async fn run() {
             list_study_profiles,
             create_study_profile,
             update_study_profile,
+            rename_study_profile,
             delete_study_profile,
             clone_study_profile,
             set_default_study_profile,
@@ -321,6 +327,7 @@ pub async fn run() {
             sync,
             // Common
             resolve_frontend_request,
+            reject_frontend_request,
         ]);
 
     // Plugins may block on their own tokio runtime while initializing (e.g. zbus in single-instance).

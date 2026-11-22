@@ -6,13 +6,13 @@ import { base64ToArrayBuffer } from "../../../utils/base64ToArrayBuffer";
 import { normalize } from "../normalize";
 import { hydrateLazyImages } from "../normalize/hydrateLazyImages";
 import { hasContent } from "../html/extract";
-import { deriveTitle } from "../deriveTitle";
-import { createImportedLearningAsset } from "../createImportedLearningAsset";
-import { ImportContext } from "../importContext";
-import { ImportResult } from "../importResult";
+import { deriveTitle } from "../utils/deriveTitle";
+import { createImportedLearningAsset } from "../utils/createImportedLearningAsset";
+import { ImportContext } from "../utils/importContext";
+import { ImportResult } from "../utils/importResult";
 import { ElementId } from "../../../types/elements/elementId";
 import { runFileImport, FileImportError } from "./file";
-import { FileFormat, hasExtension } from "../fileFormat";
+import { FileFormat, hasExtension } from "../utils/fileFormat";
 import { pdfFormat } from "../pdf/format";
 import { epubFormat } from "../epub/format";
 import { markdownFormat } from "../markdown/format";
@@ -71,9 +71,8 @@ export async function runUrlImport(
 	base.href = resolvedUrl;
 	doc.head.prepend(base);
 
-	// The fetched HTML is server-rendered, so lazy-loaded images still hold
-	// their real URL in a data-* attribute. Promote it to src before
-	// Defuddle runs, otherwise Defuddle drops images with no src.
+	// Server-rendered HTML keeps lazy images' URLs in data-* attributes; promote them to src
+	// before Defuddle, which drops images without one.
 	hydrateLazyImages(doc);
 
 	// Defuddle mutates the document while parsing, so capture the raw markup

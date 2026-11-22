@@ -20,6 +20,7 @@ const settings: SettingsDto = {
 	zoomPercentage: 100,
 	lineWidth: "Narrow",
 	autoSync: true,
+	spellCheck: true,
 	trashRetentionDays: 30,
 	enableAi: false,
 	aiProvider: "ollama",
@@ -95,6 +96,22 @@ describe("AppearanceTab", () => {
 
 		expect(updateSettings).toHaveBeenCalledWith(
 			expect.objectContaining({ lineWidth: "Wide" }),
+		);
+	});
+
+	it("Should save spell check as off when the switch is turned off", async () => {
+		// Arrange
+
+		renderTab();
+
+		// Act
+
+		fireEvent.click(await screen.findByLabelText("Spell check"));
+
+		// Assert
+
+		expect(updateSettings).toHaveBeenCalledWith(
+			expect.objectContaining({ spellCheck: false }),
 		);
 	});
 });

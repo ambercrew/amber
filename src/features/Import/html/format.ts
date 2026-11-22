@@ -1,4 +1,4 @@
-import { FileFormat } from "../fileFormat";
+import { FileFormat } from "../utils/fileFormat";
 import { extractHtml } from "./extract";
 
 export const htmlFormat: FileFormat = {

@@ -6,20 +6,8 @@ use thiserror::Error;
 
 use crate::common::repository_error::RepositoryError;
 
-/// A repair that runs once at the end of every sync cycle, after remote cells
-/// have been applied and before local changes are pushed.
-///
-/// Cell-level last-writer-wins can leave a database that is internally
-/// consistent per row yet breaks an invariant spanning several rows (two rows
-/// both flagged as the single default study profile, say). Rather than teach
-/// the sync engine about domain rules, each domain module contributes a task
-/// here; the engine only sequences them.
-///
-/// A task must be **deterministic**: given the same rows it must pick the same
-/// outcome on every device, since every device runs it independently on its own
-/// copy of the data. Derive the decision from synced, immutable columns
-/// (`created_at`, `id`) — never from local wall-clock time, row order, or
-/// anything a local trigger rewrites.
+/// A repair run after applying remote cells and before pushing, for invariants spanning rows that
+/// cell-level LWW can break. Must be deterministic: decide from `created_at`/`id`, never local time.
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait PostSyncTask: Send + Sync {

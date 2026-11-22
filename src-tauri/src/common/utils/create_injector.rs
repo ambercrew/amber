@@ -56,11 +56,11 @@ use crate::elements::repositories::learning_asset_mark_repository::LearningAsset
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::services::element_content_service::ElementContentService;
 use crate::elements::services::element_creation_service::ElementCreationService;
-use crate::anki_sync::anki_connect::AnkiConnectClient;
+use crate::anki_sync::clients::anki_connect::AnkiConnectClient;
 use crate::anki_sync::repositories::anki_sync_repository::AnkiSyncRepository;
 use crate::anki_sync::services::anki_sync_service::AnkiSyncService;
 use crate::anki_sync::services::implementations::default_anki_sync_service::DefaultAnkiSyncService;
-use crate::anki_sync::services::implementations::http_anki_connect_client::HttpAnkiConnectClient;
+use crate::infrastructure::clients::http_anki_connect_client::HttpAnkiConnectClient;
 use crate::anki_sync::services::implementations::tauri_sync_frontend::TauriSyncFrontend;
 use crate::anki_sync::services::sync_frontend::SyncFrontend;
 use crate::import::repositories::anki_card_link_repository::AnkiCardLinkRepository;
@@ -94,11 +94,13 @@ use crate::infrastructure::repositories::sqlite::sqlite_card_review_repository::
 use crate::infrastructure::repositories::sqlite::sqlite_extract_repository::SqliteExtractRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_folder_repository::SqliteFolderRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_local_configuration_repository::SqliteLocalConfigurationRepository;
+use crate::infrastructure::repositories::sqlite::sqlite_synced_configuration_repository::SqliteSyncedConfigurationRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_meta_repository::SqliteMetaRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_mark_repository::SqliteLearningAssetMarkRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_repository::SqliteLearningAssetRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_log_repository::SqliteLearningAssetReviewLogRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_repository::SqliteLearningAssetReviewRepository;
+use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_skip_repository::SqliteLearningAssetSkipRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_ai_prompt_repository::SqliteAiPromptRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_ai_repository::SqliteAiRepository;
 use crate::infrastructure::repositories::sqlite::sqlite_bibliographical_source_repository::SqliteBibliographicalSourceRepository;
@@ -120,6 +122,7 @@ use crate::infrastructure::value_objects::app_data_directory::AppDataDirectory;
 use crate::infrastructure::value_objects::db_pool::DbPool;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 use crate::local_configurations::repositories::local_configuration_repository::LocalConfigurationRepository;
+use crate::local_configurations::repositories::synced_configuration_repository::SyncedConfigurationRepository;
 use crate::secrets::repositories::secrets_repository::SecretsRepository;
 use crate::settings::entities::settings::Settings;
 use crate::settings::repositories::settings_repository::SettingsRepository;
@@ -148,6 +151,7 @@ use crate::study::repositories::card_review_log_repository::CardReviewLogReposit
 use crate::study::repositories::card_review_repository::CardReviewRepository;
 use crate::study::repositories::learning_asset_review_log_repository::LearningAssetReviewLogRepository;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
+use crate::study::repositories::learning_asset_skip_repository::LearningAssetSkipRepository;
 use crate::study::repositories::study_profile_repository::StudyProfileRepository;
 use crate::study::services::card_grading_service::CardGradingService;
 use crate::study::services::due_elements_service::DueElementsService;
@@ -165,6 +169,8 @@ use crate::trash::services::implementations::trashed_subtree_post_sync_task::Tra
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
 use crate::study::services::element_status_service::ElementStatusService;
+use crate::study::services::implementations::default_leech_service::DefaultLeechService;
+use crate::study::services::leech_service::LeechService;
 use crate::study::services::implementations::default_element_status_service::DefaultElementStatusService;
 use crate::study::services::study_profile_service::StudyProfileService;
 use crate::{
@@ -287,6 +293,11 @@ pub async fn create_injector<R: tauri::Runtime>(
         dyn LocalConfigurationRepository,
         SqliteLocalConfigurationRepository
     );
+    register_scope!(
+        injector,
+        dyn SyncedConfigurationRepository,
+        SqliteSyncedConfigurationRepository
+    );
 
     // Sync
 
@@ -382,11 +393,17 @@ pub async fn create_injector<R: tauri::Runtime>(
     );
     register_scope!(
         injector,
+        dyn LearningAssetSkipRepository,
+        SqliteLearningAssetSkipRepository
+    );
+    register_scope!(
+        injector,
         dyn LearningAssetReviewLogRepository,
         SqliteLearningAssetReviewLogRepository
     );
     register_scope!(injector, dyn DueElementsService, DefaultDueElementsService);
     register_scope!(injector, dyn CardGradingService, DefaultCardGradingService);
+    register_scope!(injector, dyn LeechService, DefaultLeechService);
     register_scope!(
         injector,
         dyn LearningAssetSchedulingService,

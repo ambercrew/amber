@@ -10,7 +10,7 @@ import {
 import { MinusIcon, PlusIcon } from "@phosphor-icons/react";
 import { useStage, useStageState } from "@embedpdf/react/stage";
 import { SAFE_AREA_BOTTOM } from "../../../../utils/safeArea";
-import { useChromeInsets } from "../../../App/context/chromeInsetsContext";
+import { useChromeInsets } from "../../../../hooks/useChromeInsets";
 import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
 import {
 	AppHotkeyItem,

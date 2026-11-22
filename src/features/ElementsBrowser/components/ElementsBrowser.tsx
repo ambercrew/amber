@@ -19,7 +19,7 @@ import useApi from "../../../hooks/useApi";
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "../../../stores/sync/managers/syncEventManager";
+} from "../../../managers/syncEventManager";
 import { SEARCH_DEBOUNCE_MS } from "../../../components/ElementFilters/constants";
 import { elementKey } from "../../../utils/elementKey";
 import { DEFAULT_SEARCH_SORT } from "../../../utils/searchSort";

@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ProfileForm from "../../../../../features/Study/components/ProfileForm/ProfileForm";
 import { renderWithProviders } from "../../../../test-utils/renderWithProviders";
@@ -36,6 +36,13 @@ function makeProfile(
 		initialIntervalMultiplier: 1.2,
 		initialIntervalDays: 1,
 		minIntervalDays: 1,
+		maximumIntervalDays: 36500,
+		newCardsPerDay: 20,
+		leechThreshold: 8,
+		leechAction: "tagOnly",
+		cardInitialIntervalDays: 1,
+		buryNewSiblings: false,
+		buryReviewSiblings: false,
 		priorityInheritancePolicy: {
 			placement: { type: "aboveParent" },
 			ceilingPercentile: null,
@@ -61,7 +68,7 @@ describe("ProfileForm", () => {
 		openConfirmModal.mockReset();
 	});
 
-	it("Should render the profile's values when editing an existing profile", () => {
+	it("Should offer Save when editing an existing profile", () => {
 		// Arrange
 
 		const profile = makeProfile({ name: "Custom" });
@@ -78,13 +85,10 @@ describe("ProfileForm", () => {
 
 		// Assert
 
-		expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
-			"Custom",
-		);
 		expect(screen.getByRole("button", { name: "Save" })).toBeVisible();
 	});
 
-	it("Should render default values for a new profile when profile is null", () => {
+	it("Should offer Create when profile is null", () => {
 		// Arrange
 
 		// Act
@@ -99,9 +103,6 @@ describe("ProfileForm", () => {
 
 		// Assert
 
-		expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(
-			"New profile",
-		);
 		expect(screen.getByRole("button", { name: "Create" })).toBeVisible();
 	});
 
@@ -213,7 +214,7 @@ describe("ProfileForm", () => {
 		expect(onSubmitted).toHaveBeenCalledTimes(1);
 	});
 
-	it("Should call createStudyProfile when submitting a new profile", async () => {
+	it("Should create the profile with the entered name when a new profile is submitted and named", async () => {
 		// Arrange
 
 		vi.mocked(createStudyProfile).mockResolvedValue(makeProfile());
@@ -231,14 +232,54 @@ describe("ProfileForm", () => {
 		// Act
 
 		await user.click(screen.getByRole("button", { name: "Create" }));
+		const dialog = await screen.findByRole("dialog", {
+			name: "Name the new profile",
+		});
+		const nameInput = within(dialog).getByRole("textbox", {
+			name: "Profile name",
+		});
+		await user.clear(nameInput);
+		await user.type(nameInput, "Languages");
+		await user.click(
+			within(dialog).getByRole("button", { name: "Create" }),
+		);
 
 		// Assert
 
 		await waitFor(() => {
-			expect(createStudyProfile).toHaveBeenCalledTimes(1);
+			expect(createStudyProfile).toHaveBeenCalledWith(
+				expect.objectContaining({ name: "Languages" }),
+			);
 		});
 		expect(onSaved).toHaveBeenCalledTimes(1);
 		expect(onSubmitted).toHaveBeenCalledTimes(1);
+	});
+
+	it("Should not create the profile when naming it is cancelled", async () => {
+		// Arrange
+
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={null}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await user.click(screen.getByRole("button", { name: "Create" }));
+		const dialog = await screen.findByRole("dialog", {
+			name: "Name the new profile",
+		});
+
+		// Act
+
+		await user.click(
+			within(dialog).getByRole("button", { name: "Cancel" }),
+		);
+
+		// Assert
+
+		expect(createStudyProfile).not.toHaveBeenCalled();
 	});
 
 	it("Should show a validation error and not submit when FSRS weights don't have exactly 21 values", async () => {
@@ -351,6 +392,109 @@ describe("ProfileForm", () => {
 				}),
 			);
 		});
+	});
+
+	it("Should submit the card initial interval apart from the learning assets' one when it is edited on the Cards tab", async () => {
+		// Arrange
+
+		const profile = makeProfile();
+		vi.mocked(updateStudyProfile).mockResolvedValue(profile);
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+
+		// Act
+
+		const input = screen.getByRole("textbox", {
+			name: "Initial interval (days)",
+		});
+		await user.clear(input);
+		await user.type(input, "4");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// Assert
+
+		await waitFor(() => {
+			expect(updateStudyProfile).toHaveBeenCalledWith(
+				profile.id,
+				expect.objectContaining({
+					cardInitialIntervalDays: 4,
+					buryNewSiblings: false,
+					buryReviewSiblings: false,
+					initialIntervalDays: profile.initialIntervalDays,
+				}),
+			);
+		});
+	});
+
+	it("Should submit burying review siblings when its checkbox is checked on the Cards tab", async () => {
+		// Arrange
+
+		const profile = makeProfile();
+		vi.mocked(updateStudyProfile).mockResolvedValue(profile);
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+
+		// Act
+
+		await user.click(
+			screen.getByRole("checkbox", { name: "Bury review siblings" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// Assert
+
+		await waitFor(() => {
+			expect(updateStudyProfile).toHaveBeenCalledWith(
+				profile.id,
+				expect.objectContaining({
+					buryNewSiblings: false,
+					buryReviewSiblings: true,
+				}),
+			);
+		});
+	});
+
+	it("Should show a validation error and not submit when the card initial interval is cleared", async () => {
+		// Arrange
+
+		const profile = makeProfile();
+		const user = userEvent.setup();
+		renderWithProviders(
+			<ProfileForm
+				profile={profile}
+				onSaved={vi.fn()}
+				onSubmitted={vi.fn()}
+			/>,
+		);
+		await openCardsTab();
+
+		// Act
+
+		await user.clear(
+			screen.getByRole("textbox", { name: "Initial interval (days)" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		// Assert
+
+		expect(
+			await screen.findByText("Enter a number of days from 0 to 36500"),
+		).toBeInTheDocument();
+		expect(updateStudyProfile).not.toHaveBeenCalled();
 	});
 
 	it("Should not render a percentile input when the policy takes no percentile", async () => {

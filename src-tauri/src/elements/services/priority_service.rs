@@ -65,9 +65,8 @@ pub trait PriorityService: Send + Sync {
         ids: &[ElementId],
     ) -> Result<HashMap<ElementId, PriorityInfo>, PriorityError>;
 
-    /// New priorities for a batch restored from the trash (old priorities,
-    /// ascending), placed as a contiguous block near their old spot instead
-    /// of the stale values, which may have been reclaimed while trashed.
+    /// Priorities for a batch restored from the trash (old priorities, ascending), as a block near their
+    /// old spot, since the old values may have been reclaimed meanwhile.
     async fn get_priorities_for_restore(
         &self,
         old_priorities_ascending: &[FractionalIndex],
@@ -81,9 +80,8 @@ pub trait PriorityService: Send + Sync {
         position: i64,
     ) -> Result<(), PriorityError>;
 
-    /// The elements `id` would sit between at the given 1-based position,
-    /// placed like [`set_priority_by_position`]. `None` previews an element
-    /// not created yet, placed like [`get_priority_for_position`].
+    /// The elements `id` would sit between at the 1-based `position`, placed like [`set_priority_by_position`];
+    /// `None` previews one not created yet, placed like [`get_priority_for_position`].
     async fn get_neighbors_at_position(
         &self,
         id: Option<ElementId>,
@@ -97,9 +95,8 @@ pub trait PriorityService: Send + Sync {
         percentile: f64,
     ) -> Result<(), PriorityError>;
 
-    /// Priority for a brand new element inserted at the given 1-based position
-    /// (clamped to 1..=queue size + 1, since the new element hasn't been
-    /// counted yet), rather than at the front.
+    /// Priority for a new element at the 1-based `position`, clamped to 1..=queue size + 1 as it isn't
+    /// counted yet.
     async fn get_priority_for_position(
         &self,
         position: i64,

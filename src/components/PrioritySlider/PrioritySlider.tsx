@@ -22,9 +22,10 @@ interface PrioritySliderProps {
 	autoFocusPosition?: boolean;
 }
 
-/** Position + percentile inputs paired with a priority slider, shared between
- * `PriorityModal` (repositions an existing element) and the import priority
- * section (chooses where a new element will land). */
+/**
+ * Position and percentile inputs with a priority slider, shared by `PriorityModal` (moving an element)
+ * and the import priority section (placing a new one).
+ */
 function PrioritySlider({
 	element,
 	total,

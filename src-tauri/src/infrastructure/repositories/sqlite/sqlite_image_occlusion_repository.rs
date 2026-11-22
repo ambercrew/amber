@@ -150,6 +150,20 @@ impl ImageOcclusionRepository for SqliteImageOcclusionRepository {
         Ok(())
     }
 
+    async fn is_card_linked(&self, card_id: Uuid) -> Result<bool, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let linked = sqlx::query_scalar!(
+            r#"SELECT EXISTS(SELECT 1 FROM image_occlusion_cards WHERE card_id = $1) as "linked!: bool""#,
+            card_id.hyphenated(),
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        Ok(linked)
+    }
+
     async fn get_links(
         &self,
         occlusion_id: Uuid,

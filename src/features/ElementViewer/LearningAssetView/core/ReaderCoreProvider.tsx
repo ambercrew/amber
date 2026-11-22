@@ -1,8 +1,15 @@
-import { PropsWithChildren, useCallback, useMemo, useRef } from "react";
+import {
+	PropsWithChildren,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { HighlightCreatedPayload } from "../../../../components/Editor/plugins/HighlightPlugin/highlightCommands";
 import { LearningAssetSplitMetaDto } from "../../../../types/elements/learningAssetSplitMetaDto";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
-import { useMainScrollElement } from "../../../App/context/mainScrollContext";
+import { useMainScrollElement } from "../../../../components/AppLayout/appLayoutContext";
 import { useSplitHeights } from "./heights/useSplitHeights";
 import { useContentWidth } from "./useContentWidth";
 import { useSplitMountWindow } from "./useSplitMountWindow";
@@ -12,6 +19,8 @@ import { useKeyedRefCallbacks } from "./useKeyedRefCallbacks";
 import { useReadingAnchors } from "./useReadingAnchors";
 import { useSplitNavigator } from "./useSplitNavigator";
 import { useViewportChange } from "./useViewportChange";
+import { landOnViewPosition } from "./viewPosition";
+import { ViewPosition } from "../../../../types/elements/viewPosition";
 
 function setOrDelete<K, V>(map: Map<K, V>, key: K, value: V | null) {
 	if (value) map.set(key, value);
@@ -23,6 +32,10 @@ interface ReaderCoreProviderProps extends PropsWithChildren {
 	splits: LearningAssetSplitMetaDto[];
 	/** Read point restored on open. */
 	initialReadPoint: ReadingPosition;
+	/** Scroll position to open at in place of the read point, e.g. returning to a study session's element. */
+	initialViewPosition?: ViewPosition;
+	/** Called on unmount with where the reader last was (`null` if they never got past the opening jump); scrolling is only measured while it's set. */
+	onLeave?: (position: ViewPosition | null) => void;
 	onHighlightCreated?: (payload: HighlightCreatedPayload) => void;
 }
 
@@ -34,9 +47,16 @@ export default function ReaderCoreProvider({
 	learningAssetId,
 	splits,
 	initialReadPoint,
-	onHighlightCreated,
+	initialViewPosition,
+	onLeave,
 	children,
+	onHighlightCreated,
 }: ReaderCoreProviderProps) {
+	// Only this opening's first landing uses it.
+	const [initialLand] = useState(
+		() => initialViewPosition && landOnViewPosition(initialViewPosition),
+	);
+	const initialSeq = initialViewPosition?.split ?? initialReadPoint.split;
 	const [contentWidth, containerRef] = useContentWidth();
 	const scrollElement = useMainScrollElement();
 	const {
@@ -46,7 +66,7 @@ export default function ReaderCoreProvider({
 		lockTo,
 		unlock,
 		notifySplitReady: notifyWindowSplitReady,
-	} = useSplitMountWindow({ splits, initialSeq: initialReadPoint.split });
+	} = useSplitMountWindow({ splits, initialSeq });
 	const { getHeight, observeSplit } = useSplitHeights(
 		learningAssetId,
 		contentWidth,
@@ -81,7 +101,8 @@ export default function ReaderCoreProvider({
 
 	const { restoredRef, navigate, notifySplitReady } = useSplitNavigator({
 		splits,
-		initial: initialReadPoint,
+		initial: initialViewPosition ?? initialReadPoint,
+		initialLand,
 		getContentRoot,
 		getHeight,
 		lockTo,
@@ -104,6 +125,22 @@ export default function ReaderCoreProvider({
 		getContentRoot,
 		scrollElement,
 	});
+	// Measured as the reader scrolls, as the DOM may already be gone by unmount.
+	const lastPositionRef = useRef(initialViewPosition ?? null);
+	const tracking = onLeave !== undefined;
+	useEffect(() => {
+		if (!tracking) return;
+		return onViewportChange(() => {
+			if (!restoredRef.current) return;
+			lastPositionRef.current =
+				anchors.topVisible() ?? lastPositionRef.current;
+		});
+	}, [tracking, onViewportChange, restoredRef, anchors]);
+	const onLeaveRef = useRef(onLeave);
+	useEffect(() => {
+		onLeaveRef.current = onLeave;
+	}, [onLeave]);
+	useEffect(() => () => onLeaveRef.current?.(lastPositionRef.current), []);
 
 	const core = useMemo<ReaderCore>(
 		() => ({

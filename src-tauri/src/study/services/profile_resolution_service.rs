@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use thiserror::Error;
@@ -11,9 +11,8 @@ use crate::sync::errors::SyncError;
 
 #[async_trait]
 pub trait ProfileResolutionService: Send + Sync {
-    /// Resolves the effective profile for `element_id`, or the app-wide
-    /// default/oldest profile when `None` (e.g. a not-yet-created element
-    /// with no parent, whose own meta row doesn't exist yet to resolve against).
+    /// The effective profile for `element_id`, or the default (else oldest) profile for `None`, e.g. a
+    /// new element without a parent.
     async fn resolve_profile(
         &self,
         element_id: Option<ElementId>,
@@ -25,6 +24,12 @@ pub trait ProfileResolutionService: Send + Sync {
         &self,
         element_id: ElementId,
     ) -> Result<EffectiveProfile, ProfileResolutionError>;
+
+    /// The effective profile's id for each of `ids`, by the same resolution as `resolve_profile` but in one walk.
+    async fn resolve_profile_ids(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, Uuid>, ProfileResolutionError>;
 
     /// The cards among `card_ids` whose effective profile is `profile_id`, by the same
     /// resolution as `resolve_profile`.

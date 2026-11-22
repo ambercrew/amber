@@ -11,6 +11,7 @@ use crate::elements::entities::learning_asset_split::LearningAssetSplit;
 use crate::elements::repositories::learning_asset_repository::LearningAssetRepository;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::utils::heading_extractor::extract_headings;
+use crate::elements::utils::highlight_locator::find_highlight_block;
 use crate::elements::utils::plain_text_extractor::extract_plain_text;
 use crate::elements::value_objects::learning_asset_content::LearningAssetContent;
 use crate::elements::value_objects::learning_asset_heading::LearningAssetHeading;
@@ -245,6 +246,34 @@ impl LearningAssetRepository for SqliteLearningAssetRepository {
             .into_iter()
             .flat_map(|row| extract_headings(row.seq as u32, &row.content))
             .collect())
+    }
+
+    async fn find_highlight(
+        &self,
+        learning_asset_id: Uuid,
+        element_id: Uuid,
+    ) -> Result<Option<ReadingPosition>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        let element_id = element_id.hyphenated().to_string();
+        let rows = sqlx::query!(
+            r#"SELECT seq, content
+            FROM learning_asset_splits
+            WHERE learning_asset_id = $1 AND instr(content, $2) > 0
+            ORDER BY seq"#,
+            learning_asset_id.hyphenated(),
+            element_id
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows.into_iter().find_map(|row| {
+            find_highlight_block(&row.content, &element_id).map(|block| ReadingPosition {
+                split: row.seq as u32,
+                block,
+            })
+        }))
     }
 
     async fn get_split_content(

@@ -1,6 +1,6 @@
 import { useComputedColorScheme } from "@mantine/core";
 import { Scrollbar } from "@embedpdf/react/stage";
-import { useChromeInsets } from "../../../App/context/chromeInsetsContext";
+import { useChromeInsets } from "../../../../hooks/useChromeInsets";
 
 interface PdfScrollbarProps {
 	/** Whether the pointer is over the PDF, which shows the thumb. */

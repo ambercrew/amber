@@ -13,6 +13,9 @@ export interface PriorityInheritancePolicy {
 	ceilingPercentile: number | null;
 }
 
+/** What happens to a card on becoming a leech; it's tagged `leech` either way. */
+export type LeechAction = "tagOnly" | "suspend";
+
 export interface StudyProfileDto {
 	id: string;
 	createdAt: string;
@@ -23,6 +26,13 @@ export interface StudyProfileDto {
 	fsrsParams: number[];
 	learningSteps: string[];
 	relearningSteps: string[];
+	maximumIntervalDays: number;
+	newCardsPerDay: number;
+	leechThreshold: number;
+	leechAction: LeechAction;
+	cardInitialIntervalDays: number;
+	buryNewSiblings: boolean;
+	buryReviewSiblings: boolean;
 	initialIntervalMultiplier: number;
 	initialIntervalDays: number;
 	minIntervalDays: number;
@@ -35,6 +45,13 @@ export interface StudyProfileRequestDto {
 	fsrsParams: number[];
 	learningSteps: string[];
 	relearningSteps: string[];
+	maximumIntervalDays: number;
+	newCardsPerDay: number;
+	leechThreshold: number;
+	leechAction: LeechAction;
+	cardInitialIntervalDays: number;
+	buryNewSiblings: boolean;
+	buryReviewSiblings: boolean;
 	initialIntervalMultiplier: number;
 	initialIntervalDays: number;
 	minIntervalDays: number;

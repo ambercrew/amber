@@ -49,9 +49,8 @@ impl TrashService for DefaultTrashService {
         let restored_ids = self.trash_repository.restore(id).await?;
         self.reassign_priorities(restored_ids).await?;
 
-        // An ancestor may have been permanently deleted in the meantime, or
-        // still be trashed itself. Either way the element would come back
-        // invisible, so it is put back at the root instead.
+        // An ancestor deleted for good or still trashed would leave the element invisible,
+        // so it goes back at the root instead.
         if !self.trash_repository.has_live_ancestry(id).await? {
             let position = self.element_index_service.get_new_last_index(None).await?;
             self.meta_repository.move_to(id, None, position).await?;
@@ -73,9 +72,8 @@ impl TrashService for DefaultTrashService {
         Ok(())
     }
 
-    // Deleting a root cascades to its subtree, so a root nested inside another
-    // one may already be gone by the time its turn comes; the delete is then a
-    // no-op rather than an error.
+    // Deleting a root cascades, so a root nested in another may be gone when its turn comes;
+    // its delete is then a no-op.
     async fn empty_trash(&self) -> Result<(), TrashServiceError> {
         let roots: Vec<_> = self
             .trash_repository
@@ -475,9 +473,8 @@ mod tests {
             .unwrap();
 
         service.trash_element(learning_asset_id).await.unwrap();
-        // Trashes only the grandparent's own row, leaving the parent live —
-        // not reachable through `trash_element`, which always cascades to
-        // descendants, but exercises the same ancestry check.
+        // Trashes only the grandparent's row, leaving the parent live, which `trash_element`'s cascade
+        // can't do, to exercise the same ancestry check.
         let tx = scope.resolve::<DbTransaction>().await;
         {
             let mut guard = tx.lock().await;
@@ -590,9 +587,8 @@ mod tests {
         folder_repository.create(folder).await.unwrap();
         service.trash_element(folder_id).await.unwrap();
 
-        // While the folder is trashed, another element claims the exact
-        // priority it left behind — the way an unrelated insertion would once
-        // the trashed row stops counting as an obstacle.
+        // While the folder is trashed, another element claims the priority it left, as an
+        // unrelated insertion would.
         let other = make_folder("Reclaimed", None);
         let other_id = other.meta.element_id;
         folder_repository.create(other).await.unwrap();

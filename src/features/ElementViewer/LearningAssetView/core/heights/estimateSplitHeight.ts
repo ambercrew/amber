@@ -4,10 +4,8 @@ import {
 } from "../learningAssetViewConstants";
 
 /**
- * Rough height (px) for a split we haven't measured yet, from its stored content
- * length. Taller when there is more content; shorter when the column is wider
- * (more characters fit per line). This is only a first-paint placeholder — a
- * `ResizeObserver` replaces it with the real height once the split mounts.
+ * A first-paint height (px) for an unmeasured split from its content length and the column's width,
+ * until a `ResizeObserver` measures it once mounted.
  */
 export function estimateSplitHeight(
 	charCount: number,

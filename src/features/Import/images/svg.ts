@@ -20,10 +20,8 @@ export function toBase64SvgDataUri(dataUri: string): string | null {
 }
 
 /**
- * Replaces inline `<svg>` drawings with images of themselves, since the
- * sanitizer keeps only `<svg>`/`<path>` and would strip their other shapes.
- * Decorative icons (`aria-hidden`) and sprite references (`<use>`, blank on
- * their own) are left as they were.
+ * Replaces inline `<svg>` drawings with images of themselves, as the sanitizer keeps only `<svg>` and
+ * `<path>`; decorative icons (`aria-hidden`) and `<use>` sprites stay as they were.
  */
 export function convertInlineSvgs(doc: Document) {
 	const serializer = new XMLSerializer();

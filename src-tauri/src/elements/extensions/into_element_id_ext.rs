@@ -6,9 +6,8 @@ pub trait IntoElementIdExt {
     fn into_element_id(self) -> ElementId;
 }
 
-/// Rebuilds an [`ElementId`] from the `(element_id, element_type)` pair every
-/// element row carries. Unknown type strings fall back to `Card`, matching how
-/// the element tables themselves are keyed.
+/// Rebuilds an [`ElementId`] from a row's `(element_id, element_type)`; an unknown type falls back to
+/// `Card`, matching how the element tables are keyed.
 impl IntoElementIdExt for (Uuid, String) {
     fn into_element_id(self) -> ElementId {
         match self.1.as_str() {

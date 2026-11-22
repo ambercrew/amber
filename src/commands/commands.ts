@@ -51,7 +51,7 @@ import {
 } from "../stores/study/studySelectors";
 import { saveSettings } from "../stores/settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../api/settings/dto/updateSettingsRequestDto";
-import { selectSettings } from "../stores/settings/settingsSelector";
+import { selectSettings } from "../stores/settings/settingsSelectors";
 import { isCurrentlyDark } from "./commandUtils";
 import {
 	selectCanZoomAppWide,
@@ -61,7 +61,7 @@ import {
 import { sync } from "../stores/sync/syncActions";
 import { startAnkiSync } from "../stores/ankiSync/ankiSyncActions";
 import { selectIsAnkiSyncBusy } from "../stores/ankiSync/ankiSyncSelectors";
-import { selectIsSyncing } from "../stores/sync/syncSelector";
+import { selectIsSyncing } from "../stores/sync/syncSelectors";
 import {
 	selectIsSignedIn,
 	selectUserInformation,
@@ -108,7 +108,7 @@ import { requestFocus } from "../hooks/useFocusRequest";
 import { TOGGLE_RIGHT_SIDEBAR_REQUESTED } from "../types/events/toggleRightSidebarRequestedEvent";
 import { createCardAction } from "../stores/elements/elementsActions";
 import { hasDue } from "../utils/elementDue";
-import { newCardDto } from "../features/Sidebar/components/ElementTree/elementTreeUtils";
+import { newCardDto } from "../features/Sidebar/utils/newCardDto";
 import { paths } from "../paths";
 import { REVIEW_NAVIGATION_STATE } from "../types/study/reviewNavigationState";
 import {
@@ -328,8 +328,8 @@ export const commandsById: Record<CommandId, Command> = {
 		shortcut: SET_READ_POINT_SHORTCUT,
 		icon: createElement(ReadPointIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
-		execute: () => {
-			runReadingCommand({ type: "set-read-point" });
+		execute: dispatch => {
+			dispatch(runReadingCommand({ type: "set-read-point" }));
 			notifications.show({ message: "Read point set" });
 		},
 	},
@@ -341,7 +341,8 @@ export const commandsById: Record<CommandId, Command> = {
 		shortcut: GO_TO_READ_POINT_SHORTCUT,
 		icon: createElement(MapPinIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
-		execute: () => runReadingCommand({ type: "go-to-read-point" }),
+		execute: dispatch =>
+			dispatch(runReadingCommand({ type: "go-to-read-point" })),
 	},
 	"clear-read-point": {
 		id: "clear-read-point",
@@ -350,8 +351,8 @@ export const commandsById: Record<CommandId, Command> = {
 		searchOnly: true,
 		icon: createElement(EraserIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
-		execute: () => {
-			runReadingCommand({ type: "clear-read-point" });
+		execute: dispatch => {
+			dispatch(runReadingCommand({ type: "clear-read-point" }));
 			notifications.show({ message: "Read point cleared" });
 		},
 	},
@@ -405,7 +406,7 @@ export const commandsById: Record<CommandId, Command> = {
 		searchOnly: true,
 		shortcut: FOCUS_TREE_SHORTCUT,
 		icon: createElement(TreeStructureIcon),
-		execute: () => requestFocus("tree"),
+		execute: dispatch => dispatch(requestFocus("tree")),
 	},
 	"search-all-elements": {
 		id: "search-all-elements",
@@ -414,7 +415,7 @@ export const commandsById: Record<CommandId, Command> = {
 		searchOnly: true,
 		shortcut: SEARCH_ALL_ELEMENTS_SHORTCUT,
 		icon: createElement(MagnifyingGlassIcon),
-		execute: () => requestFocus("globalSearch"),
+		execute: dispatch => dispatch(requestFocus("globalSearch")),
 	},
 	"show-priority-queue": {
 		id: "show-priority-queue",
@@ -440,7 +441,7 @@ export const commandsById: Record<CommandId, Command> = {
 		searchOnly: true,
 		icon: createElement(AskAiIcon),
 		enabled: state => selectSettings(state)?.enableAi ?? false,
-		execute: () => requestFocus("aiChat"),
+		execute: dispatch => dispatch(requestFocus("aiChat")),
 	},
 	"open-ai-prompt-library": {
 		id: "open-ai-prompt-library",
@@ -614,9 +615,8 @@ export const commandsById: Record<CommandId, Command> = {
 		group: "App",
 		label: "Enable on-screen keyboard",
 		icon: createElement(KeyboardIcon),
-		// Deliberately not gated on the pointer type: suppression outlives a
-		// restart, so this has to stay reachable even if the device stops
-		// reporting a coarse pointer (a tablet with a keyboard case attached).
+		// Not gated on the pointer type: suppression outlives a restart, so it must stay reachable once
+		// the device stops reporting a coarse pointer (a tablet in a keyboard case).
 		enabled: state => selectIsVirtualKeyboardSuppressed(state),
 		execute: dispatch =>
 			dispatch(setVirtualKeyboardSuppressedAction(false)),
@@ -632,7 +632,8 @@ function setMarkCommand(slot: MarkSlot, shortcut: string): Command {
 		shortcut,
 		icon: createElement(SetMarkIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
-		execute: () => runReadingCommand({ type: "set-mark", slot }),
+		execute: dispatch =>
+			dispatch(runReadingCommand({ type: "set-mark", slot })),
 	};
 }
 
@@ -645,7 +646,8 @@ function goToMarkCommand(slot: MarkSlot, shortcut: string): Command {
 		shortcut,
 		icon: createElement(GoToMarkIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
-		execute: () => runReadingCommand({ type: "go-to-mark", slot }),
+		execute: dispatch =>
+			dispatch(runReadingCommand({ type: "go-to-mark", slot })),
 	};
 }
 

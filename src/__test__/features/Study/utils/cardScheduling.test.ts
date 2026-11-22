@@ -23,6 +23,13 @@ const PROFILE: StudyProfileDto = {
 	initialIntervalMultiplier: 1.2,
 	initialIntervalDays: 1,
 	minIntervalDays: 1,
+	maximumIntervalDays: 36500,
+	newCardsPerDay: 20,
+	leechThreshold: 8,
+	leechAction: "tagOnly",
+	cardInitialIntervalDays: 1,
+	buryNewSiblings: false,
+	buryReviewSiblings: false,
 	priorityInheritancePolicy: {
 		placement: { type: "aboveParent" },
 		ceilingPercentile: null,
@@ -74,6 +81,24 @@ function minutesUntilDue(due: string): number {
 }
 
 describe("scheduleAllRatings", () => {
+	it("Should cap the interval at the profile's maximum when a mature card is rated Easy", async () => {
+		// Arrange
+
+		const profile = { ...PROFILE, maximumIntervalDays: 30 };
+
+		// Act
+
+		const actual = scheduleAllRatings(
+			await createScheduler(profile),
+			REVIEW_CARD,
+			NOW,
+		).easy;
+
+		// Assert
+
+		expect(actual.scheduledDays).toBe(30);
+	});
+
 	it("Should keep a new card in learning on its second step when rated Good", async () => {
 		// Arrange
 

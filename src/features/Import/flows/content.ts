@@ -1,7 +1,7 @@
 import { normalize } from "../normalize";
-import { deriveTitle } from "../deriveTitle";
-import { createImportedLearningAsset } from "../createImportedLearningAsset";
-import { ImportContext } from "../importContext";
+import { deriveTitle } from "../utils/deriveTitle";
+import { createImportedLearningAsset } from "../utils/createImportedLearningAsset";
+import { ImportContext } from "../utils/importContext";
 import { textToParagraphs } from "../text/extract";
 import { ElementId } from "../../../types/elements/elementId";
 

@@ -138,9 +138,8 @@ impl NoteChanges {
         })
     }
 
-    /// How many cards go to Anki for the first time, by the deck they land in: those of the notes to send
-    /// that Anki holds no card of, as last paired.
-    /// `in_anki` are the cards Anki holds already, and `trashed` those the sync trashes before sending any.
+    /// Cards going to Anki for the first time, by deck: those of the notes to send with no card in Anki as last
+    /// paired. `in_anki` are the cards Anki holds, `trashed` those the sync trashes before sending.
     pub(super) fn new_cards(
         &self,
         in_anki: &HashMap<Uuid, AnkiCardId>,
@@ -196,9 +195,8 @@ impl NoteChanges {
 }
 
 impl DefaultAnkiSyncService {
-    /// Live cards as Anki notes: a basic note per card, one note per image occlusion. Notes Anki already
-    /// holds as last sent are left out, so only what changed is rendered and imported. `pulled` are the cards
-    /// this sync took Anki's edits to.
+    /// Live cards as Anki notes (a basic note per card, one per occlusion), leaving out those Anki holds as last
+    /// sent. `pulled` are the cards this sync took Anki's edits to.
     pub(super) async fn export(
         &self,
         plan: &SyncPlan,

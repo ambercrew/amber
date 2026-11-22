@@ -48,6 +48,7 @@ impl<R: tauri::Runtime> TauriSyncFrontend<R> {
             .map_err(|err| match err {
                 RequestBridgeError::Emit => SyncFrontendError::Emit,
                 RequestBridgeError::Timeout => SyncFrontendError::Timeout,
+                RequestBridgeError::Failed(message) => SyncFrontendError::Failed(message),
             })?;
         serde_json::from_str(&response).map_err(|_| SyncFrontendError::InvalidResponse)
     }

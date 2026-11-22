@@ -35,9 +35,8 @@ interface SectionedModalProps {
 const MODAL_CONTENT_HEIGHT = 500;
 
 /**
- * An {@link AppModal} split into sections navigable from a side list of links
- * (a drawer on small screens). Used for modals with more content than fits
- * comfortably in a single scroll, e.g. Settings or Manage account.
+ * An {@link AppModal} split into sections with a side list of links (a drawer on small screens),
+ * for modals too long for one scroll, e.g. Settings.
  */
 function SectionedModal({
 	opened,

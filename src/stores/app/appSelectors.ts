@@ -1,4 +1,7 @@
+import { createSelector } from "@reduxjs/toolkit";
 import { RootState } from "../store";
+import { chromeInsets } from "../../utils/chromeInsets";
+import { SAFE_AREA_BOTTOM, SAFE_AREA_TOP } from "../../utils/safeArea";
 
 export const selectStartedInitialStateLoading = (state: RootState) =>
 	state.app.startedInitialStateLoading;
@@ -44,3 +47,25 @@ export const selectIsManageAccountModalOpened = (state: RootState) =>
 
 export const selectIsVirtualKeyboardSuppressed = (state: RootState) =>
 	state.app.virtualKeyboardSuppressed;
+
+export const selectPendingFocus = (state: RootState) => state.app.pendingFocus;
+
+export const selectPendingTreeReveal = (state: RootState) =>
+	state.app.pendingTreeReveal;
+
+export const selectLastPriorityPreview = (state: RootState) =>
+	state.app.lastPriorityPreview;
+
+/** Whether the header shows right now, driven by the main scroll area unless a view overrides it. */
+export const selectIsHeaderPinned = (state: RootState) =>
+	state.app.headroomOverride ?? state.app.mainScrollPinned;
+
+/** Whether the study session footer shows right now; it hides with the header. */
+export const selectIsFooterShown = (state: RootState) =>
+	state.study.status === "studying" && selectIsHeaderPinned(state);
+
+export const selectChromeInsets = createSelector(
+	[selectIsHeaderPinned, selectIsFooterShown],
+	(headerShown, footerShown) =>
+		chromeInsets(headerShown, footerShown, SAFE_AREA_TOP, SAFE_AREA_BOTTOM),
+);

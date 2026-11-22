@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
-use crate::study::entities::study_profile::StudyProfile;
+use crate::study::entities::study_profile::{DEFAULT_MAXIMUM_INTERVAL_DAYS, StudyProfile};
 use crate::study::repositories::study_profile_repository::StudyProfileRepository;
 use crate::study::services::profile_resolution_service::{
     EffectiveProfile, ProfileResolutionError, ProfileResolutionService, ProfileSource,
@@ -67,6 +67,20 @@ impl ProfileResolutionService for DefaultProfileResolutionService {
             profile: self.resolve_default_profile().await?,
             source: ProfileSource::Default,
         })
+    }
+
+    async fn resolve_profile_ids(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, Uuid>, ProfileResolutionError> {
+        let mut profile_ids = self.meta_repository.get_assigned_profile_ids(ids).await?;
+        if ids.iter().any(|id| !profile_ids.contains_key(id)) {
+            let default_id = self.resolve_default_profile().await?.id;
+            for id in ids {
+                profile_ids.entry(*id).or_insert(default_id);
+            }
+        }
+        Ok(profile_ids)
     }
 
     async fn cards_using_profile(
@@ -173,6 +187,13 @@ impl DefaultProfileResolutionService {
             initial_interval_multiplier: DEFAULT_INTERVAL_MULTIPLIER,
             initial_interval_days: DEFAULT_INITIAL_INTERVAL_DAYS,
             min_interval_days: DEFAULT_MIN_INTERVAL_DAYS,
+            maximum_interval_days: DEFAULT_MAXIMUM_INTERVAL_DAYS,
+            new_cards_per_day: crate::study::entities::study_profile::DEFAULT_NEW_CARDS_PER_DAY,
+            leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
+            leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
+            card_initial_interval_days: DEFAULT_INITIAL_INTERVAL_DAYS,
+            bury_new_siblings: crate::study::entities::study_profile::DEFAULT_BURY_NEW_SIBLINGS,
+            bury_review_siblings: false,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         }
     }
@@ -576,5 +597,56 @@ mod tests {
         // Assert
 
         assert_eq!(HashSet::from([unassigned]), cards);
+    }
+
+    #[tokio::test]
+    async fn resolve_profile_ids_nested_elements_returns_nearest_profile_or_default() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let meta_repo = scope.resolve::<dyn MetaRepository>().await;
+        let profile_repo = scope.resolve::<dyn StudyProfileRepository>().await;
+        let service = scope.resolve::<dyn ProfileResolutionService>().await;
+        let default = DefaultProfileResolutionService::new_default_profile();
+        profile_repo.create(&default).await.unwrap();
+        let profile = StudyProfile {
+            id: Uuid::new_v4(),
+            is_default: false,
+            ..DefaultProfileResolutionService::new_default_profile()
+        };
+        profile_repo.create(&profile).await.unwrap();
+        let grandparent = ElementId::Folder(Uuid::new_v4());
+        let parent = ElementId::Folder(Uuid::new_v4());
+        create_meta(&meta_repo, grandparent, None, Some(profile.id)).await;
+        create_meta(&meta_repo, parent, Some(grandparent), None).await;
+        let [inherited, overridden, unassigned] = [(); 3].map(|_| Uuid::new_v4());
+        create_meta(&meta_repo, ElementId::Card(inherited), Some(parent), None).await;
+        create_meta(
+            &meta_repo,
+            ElementId::Card(overridden),
+            Some(parent),
+            Some(default.id),
+        )
+        .await;
+        create_meta(&meta_repo, ElementId::Card(unassigned), None, None).await;
+
+        // Act
+
+        let actual = service
+            .resolve_profile_ids(&[inherited, overridden, unassigned])
+            .await
+            .unwrap();
+
+        // Assert
+
+        assert_eq!(
+            HashMap::from([
+                (inherited, profile.id),
+                (overridden, default.id),
+                (unassigned, default.id),
+            ]),
+            actual
+        );
     }
 }

@@ -1,4 +1,4 @@
-import { FileFormat, matchesFile } from "../fileFormat";
+import { FileFormat, matchesFile } from "../utils/fileFormat";
 import { extractPdf } from "./extract";
 
 // No signature: valid PDFs may have junk before their `%PDF-` header.

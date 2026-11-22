@@ -7,12 +7,11 @@ import { refreshAiPromptsAction } from "../stores/aiPrompts/aiPromptsActions";
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "../stores/sync/managers/syncEventManager";
+} from "../managers/syncEventManager";
 
 /**
- * Refreshes global app state that a sync can change from another device —
- * the element tree, bibliographical sources, trash, and AI prompts — once a sync
- * completes.
+ * Reloads what a sync can change from another device (the element tree, sources, trash,
+ * AI prompts) once it completes.
  */
 export function usePostSyncRefresh() {
 	const dispatch = useAppDispatch();

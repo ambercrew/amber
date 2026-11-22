@@ -213,7 +213,9 @@ describe("AnkiSyncReviewModal", () => {
 		// Arrange
 
 		const store = setupStore();
-		store.dispatch(setAnkiSyncReview({ status: "loading" }));
+		store.dispatch(
+			setAnkiSyncReview({ status: "loading", requestId: "preview" }),
+		);
 
 		// Act
 

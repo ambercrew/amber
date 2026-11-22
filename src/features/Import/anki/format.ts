@@ -1,4 +1,4 @@
-import { ElementsFileFormat } from "../fileFormat";
+import { ElementsFileFormat } from "../utils/fileFormat";
 import { importAnki } from "./importAnki";
 
 export const ankiFormat: ElementsFileFormat = {

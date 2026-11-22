@@ -13,10 +13,8 @@ use crate::elements::services::priority_service::PriorityError;
 use crate::elements::value_objects::new_card_due::NewCardDue;
 use crate::study::services::profile_resolution_service::ProfileResolutionError;
 
-/// Creates folders, learning_assets, extracts and cards. Beyond persisting the element
-/// itself, it ensures each one gets a review row where applicable (extracts are
-/// reviewed like learning_assets) so it's immediately schedulable without a separate
-/// first-review step.
+/// Creates folders, learning assets, extracts and cards, giving each its review row where it has one
+/// (extracts are reviewed like learning assets), so it's schedulable at once.
 #[async_trait]
 #[cfg_attr(test, automock)]
 pub trait ElementCreationService: Send + Sync {

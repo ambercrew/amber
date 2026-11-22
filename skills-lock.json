@@ -1,29 +1,54 @@
 {
-	"version": 1,
-	"skills": {
-		"mantine-combobox": {
-			"source": "mantinedev/skills",
-			"sourceType": "github",
-			"skillPath": "skills/mantine-combobox/SKILL.md",
-			"computedHash": "fb3002c7bb704a111b1f4c596573aa9905e1b8dd728ad15dbba8cdf7a53ed98a"
-		},
-		"mantine-custom-components": {
-			"source": "mantinedev/skills",
-			"sourceType": "github",
-			"skillPath": "skills/mantine-custom-components/SKILL.md",
-			"computedHash": "16f771d471da17b76a803ace40211177283ad3adcf319e8e3b4bd1a1ddeb74c1"
-		},
-		"mantine-form": {
-			"source": "mantinedev/skills",
-			"sourceType": "github",
-			"skillPath": "skills/mantine-form/SKILL.md",
-			"computedHash": "1bf98bd02676810bf420019b501ffaaba61774869b2b758dd5518620311ef518"
-		},
-		"rsuite": {
-			"source": "rsuite/rsuite",
-			"sourceType": "github",
-			"skillPath": "skills/rsuite/SKILL.md",
-			"computedHash": "ae27874b780eb9025f6076118d9d05d83466206fff07adaa115b7e8a8ad0122c"
-		}
-	}
+  "version": 2,
+  "skills": {
+    "mantine-combobox": {
+      "source": "mantinedev/skills",
+      "commit": "607846dbc328b6ddc85106d8aad3c080f9f57a1d",
+      "sourceType": "github",
+      "skillPath": "skills/mantine-combobox/SKILL.md",
+      "computedHash": "4a6bfe46c608e68344735d2a46e146914a43553f66e407eb29eb68317770ed32"
+    },
+    "mantine-custom-components": {
+      "source": "mantinedev/skills",
+      "commit": "607846dbc328b6ddc85106d8aad3c080f9f57a1d",
+      "sourceType": "github",
+      "skillPath": "skills/mantine-custom-components/SKILL.md",
+      "computedHash": "fe74cc822dd8ba3f889305c58cc35384a592c441febe5d98a1151f1444610c4c"
+    },
+    "mantine-form": {
+      "source": "mantinedev/skills",
+      "commit": "607846dbc328b6ddc85106d8aad3c080f9f57a1d",
+      "sourceType": "github",
+      "skillPath": "skills/mantine-form/SKILL.md",
+      "computedHash": "c55ed7204c3fea77ea57165d0ec992bf9c970773008c1db9cb32c18005dd1745"
+    },
+    "rust-best-practices": {
+      "source": "apollographql/skills",
+      "commit": "9dda1397730370aeb8df4ff8f2015c34c86b5003",
+      "sourceType": "github",
+      "skillPath": "skills/rust-best-practices/SKILL.md",
+      "computedHash": "7e12e68aa50152eb7ba9ea1f88ca5380c846ea0175f8ab6788bb79b7faf12ca0"
+    },
+    "skill-creator": {
+      "source": "anthropics/skills",
+      "commit": "e4bb5d960d87126ff3b3a8af1a104b7db67560ba",
+      "sourceType": "github",
+      "skillPath": "skills/skill-creator/SKILL.md",
+      "computedHash": "2d7f889e6ae93c6c27d699856942c336b5b8644537496987d5571043d059b1dc"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "1a2c79d4e6c4a2283dc2c614b6538cbe1ed5ca62",
+      "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "7991ed4fbecdac23f47c1a40c243e00a212a9e7f3604db93959b3ae11dffe299"
+    },
+    "vitest": {
+      "source": "antfu/skills",
+      "commit": "4a6bb39e7b45e26402eb215393c51ccf5df1ca4c",
+      "sourceType": "github",
+      "skillPath": "skills/vitest/SKILL.md",
+      "computedHash": "bd95e41d66d76da9008893c9bc48c30f0a68f352cd2b00017767f5e4c129501d"
+    }
+  }
 }

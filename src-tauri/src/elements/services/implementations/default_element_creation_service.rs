@@ -111,7 +111,7 @@ impl ElementCreationService for DefaultElementCreationService {
         };
         let element = MetaNodeDto::from(folder.meta());
         self.folder_repository.create(folder).await?;
-        self.copy_parent_tags(parent, element_id).await?;
+        self.set_initial_tags(parent, element_id, dto.tags).await?;
         self.emit_element_created(parent, element).await;
         Ok(())
     }
@@ -196,10 +196,7 @@ impl ElementCreationService for DefaultElementCreationService {
             .await?;
         self.ensure_learning_asset_review(element_id, profile)
             .await?;
-        self.copy_parent_tags(parent, element_id).await?;
-        if !dto.tags.is_empty() {
-            self.meta_repository.add_tags(element_id, dto.tags).await?;
-        }
+        self.set_initial_tags(parent, element_id, dto.tags).await?;
         self.emit_element_created(parent, element).await;
         Ok(())
     }
@@ -401,9 +398,8 @@ impl DefaultElementCreationService {
         }
     }
 
-    /// New elements are placed relative to what they were derived from (or,
-    /// failing that, their tree parent) so the user needn't re-triage them.
-    /// How exactly is the effective study profile's priority inheritance policy.
+    /// Places a new element relative to what it was derived from (else its tree parent), so it needn't be
+    /// triaged again, following the effective profile's priority inheritance.
     async fn resolve_priority(
         &self,
         derived_from: Option<ElementId>,
@@ -418,6 +414,20 @@ impl DefaultElementCreationService {
             )
             .await?;
         Ok(priority)
+    }
+
+    /// `None` copies the parent's tags; `Some` (even empty) is used instead of them.
+    async fn set_initial_tags(
+        &self,
+        parent: Option<ElementId>,
+        element_id: ElementId,
+        tags: Option<Vec<String>>,
+    ) -> Result<(), ElementCreationError> {
+        match tags {
+            None => self.copy_parent_tags(parent, element_id).await,
+            Some(tags) if tags.is_empty() => Ok(()),
+            Some(tags) => Ok(self.meta_repository.add_tags(element_id, tags).await?),
+        }
     }
 
     async fn copy_parent_tags(
@@ -645,6 +655,15 @@ mod tests {
         scope: &injector::injector_scope::InjectorScope<'_>,
         initial_interval_days: f32,
     ) -> Uuid {
+        create_test_profile_with_intervals(scope, initial_interval_days, initial_interval_days)
+            .await
+    }
+
+    async fn create_test_profile_with_intervals(
+        scope: &injector::injector_scope::InjectorScope<'_>,
+        initial_interval_days: f32,
+        card_initial_interval_days: f32,
+    ) -> Uuid {
         let profile_repo = scope.resolve::<dyn StudyProfileRepository>().await;
         let profile = StudyProfile {
             id: Uuid::new_v4(),
@@ -659,6 +678,14 @@ mod tests {
             initial_interval_multiplier: 1.2,
             initial_interval_days,
             min_interval_days: 1.0,
+            maximum_interval_days:
+                crate::study::entities::study_profile::DEFAULT_MAXIMUM_INTERVAL_DAYS,
+            new_cards_per_day: crate::study::entities::study_profile::DEFAULT_NEW_CARDS_PER_DAY,
+            leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
+            leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
+            card_initial_interval_days,
+            bury_new_siblings: false,
+            bury_review_siblings: false,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         };
         profile_repo.create(&profile).await.unwrap();
@@ -683,6 +710,14 @@ mod tests {
             initial_interval_multiplier: 1.2,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
+            maximum_interval_days:
+                crate::study::entities::study_profile::DEFAULT_MAXIMUM_INTERVAL_DAYS,
+            new_cards_per_day: crate::study::entities::study_profile::DEFAULT_NEW_CARDS_PER_DAY,
+            leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
+            leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
+            card_initial_interval_days: 1.0,
+            bury_new_siblings: false,
+            bury_review_siblings: false,
             priority_inheritance_policy,
         };
         profile_repo.create(&profile).await.unwrap();
@@ -705,7 +740,7 @@ mod tests {
             pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_position: None,
-            tags: Vec::new(),
+            tags: None,
         };
         let element_id = ElementId::LearningAsset(dto.id);
 
@@ -741,7 +776,7 @@ mod tests {
             pdf_page_count: Some(0),
             splits: Vec::new(),
             initial_priority_position: None,
-            tags: Vec::new(),
+            tags: None,
         };
 
         // Act
@@ -776,7 +811,7 @@ mod tests {
             pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_position: None,
-            tags: Vec::new(),
+            tags: None,
         };
         service.create_learning_asset(existing_dto).await.unwrap();
 
@@ -788,7 +823,7 @@ mod tests {
             pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_position: Some(2),
-            tags: Vec::new(),
+            tags: None,
         };
         let element_id = ElementId::LearningAsset(dto.id);
 
@@ -804,12 +839,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_card_creates_review_due_today_plus_initial_interval() {
+    async fn create_card_creates_review_due_today_plus_card_initial_interval() {
         // Arrange
 
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
-        create_test_profile(&scope, 2.0).await;
+        create_test_profile_with_intervals(&scope, 5.0, 2.0).await;
         let service = create_service(&scope).await;
         let dto = CreateCardDto {
             id: Uuid::new_v4(),
@@ -948,6 +983,14 @@ mod tests {
             initial_interval_multiplier,
             initial_interval_days: 1.0,
             min_interval_days: 1.0,
+            maximum_interval_days:
+                crate::study::entities::study_profile::DEFAULT_MAXIMUM_INTERVAL_DAYS,
+            new_cards_per_day: crate::study::entities::study_profile::DEFAULT_NEW_CARDS_PER_DAY,
+            leech_threshold: crate::study::entities::study_profile::DEFAULT_LEECH_THRESHOLD,
+            leech_action: crate::study::value_objects::leech_action::LeechAction::TagOnly,
+            card_initial_interval_days: 1.0,
+            bury_new_siblings: false,
+            bury_review_siblings: false,
             priority_inheritance_policy: PriorityInheritancePolicy::default(),
         };
         profile_repo.create(&profile).await.unwrap();
@@ -970,7 +1013,7 @@ mod tests {
             pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_position: None,
-            tags: Vec::new(),
+            tags: None,
         };
         let learning_asset_id = dto.id;
 
@@ -1119,6 +1162,7 @@ mod tests {
         let dto = CreateFolderDto {
             id: Uuid::new_v4(),
             meta: dto_meta(Some(parent_id)),
+            tags: None,
         };
 
         // Act
@@ -1141,6 +1185,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_folder_with_empty_tags_skips_parent_tags() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let parent_id = create_tagged_parent_folder(&scope, vec!["a".into()]).await;
+        let service = create_service(&scope).await;
+        let dto = CreateFolderDto {
+            id: Uuid::new_v4(),
+            meta: dto_meta(Some(parent_id)),
+            tags: Some(Vec::new()),
+        };
+        let element_id = ElementId::Folder(dto.id);
+
+        // Act
+
+        service.create_folder(dto).await.unwrap();
+
+        // Assert
+
+        let tags = scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .get_tags(element_id)
+            .await
+            .unwrap();
+        assert!(tags.is_empty());
+    }
+
+    #[tokio::test]
     async fn create_learning_asset_parent_has_tags_copies_tags_to_learning_asset() {
         // Arrange
 
@@ -1157,7 +1231,7 @@ mod tests {
             pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_position: None,
-            tags: Vec::new(),
+            tags: None,
         };
         let element_id = ElementId::LearningAsset(dto.id);
 
@@ -1178,13 +1252,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_learning_asset_with_tags_adds_them_after_parent_tags() {
+    async fn create_learning_asset_with_tags_uses_them_instead_of_parent_tags() {
         // Arrange
 
         let injector = initialize_test_injector().await;
         let scope = injector.start_scope();
         create_test_profile(&scope, 1.0).await;
-        let parent_id = create_tagged_parent_folder(&scope, vec!["a".into()]).await;
+        let parent_id = create_tagged_parent_folder(&scope, vec!["a".into(), "c".into()]).await;
         let service = create_service(&scope).await;
         let dto = CreateLearningAssetDto {
             id: Uuid::new_v4(),
@@ -1194,7 +1268,7 @@ mod tests {
             pdf_page_count: None,
             splits: Vec::new(),
             initial_priority_position: None,
-            tags: vec!["a".into(), "b".into()],
+            tags: Some(vec!["a".into(), "b".into()]),
         };
         let element_id = ElementId::LearningAsset(dto.id);
 
@@ -1301,6 +1375,7 @@ mod tests {
                 name: Some("Science".to_string()),
                 ..dto_meta(None)
             },
+            tags: None,
         };
 
         // Act
@@ -1326,6 +1401,7 @@ mod tests {
         let dto = CreateFolderDto {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
+            tags: None,
         };
 
         // Act
@@ -1452,6 +1528,7 @@ mod tests {
         let dto = CreateFolderDto {
             id: Uuid::new_v4(),
             meta: dto_meta(None),
+            tags: None,
         };
 
         // Act

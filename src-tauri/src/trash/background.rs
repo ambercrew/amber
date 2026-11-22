@@ -3,25 +3,26 @@ use std::time::Duration;
 
 use injector::injector::Injector;
 
+use crate::common::utils::deferred_interval::deferred_interval;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::settings::repositories::settings_repository::SettingsRepository;
 use crate::sync::sync_lock::SyncLock;
 use crate::trash::services::trash_service::{TIME_BETWEEN_TRASH_PURGES_IN_MINUTES, TrashService};
 
-/// Starts the trash retention purge background task, which also runs once
-/// right away.
+/// Starts the trash retention purge background task, which first runs after the startup sync.
 pub fn spawn_trash_purge_task(injector: Arc<Injector>) {
     tokio::spawn(async move {
-        let mut interval =
-            tokio::time::interval(Duration::from_mins(TIME_BETWEEN_TRASH_PURGES_IN_MINUTES));
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut interval = deferred_interval(
+            &injector,
+            Duration::from_mins(TIME_BETWEEN_TRASH_PURGES_IN_MINUTES),
+        )
+        .await;
 
         loop {
             interval.tick().await;
             let scope = injector.start_scope();
 
-            // The first tick lands on app start, right when the frontend kicks
-            // off its own sync — held here so the two don't write at once.
+            // Held so a purge and a sync never write at once.
             let sync_lock = scope.resolve::<SyncLock>().await;
             let _guard = sync_lock.0.lock().await;
 

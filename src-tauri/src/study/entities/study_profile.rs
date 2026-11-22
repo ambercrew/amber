@@ -1,8 +1,27 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+use crate::study::value_objects::leech_action::LeechAction;
 use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
 use crate::study::value_objects::step_unit::StepUnit;
+
+/// Anki's and ts-fsrs's default maximum interval: 100 years, so FSRS alone decides.
+/// The frontend's `profileFormValues.ts` and migration 0019 mirror it.
+pub const DEFAULT_MAXIMUM_INTERVAL_DAYS: u32 = 36500;
+
+/// The largest maximum interval a profile may set, as in Anki.
+pub const MAX_MAXIMUM_INTERVAL_DAYS: u32 = 36500;
+
+/// Anki's defaults; the frontend's `profileFormValues.ts` and migration 0019 mirror them.
+pub const DEFAULT_NEW_CARDS_PER_DAY: u32 = 20;
+pub const DEFAULT_LEECH_THRESHOLD: u32 = 8;
+
+/// On unlike Anki, as cloze and occlusion siblings from one extract often give each other away.
+/// The frontend's `profileFormValues.ts` and migration 0019 mirror it.
+pub const DEFAULT_BURY_NEW_SIBLINGS: bool = true;
+
+pub const MAX_NEW_CARDS_PER_DAY: u32 = 9999;
+pub const MAX_LEECH_THRESHOLD: u32 = 99;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StudyProfile {
@@ -20,6 +39,20 @@ pub struct StudyProfile {
     /// Same-day step intervals a lapsed (`Again`-rated) review card repeats
     /// before returning to the long-term review schedule.
     pub relearning_steps: Option<Vec<StepUnit>>,
+    /// The longest interval a card can be scheduled for, as Anki's maximum interval.
+    pub maximum_interval_days: u32,
+    /// How many cards never reviewed may enter the queue per day; 0 lets none in.
+    pub new_cards_per_day: u32,
+    /// Lapses at which a card becomes a leech, flagged again every half of it after; 0 turns it off.
+    pub leech_threshold: u32,
+    pub leech_action: LeechAction,
+    /// Days added to "today" to compute a new card's first due date, as `initial_interval_days` does
+    /// for learning assets and extracts.
+    pub card_initial_interval_days: f32,
+    /// Whether a new or review card waits for tomorrow once a sibling (same image occlusion or
+    /// parent extract) was reviewed today or is ahead of it in the queue, as Anki's bury siblings.
+    pub bury_new_siblings: bool,
+    pub bury_review_siblings: bool,
     // Incremental reading (learning_assets/extracts)
     pub initial_interval_multiplier: f32,
     /// Days added to "today" to compute the due date the first time an element is

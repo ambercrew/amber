@@ -60,10 +60,8 @@ function textMatchCount(
 }
 
 /**
- * Aggregates find-in-page match counts across every split of a learning asset, not
- * just the mounted ones. Mounted splits report their own count live via
- * `onSplitMatches`; unmounted splits are counted from a plain-text snapshot
- * fetched once, lazily, the first time search opens.
+ * Match counts across every split, not just mounted ones: mounted splits report theirs via
+ * `onSplitMatches`, the others are counted from a plain-text snapshot fetched once search opens.
  */
 export function useLearningAssetSearch({
 	learningAssetId,

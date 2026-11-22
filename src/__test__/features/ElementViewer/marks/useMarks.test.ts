@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { runReadingCommand } from "../../../../commands/readingCommands";
+import { createReadingCommandStore } from "../../../test-utils/readingCommandStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMarks } from "../../../../features/ElementViewer/marks/useMarks";
 import {
@@ -41,7 +41,7 @@ vi.mock("@mantine/notifications", () => ({
 	notifications: { show: showNotificationMock },
 }));
 
-vi.mock("../../../../stores/sync/managers/syncEventManager", () => ({
+vi.mock("../../../../managers/syncEventManager", () => ({
 	defaultGlobalSyncEventManager: {
 		addListener: addSyncListenerMock,
 		removeListener: vi.fn(),
@@ -51,18 +51,22 @@ vi.mock("../../../../stores/sync/managers/syncEventManager", () => ({
 
 const LEARNING_ASSET_ID = "la";
 
+let readingCommands = createReadingCommandStore();
+
 async function renderMarks(
 	stored: LearningAssetMark[],
 	anchor: ReadingPosition | null = { split: 2, block: 5 },
 ) {
 	getMarksMock.mockResolvedValue(stored);
 	const goTo = vi.fn();
-	const hook = renderHook(() =>
-		useMarks({
-			learningAssetId: LEARNING_ASSET_ID,
-			resolveSetAnchor: () => anchor,
-			goTo,
-		}),
+	const hook = renderHook(
+		() =>
+			useMarks({
+				learningAssetId: LEARNING_ASSET_ID,
+				resolveSetAnchor: () => anchor,
+				goTo,
+			}),
+		{ wrapper: readingCommands.wrapper },
 	);
 	await waitFor(() => expect(hook.result.current).toEqual(stored));
 	return { ...hook, goTo };
@@ -70,7 +74,7 @@ async function renderMarks(
 
 async function requestSet(slot: MarkSlot) {
 	await act(async () => {
-		runReadingCommand({ type: "set-mark", slot });
+		readingCommands.send({ type: "set-mark", slot });
 	});
 }
 
@@ -81,6 +85,7 @@ async function undoLastSet() {
 
 describe("useMarks", () => {
 	beforeEach(() => {
+		readingCommands = createReadingCommandStore();
 		vi.clearAllMocks();
 		setMarkMock.mockResolvedValue(undefined);
 		clearMarkMock.mockResolvedValue(undefined);
@@ -212,7 +217,7 @@ describe("useMarks", () => {
 		// Act
 
 		act(() => {
-			runReadingCommand({ type: "go-to-mark", slot: 2 });
+			readingCommands.send({ type: "go-to-mark", slot: 2 });
 		});
 
 		// Assert
@@ -228,7 +233,7 @@ describe("useMarks", () => {
 		// Act
 
 		act(() => {
-			runReadingCommand({ type: "go-to-mark", slot: 1 });
+			readingCommands.send({ type: "go-to-mark", slot: 1 });
 		});
 
 		// Assert

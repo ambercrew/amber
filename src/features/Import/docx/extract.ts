@@ -1,5 +1,5 @@
 import mammoth from "mammoth";
-import { FileExtraction } from "../fileFormat";
+import { FileExtraction } from "../utils/fileFormat";
 
 export async function extractDocx(bytes: ArrayBuffer): Promise<FileExtraction> {
 	const { value: html } = await mammoth.convertToHtml({ arrayBuffer: bytes });

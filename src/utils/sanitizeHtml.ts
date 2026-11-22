@@ -2,7 +2,7 @@ import DOMPurify from "dompurify";
 import {
 	CLOZE_HIDDEN_ATTRIBUTE,
 	CLOZE_HIDDEN_TAG_NAME,
-} from "../components/Editor/plugins/ClozePlugin/ClozeHiddenNode";
+} from "../components/Editor/plugins/ClozePlugin/clozeHiddenConstants";
 
 const ALLOWED_TAGS = [
 	"p",
@@ -60,10 +60,8 @@ const ALLOWED_ATTR = [
 	CLOZE_HIDDEN_ATTRIBUTE,
 ];
 
-// Also allows relative/protocol-relative URLs (no scheme, or starting with
-// "/" or "//") so that normalize() gets a chance to resolve them against the
-// baseUrl — DOMPurify would otherwise strip them outright. Stored assets pass too, canonical
-// (`amber-asset:<id>`) or as the macOS/Linux runtime URL (`amber-asset://localhost/<id>`).
+// Also allows relative URLs (no scheme, `/` or `//`) for normalize() to resolve against baseUrl, and
+// stored assets (`amber-asset:<id>` or the runtime's `amber-asset://localhost/<id>`).
 const ALLOWED_URI_REGEXP =
 	/^(?:https?:|data:image\/|amber-asset:(?:\/\/localhost\/)?[0-9a-f]{64}$|[^a-z]|[a-z\d+.-]+(?:[^a-z\d+.\-:]|$))/i;
 

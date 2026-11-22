@@ -7,6 +7,7 @@ import {
 	getLearningAssetReview,
 	finishLearningAsset,
 	nextLearningAsset,
+	skipLearningAsset,
 } from "../../api/study/api/studyApi";
 import { paths } from "../../paths";
 import { CardReviewDto } from "../../api/study/dto/cardReviewDto";
@@ -14,7 +15,10 @@ import { DueElementDto } from "../../api/study/dto/dueElementDto";
 import { ElementId } from "../../types/elements/elementId";
 import { Rating } from "../../types/study/rating";
 import { AppDispatch, RootState } from "../store";
-import { loadCurrentElementAction } from "../elements/elementsActions";
+import {
+	loadCurrentElementAction,
+	reloadEditedCurrentElementAction,
+} from "../elements/elementsActions";
 import {
 	cardGraded,
 	elementRequeued,
@@ -35,6 +39,7 @@ import {
 	selectStudyIndex,
 	selectStudyScope,
 	selectStudySessionElement,
+	selectStudyStatus,
 } from "./studySelectors";
 import { STUDY_SESSION_FINISHED } from "../../types/events/studySessionFinishedEvent";
 import { REVIEW_NAVIGATION_STATE } from "../../types/study/reviewNavigationState";
@@ -69,7 +74,7 @@ export function gradeCardAction(
 		const elementId: ElementId = { type: "card", id: cardId };
 		const currentIndex = selectStudyIndex(getState());
 
-		const review = await registerCardReview(
+		const { review, leeched, suspended } = await registerCardReview(
 			scheduledReview,
 			rating,
 			durationMs,
@@ -77,7 +82,7 @@ export function gradeCardAction(
 		dispatch(cardGraded());
 
 		const dueInMs = new Date(review.due).getTime() - Date.now();
-		const needsRequeue = dueInMs <= SESSION_HORIZON_MS;
+		const needsRequeue = !suspended && dueInMs <= SESSION_HORIZON_MS;
 		if (needsRequeue) {
 			dispatch(elementRequeued({ elementId }));
 		}
@@ -90,23 +95,14 @@ export function gradeCardAction(
 			!needsRequeue,
 			currentIndex,
 		);
+		// The grade sends no card-changed event; only a session that ended still shows the card.
+		if (leeched && selectStudyStatus(getState()) !== "studying")
+			await dispatch(reloadEditedCurrentElementAction([cardId]));
 	};
 }
 
-// The backend announces every out-of-session schedule change (a due date set
-// by hand, an element finished, repetitions reset) with a single payload-less
-// event, so the session asks for the current element's own schedule before
-// deciding. Nothing to do while it is still due — an unrelated bulk change
-// elsewhere leaves it exactly as it was. Once it has been moved into the
-// future (or finished) it leaves the session the same way reviewing it would:
-// far enough out it's done for today, otherwise re-queued to come back later
-// this session. Either way the session moves on, so the chosen due date isn't
-// immediately overwritten by grading the very same element again.
-//
-// Only the element being viewed is reconciled: the event carries no payload,
-// so a change to some other queued element (a bulk reschedule, say) can't be
-// told apart from one that leaves the queue valid. Those elements keep their
-// place until the session reaches them.
+// The backend announces any out-of-session schedule change with one bare event, so this checks the
+// viewed element only: moved out or finished, it leaves as a review would, so grading can't undo it.
 export function applyScheduleChangeAction(navigate: NavigateFunction) {
 	return async (dispatch: AppDispatch, getState: () => RootState) => {
 		const before = currentSessionElement(getState());
@@ -169,8 +165,8 @@ async function sessionFitOf(elementId: ElementId): Promise<SessionFit | null> {
 	try {
 		schedule = await currentSchedule(elementId);
 	} catch (e) {
-		// No component owns these listeners, so the failure is reported the
-		// same way the sync thunk reports its own.
+		// No component owns these listeners, so the failure is reported like
+		// the sync thunk's.
 		// eslint-disable-next-line no-console
 		console.error(e);
 		notifications.show({ message: errorToString(e), color: "red" });
@@ -321,6 +317,7 @@ export function skipLearningAssetAction(
 ) {
 	return async (dispatch: AppDispatch, getState: () => RootState) => {
 		const currentIndex = selectStudyIndex(getState());
+		await skipLearningAsset(elementId);
 		dispatch(learningAssetSkipped({ elementId }));
 		await advanceSession(
 			dispatch,
@@ -352,14 +349,8 @@ export function finishLearningAssetAction(
 	};
 }
 
-// Moves forward to whichever pending element now sits where the next one
-// did — only wrapping back to the front of the queue once there's nothing
-// left ahead, cycling through the remaining elements rather than ending
-// the session while some are still unreviewed.
-//
-// `sessionAdvanced` is dispatched in the same tick as the next element is set
-// as `elements.currentElement`, so they render together: either one alone
-// would leave a render where the element on screen isn't the one under review.
+// Moves on to the pending element now where the next one was, wrapping to the front only when nothing's
+// left ahead; `sessionAdvanced` and the new current element are set in one tick so they render together.
 async function advanceSession(
 	dispatch: AppDispatch,
 	getState: () => RootState,
@@ -381,11 +372,8 @@ async function advanceSession(
 	let nextIndex =
 		currentIndex >= queueAfterCompletion.length ? 0 : currentIndex;
 
-	// An element that was only re-queued or skipped stays in the queue, and
-	// when it sat at the very end there is no slot further back to move it
-	// to — it keeps the slot the session is about to show. Wrap around
-	// instead, so the session moves on to the elements ahead of it rather
-	// than presenting the same one again.
+	// A requeued or skipped element at the very end has nowhere further back to go, so it keeps the
+	// slot about to be shown; wrap around instead of showing it again.
 	if (
 		queueAfterCompletion.length > 1 &&
 		isSameElement(

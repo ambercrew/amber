@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use fractional_index::FractionalIndex;
 #[cfg(test)]
@@ -69,6 +71,12 @@ pub trait MetaRepository: Send + Sync {
         ids: &[ElementId],
         suspended: bool,
     ) -> Result<Vec<ElementId>, RepositoryError>;
+
+    /// Each of `ids` with a `study_profile_id` on itself or an ancestor, mapped to the nearest one's.
+    async fn get_assigned_profile_ids(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, Uuid>, RepositoryError>;
 
     /// The subset of `ids` that exist and aren't trashed.
     async fn filter_live(&self, ids: &[ElementId]) -> Result<Vec<ElementId>, RepositoryError>;
@@ -159,9 +167,11 @@ pub trait MetaRepository: Send + Sync {
     /// Same order as `get_all_ordered_by_priority`, without loading each element's meta.
     async fn get_ids_ordered_by_priority(&self) -> Result<Vec<ElementId>, RepositoryError>;
 
-    /// The element at the given zero-based offset in priority order,
-    /// excluding `excluding` (if any — `None` when scanning for a not-yet-created
-    /// element), or `None` if the offset is out of range.
+    /// Every live element's priority bytes, ascending; read from the index alone, so it's cheap.
+    async fn get_priorities_ordered(&self) -> Result<Vec<Vec<u8>>, RepositoryError>;
+
+    /// The element at the zero-based `offset` in priority order, skipping `excluding` (`None` for one not
+    /// created yet), or `None` past the end.
     async fn get_at_priority_offset(
         &self,
         excluding: Option<ElementId>,

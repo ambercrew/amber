@@ -1,0 +1,211 @@
+import { useRef, useState } from "react";
+import { ActionIcon, Group, Paper, Text, Transition } from "@mantine/core";
+import { useDebouncedCallback } from "@mantine/hooks";
+import {
+	CaretDownIcon,
+	CaretUpIcon,
+	MagnifyingGlassIcon,
+	TextAaIcon,
+	XIcon,
+} from "@phosphor-icons/react";
+import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
+import {
+	FIND_IN_PAGE_SHORTCUT,
+	FIND_NEXT_SHORTCUT,
+	FIND_PREVIOUS_SHORTCUT,
+} from "../../../config/shortcuts";
+import { useAppHotkeys } from "../../../commands/useAppHotkeys";
+import useAppDispatch from "../../../hooks/useAppDispatch";
+import useAppSelector from "../../../hooks/useAppSelector";
+import {
+	closeSearch,
+	goToNextMatch,
+	goToPreviousMatch,
+	setSearchCaseSensitive,
+	setSearchQuery,
+} from "../../../stores/search/searchReducer";
+import {
+	selectSearchCaseSensitive,
+	selectSearchCurrentIndex,
+	selectSearchOpened,
+	selectSearchQuery,
+	selectSearchTotalMatches,
+} from "../../../stores/search/searchSelectors";
+import { useChromeInsets } from "../../../hooks/useChromeInsets";
+import { SAFE_AREA_TOP } from "../../../utils/safeArea";
+import { MOTION_DURATION_MS, MOTION_EASING } from "../../../config/motion";
+
+const QUERY_DEBOUNCE_IN_MILLISECONDS = 400;
+
+/**
+ * Find-in-page search bar. Owns all of its opened/query/case-sensitivity/
+ * match-count/navigation state via the `search` Redux slice.
+ */
+export default function FindInPageBar() {
+	const dispatch = useAppDispatch();
+	const opened = useAppSelector(selectSearchOpened);
+	const query = useAppSelector(selectSearchQuery);
+	const caseSensitive = useAppSelector(selectSearchCaseSensitive);
+	const currentIndex = useAppSelector(selectSearchCurrentIndex);
+	const totalMatches = useAppSelector(selectSearchTotalMatches);
+	const inputRef = useRef<HTMLTextAreaElement>(null);
+	const onNext = () => dispatch(goToNextMatch());
+	const onPrevious = () => dispatch(goToPreviousMatch());
+	// Follows the header as it hides, in the text view and the PDF's own viewport alike.
+	const { top: headerSpace } = useChromeInsets();
+
+	// A local copy so typing feels instant; only the debounced value is dispatched. Resynced on open,
+	// during render, as `closeSearch` always resets `query` to "".
+	const [inputValue, setInputValue] = useState(query);
+	const [prevOpened, setPrevOpened] = useState(opened);
+	if (opened !== prevOpened) {
+		setPrevOpened(opened);
+		if (opened) setInputValue(query);
+	}
+	// Also resynced when something else sets the query, e.g. a global search result.
+	// `echoedQuery` is what this bar just dispatched, so its own change isn't taken for one.
+	const [prevQuery, setPrevQuery] = useState(query);
+	const [echoedQuery, setEchoedQuery] = useState<string | null>(null);
+	if (query !== prevQuery) {
+		setPrevQuery(query);
+		setEchoedQuery(null);
+		if (query !== echoedQuery) setInputValue(query);
+	}
+	// The query typing started from; a debounced value is dropped once something else replaces it.
+	const [typedOverQuery, setTypedOverQuery] = useState(query);
+
+	// GlobalHotkeys already opens the bar on mod+F; these only apply while it's
+	// open, so the keys stay free for everything else when it's closed.
+	useAppHotkeys(
+		opened
+			? [
+					[FIND_IN_PAGE_SHORTCUT, () => inputRef.current?.focus()],
+					[FIND_NEXT_SHORTCUT, onNext],
+					[FIND_PREVIOUS_SHORTCUT, onPrevious],
+				]
+			: [],
+		[],
+		true,
+	);
+
+	const dispatchQuery = useDebouncedCallback((value: string) => {
+		if (query !== typedOverQuery || value === query) return;
+		setEchoedQuery(value);
+		dispatch(setSearchQuery(value));
+	}, QUERY_DEBOUNCE_IN_MILLISECONDS);
+
+	const handleQueryChange = (value: string) => {
+		setInputValue(value);
+		setTypedOverQuery(query);
+		dispatchQuery(value);
+	};
+
+	const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		switch (event.key) {
+			case "Enter":
+				event.preventDefault();
+				if (event.shiftKey) onPrevious();
+				else onNext();
+				break;
+			case "ArrowDown":
+				event.preventDefault();
+				onNext();
+				break;
+			case "ArrowUp":
+				event.preventDefault();
+				onPrevious();
+				break;
+			case "Escape":
+				event.preventDefault();
+				dispatch(closeSearch());
+				break;
+		}
+	};
+
+	return (
+		<Transition
+			transition="fade-down"
+			mounted={opened}
+			duration={MOTION_DURATION_MS}
+			timingFunction={MOTION_EASING}>
+			{style => (
+				<Paper
+					style={{
+						...style,
+						zIndex: 190,
+						transitionProperty: `${style.transitionProperty}, right, top`,
+						transitionDuration: `${style.transitionDuration}, var(--app-shell-transition-duration), var(--app-shell-transition-duration)`,
+						transitionTimingFunction: `${style.transitionTimingFunction}, var(--app-shell-transition-timing-function), var(--app-shell-transition-timing-function)`,
+					}}
+					shadow="xl"
+					withBorder
+					p="xs"
+					pos="fixed"
+					top={`calc(max(${headerSpace}, ${SAFE_AREA_TOP}) + 4px)`}
+					left={{ base: 8, sm: "auto" }}
+					right={{
+						base: 8,
+						sm: "calc(var(--app-shell-aside-offset, 0rem) + 16px)",
+					}}
+					w={{ base: "auto", sm: 440 }}>
+					<Group gap={6} wrap="nowrap">
+						<AutosizeTextInput
+							ref={inputRef}
+							flex={1}
+							leftSection={<MagnifyingGlassIcon size={18} />}
+							placeholder="Find in page..."
+							value={inputValue}
+							onChange={event =>
+								handleQueryChange(event.currentTarget.value)
+							}
+							onKeyDown={handleKeyDown}
+							autoFocus
+						/>
+						<Text size="sm" c="dimmed" miw={70}>
+							{totalMatches === 0
+								? "No results"
+								: `${currentIndex + 1} / ${totalMatches}`}
+						</Text>
+						<AppTooltip
+							label="Previous match"
+							shortcut={FIND_PREVIOUS_SHORTCUT}>
+							<ActionIcon
+								variant="subtle"
+								onClick={onPrevious}
+								disabled={totalMatches === 0}
+								aria-label="Previous match">
+								<CaretUpIcon size={18} />
+							</ActionIcon>
+						</AppTooltip>
+						<AppTooltip
+							label="Next match"
+							shortcut={FIND_NEXT_SHORTCUT}>
+							<ActionIcon
+								variant="subtle"
+								onClick={onNext}
+								disabled={totalMatches === 0}
+								aria-label="Next match">
+								<CaretDownIcon size={18} />
+							</ActionIcon>
+						</AppTooltip>
+						<ActionIcon
+							variant={caseSensitive ? "filled" : "subtle"}
+							onClick={() =>
+								dispatch(setSearchCaseSensitive(!caseSensitive))
+							}
+							aria-label="Toggle case sensitivity">
+							<TextAaIcon size={18} />
+						</ActionIcon>
+						<ActionIcon
+							variant="subtle"
+							onClick={() => dispatch(closeSearch())}
+							aria-label="Close search">
+							<XIcon size={18} />
+						</ActionIcon>
+					</Group>
+				</Paper>
+			)}
+		</Transition>
+	);
+}

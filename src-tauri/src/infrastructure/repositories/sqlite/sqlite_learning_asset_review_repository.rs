@@ -139,8 +139,11 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
         let tx = tx.as_mut();
 
         let rows = sqlx::query!(
-            r#"SELECT m.element_id as "element_id: uuid::fmt::Hyphenated", m.element_type, m.name, m.priority
-            FROM meta m
+            // Scans `meta` in table order: walking it through the priority index reads its rows at random.
+            r#"SELECT m.element_id as "element_id: uuid::fmt::Hyphenated", m.element_type, m.name, m.priority,
+                m.study_profile_id AS "study_profile_id: uuid::fmt::Hyphenated",
+                m.parent_id AS "parent_id: uuid::fmt::Hyphenated"
+            FROM meta m NOT INDEXED
             LEFT JOIN learning_asset_reviews rr ON rr.element_id = m.element_id
             WHERE m.element_type IN ('learning_asset', 'extract')
               AND m.trashed_at IS NULL
@@ -158,6 +161,11 @@ impl LearningAssetReviewRepository for SqliteLearningAssetReviewRepository {
                 name: row.name,
                 priority: FractionalIndex::from_bytes(row.priority)
                     .expect("Invalid fractional index"),
+                is_new_card: false,
+                is_review_card: false,
+                sibling_group: None,
+                study_profile_id: row.study_profile_id.map(|id| id.into_uuid()),
+                parent_id: row.parent_id.map(|id| id.into_uuid()),
             })
             .collect())
     }

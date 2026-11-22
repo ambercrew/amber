@@ -4,9 +4,9 @@ import ConvertLexicalToHtmlEventDto, {
 import ConvertMarkdownToLexicalEventDto, {
 	CONVERT_MARKDOWN_TO_LEXICAL_EVENT,
 } from "../../../api/common/events/convertMarkdownToLexicalEvent";
-import { markdownToLexicalJson } from "../../../components/Editor/lexicalJsonConversion";
 import { useFrontendRequestBridge } from "../../../hooks/useFrontendRequestBridge";
-import { convertLexicalToHtml } from "../answerLexicalConversionRequests";
+import { markdownToLexicalJson } from "../../../components/Editor/lexicalJsonConversion";
+import { convertLexicalToHtml } from "../utils/answerLexicalConversionRequests";
 
 /** Answers the backend's Lexical conversion requests: Markdown to Lexical JSON, and Lexical JSON to HTML. */
 export function useLexicalConversionBridge() {

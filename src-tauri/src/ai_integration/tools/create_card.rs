@@ -186,9 +186,8 @@ pub(super) mod tests {
 
     use super::*;
 
-    /// Echoes the Markdown back unchanged, standing in for the real
-    /// frontend conversion so tests can assert on the Markdown this tool
-    /// produces.
+    /// Echoes the Markdown back in place of the frontend conversion, so tests can assert on the Markdown
+    /// this tool produces.
     pub(in crate::ai_integration::tools) struct EchoLexicalJsonConverter;
 
     #[async_trait]
@@ -417,6 +416,7 @@ pub(super) mod tests {
                         bibliographical_source_id: Some(bibliographical_source_id),
                     },
                 },
+                tags: None,
             })
             .await
             .unwrap();

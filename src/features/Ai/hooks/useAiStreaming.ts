@@ -23,8 +23,8 @@ import useAppSelector from "../../../hooks/useAppSelector";
 import {
 	clearAiContextSnippets,
 	restoreAiContextSnippets,
-} from "../../../stores/aiContext/aiReducer";
-import { selectAiContextSnippets } from "../../../stores/aiContext/aiSelectors";
+} from "../../../stores/aiContext/aiContextReducer";
+import { selectAiContextSnippets } from "../../../stores/aiContext/aiContextSelectors";
 import { StreamingToolMessage } from "../utils/buildDisplayMessages";
 
 interface UseAiStreamingParams {
@@ -77,7 +77,11 @@ export default function useAiStreaming({
 	const [streamChatId, setStreamChatId] = useState<string | null>(null);
 
 	const sendPrompt = useCallback(
-		async (prompt: string) => {
+		// `elementId` is what the chat's tools act on; the open element unless the prompt is about another.
+		async (
+			prompt: string,
+			elementId: ElementId | null = currentElementId,
+		) => {
 			setStreamError(null);
 			clearErrorMessage();
 			setPendingHumanText(prompt);
@@ -91,9 +95,8 @@ export default function useAiStreaming({
 			const snippetsToRestore = aiContextSnippets;
 			dispatch(clearAiContextSnippets());
 
-			// Read synchronously in `onFinally` below, since state set from
-			// the channel handler or the catch block hasn't re-rendered yet
-			// by the time `onFinally` runs.
+			// Read in `onFinally` below, before state set by the channel
+			// handler or the catch has re-rendered.
 			let failed = false;
 
 			const channel = new Channel<StreamLlmResponseEventDto>();
@@ -147,7 +150,7 @@ export default function useAiStreaming({
 						await streamAiResponse(channel, {
 							prompt,
 							chatId: selectedChatId,
-							elementId: currentElementId,
+							elementId,
 							contextSnippets,
 						});
 					} catch (e) {

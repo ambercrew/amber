@@ -19,8 +19,9 @@ import { selectCurrentElement } from "../../../stores/elements/elementsSelectors
 import {
 	selectAiContextSnippets,
 	selectPendingAiPrompt,
-} from "../../../stores/aiContext/aiSelectors";
-import { clearPendingAiPrompt } from "../../../stores/aiContext/aiReducer";
+	selectPendingAiPromptElementId,
+} from "../../../stores/aiContext/aiContextSelectors";
+import { clearPendingAiPrompt } from "../../../stores/aiContext/aiContextReducer";
 import { openAiPromptLibraryModal } from "../../../stores/app/appReducer";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import ChatMessages from "./ChatMessages";
@@ -38,6 +39,9 @@ function AiPanel() {
 		snippet => snippet.text,
 	);
 	const pendingPrompt = useAppSelector(selectPendingAiPrompt);
+	const pendingPromptElementId = useAppSelector(
+		selectPendingAiPromptElementId,
+	);
 	const dispatch = useAppDispatch();
 
 	const {
@@ -113,8 +117,14 @@ function AiPanel() {
 	useEffect(() => {
 		if (!pendingPrompt || isStreaming) return;
 		dispatch(clearPendingAiPrompt());
-		void sendPrompt(pendingPrompt);
-	}, [pendingPrompt, isStreaming, sendPrompt, dispatch]);
+		void sendPrompt(pendingPrompt, pendingPromptElementId ?? undefined);
+	}, [
+		pendingPrompt,
+		pendingPromptElementId,
+		isStreaming,
+		sendPrompt,
+		dispatch,
+	]);
 
 	useEffect(() => {
 		void refreshChats();
@@ -227,7 +237,7 @@ function AiPanel() {
 				c="dimmed"
 				mt="xs"
 				onClick={() => setIsCapabilitiesOpen(true)}>
-				What can the AI do?
+				What the AI can do
 			</Anchor>
 
 			<AiCapabilitiesModal

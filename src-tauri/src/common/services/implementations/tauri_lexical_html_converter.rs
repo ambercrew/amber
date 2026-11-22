@@ -45,6 +45,9 @@ impl<R: tauri::Runtime> LexicalHtmlConverter for TauriLexicalHtmlConverter<R> {
                 .map_err(|err| match err {
                     RequestBridgeError::Emit => LexicalHtmlConverterError::Emit,
                     RequestBridgeError::Timeout => LexicalHtmlConverterError::Timeout,
+                    RequestBridgeError::Failed(message) => {
+                        LexicalHtmlConverterError::Failed(message)
+                    }
                 })?;
             match serde_json::from_str(&response) {
                 Ok(ConvertLexicalToHtmlResponseDto::Htmls(converted))

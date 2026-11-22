@@ -17,16 +17,16 @@ import {
 	HighlightNode,
 } from "../../../components/Editor/plugins/HighlightPlugin/HighlightNode";
 import { paths } from "../../../paths";
-import { CLOZE_COLOR, EXTRACT_COLOR } from "../highlightColors";
+import { CLOZE_COLOR, EXTRACT_COLOR } from "../utils/highlightColors";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import useAppSelector from "../../../hooks/useAppSelector";
-import { selectSettings } from "../../../stores/settings/settingsSelector";
+import { selectSettings } from "../../../stores/settings/settingsSelectors";
 import {
 	addAiContextSnippet,
 	requestAiPrompt,
-} from "../../../stores/aiContext/aiReducer";
+} from "../../../stores/aiContext/aiContextReducer";
 import { requestFocus } from "../../../hooks/useFocusRequest";
-import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../Ai/aiPrompts";
+import { CONVERT_SNIPPET_TO_CARDS_PROMPT } from "../../Ai/utils/aiPrompts";
 import { existsInTree } from "../../../stores/elements/elementsActions";
 import { RootState } from "../../../stores/store";
 import { trashElementAction } from "../../../stores/trash/trashActions";
@@ -38,7 +38,7 @@ import {
 	EXTRACT_BUTTON,
 	OPEN_HIGHLIGHT_BUTTON,
 	REMOVE_HIGHLIGHT_BUTTON,
-} from "../highlightFloatingMenuButtons";
+} from "../utils/highlightFloatingMenuButtons";
 
 function $getHighlightNodeFromSelection(selection: RangeSelection) {
 	for (const node of selection.getNodes()) {
@@ -203,7 +203,7 @@ export function useElementViewerButtons() {
 										CONVERT_SNIPPET_TO_CARDS_PROMPT,
 									),
 								);
-								requestFocus("aiChat");
+								dispatch(requestFocus("aiChat"));
 								closeMenu();
 							},
 						},

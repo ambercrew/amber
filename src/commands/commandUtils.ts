@@ -1,5 +1,5 @@
 import { RootState } from "../stores/store";
-import { selectSettings } from "../stores/settings/settingsSelector";
+import { selectSettings } from "../stores/settings/settingsSelectors";
 import type { Command } from "./commands";
 
 /** Whether the app is currently rendering in dark mode, resolving

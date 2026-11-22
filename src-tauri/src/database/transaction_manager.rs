@@ -12,9 +12,8 @@ pub enum TransactionManagerError {
     CommitFailed(#[source] SourceError),
 }
 
-/// Commits the scope's currently open transaction and immediately opens a
-/// fresh one in its place, without ending the scope. Also emits any events
-/// queued during the scope, once the commit has succeeded.
+/// Commits the scope's transaction and opens a fresh one without ending the scope, then emits the
+/// events queued during it.
 #[async_trait]
 #[cfg_attr(test, automock)]
 pub trait TransactionManager: Send + Sync {

@@ -14,6 +14,7 @@ import {
 	useStageState,
 } from "@embedpdf/react/stage";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
+import { PdfViewPosition } from "../../../../types/elements/pdfViewPosition";
 import {
 	PdfArrivalContext,
 	PdfCoreContext,
@@ -28,6 +29,10 @@ interface PdfCoreProviderProps extends PropsWithChildren {
 	learningAssetId: string;
 	documentId: string;
 	initialReadPoint: ReadingPosition;
+	/** Spot to open at in place of the read point, e.g. revisiting a study session's element. */
+	initialViewPosition?: PdfViewPosition;
+	/** Called on unmount with where the reader last was; the camera is only tracked while it's set. */
+	onLeave?: (position: PdfViewPosition | null) => void;
 }
 
 /** Whether the Stage has measured its viewport and placed the pages, so a jump lands where it should. */
@@ -39,6 +44,8 @@ export default function PdfCoreProvider({
 	learningAssetId,
 	documentId,
 	initialReadPoint,
+	initialViewPosition,
+	onLeave,
 	children,
 }: PdfCoreProviderProps) {
 	const stage = useStage();
@@ -76,6 +83,23 @@ export default function PdfCoreProvider({
 		};
 	}, [stage]);
 
+	// Read as the camera moves, as the Stage may already be gone by unmount.
+	const lastPositionRef = useRef(initialViewPosition ?? null);
+	const tracking = onLeave !== undefined && layoutReady;
+	useEffect(() => {
+		if (!tracking) return;
+		return stage.onCameraChanged(() => {
+			const { pageIndex, fractionX, fractionY } =
+				stage.getViewpoint().anchor;
+			lastPositionRef.current = { pageIndex, fractionX, fractionY };
+		});
+	}, [tracking, stage]);
+	const onLeaveRef = useRef(onLeave);
+	useEffect(() => {
+		onLeaveRef.current = onLeave;
+	}, [onLeave]);
+	useEffect(() => () => onLeaveRef.current?.(lastPositionRef.current), []);
+
 	const getCurrentPage = useCallback(
 		() => stage.getCurrentPageIndex() + 1,
 		[stage],
@@ -91,6 +115,7 @@ export default function PdfCoreProvider({
 			learningAssetId,
 			documentId,
 			initialReadPoint,
+			initialViewPosition,
 			pageCount,
 			layoutReady,
 			goToPage,
@@ -103,6 +128,7 @@ export default function PdfCoreProvider({
 			learningAssetId,
 			documentId,
 			initialReadPoint,
+			initialViewPosition,
 			pageCount,
 			layoutReady,
 			goToPage,

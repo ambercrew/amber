@@ -27,11 +27,8 @@ pub enum LocalConfigurationError {
     Serialize(#[source] serde_json::Error),
 }
 
-/// Typed access to local configuration values, layered on top of the raw
-/// string storage in [`LocalConfigurationRepository`] via JSON (de)serialization.
-/// Kept as a separate (blanket-implemented) trait since generic methods
-/// aren't object-safe and `LocalConfigurationRepository` is resolved as
-/// `dyn Trait` through DI.
+/// Typed JSON access over [`LocalConfigurationRepository`]'s strings, as a separate blanket trait since
+/// generic methods aren't object-safe and that one is resolved as `dyn Trait`.
 #[async_trait]
 pub trait LocalConfigurationRepositoryExt {
     async fn get_by_name<T: DeserializeOwned + Send>(

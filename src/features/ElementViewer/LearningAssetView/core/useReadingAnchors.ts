@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { isBlockInViewport } from "./blockIndexOf";
 import { viewportTop } from "./viewportTop";
+import { contentTopOf } from "./scrollGeometry";
+import { ViewPosition } from "../../../../types/elements/viewPosition";
 
 interface Props {
 	/** seq of the split currently at the top of the viewport. */
@@ -17,6 +19,10 @@ export interface ReadingAnchors {
 	setMenuAnchor: (anchor: ReadingPosition | null) => void;
 	/** The right-clicked block, else the caret while it's on screen, else the block at the top of the viewport. */
 	resolveVisibleAnchor: () => ReadingPosition | null;
+	/** The block at the viewport top; `null` while the top split is unmounted. */
+	topVisibleBlock: () => ReadingPosition | null;
+	/** `topVisibleBlock` plus the scroll's offset past it, which costs another layout read. */
+	topVisible: () => ViewPosition | null;
 }
 
 /**
@@ -62,13 +68,27 @@ export function useReadingAnchors({
 		menuAnchorRef.current = anchor;
 	}, []);
 
-	const getTopVisibleAnchor = useCallback((): ReadingPosition | null => {
+	const topVisibleBlock = useCallback((): ReadingPosition | null => {
 		const seq = primarySeqRef.current;
 		const root = getContentRoot(seq);
 		if (!root) return null;
-		const block = topVisibleBlockIndex(root, viewportTop(scrollElement));
-		return { split: seq, block };
+		return {
+			split: seq,
+			block: topVisibleBlockIndex(root, viewportTop(scrollElement)),
+		};
 	}, [getContentRoot, scrollElement]);
+
+	const topVisible = useCallback((): ViewPosition | null => {
+		const top = topVisibleBlock();
+		if (!top) return null;
+		const { split: seq, block } = top;
+		const target = getContentRoot(seq)?.children[block];
+		const offset =
+			target && scrollElement
+				? scrollElement.scrollTop - contentTopOf(target, scrollElement)
+				: 0;
+		return { split: seq, block, offset };
+	}, [getContentRoot, scrollElement, topVisibleBlock]);
 
 	const resolveVisibleAnchor = useCallback(() => {
 		if (menuAnchorRef.current) return menuAnchorRef.current;
@@ -87,11 +107,23 @@ export function useReadingAnchors({
 		) {
 			return caret;
 		}
-		return getTopVisibleAnchor();
-	}, [getContentRoot, scrollElement, getTopVisibleAnchor]);
+		return topVisibleBlock();
+	}, [getContentRoot, scrollElement, topVisibleBlock]);
 
 	return useMemo(
-		() => ({ trackCursor, setMenuAnchor, resolveVisibleAnchor }),
-		[trackCursor, setMenuAnchor, resolveVisibleAnchor],
+		() => ({
+			trackCursor,
+			setMenuAnchor,
+			resolveVisibleAnchor,
+			topVisibleBlock,
+			topVisible,
+		}),
+		[
+			trackCursor,
+			setMenuAnchor,
+			resolveVisibleAnchor,
+			topVisibleBlock,
+			topVisible,
+		],
 	);
 }

@@ -1,5 +1,6 @@
 import { NameSource } from "../../../types/elements/nameSource";
 import { invoke } from "@tauri-apps/api/core";
+import { ReadingPosition } from "../../../types/elements/readingPosition";
 import { CreateCardDto } from "../../../types/elements/createCardDto";
 import { CreateExtractDto } from "../../../types/elements/createExtractDto";
 import { CreateFolderDto } from "../../../types/elements/createFolderDto";
@@ -84,6 +85,16 @@ export function getLearningAssetHeadings(
 	learningAssetId: string,
 ): Promise<LearningAssetHeadingDto[]> {
 	return invoke("get_learning_asset_headings", { learningAssetId });
+}
+
+export function findLearningAssetHighlight(
+	learningAssetId: string,
+	elementId: string,
+): Promise<ReadingPosition | null> {
+	return invoke("find_learning_asset_highlight", {
+		learningAssetId,
+		elementId,
+	});
 }
 
 export function updateReadPoint(dto: UpdateReadPointDto): Promise<void> {

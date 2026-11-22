@@ -6,9 +6,8 @@ interface FieldInfoIconProps {
 }
 
 /**
- * The info icon carrying a field's explanatory tooltip. Used on its own next
- * to controls that already render their own label (such as a `Switch`), and
- * by `FieldLabel` for fields whose label we render ourselves.
+ * The info icon holding a field's tooltip, beside controls that render their own label (a `Switch`)
+ * and inside `FieldLabel` for the rest.
  */
 function FieldInfoIcon({ tooltip }: FieldInfoIconProps) {
 	return (

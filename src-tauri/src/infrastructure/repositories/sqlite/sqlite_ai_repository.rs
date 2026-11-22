@@ -126,30 +126,25 @@ impl AiRepository for SqliteAiRepository {
         let created_date = message.created_date();
         let chat_id = message.chat_id();
 
-        let content_type;
-        let content;
-
-        match message.content() {
+        let (content_type, content) = match message.content() {
             MessageContent::Human(content_value) => {
-                content_type = HUMAN_CONTENT_TYPE.to_string();
-                content = content_value.clone();
+                (HUMAN_CONTENT_TYPE.to_string(), content_value.clone())
             }
             MessageContent::Assistant(content_value) => {
-                content_type = ASSISTANT_CONTENT_TYPE.to_string();
-                content = content_value.clone();
+                (ASSISTANT_CONTENT_TYPE.to_string(), content_value.clone())
             }
-            MessageContent::ToolCall(tool_call) => {
-                content_type = TOOL_CALL_CONTENT_TYPE.to_string();
-                content = serde_json::to_string(tool_call).unwrap();
-            }
-            MessageContent::Document(document) => {
-                content_type = DOCUMENT_CONTENT_TYPE.to_string();
-                content = serde_json::to_string(document).unwrap();
-            }
-            MessageContent::ToolResult(tool_result) => {
-                content_type = TOOL_RESULT_TYPE.to_string();
-                content = serde_json::to_string(tool_result).unwrap();
-            }
+            MessageContent::ToolCall(tool_call) => (
+                TOOL_CALL_CONTENT_TYPE.to_string(),
+                serde_json::to_string(tool_call).unwrap(),
+            ),
+            MessageContent::Document(document) => (
+                DOCUMENT_CONTENT_TYPE.to_string(),
+                serde_json::to_string(document).unwrap(),
+            ),
+            MessageContent::ToolResult(tool_result) => (
+                TOOL_RESULT_TYPE.to_string(),
+                serde_json::to_string(tool_result).unwrap(),
+            ),
         };
 
         let result = sqlx::query!(

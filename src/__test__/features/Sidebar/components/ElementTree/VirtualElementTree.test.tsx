@@ -8,7 +8,9 @@ import {
 } from "@testing-library/react";
 import { ComponentProps, useState } from "react";
 import VirtualElementTree from "../../../../../features/Sidebar/components/ElementTree/VirtualElementTree";
+import { Provider } from "react-redux";
 import { requestFocus } from "../../../../../hooks/useFocusRequest";
+import { setupStore } from "../../../../../stores/store";
 
 const DATA: TreeNodeData[] = [
 	{
@@ -43,17 +45,19 @@ const renderNode: ComponentProps<typeof VirtualElementTree>["renderNode"] = ({
 
 function renderTree(onMove = vi.fn(), expandedState = { folder: true }) {
 	render(
-		<MantineProvider>
-			<VirtualElementTree
-				rows={flattenTreeData(DATA, expandedState)}
-				tree={tree}
-				selectedValue={null}
-				renamingValue={null}
-				onMove={onMove}
-				onReveal={vi.fn()}
-				renderNode={renderNode}
-			/>
-		</MantineProvider>,
+		<Provider store={setupStore()}>
+			<MantineProvider>
+				<VirtualElementTree
+					rows={flattenTreeData(DATA, expandedState)}
+					tree={tree}
+					selectedValue={null}
+					renamingValue={null}
+					onMove={onMove}
+					onReveal={vi.fn()}
+					renderNode={renderNode}
+				/>
+			</MantineProvider>
+		</Provider>,
 	);
 	return onMove;
 }
@@ -185,15 +189,20 @@ describe("VirtualElementTree", () => {
 				/>
 			);
 		}
+		const store = setupStore();
 		render(
-			<MantineProvider>
-				<RevealingTree />
-			</MantineProvider>,
+			<Provider store={store}>
+				<MantineProvider>
+					<RevealingTree />
+				</MantineProvider>
+			</Provider>,
 		);
 
 		// Act
 
-		act(() => requestFocus("tree"));
+		act(() => {
+			store.dispatch(requestFocus("tree"));
+		});
 
 		// Assert
 

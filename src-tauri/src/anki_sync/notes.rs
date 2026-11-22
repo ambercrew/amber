@@ -42,10 +42,8 @@ pub fn deck_name(
     deck_name_under(card.meta.parent, metas, anki_decks)
 }
 
-/// The Anki deck of a card under `parent`. A folder the importer made from a deck keeps that deck's name
-/// wherever it sits in Amber, and folders made in Amber below it become its subdecks; a tree made in Amber
-/// goes under the `Amber` deck, so it never merges into a deck of Anki's own. `anki_decks` holds the deck
-/// of each folder the importer made.
+/// The Anki deck of a card under `parent`: an imported folder (in `anki_decks`) keeps its deck wherever it
+/// sits, with Amber folders below as subdecks; a tree made in Amber goes under the `Amber` deck.
 pub fn deck_name_under(
     parent: Option<ElementId>,
     metas: &HashMap<ElementId, Meta>,

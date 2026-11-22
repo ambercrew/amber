@@ -3,7 +3,7 @@ import { StageHostCapability } from "@embedpdf/plugin-stage/contract/host";
 import {
 	createScrollSampler,
 	SCROLL_SETTLE_IN_MILLISECONDS,
-} from "../../scrollPace";
+} from "../../utils/scrollPace";
 
 /** Whether the reader is flying past pages, so pages mounting meanwhile can skip their rendering until it settles. */
 export function usePdfScrollPaceTracker(stage: StageHostCapability): {

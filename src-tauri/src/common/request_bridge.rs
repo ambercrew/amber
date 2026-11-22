@@ -18,6 +18,8 @@ pub enum RequestBridgeError {
     Emit,
     #[error("The frontend did not respond to the request in time")]
     Timeout,
+    #[error("{0}")]
+    Failed(String),
 }
 
 #[derive(Serialize, Clone)]
@@ -28,15 +30,11 @@ struct RequestEnvelope<T: Serialize> {
     payload: T,
 }
 
-/// A reusable backend-to-frontend request/response channel over Tauri
-/// events, for cases where an answer can only be produced on the frontend
-/// (e.g. running the Lexical editor headlessly). One call to `request`
-/// emits an event carrying a request id and payload, then awaits the
-/// frontend's answer, which it delivers by calling the
-/// `resolve_frontend_request` command with the same request id.
+/// A backend-to-frontend request over Tauri events, for answers only the frontend can give (e.g. headless
+/// Lexical): `request` emits an id and payload, the frontend answers via `resolve_frontend_request`.
 pub struct RequestBridge<R: tauri::Runtime> {
     app_handle: Arc<tauri::AppHandle<R>>,
-    pending: Mutex<HashMap<Uuid, oneshot::Sender<String>>>,
+    pending: Mutex<HashMap<Uuid, oneshot::Sender<Result<String, String>>>>,
 }
 
 #[async_trait]
@@ -55,9 +53,8 @@ impl<R: tauri::Runtime> RequestBridge<R> {
         }
     }
 
-    /// Emits `event` with `payload` (plus a generated request id) and
-    /// awaits the frontend's response to that request id, failing after
-    /// `DEFAULT_TIMEOUT` if the frontend never resolves it.
+    /// Emits `event` with `payload` and a new request id, and awaits the frontend's answer,
+    /// failing after `DEFAULT_TIMEOUT`.
     pub async fn request<T: Serialize + Send + Clone>(
         &self,
         event: &str,
@@ -88,7 +85,8 @@ impl<R: tauri::Runtime> RequestBridge<R> {
             .map_err(|_| RequestBridgeError::Emit)?;
 
         match tokio::time::timeout(timeout, receiver).await {
-            Ok(Ok(response)) => Ok(response),
+            Ok(Ok(Ok(response))) => Ok(response),
+            Ok(Ok(Err(message))) => Err(RequestBridgeError::Failed(message)),
             Ok(Err(_)) => Err(RequestBridgeError::Emit),
             Err(_) => {
                 self.cancel(request_id);
@@ -97,15 +95,24 @@ impl<R: tauri::Runtime> RequestBridge<R> {
         }
     }
 
-    fn register(&self, request_id: Uuid) -> oneshot::Receiver<String> {
+    fn register(&self, request_id: Uuid) -> oneshot::Receiver<Result<String, String>> {
         let (sender, receiver) = oneshot::channel();
         self.pending.lock().unwrap().insert(request_id, sender);
         receiver
     }
 
     pub fn resolve(&self, request_id: Uuid, response: String) {
+        self.settle(request_id, Ok(response));
+    }
+
+    /// Fails a pending request with the frontend's error instead of waiting out its timeout.
+    pub fn reject(&self, request_id: Uuid, message: String) {
+        self.settle(request_id, Err(message));
+    }
+
+    fn settle(&self, request_id: Uuid, result: Result<String, String>) {
         if let Some(sender) = self.pending.lock().unwrap().remove(&request_id) {
-            let _ = sender.send(response);
+            let _ = sender.send(result);
         }
     }
 
@@ -156,6 +163,39 @@ mod tests {
         // Assert
 
         assert_eq!("pong", actual);
+    }
+
+    #[tokio::test]
+    async fn request_rejected_by_frontend_returns_failed_error() {
+        // Arrange
+
+        let app = tauri::test::mock_app();
+        let app_handle = Arc::new(app.handle().clone());
+        let bridge = Arc::new(RequestBridge::new(app_handle));
+
+        let rejecting_bridge = bridge.clone();
+        app.listen("ping", move |event| {
+            let envelope: serde_json::Value = serde_json::from_str(event.payload()).unwrap();
+            let request_id: Uuid = serde_json::from_value(envelope["requestId"].clone()).unwrap();
+            rejecting_bridge.reject(request_id, "chunk failed to load".to_string());
+        });
+
+        // Act
+
+        let actual = bridge
+            .request(
+                "ping",
+                PingPayload {
+                    message: "hello".to_string(),
+                },
+            )
+            .await;
+
+        // Assert
+
+        assert!(
+            matches!(actual, Err(RequestBridgeError::Failed(message)) if message == "chunk failed to load")
+        );
     }
 
     #[tokio::test]

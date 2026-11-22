@@ -7,10 +7,8 @@ use crate::sync::hlc::Hlc;
 const LAST_PUSHED_HLC_CONFIG: &str = "sync_last_pushed_hlc";
 const LAST_PULLED_SERVER_SEQ_CONFIG: &str = "sync_last_pulled_server_seq";
 
-/// The cells this device wrote and hasn't pushed yet. Matches on the same
-/// `device_id()` SQL function the change-tracking triggers stamp cells with, so
-/// both sides resolve to the clock registered on this very connection (see
-/// `register_sync_sql_functions`) rather than to two ids that could drift apart.
+/// The cells this device wrote and hasn't pushed, matched on the same `device_id()` SQL function the
+/// triggers stamp cells with, so both resolve to this connection's clock.
 pub(super) async fn changes_since_last_push(
     tx: &mut SqliteConnection,
 ) -> Result<ChangeBatch, SyncError> {
@@ -77,9 +75,8 @@ pub(super) async fn set_last_pulled_server_seq(
     tx: &mut SqliteConnection,
     seq: i64,
 ) -> Result<(), SyncError> {
-    // There is no fallback to a full re-pull if the cursor falls behind the
-    // server's retained history, so log a large jump to make a mid-gap resume
-    // (after backend history compaction) visible.
+    // Nothing re-pulls if the cursor falls behind the server's retained history, so log a large
+    // jump to make a resume after history compaction visible.
     if let Some(previous) = get_last_pulled_server_seq(tx).await?
         && seq - previous > 100_000
     {

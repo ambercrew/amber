@@ -19,6 +19,7 @@ const BASE_STUDY_STATE = {
 	timedElementId: null,
 	timeSpent: {},
 	startedAt: null,
+	resume: null,
 };
 
 function studyStateFor(

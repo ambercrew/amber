@@ -112,11 +112,8 @@ BEGIN
     vec![ai, au, ad]
 }
 
-/// Forces `table`'s `au` trigger to fire for every existing row, seeding
-/// `sync_cells` for rows that predate registration and so never went through an
-/// `AFTER INSERT` trigger. Uses a no-op self-assignment `UPDATE` to reuse the
-/// trigger's own SQL; the `sync_backfilling` guard row lifts the column-mode
-/// `NEW.col IS NOT OLD.col` filter a self-assignment could never satisfy.
+/// Seeds `sync_cells` for rows that predate registration with a no-op self-assigning `UPDATE` that fires
+/// the `au` trigger; the `sync_backfilling` guard lifts its `NEW.col IS NOT OLD.col` filter.
 pub fn backfill_via_trigger(schema: &TableSchema) -> Vec<String> {
     let quoted_table = quote_ident(&schema.name);
     let touch_col = quote_ident(
@@ -149,9 +146,8 @@ END;",
     )
 }
 
-/// Builds the `row_id` expression for a trigger body: a JSON array of the
-/// primary key values in key order, from `prefix` (`"NEW"`/`"OLD"`). JSON keeps
-/// composite keys unambiguous whatever the values contain.
+/// A trigger's `row_id` expression: a JSON array of `prefix`'s (`NEW`/`OLD`) primary key values in key
+/// order, which keeps composite keys unambiguous whatever they contain.
 fn row_id_expr(prefix: &str, pk_columns: &[String]) -> String {
     let args: String = pk_columns
         .iter()
@@ -161,9 +157,8 @@ fn row_id_expr(prefix: &str, pk_columns: &[String]) -> String {
     format!("json_array({args})")
 }
 
-/// Decodes a `row_id` (see `row_id_expr`) into its primary key values, in
-/// encoding order. They stay text until bound as query parameters, where
-/// SQLite's affinity conversion restores each column's storage class.
+/// Decodes a `row_id` (see `row_id_expr`) into its key values, in order. They stay text until bound,
+/// where SQLite's affinity conversion restores each column's storage class.
 pub(super) fn parse_row_id(
     table: &str,
     row_id: &str,

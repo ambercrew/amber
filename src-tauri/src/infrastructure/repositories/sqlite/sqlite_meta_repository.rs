@@ -358,6 +358,36 @@ impl MetaRepository for SqliteMetaRepository {
             .collect())
     }
 
+    async fn get_assigned_profile_ids(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, Uuid>, RepositoryError> {
+        let ids = ids_json(ids.iter().copied());
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        // Walks each element up its ancestors until one has a profile.
+        let rows = sqlx::query!(
+            r#"WITH RECURSIVE chain(start_id, profile_id, parent_id) AS (
+                   SELECT element_id, study_profile_id, parent_id
+                   FROM meta WHERE element_id IN (SELECT value FROM json_each($1))
+                   UNION ALL
+                   SELECT chain.start_id, parent.study_profile_id, parent.parent_id
+                   FROM chain JOIN meta parent ON parent.element_id = chain.parent_id
+                   WHERE chain.profile_id IS NULL
+               )
+               SELECT start_id AS "start_id!: uuid::fmt::Hyphenated",
+                      profile_id AS "profile_id!: uuid::fmt::Hyphenated"
+               FROM chain WHERE profile_id IS NOT NULL"#,
+            ids
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.start_id.into_uuid(), row.profile_id.into_uuid()))
+            .collect())
+    }
+
     async fn filter_live(&self, ids: &[ElementId]) -> Result<Vec<ElementId>, RepositoryError> {
         let ids = ids_json(ids.iter().map(|id| id.id()));
         let mut tx = self.tx.lock().await;
@@ -735,6 +765,19 @@ impl MetaRepository for SqliteMetaRepository {
             .collect())
     }
 
+    async fn get_priorities_ordered(&self) -> Result<Vec<Vec<u8>>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+        let rows = sqlx::query!(
+            r#"SELECT priority FROM meta
+               WHERE trashed_at IS NULL
+               ORDER BY priority"#
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        Ok(rows.into_iter().map(|row| row.priority).collect())
+    }
+
     async fn get_at_priority_offset(
         &self,
         excluding: Option<ElementId>,
@@ -906,6 +949,43 @@ mod tests {
         // Assert
 
         assert_eq!(vec![first, second], ids);
+    }
+
+    #[tokio::test]
+    async fn get_priorities_ordered_elements_out_of_order_returns_them_ascending() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        let first_priority = FractionalIndex::default();
+        let next_priority = FractionalIndex::new_after(&first_priority);
+        repo.create_meta(&Meta {
+            priority: next_priority.clone(),
+            ..make_meta(ElementId::Folder(Uuid::new_v4()))
+        })
+        .await
+        .unwrap();
+        repo.create_meta(&Meta {
+            priority: first_priority.clone(),
+            ..make_meta(ElementId::Card(Uuid::new_v4()))
+        })
+        .await
+        .unwrap();
+
+        // Act
+
+        let priorities = repo.get_priorities_ordered().await.unwrap();
+
+        // Assert
+
+        assert_eq!(
+            vec![
+                first_priority.as_bytes().to_vec(),
+                next_priority.as_bytes().to_vec()
+            ],
+            priorities
+        );
     }
 
     #[tokio::test]

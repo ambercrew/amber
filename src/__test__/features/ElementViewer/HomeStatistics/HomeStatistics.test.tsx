@@ -4,7 +4,7 @@ import HomeStatistics from "../../../../features/ElementViewer/HomeStatistics/Ho
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "../../../../stores/sync/managers/syncEventManager";
+} from "../../../../managers/syncEventManager";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
 vi.mock(import("../../../../api/statistics/api/statisticsApi"));

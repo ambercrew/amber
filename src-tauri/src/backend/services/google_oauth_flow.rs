@@ -32,30 +32,13 @@ const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 const REDIRECT_TIMEOUT: Duration = Duration::from_secs(120);
 const GOOGLE_OAUTH_CLIENT_ID: &str =
     "3909155312-6eeg64kqlmkonjsq0qdpl0ug6tajil87.apps.googleusercontent.com";
-// Google's token endpoint requires client_secret even for Desktop/installed
-// app clients using PKCE. Per Google's own docs this value isn't treated as
-// confidential for installed apps (unlike Web-app clients), so embedding it
-// here is expected: https://developers.google.com/identity/protocols/oauth2/native-app
+// Google requires the client secret even for installed apps using PKCE, and doesn't treat it as
+// confidential for them: https://developers.google.com/identity/protocols/oauth2/native-app
 const GOOGLE_OAUTH_CLIENT_SECRET: &str = "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";
 const REDIRECT_RESPONSE_BODY: &str = "You can close this tab and return to Amber.";
 
-/// Runs an interactive "Sign in with Google" flow (Authorization Code +
-/// PKCE) using the system browser and a short-lived local callback server,
-/// and returns the Google-issued ID token to hand to the Amber backend's
-/// `google-sign-in` endpoint (which verifies it directly with Google).
-///
-/// The callback server is a bare `tokio::net::TcpListener` we drive
-/// ourselves rather than a Tauri plugin (e.g. `tauri-plugin-oauth`): that
-/// plugin isn't part of the `tauri-apps/plugins-workspace` repo this
-/// project's `[patch.crates-io]` redirects to the `feat/cef` fork, so it
-/// pulls in an unpatched `tauri` from crates.io alongside the patched one
-/// and crashes at runtime. Rolling our own loopback server needs nothing
-/// beyond `tokio`, which is already a full-featured dependency.
-///
-/// Works on both desktop and mobile: the callback server binds to
-/// `127.0.0.1` on the device itself, and the system browser the OS opens
-/// runs on that same device, so it can always reach the loopback redirect
-/// regardless of platform.
+/// "Sign in with Google" (Authorization Code + PKCE) in the system browser with a loopback callback, on
+/// desktop and mobile. Not `tauri-plugin-oauth`, which pulls in an unpatched `tauri` beside the CEF fork.
 pub async fn run<R: tauri::Runtime>(
     app_handle: &tauri::AppHandle<R>,
 ) -> Result<String, GoogleOAuthError> {
@@ -95,12 +78,8 @@ pub async fn run<R: tauri::Runtime>(
     exchange_code_for_id_token(&code, &code_verifier, &redirect_uri).await
 }
 
-/// Accepts the single loopback connection carrying the OAuth redirect,
-/// replies with a static "you can close this tab" page, and forwards the
-/// request's path + query string to the waiting `run` call. Runs as its own
-/// task because the listener has to be alive *before* the browser is
-/// opened, but the request only arrives after the user finishes the consent
-/// screen.
+/// Accepts the one redirect connection, answers with a "you can close this tab" page and forwards its path
+/// and query to `run`. Its own task, as the listener must exist before the browser opens.
 async fn accept_redirect(listener: TcpListener, redirect_tx: oneshot::Sender<String>) {
     let Ok((mut stream, _)) = listener.accept().await else {
         return;

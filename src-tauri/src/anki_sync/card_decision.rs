@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use super::anki_connect::AGAIN_EASE;
-use super::anki_connect::{AnkiReview, AnkiReviewRow};
 use super::card_timeline::{CardEvent, CardTimeline, EventKind};
+use super::clients::anki_connect::AGAIN_EASE;
+use super::clients::anki_connect::{AnkiReview, AnkiReviewRow};
 use super::entities::synced_schedule::SyncedSchedule;
 use super::reviews::{AnkiNextReview, ReviewMerge, answers_in_anki, merge_reviews};
 use super::schedules::{
@@ -241,9 +241,8 @@ fn moved_after_every_review(
     }
 }
 
-/// A card one app doesn't hold by the day (new, or (re)learning by the minute) has no due day to compare, so
-/// a due move that's the newest thing either app did carries over. Amber keeps a new card new when it takes
-/// Anki's day, while Anki's "Set due date" makes it a review card.
+/// A card one app holds by the minute or as new has no due day to compare, so the newest due move
+/// carries over; Amber keeps a new card new, while Anki's "Set due date" makes it a review card.
 fn moved_without_a_due_day(
     sides: &CardSides,
     timeline: &CardTimeline,

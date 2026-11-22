@@ -196,10 +196,8 @@ impl TrashRepository for SqliteTrashRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
 
-        // `ancestry` walks parent_id upwards, collecting the element and every
-        // ancestor that still has a row. The chain is broken either by an
-        // ancestor sitting in the trash, or by a parent_id that no longer
-        // resolves to a row — the element's own trash state is irrelevant.
+        // `ancestry` walks `parent_id` up through rows that still exist; a trashed ancestor or a dangling
+        // `parent_id` breaks the chain, whatever the element's own trash state.
         let row = sqlx::query!(
             r#"WITH RECURSIVE ancestry(element_id, parent_id, trashed_at) AS (
                 SELECT element_id, parent_id, trashed_at FROM meta WHERE element_id = $1

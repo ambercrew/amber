@@ -4,6 +4,6 @@ export interface ImportAnkiRequestDto {
 	bytesBase64: string;
 	parent: ElementId | null;
 	bibliographicalSourceId: string | null;
-	/** Added to the folder the import resolves to. */
+	/** The top-level folders' tags; unset copies the parent's. */
 	tags?: string[];
 }

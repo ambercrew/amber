@@ -13,14 +13,8 @@ interface CursorTrackerPluginProps {
 }
 
 /**
- * Reports the block index containing the caret whenever the selection
- * changes. Lexical keeps the last selection in its editor state even after
- * the editor blurs (e.g. focus moves to the command palette), so the last
- * value reported here still reflects where the caret was, rather than
- * wherever focus happens to be at the time a caller reads it.
- *
- * Also handles `NodeSelection` (e.g. clicking an image, which never produces
- * a caret) so that right-clicking a non-text node still tracks its block.
+ * Reports the caret's block index as the selection changes, still right after a blur since Lexical
+ * keeps the last selection; a `NodeSelection` (e.g. a clicked image) tracks its block too.
  */
 export default function CursorTrackerPlugin({
 	onCursorMove,
@@ -51,10 +45,8 @@ export default function CursorTrackerPlugin({
 		});
 	}, [editor, onCursorMove]);
 
-	// Right-clicking a decorator node (e.g. an image) opens the context menu
-	// without moving the Lexical selection at all — no click precedes it, so
-	// the update listener above never fires. Track the block under the
-	// pointer directly from the native contextmenu event instead.
+	// Right-clicking a decorator node (e.g. an image) leaves the selection where it was, so track the
+	// block under the pointer from the native contextmenu event.
 	useEffect(() => {
 		function handleContextMenu(event: MouseEvent) {
 			editor.read(() => {

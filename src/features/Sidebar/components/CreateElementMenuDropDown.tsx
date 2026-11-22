@@ -9,7 +9,7 @@ import {
 } from "../../../stores/elements/elementsActions";
 import { AppDispatch } from "../../../stores/store";
 import { ElementId } from "../../../types/elements/elementId";
-import { newCardDto } from "./ElementTree/elementTreeUtils";
+import { newCardDto } from "../utils/newCardDto";
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 
 function useCreateHandlers(

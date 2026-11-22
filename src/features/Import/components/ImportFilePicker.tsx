@@ -1,6 +1,6 @@
 import { Badge, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import { UploadSimpleIcon } from "@phosphor-icons/react";
-import { FILE_FORMATS } from "../fileFormats";
+import { FILE_FORMATS } from "../utils/fileFormats";
 
 interface ImportFilePickerProps {
 	onBrowse: () => void;

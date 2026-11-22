@@ -1,4 +1,4 @@
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use injector::injector::Injector;
 use tauri::http::{Request, Response, StatusCode, header};
@@ -15,8 +15,15 @@ pub const ASSET_PROTOCOL: &str = "amber-asset";
 const ASSET_CONTENT_SECURITY_POLICY: &str =
     "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox";
 
-// Each read holds a pooled transaction, so an image-heavy page must not starve other commands of connections.
-static ASSET_READ_PERMITS: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(2));
+/// Tauri state limiting concurrent asset reads: each holds a pooled transaction, so an image-heavy
+/// page must not starve other commands of connections.
+pub struct AssetReadPermits(Arc<Semaphore>);
+
+impl Default for AssetReadPermits {
+    fn default() -> Self {
+        Self(Arc::new(Semaphore::new(2)))
+    }
+}
 
 /// Serves `amber-asset://localhost/<id>` (or the runtime's `http://amber-asset.localhost/<id>`).
 pub fn handle_asset_request<R: Runtime>(
@@ -25,19 +32,20 @@ pub fn handle_asset_request<R: Runtime>(
     responder: UriSchemeResponder,
 ) {
     let injector = ctx.app_handle().state::<Arc<Injector>>().inner().clone();
+    let permits = ctx.app_handle().state::<AssetReadPermits>().0.clone();
     let id = request.uri().path().trim_start_matches('/').to_string();
 
     tauri::async_runtime::spawn(async move {
-        responder.respond(build_response(&injector, &id).await);
+        responder.respond(build_response(&injector, &permits, &id).await);
     });
 }
 
-async fn build_response(injector: &Injector, id: &str) -> Response<Vec<u8>> {
+async fn build_response(injector: &Injector, permits: &Semaphore, id: &str) -> Response<Vec<u8>> {
     let Ok(asset_id) = AssetId::try_from(id.to_string()) else {
         return status_response(StatusCode::BAD_REQUEST);
     };
 
-    let _permit = ASSET_READ_PERMITS
+    let _permit = permits
         .acquire()
         .await
         .expect("Asset read semaphore is never closed");

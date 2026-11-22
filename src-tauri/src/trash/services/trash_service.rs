@@ -15,9 +15,8 @@ pub const TIME_BETWEEN_TRASH_PURGES_IN_MINUTES: u64 = 12 * 60;
 
 #[async_trait]
 pub trait TrashService: Send + Sync {
-    /// Moves the element and its subtree to the trash. Descendants already
-    /// trashed on their own are left alone, so restoring this element later
-    /// doesn't bring them back with it.
+    /// Trashes the element and its subtree; descendants already trashed on their own stay put, so
+    /// restoring this one later doesn't bring them back.
     async fn trash_element(&self, id: ElementId) -> Result<(), TrashServiceError>;
 
     /// Same as `trash_element`, applied to every element in `ids`.

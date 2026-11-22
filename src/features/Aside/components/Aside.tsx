@@ -7,11 +7,11 @@ import { TOGGLE_RIGHT_SIDEBAR_REQUESTED } from "../../../types/events/toggleRigh
 import CollapsibleSidebar, {
 	SidebarTab,
 } from "../../../components/CollapsibleSidebar/CollapsibleSidebar";
+import AiPanel from "../../Ai/components/AiPanel";
 import ElementInfoPanel from "./ElementInfoPanel";
 import TableOfContentsPanel from "./TableOfContentsPanel";
-import AiPanel from "../../Ai/components/AiPanel";
 import useAppSelector from "../../../hooks/useAppSelector";
-import { selectSettings } from "../../../stores/settings/settingsSelector";
+import { selectSettings } from "../../../stores/settings/settingsSelectors";
 
 const LOCAL_STORAGE_KEY = "aside";
 

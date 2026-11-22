@@ -6,10 +6,8 @@ use tokio_rusqlite::ffi;
 
 use super::clock::SyncClock;
 
-/// Registers the `hlc_now()` and `device_id()` SQL functions on `connection`,
-/// bound to `clock` as their app data. Per connection rather than process-wide
-/// via `sqlite3_auto_extension`, so a statement always issues HLCs from the
-/// clock of the database it writes to, even with two databases open.
+/// Registers `hlc_now()` and `device_id()` on `connection`, bound to `clock`. Per connection, not
+/// `sqlite3_auto_extension`, so a statement uses its own database's clock even with two open.
 pub(crate) async fn register_sync_sql_functions(
     connection: &mut SqliteConnection,
     clock: Arc<SyncClock>,

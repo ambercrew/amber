@@ -246,12 +246,8 @@ function $exportableImageSrc(editor: LexicalEditor, node: ImageNode): string {
 	}
 }
 
-// Reads the width/height *attributes* rather than the img.width/img.height
-// IDL properties. Those properties fall back to 0 when the element hasn't
-// loaded and has no attribute to reflect -- which is always true for the
-// detached DOMParser document Editor.tsx parses saved HTML with. Since 0
-// isn't null/undefined, that 0 would otherwise get treated as an explicit
-// size and permanently baked into every subsequent save.
+// Reads the width/height attributes, not the img properties, which are 0 for an unloaded image (always,
+// in the detached DOMParser document), and a 0 would be saved as an explicit size.
 function $parsePositiveIntAttribute(
 	element: HTMLElement,
 	name: string,

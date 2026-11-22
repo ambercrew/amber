@@ -17,11 +17,8 @@ use super::pending_buffer::PendingBuffer;
 use super::schema_gate;
 use super::trigger_sql::{parse_row_id, quote_ident};
 
-/// Applies one page of a remote change batch. Column-mode `SetColumn` cells are
-/// buffered in `pending` across pages, so a new row's columns accumulate before
-/// the row is materialized. `is_last_page` triggers a final flush attempt; a row
-/// still missing a `NOT NULL` column stays buffered for the next sync and
-/// suppresses foreign key repair for this cycle.
+/// Applies one page of a remote batch, buffering column-mode cells in `pending` until their row is
+/// complete; a row still missing a `NOT NULL` column waits for the next sync and holds off FK repair.
 pub(super) async fn apply_remote(
     tx: &mut SqliteConnection,
     batch: ChangeBatch,
@@ -43,11 +40,8 @@ pub(super) async fn apply_remote(
 
     result?;
 
-    // Runs with the guard lifted so repairs are staged as local changes, and
-    // only on the last page since an earlier "violation" may be a reference
-    // whose target arrives later. Skipped while any row is unmaterialized: it is
-    // absent locally, so intact references to it look dangling and the repair's
-    // deletions would be pushed outward.
+    // Repairs are staged as local changes, on the last page only (an earlier dangling reference may
+    // still arrive), and never while a row is unmaterialized, as references to it would look dangling.
     if is_last_page {
         if pending.is_empty().await {
             fk_repair::repair_foreign_keys(&mut *tx).await?;
@@ -63,11 +57,8 @@ pub(super) async fn apply_remote(
     Ok(())
 }
 
-/// [`try_flush_pending`] for callers outside an [`apply_remote`] page, i.e.
-/// `SyncStore::has_pending_changes`. Raises the `sync_applying` guard itself:
-/// materializing a row fires the table's change-tracking triggers, which
-/// unguarded would re-stage freshly pulled remote data as a local edit under
-/// this device's id and clock, corrupting later merge decisions.
+/// [`try_flush_pending`] outside an [`apply_remote`] page, raising the `sync_applying` guard itself:
+/// unguarded, materializing a row would re-stage pulled data as this device's own edit.
 pub(super) async fn flush_pending_outside_page(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
@@ -89,13 +80,8 @@ pub(super) async fn flush_pending_outside_page(
     result
 }
 
-/// Best-effort flush of whatever is buffered in `pending`. Each row is upserted
-/// inside its own `SAVEPOINT`: a complete row is written and dropped from the
-/// buffer, an incomplete one is rolled back and stays. Returns whether any row
-/// is still buffered.
-///
-/// Assumes the `sync_applying` guard is raised — outside an [`apply_remote`]
-/// page call [`flush_pending_outside_page`] instead.
+/// Flushes `pending`, each row in its own `SAVEPOINT` (complete rows are written, incomplete ones stay);
+/// returns whether any is left. Needs the `sync_applying` guard: outside a page use [`flush_pending_outside_page`].
 async fn try_flush_pending(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
@@ -246,11 +232,8 @@ async fn discard_incomplete_deleted_rows(
     Ok(!pending.is_empty().await)
 }
 
-/// Reports every row still buffered after the final flush attempt. Listing the
-/// columns the local cell log holds distinguishes two causes a bare
-/// `NOT NULL constraint failed` cannot: the server hasn't sent them yet (the
-/// next sync fixes it), or an earlier cycle already committed past them, so they
-/// will never be resent and must come from `sync_cells`.
+/// Logs every row still buffered after the last flush, with the columns `sync_cells` holds, to tell
+/// "not sent yet" (next sync fixes it) from "committed past" (must come from the cell log).
 async fn log_incomplete_pending_rows(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
@@ -664,8 +647,7 @@ async fn apply_action(
     }
 }
 
-/// Writes every buffered column of one row in a single upsert, so a new row is
-/// materialized at once instead of via a skeleton insert that would trip a
+/// Writes every buffered column of one row in a single upsert, as a skeleton insert would trip a
 /// `NOT NULL` column with no `DEFAULT`.
 async fn apply_row_upsert_columns(
     tx: &mut SqliteConnection,
@@ -698,16 +680,8 @@ async fn apply_row_upsert_columns(
     upsert_row(tx, table, &pk_columns, &pk_values, &columns, values).await
 }
 
-/// Fills in a new row's columns that this pull didn't deliver (required ones,
-/// but also nullable ones a partial pull already stored), from `sync_cells` — the
-/// durable record of every cell this device has won, where the pending buffer
-/// only holds what arrived during *this* pull. A row can lose buffered columns
-/// mid-cycle (a `DeleteRow` clears them, or a cell loses its HLC comparison)
-/// while the cursor commits past them; the server won't resend those, so the
-/// row would otherwise never be materializable again.
-///
-/// Only runs for a row that doesn't exist yet; an existing row already holds its
-/// columns. A deleted row's cells older than its tombstone are gone by now.
+/// Fills a new row's columns this pull didn't deliver from `sync_cells`: a row can lose buffered columns
+/// mid-cycle while the cursor commits past them, and the server won't resend those.
 async fn backfill_missing_columns_from_cell_log(
     tx: &mut SqliteConnection,
     key: &RowKey,
@@ -863,14 +837,8 @@ async fn get_or_load_columns(
     Ok(columns)
 }
 
-/// Writes one row from its non-primary-key column values as raw bytes, shared
-/// by column-mode and row-mode. Each value is `CAST` to its column's affinity
-/// since both callers hand over opaque bytes.
-///
-/// Tries `UPDATE` first, falling back to `INSERT`, rather than a single
-/// `INSERT ... ON CONFLICT DO UPDATE`: SQLite evaluates the candidate insert
-/// *before* resolving the conflict, so a `NOT NULL` column absent from `values`
-/// would fail it even though the existing row already has it set.
+/// Writes one row from raw column bytes, each `CAST` to its column's affinity. `UPDATE` then `INSERT`,
+/// not `ON CONFLICT DO UPDATE`, which checks `NOT NULL` on the candidate insert before the conflict.
 async fn upsert_row(
     tx: &mut SqliteConnection,
     table: &str,

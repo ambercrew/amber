@@ -1,4 +1,4 @@
-import { HEADER_AND_FOOTER_HEIGHT } from "../../../App/components/App";
+import { HEADER_AND_FOOTER_HEIGHT } from "../../../../config/layout";
 
 // Splits kept mounted on each side of the primary split. Live editors ≈ 2 * NEIGHBORS + 1.
 export const LEARNING_ASSET_SPLIT_MOUNT_NEIGHBORS = 1;

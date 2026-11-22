@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { computePosition, type Middleware } from "@floating-ui/dom";
 import { useFloatingMenuPosition } from "../../../components/FloatingMenuBar/useFloatingMenuPosition";
-import { VisibleAreaContext } from "../../../components/FloatingMenuBar/visibleAreaContext";
+import { AppLayoutContext } from "../../../components/AppLayout/appLayoutContext";
 
 vi.mock(import("@floating-ui/dom"), async importOriginal => {
 	const actual = await importOriginal();
@@ -49,9 +49,13 @@ describe("useFloatingMenuPosition", () => {
 
 	function wrapper({ children }: { children: ReactNode }) {
 		return (
-			<VisibleAreaContext value={visibleArea}>
+			<AppLayoutContext
+				value={{
+					mainScrollElement: null,
+					visibleAreaElement: visibleArea,
+				}}>
 				{children}
-			</VisibleAreaContext>
+			</AppLayoutContext>
 		);
 	}
 

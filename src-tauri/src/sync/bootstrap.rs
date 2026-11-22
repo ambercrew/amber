@@ -19,18 +19,8 @@ use crate::sync::value_objects::table_sync_config::TableSyncConfig;
 const ASSETS_DELETE_GUARD: &str = "EXISTS (SELECT 1 FROM element_assets WHERE asset_id = ?1)
     OR EXISTS (SELECT 1 FROM asset_claims WHERE asset_id = ?1 AND claimed_at > datetime('now', '-14 days'))";
 
-/// Every domain table synced to the cloud, paired with its tracking granularity
-/// and FK repair policies. `meta` uses column granularity so concurrent edits to
-/// different fields of the same element merge independently; everything else is
-/// row granularity. `local_configurations` is per-machine and excluded, as are
-/// sync's own bookkeeping tables, the locally derived `element_assets`/`asset_gc`/`asset_claims`,
-/// and `ai_documents`, the text of files uploaded to an AI chat, kept on the device it was uploaded on.
-///
-/// FK policies mirror the schema's `ON DELETE` semantics (`SET NULL` →
-/// `FkPolicy::SetNull`, `CASCADE` → `FkPolicy::DiscardRow`), plus references
-/// enforced only by triggers (`meta.parent_id`/`derived_from_id`, each element
-/// table's `id` back to `meta.element_id`) that the FK repair pass still needs
-/// an explicit policy for.
+/// Every cloud-synced table with its granularity (`meta` by column, so edits to different fields merge)
+/// and FK policies, mirroring the schema's `ON DELETE` plus trigger-enforced references; per-device tables stay out.
 fn table_configs() -> Vec<TableSyncConfig> {
     vec![
         TableSyncConfig {
@@ -252,6 +242,24 @@ fn table_configs() -> Vec<TableSyncConfig> {
             delete_guard: None,
         },
         TableSyncConfig {
+            name: "learning_asset_skips",
+            // Column granularity: a skip's cell holds only `skipped_at`, not a JSON copy of the row.
+            granularity: Granularity::Column,
+            fk_constraints: vec![FkConstraint::new(
+                "element_id",
+                "meta",
+                "element_id",
+                FkPolicy::DiscardRow,
+            )],
+            delete_guard: None,
+        },
+        TableSyncConfig {
+            name: "synced_configurations",
+            granularity: Granularity::Row,
+            fk_constraints: vec![],
+            delete_guard: None,
+        },
+        TableSyncConfig {
             name: "card_review_logs",
             granularity: Granularity::Row,
             fk_constraints: vec![FkConstraint::new(
@@ -327,9 +335,8 @@ fn table_configs() -> Vec<TableSyncConfig> {
     ]
 }
 
-/// Registers every synced domain table for change tracking. Idempotent, and
-/// must run before the app is usable: writes to an unregistered table are
-/// never tracked.
+/// Registers every synced table for change tracking. Idempotent, and must run before the app is
+/// usable, as writes to an unregistered table are never tracked.
 pub async fn register_sync_tables(injector: &Arc<Injector>) -> Result<(), SyncError> {
     let scope = injector.start_scope();
     let store = scope.resolve::<dyn SyncStore>().await;
@@ -349,9 +356,8 @@ pub async fn register_sync_tables(injector: &Arc<Injector>) -> Result<(), SyncEr
     Ok(())
 }
 
-/// Same as [`register_sync_tables`], but runs directly against `pool` instead of
-/// a DI scope's [`SyncStore`]. Needed right after the active database is swapped
-/// to `pool`, since an in-flight scope still holds a transaction on the old one.
+/// [`register_sync_tables`] run directly on `pool`, for right after the active database is swapped,
+/// while an in-flight scope still holds a transaction on the old one.
 pub async fn register_sync_tables_on_pool(pool: &SqlitePool) -> Result<(), SyncError> {
     let mut tx = pool.begin().await?;
 
@@ -506,6 +512,92 @@ mod tests {
         .fetch_one(tx.as_mut())
         .await
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn table_configs_learning_asset_skip_and_synced_configuration_saved_are_staged_for_other_devices()
+     {
+        // Arrange
+
+        let injector = Arc::new(crate::test_utils::create_file_backed_test_injector().await);
+        register_sync_tables(&injector).await.unwrap();
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        let mut guard = tx.lock().await;
+        let element_id = "6f1c2a9e-0000-4000-8000-000000000001";
+        sqlx::query(
+            "INSERT INTO meta(element_id, element_type, name, position, priority)
+             VALUES (?1, 'learning_asset', 'test', x'80', x'80')",
+        )
+        .bind(element_id)
+        .execute(guard.as_mut())
+        .await
+        .unwrap();
+
+        // Act
+
+        sqlx::query("INSERT INTO learning_asset_skips VALUES (?1, 1800000000000)")
+            .bind(element_id)
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO synced_configurations VALUES ('FUZZ_FACTOR', '{\"fuzz_factor\":25}')",
+        )
+        .execute(guard.as_mut())
+        .await
+        .unwrap();
+
+        // Assert
+
+        let staged: i64 = sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT tbl) FROM sync_cells
+             WHERE tbl IN ('learning_asset_skips', 'synced_configurations')",
+        )
+        .fetch_one(guard.as_mut())
+        .await
+        .unwrap();
+        assert_eq!(2, staged);
+    }
+
+    #[tokio::test]
+    async fn table_configs_learning_asset_skip_saved_stages_only_its_time() {
+        // Arrange
+
+        let injector = Arc::new(crate::test_utils::create_file_backed_test_injector().await);
+        register_sync_tables(&injector).await.unwrap();
+        let scope = injector.start_scope();
+        let tx = scope.resolve::<DbTransaction>().await;
+        let mut guard = tx.lock().await;
+        let element_id = "6f1c2a9e-0000-4000-8000-000000000002";
+        sqlx::query(
+            "INSERT INTO meta(element_id, element_type, name, position, priority)
+             VALUES (?1, 'learning_asset', 'test', x'80', x'80')",
+        )
+        .bind(element_id)
+        .execute(guard.as_mut())
+        .await
+        .unwrap();
+
+        // Act
+
+        sqlx::query("INSERT INTO learning_asset_skips VALUES (?1, 1800000000000)")
+            .bind(element_id)
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+
+        // Assert
+
+        let cells: Vec<(String, Vec<u8>)> =
+            sqlx::query_as("SELECT col, value FROM sync_cells WHERE tbl = 'learning_asset_skips'")
+                .fetch_all(guard.as_mut())
+                .await
+                .unwrap();
+        assert_eq!(
+            vec![("skipped_at".to_string(), b"1800000000000".to_vec())],
+            cells
+        );
     }
 
     fn remote_asset_cell(

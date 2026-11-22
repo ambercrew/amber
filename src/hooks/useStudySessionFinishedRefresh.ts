@@ -5,9 +5,8 @@ import useAppDispatch from "./useAppDispatch";
 import { useElementParams } from "./useElementParams";
 
 /**
- * Reloads the currently open element once a study session finishes, so the
- * Aside panel's "Due" field reflects the scheduling change from the last
- * review instead of staying stale until the user navigates away or refreshes.
+ * Reloads the open element once a study session finishes, so the Aside's "Due" field
+ * shows the last review's schedule.
  */
 export function useStudySessionFinishedRefresh() {
 	const params = useElementParams();

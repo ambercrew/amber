@@ -16,7 +16,7 @@ import {
 	createExtractAction,
 } from "../../../stores/elements/elementsActions";
 import { ElementId } from "../../../types/elements/elementId";
-import { CLOZE_COLOR } from "../highlightColors";
+import { CLOZE_COLOR } from "../utils/highlightColors";
 
 export function useHighlightCreatedHandler(elementId: ElementId | undefined) {
 	const dispatch = useAppDispatch();
@@ -62,10 +62,8 @@ export function useHighlightCreatedHandler(elementId: ElementId | undefined) {
 	);
 }
 
-// The cloze front is the whole document with the selected phrase swapped for
-// a hidden placeholder, so the reader sees it in context. The back is just
-// the plain selected phrase (see $stripOtherHighlights), with no surrounding
-// document and no highlight mark.
+// A cloze's front is the whole document with the phrase swapped for a hidden placeholder, so it's
+// read in context; the back is just the phrase (see $stripOtherHighlights).
 function $buildClozeFront(highlightId: string): void {
 	for (const { node } of $dfs()) {
 		if ($isHighlightNode(node) && node.getHighlightId() === highlightId) {
@@ -74,12 +72,8 @@ function $buildClozeFront(highlightId: string): void {
 	}
 }
 
-// Unwraps every highlight and cloze other than the one just created, so a new
-// extract or cloze copied out of the document doesn't drag unrelated
-// highlights along with it. Images are detached from their occlusion likewise. This only touches the standalone node tree being
-// copied into the new element — the source document's own highlights are
-// left untouched. `$dfs()` snapshots the tree up front, so replacing/removing
-// nodes while iterating is safe.
+// Unwraps every other highlight and cloze (and detaches images from their occlusion) in the copy going
+// into the new element, leaving the source alone; `$dfs()` snapshots the tree, so editing it is safe.
 function $stripOtherHighlights(currentHighlightId: string): void {
 	for (const { node } of $dfs()) {
 		if (

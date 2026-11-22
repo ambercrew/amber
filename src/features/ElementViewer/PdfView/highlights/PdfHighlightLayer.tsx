@@ -1,6 +1,6 @@
 import { MantineColor } from "@mantine/core";
 import { usePage } from "@embedpdf/react/runtime";
-import { CLOZE_COLOR, EXTRACT_COLOR } from "../../highlightColors";
+import { CLOZE_COLOR, EXTRACT_COLOR } from "../../utils/highlightColors";
 import { PdfHighlightCustomData, toPageRect } from "./pdfHighlightAnnotations";
 import { usePdfHighlights } from "./pdfHighlightsContext";
 

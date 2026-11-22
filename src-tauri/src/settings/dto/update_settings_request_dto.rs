@@ -20,6 +20,7 @@ pub struct UpdateSettingsRequestDto {
     pub zoom_percentage: Option<f64>,
     pub line_width: Option<LineWidth>,
     pub auto_sync: Option<bool>,
+    pub spell_check: Option<bool>,
     pub trash_retention_days: Option<u32>,
 
     pub enable_ai: Option<bool>,

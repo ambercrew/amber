@@ -68,6 +68,7 @@ describe("StudyModeToggle", () => {
 					timedElementId: null,
 					timeSpent: {},
 					startedAt: null,
+					resume: null,
 				},
 			},
 		});
@@ -151,6 +152,7 @@ describe("StudyModeToggle", () => {
 					timedElementId: null,
 					timeSpent: {},
 					startedAt: null,
+					resume: null,
 				},
 			},
 		});

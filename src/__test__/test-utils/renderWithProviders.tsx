@@ -37,13 +37,8 @@ export function renderWithProviders(
 
 	function Wrapper({ children }: PropsWithChildren<object>): JSX.Element {
 		return (
-			// `env="test"` makes Mantine's `Transition` render its children
-			// synchronously instead of scheduling them through two
-			// requestAnimationFrames and a timer. Anything that opens behind a
-			// transition (Menu, Popover, Modal) is then present in the same flush as
-			// the click that opened it, so queries like `findAllByRole("menuitem")` no
-			// longer race it once the suite runs parallel enough to delay those
-			// callbacks.
+			// `env="test"` renders Mantine's `Transition` children synchronously, so a Menu, Popover or Modal is
+			// there in the same flush as the click opening it and queries don't race it under parallel runs.
 			<MantineProvider env="test">
 				<MemoryRouter {...memoryRouterProps}>
 					<LocationDisplay />

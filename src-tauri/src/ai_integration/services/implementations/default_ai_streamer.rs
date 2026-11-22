@@ -97,11 +97,8 @@ impl AiStreamer for DefaultAiStreamer {
             .get_agent(chat_id, &messages, request.element_id)
             .await?;
 
-        // The transaction resolved above (for the initial reads and agent
-        // setup) would otherwise stay open — and its snapshot stale — for the
-        // whole LLM round-trip, so committing it here before the potentially
-        // long streaming loop avoids a SQLITE_BUSY_SNAPSHOT when the deferred
-        // writes below finally run against a fresh transaction.
+        // Commit before the long LLM round-trip, or this transaction's snapshot goes stale and the writes
+        // below hit `SQLITE_BUSY_SNAPSHOT`.
         self.transaction_manager.save_changes().await?;
 
         let mut complete_ai_response = String::new();
@@ -240,10 +237,8 @@ impl AiStreamer for DefaultAiStreamer {
             ));
         }
 
-        // Delaying database operations to the end to avoid the writes from locking
-        // the database.
-        // A failed turn's messages are dropped so the user can resend the prompt, unless
-        // a tool already ran and its side effects (e.g. a created card) need recording.
+        // Writes wait until the end so they don't lock the database. A failed turn's messages are dropped so
+        // the prompt can be resent, unless a tool already changed data that needs recording.
         if failed && !called_tools {
             return self.persist(&mut chat_to_upsert, &mut Vec::new()).await;
         }
@@ -302,14 +297,8 @@ fn with_current_approval_statuses(mut messages: Vec<Message>) -> Vec<Message> {
     messages
 }
 
-/// A single model turn's tool calls stream in as separate `ToolCall` items
-/// before any of their `ToolResult`s arrive, so each ends up persisted as its
-/// own `MessageContent::ToolCall` message. Left as-is, replaying that history
-/// converts to consecutive `rig::message::Message::Assistant` entries — which
-/// violates providers' requirement that a tool-calling assistant message be
-/// immediately followed by the matching tool responses. Merging them back
-/// into one assistant message (with all of that turn's tool calls) restores
-/// the shape the provider expects.
+/// Merges a turn's tool calls, each stored as its own message, back into one assistant message, as
+/// providers require a tool-calling message to be followed straight away by its tool results.
 fn merge_consecutive_assistant_messages(
     messages: Vec<rig::message::Message>,
 ) -> Vec<rig::message::Message> {
@@ -330,10 +319,16 @@ fn merge_consecutive_assistant_messages(
 
 #[cfg(test)]
 pub mod tests {
+    use crate::ai_integration::tools::update_card::tests::RecordingContentService;
+    use crate::elements::services::element_content_service::ElementContentService;
     use crate::infrastructure::repositories::sqlite::sqlite_learning_asset_review_log_repository::SqliteLearningAssetReviewLogRepository;
     use crate::study::repositories::learning_asset_review_log_repository::LearningAssetReviewLogRepository;
+    use crate::study::services::element_status_service::ElementStatusService;
+    use crate::study::services::implementations::default_element_status_service::DefaultElementStatusService;
     use crate::study::services::implementations::default_learning_asset_scheduling_service::DefaultLearningAssetSchedulingService;
+    use crate::study::services::implementations::default_leech_service::DefaultLeechService;
     use crate::study::services::learning_asset_scheduling_service::LearningAssetSchedulingService;
+    use crate::study::services::leech_service::LeechService;
     use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
     use injector::{injector::Injector, register_scope};
@@ -552,7 +547,22 @@ pub mod tests {
             dyn ContentSearchService,
             DefaultContentSearchService
         );
+        // The update tools are only offered for an open card, which these chats don't have.
+        injector.register_singleton::<dyn ElementContentService>(Arc::new(
+            RecordingContentService(Arc::default()),
+        ));
+        register_scope!(
+            injector,
+            dyn ElementStatusService,
+            DefaultElementStatusService
+        );
+        register_scope!(injector, dyn LeechService, DefaultLeechService);
         register_scope!(injector, dyn ToolsProvider, DefaultToolsProvider);
+        register_scope!(
+            injector,
+            dyn crate::image_occlusion::repositories::image_occlusion_repository::ImageOcclusionRepository,
+            crate::infrastructure::repositories::sqlite::sqlite_image_occlusion_repository::SqliteImageOcclusionRepository
+        );
         register_scope!(
             injector,
             dyn ToolApprovalResolver,

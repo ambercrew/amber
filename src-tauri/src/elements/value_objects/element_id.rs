@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// A kind-tagged identifier used wherever a uniform handle to *any* element is
-/// needed. Field-level references keep their precise typed id so the compiler
-/// still stops you from mixing them up.
+/// A kind-tagged handle to any element. Field-level references keep their precise typed id, so the
+/// compiler still stops them being mixed up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", content = "id", rename_all = "camelCase")]
 pub enum ElementId {

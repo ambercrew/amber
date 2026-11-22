@@ -19,11 +19,12 @@ use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 
 use super::dto::{
     EpubExtractionDto, FetchedImageDto, FetchedPageDto, ImportAnkiRequestDto, PdfExtractionDto,
-    PdfImportProgressEvent,
 };
 use super::epub::extract_epub_html;
+use super::events::pdf_import_progress_event::{
+    PDF_IMPORT_PROGRESS_EVENT, PdfImportProgressEventDto,
+};
 use super::services::anki_import_service::AnkiImportService;
-use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
 
 const MAX_PAGE_BYTES: usize = 20 * 1024 * 1024;
@@ -152,8 +153,8 @@ fn extract_pdf_sync<R: tauri::Runtime>(
 ) -> Result<PdfExtractionDto, ApiError> {
     extract_pdf_html(bytes, |done, total| {
         let _ = app.emit(
-            "pdf-import-progress",
-            PdfImportProgressEvent {
+            PDF_IMPORT_PROGRESS_EVENT,
+            PdfImportProgressEventDto {
                 request_id: request_id.to_string(),
                 done,
                 total,
@@ -279,17 +280,8 @@ pub async fn import_anki(
     let root = scope
         .resolve::<dyn AnkiImportService>()
         .await
-        .import_package(bytes, dto.parent, dto.bibliographical_source_id)
+        .import_package(bytes, dto.parent, dto.bibliographical_source_id, dto.tags)
         .await?;
-    if let Some(root) = root
-        && !dto.tags.is_empty()
-    {
-        scope
-            .resolve::<dyn MetaRepository>()
-            .await
-            .add_tags(root, dto.tags)
-            .await?;
-    }
     scope.save_changes().await?;
     Ok(root)
 }

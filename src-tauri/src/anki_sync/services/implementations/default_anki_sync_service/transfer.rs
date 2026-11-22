@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 use super::DefaultAnkiSyncService;
-use crate::anki_sync::anki_connect::{
+use crate::anki_sync::clients::anki_connect::{
     AnkiConnectClient, AnkiConnectError, delete_media_file, export_package, has_media_file,
     import_package, media_dir_path, retrieve_media_file, store_media_file,
 };

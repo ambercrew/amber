@@ -122,9 +122,8 @@ pub enum ScheduleSource {
     Anki,
 }
 
-/// Whose due day a card without new reviews should take: the app that moved it since the last sync, or
-/// when both did, or there was no last sync, the one that touched the card last. `None` when they agree,
-/// counting every day up to today as today.
+/// Whose due day a card without new reviews takes: the app that moved it since the last sync, else the
+/// one that touched it last. `None` when they agree, counting every day up to today as today.
 pub fn schedule_to_take(
     last: Option<&SyncedSchedule>,
     current: &SyncedSchedule,

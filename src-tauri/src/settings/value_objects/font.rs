@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-/// Either the OS/webview default font, or a specific font family installed
-/// on the user's machine (as reported by `SystemFontsProvider`). System fonts
-/// vary per machine, so this stores the family name rather than a fixed set
-/// of options.
+/// The webview's default font, or a family installed on this machine (from `SystemFontsProvider`),
+/// stored by name as installed fonts vary per machine.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value", rename_all = "camelCase")]
 pub enum Font {

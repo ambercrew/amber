@@ -95,9 +95,8 @@ describe("offsetToPoint", () => {
 		setContent(editor, () => {
 			const paragraph = $createParagraphNode();
 			const second = $createTextNode("cd").toggleFormat("bold");
-			// Adjacent plain-text nodes with matching formatting are merged by
-			// Lexical's normalization, so the second node is bolded to keep it
-			// a distinct node and create a real boundary to test against.
+			// Bold, or Lexical would merge the adjacent text nodes and
+			// leave no boundary to test.
 			paragraph.append($createTextNode("ab"), second);
 			$getRoot().clear().append(paragraph);
 		});

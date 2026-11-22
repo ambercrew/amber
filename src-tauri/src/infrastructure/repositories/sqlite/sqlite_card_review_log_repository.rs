@@ -8,6 +8,7 @@ use crate::study::value_objects::rating::Rating;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use injector_derive::ScopeInjectable;
+use uuid::Uuid;
 
 #[derive(ScopeInjectable)]
 pub struct SqliteCardReviewLogRepository {
@@ -67,6 +68,67 @@ impl CardReviewLogRepository for SqliteCardReviewLogRepository {
             })
             .collect())
     }
+
+    async fn get_cards_first_reviewed_since(
+        &self,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<Uuid>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        // Named, as the planner otherwise walks every log by `card_id` to serve the DISTINCT.
+        let rows = sqlx::query!(
+            r#"SELECT DISTINCT l.card_id AS "card_id!: uuid::fmt::Hyphenated"
+            FROM card_review_logs l INDEXED BY card_review_logs_reviewed_at_index
+            LEFT JOIN card_reviews cr ON cr.card_id = l.card_id
+            WHERE l.reviewed_at >= datetime($1)
+              AND l.card_id IS NOT NULL
+              AND (cr.reset_at IS NULL OR l.reviewed_at >= cr.reset_at)
+              AND NOT EXISTS (
+                  SELECT 1 FROM card_review_logs earlier
+                  WHERE earlier.card_id = l.card_id
+                    AND earlier.reviewed_at < datetime($1)
+                    AND (cr.reset_at IS NULL OR earlier.reviewed_at >= cr.reset_at)
+              )"#,
+            since
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| row.card_id.into_uuid())
+            .collect())
+    }
+
+    async fn get_sibling_reviews_since(
+        &self,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<(Uuid, Uuid)>, RepositoryError> {
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        // Siblings as in `get_due_cards`: same occlusion, else same parent extract.
+        let rows = sqlx::query!(
+            r#"SELECT DISTINCT
+                COALESCE(ioc.occlusion_id, p.element_id) AS "sibling_group!: uuid::fmt::Hyphenated",
+                l.card_id AS "card_id!: uuid::fmt::Hyphenated"
+            FROM card_review_logs l INDEXED BY card_review_logs_reviewed_at_index
+            JOIN meta m ON m.element_id = l.card_id
+            LEFT JOIN image_occlusion_cards ioc ON ioc.card_id = l.card_id
+            LEFT JOIN meta p ON p.element_id = m.parent_id AND p.element_type = 'extract'
+            WHERE l.reviewed_at >= datetime($1)
+              AND COALESCE(ioc.occlusion_id, p.element_id) IS NOT NULL"#,
+            since
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.sibling_group.into_uuid(), row.card_id.into_uuid()))
+            .collect())
+    }
 }
 
 #[cfg(test)]
@@ -86,8 +148,12 @@ mod tests {
         },
         infrastructure::repositories::sqlite::{
             sqlite_card_repository::SqliteCardRepository,
+            sqlite_card_review_repository::SqliteCardReviewRepository,
             sqlite_meta_repository::SqliteMetaRepository,
         },
+        study::entities::card_review::CardReview,
+        study::repositories::card_review_repository::CardReviewRepository,
+        study::value_objects::card_state::CardState,
         study::value_objects::rating::Rating,
         test_utils::create_test_injector,
     };
@@ -102,6 +168,11 @@ mod tests {
             injector,
             dyn CardReviewLogRepository,
             SqliteCardReviewLogRepository
+        );
+        register_scope!(
+            injector,
+            dyn CardReviewRepository,
+            SqliteCardReviewRepository
         );
         injector
     }
@@ -188,6 +259,62 @@ mod tests {
 
         // Assert
 
+        assert_eq!(expected, actual);
+    }
+
+    #[tokio::test]
+    async fn get_cards_first_reviewed_since_counts_reset_cards_from_their_reset() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_repo = scope.resolve::<dyn CardRepository>().await;
+        let review_repo = scope.resolve::<dyn CardReviewRepository>().await;
+        let repo = scope.resolve::<dyn CardReviewLogRepository>().await;
+        let [older, reset, fresh] = [
+            create_card(&card_repo).await,
+            create_card(&card_repo).await,
+            create_card(&card_repo).await,
+        ];
+        let now = Utc::now();
+        for card_id in [older, reset] {
+            repo.create(&make_log(card_id, now - Duration::days(2)))
+                .await
+                .unwrap();
+            repo.create(&make_log(card_id, now + Duration::seconds(2)))
+                .await
+                .unwrap();
+        }
+        review_repo
+            .upsert(&CardReview {
+                card_id: reset,
+                due: now,
+                stability: 0.0,
+                difficulty: 0.0,
+                reps: 0,
+                lapses: 0,
+                state: CardState::New,
+                last_reviewed: None,
+                scheduled_days: 0,
+                learning_steps: 0,
+            })
+            .await
+            .unwrap();
+        review_repo.mark_reset(reset).await.unwrap();
+        repo.create(&make_log(fresh, now)).await.unwrap();
+
+        // Act
+
+        let mut actual = repo
+            .get_cards_first_reviewed_since(now - Duration::hours(1))
+            .await
+            .unwrap();
+
+        // Assert
+
+        actual.sort();
+        let mut expected = vec![reset, fresh];
+        expected.sort();
         assert_eq!(expected, actual);
     }
 }

@@ -7,6 +7,7 @@ use crate::study::entities::study_profile::StudyProfile;
 use crate::study::services::fsrs_optimization_service::FsrsOptimization;
 use crate::study::services::profile_resolution_service::{EffectiveProfile, ProfileSource};
 use crate::study::services::study_profile_service::StudyProfileFields;
+use crate::study::value_objects::leech_action::LeechAction;
 use crate::study::value_objects::priority_inheritance_policy::PriorityInheritancePolicy;
 use crate::study::value_objects::step_unit::StepUnit;
 
@@ -25,12 +26,18 @@ pub struct StudyProfileResponseDto {
     pub initial_interval_multiplier: f32,
     pub initial_interval_days: f32,
     pub min_interval_days: f32,
+    pub maximum_interval_days: u32,
+    pub new_cards_per_day: u32,
+    pub leech_threshold: u32,
+    pub leech_action: LeechAction,
+    pub card_initial_interval_days: f32,
+    pub bury_new_siblings: bool,
+    pub bury_review_siblings: bool,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
-/// Mirrors ts-fsrs's own `default_learning_steps`/`default_relearning_steps`
-/// so a profile that hasn't set its own steps reports the same values the
-/// frontend scheduler would otherwise silently fall back to.
+/// ts-fsrs's own default steps, so a profile without its own reports what the scheduler
+/// would fall back to.
 fn default_learning_steps() -> Vec<StepUnit> {
     ["1m", "10m"]
         .into_iter()
@@ -66,6 +73,13 @@ impl From<StudyProfile> for StudyProfileResponseDto {
             initial_interval_multiplier: profile.initial_interval_multiplier,
             initial_interval_days: profile.initial_interval_days,
             min_interval_days: profile.min_interval_days,
+            maximum_interval_days: profile.maximum_interval_days,
+            new_cards_per_day: profile.new_cards_per_day,
+            leech_threshold: profile.leech_threshold,
+            leech_action: profile.leech_action,
+            card_initial_interval_days: profile.card_initial_interval_days,
+            bury_new_siblings: profile.bury_new_siblings,
+            bury_review_siblings: profile.bury_review_siblings,
             priority_inheritance_policy: profile.priority_inheritance_policy,
         }
     }
@@ -84,6 +98,13 @@ pub struct StudyProfileRequestDto {
     pub initial_interval_multiplier: f32,
     pub initial_interval_days: f32,
     pub min_interval_days: f32,
+    pub maximum_interval_days: u32,
+    pub new_cards_per_day: u32,
+    pub leech_threshold: u32,
+    pub leech_action: LeechAction,
+    pub card_initial_interval_days: f32,
+    pub bury_new_siblings: bool,
+    pub bury_review_siblings: bool,
     pub priority_inheritance_policy: PriorityInheritancePolicy,
 }
 
@@ -98,6 +119,13 @@ impl From<StudyProfileRequestDto> for StudyProfileFields {
             initial_interval_multiplier: dto.initial_interval_multiplier,
             initial_interval_days: dto.initial_interval_days,
             min_interval_days: dto.min_interval_days,
+            maximum_interval_days: dto.maximum_interval_days,
+            new_cards_per_day: dto.new_cards_per_day,
+            leech_threshold: dto.leech_threshold,
+            leech_action: dto.leech_action,
+            card_initial_interval_days: dto.card_initial_interval_days,
+            bury_new_siblings: dto.bury_new_siblings,
+            bury_review_siblings: dto.bury_review_siblings,
             priority_inheritance_policy: dto.priority_inheritance_policy,
         }
     }

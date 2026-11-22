@@ -78,6 +78,7 @@ const BASE_STUDY_STATE = {
 	timedElementId: null,
 	timeSpent: {},
 	startedAt: null,
+	resume: null,
 };
 
 function elementsStateFor(currentElement: AnyElementDto) {
@@ -122,6 +123,13 @@ const CARD_SCHEDULING: CardSchedulingDto = {
 		initialIntervalMultiplier: 1.2,
 		initialIntervalDays: 1,
 		minIntervalDays: 1,
+		maximumIntervalDays: 36500,
+		newCardsPerDay: 20,
+		leechThreshold: 8,
+		leechAction: "tagOnly",
+		cardInitialIntervalDays: 1,
+		buryNewSiblings: false,
+		buryReviewSiblings: false,
 		priorityInheritancePolicy: {
 			placement: { type: "aboveParent" },
 			ceilingPercentile: null,

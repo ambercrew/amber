@@ -40,6 +40,32 @@ describe("usePdfNavigator", () => {
 		expect(goToPage).toHaveBeenCalledWith(1, { behavior: "instant" });
 	});
 
+	it("Should land on the spot at the current zoom when a position is given", () => {
+		// Arrange
+
+		const goToPage = vi.fn();
+		const zoom = { level: 1.5 };
+		const stage = {
+			goToPage,
+			getViewpoint: () => ({ anchor: {}, zoom }),
+		} as unknown as StageCapability;
+		const position = { pageIndex: 2, fractionX: 0, fractionY: 0.4 };
+		const { result } = renderHook(() => usePdfNavigator(stage));
+
+		// Act
+
+		act(() =>
+			result.current.goToPage(3, { behavior: "instant", position }),
+		);
+
+		// Assert
+
+		expect(goToPage).toHaveBeenCalledWith(2, {
+			behavior: "instant",
+			viewpoint: { anchor: position, zoom },
+		});
+	});
+
 	it("Should request the header to hide when jumping", () => {
 		// Arrange
 

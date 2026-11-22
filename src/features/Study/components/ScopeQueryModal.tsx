@@ -3,13 +3,13 @@ import { useDebouncedValue } from "@mantine/hooks";
 import {
 	Alert,
 	Button,
-	Group,
 	ScrollArea,
 	Stack,
 	Text,
 	TextInput,
 } from "@mantine/core";
 import AppModal from "../../../components/AppModal/AppModal";
+import ModalActions from "../../../components/AppModal/ModalActions";
 import ElementFilters from "../../../components/ElementFilters/ElementFilters";
 import { SEARCH_DEBOUNCE_MS } from "../../../components/ElementFilters/constants";
 import SearchResultsTable from "../../../components/SearchResultsTable/SearchResultsTable";
@@ -119,7 +119,7 @@ export default function ScopeQueryModal({
 			title="Study query"
 			size="xl"
 			fullScreenOnSmallScreen>
-			<Stack gap="md">
+			<Stack gap="md" flex={1}>
 				<TextInput
 					label="Name"
 					description="Only needed to save the query as a search."
@@ -173,7 +173,7 @@ export default function ScopeQueryModal({
 						{saveError}
 					</Alert>
 				)}
-				<Group justify="flex-end" gap="xs">
+				<ModalActions>
 					<Button variant="default" onClick={onClose}>
 						Cancel
 					</Button>
@@ -186,7 +186,7 @@ export default function ScopeQueryModal({
 						loading={isSaving}>
 						Save and study
 					</Button>
-				</Group>
+				</ModalActions>
 			</Stack>
 		</AppModal>
 	);

@@ -3,11 +3,8 @@ import { isMobile } from "../../utils/tauriUtils";
 import { SAFE_AREA_TOP } from "../../utils/safeArea";
 
 /**
- * Android draws the webview edge-to-edge under the status bar, and the
- * AppShell header (which normally covers that strip) slides away on scroll
- * via useHeadroom, leaving the status bar area transparent so scrolled
- * content shows through it. This renders an always-on strip that never
- * collapses, so the status bar area stays opaque regardless of header state.
+ * Android draws the webview under the status bar, and the header covering it slides away on scroll,
+ * so this strip keeps that area opaque whatever the header does.
  */
 function SafeAreaTopBackdrop() {
 	if (!isMobile()) return null;

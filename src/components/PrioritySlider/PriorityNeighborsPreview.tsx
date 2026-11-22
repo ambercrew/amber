@@ -8,6 +8,10 @@ import {
 	PriorityNeighborsResponseDto,
 } from "../../api/elements/dto/priorityNeighborsDto";
 import useApi from "../../hooks/useApi";
+import useAppDispatch from "../../hooks/useAppDispatch";
+import useAppSelector from "../../hooks/useAppSelector";
+import { setLastPriorityPreview } from "../../stores/app/appReducer";
+import { selectLastPriorityPreview } from "../../stores/app/appSelectors";
 import { ElementId } from "../../types/elements/elementId";
 import { ElementNodeType } from "../../types/elements/elementNodeType";
 
@@ -20,13 +24,6 @@ export interface PlacedElement {
 	type: ElementNodeType;
 	name: string;
 }
-
-// The priority modal remounts after each commit, sooner than the debounce;
-// starting from the element's last result keeps the modal from flashing.
-let lastPreview: {
-	key: string;
-	neighbors: PriorityNeighborsResponseDto;
-} | null = null;
 
 function previewKey(id: ElementId | null): string {
 	return id ? `${id.type}:${id.id}` : "new";
@@ -48,6 +45,8 @@ function PriorityNeighborsPreview({
 		NEIGHBORS_DEBOUNCE_MS,
 	);
 	const { callApi, errorMessage, clearErrorMessage } = useApi();
+	const dispatch = useAppDispatch();
+	const lastPreview = useAppSelector(selectLastPriorityPreview);
 	const [neighbors, setNeighbors] =
 		useState<PriorityNeighborsResponseDto | null>(() =>
 			lastPreview?.key === previewKey(element.id)
@@ -63,15 +62,17 @@ function PriorityNeighborsPreview({
 			if (cancelled || !result) return;
 			clearErrorMessage();
 			setNeighbors(result);
-			lastPreview = {
-				key: previewKey(element.id),
-				neighbors: result,
-			};
+			dispatch(
+				setLastPriorityPreview({
+					key: previewKey(element.id),
+					neighbors: result,
+				}),
+			);
 		});
 		return () => {
 			cancelled = true;
 		};
-	}, [callApi, clearErrorMessage, element.id, debouncedPosition]);
+	}, [callApi, clearErrorMessage, dispatch, element.id, debouncedPosition]);
 
 	if (errorMessage) {
 		return (

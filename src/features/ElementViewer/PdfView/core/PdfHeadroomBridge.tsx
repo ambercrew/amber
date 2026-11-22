@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import { HEADROOM_FIXED_AT } from "../../../App/components/App";
-import { useSetHeadroomOverride } from "../../../App/context/headroomOverrideContext";
+import { HEADROOM_FIXED_AT } from "../../../../config/layout";
+import useAppDispatch from "../../../../hooks/useAppDispatch";
+import { headroomOverrideSet } from "../../../../stores/app/appReducer";
 import { hideHeadroom } from "../../../../hooks/useElementHeadroom";
 import { usePdfArrival } from "./pdfCoreContext";
 import { usePdfToolbarHeadroom } from "./usePdfToolbarHeadroom";
@@ -17,7 +18,7 @@ export default function PdfHeadroomBridge({
 	const { pinned, scroller } = usePdfToolbarHeadroom({
 		fixedAt: HEADROOM_FIXED_AT,
 	});
-	const setHeadroomOverride = useSetHeadroomOverride();
+	const dispatch = useAppDispatch();
 
 	useEffect(() => {
 		if (hideRequests > 0) hideHeadroom(scroller);
@@ -25,13 +26,15 @@ export default function PdfHeadroomBridge({
 
 	useEffect(() => {
 		onPinnedChange(pinned);
-		setHeadroomOverride?.(pinned);
-	}, [pinned, onPinnedChange, setHeadroomOverride]);
+		dispatch(headroomOverrideSet(pinned));
+	}, [pinned, onPinnedChange, dispatch]);
 
 	// Hand control back to the main scroll area once the PDF unmounts.
 	useEffect(() => {
-		return () => setHeadroomOverride?.(null);
-	}, [setHeadroomOverride]);
+		return () => {
+			dispatch(headroomOverrideSet(null));
+		};
+	}, [dispatch]);
 
 	return null;
 }

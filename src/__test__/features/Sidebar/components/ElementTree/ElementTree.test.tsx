@@ -444,9 +444,8 @@ describe("ElementTree sorting", () => {
 	beforeEach(() => window.localStorage.clear());
 
 	it("Should sort mixed-type children by position", async () => {
-		// Arrange — a folder whose children span all four types, with
-		// positions deliberately out of insertion order so the sort is
-		// observable.
+		// Arrange — a folder with children of all four types, positioned out of
+		// insertion order so the sort shows.
 
 		const tree: NodeDto[] = [
 			{

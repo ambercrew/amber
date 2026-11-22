@@ -2,7 +2,7 @@ import { RefObject, useCallback, useRef } from "react";
 import { LearningAssetSplitMetaDto } from "../../../../types/elements/learningAssetSplitMetaDto";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { isNoReadPoint } from "../../readPoint/readingPosition";
-import { useMainScrollElement } from "../../../App/context/mainScrollContext";
+import { useMainScrollElement } from "../../../../components/AppLayout/appLayoutContext";
 import { estimateOffsetBeforeSplit } from "./heights/estimateCumulativeOffset";
 import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "./learningAssetViewConstants";
 import { landOnBlock } from "./landOnBlock";
@@ -19,6 +19,8 @@ interface Props {
 	splits: LearningAssetSplitMetaDto[];
 	/** Read point to restore to on open. */
 	initial: ReadingPosition;
+	/** Lands the open on `initial.split` in place of scrolling `initial.block` to the top. */
+	initialLand?: Land;
 	getContentRoot: (seq: number) => HTMLElement | undefined;
 	getHeight: (seq: number, charCount: number) => number;
 	/** Forces a split into the mount window so `notifySplitReady` will eventually fire for it. */
@@ -46,6 +48,7 @@ interface PendingNavigation {
 export function useSplitNavigator({
 	splits,
 	initial,
+	initialLand,
 	getContentRoot,
 	getHeight,
 	lockTo,
@@ -56,7 +59,9 @@ export function useSplitNavigator({
 	// Seeded with the saved read point; the mount window already starts locked onto its split.
 	const pendingRef = useRef<PendingNavigation | null>({
 		seq: initial.split,
-		land: isNoReadPoint(initial) ? null : landOnBlock(initial.block),
+		land:
+			initialLand ??
+			(isNoReadPoint(initial) ? null : landOnBlock(initial.block)),
 	});
 
 	const finish = useCallback(() => {

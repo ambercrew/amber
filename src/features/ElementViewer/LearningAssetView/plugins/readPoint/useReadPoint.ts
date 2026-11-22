@@ -1,31 +1,29 @@
-import { RefObject, useCallback, useEffect, useRef } from "react";
+import { RefObject, useCallback, useEffect } from "react";
 import { useReadingCommand } from "../../../../../commands/readingCommands";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
 import { NO_READ_POINT } from "../../../readPoint/readingPosition";
 import { OnViewportChange } from "../../core/useViewportChange";
-import { useMainScrollElement } from "../../../../App/context/mainScrollContext";
-import { ReadPointSource } from "../../../readPoint/readPointPrecedence";
+import { useMainScrollElement } from "../../../../../components/AppLayout/appLayoutContext";
+import { ReadPointSource } from "../../../../../types/elements/readPointSource";
 import { useReadPointPlacement } from "../../../readPoint/useReadPointPlacement";
-import { viewportTop } from "../../core/viewportTop";
-import {
-	ReadingAnchors,
-	topVisibleBlockIndex,
-} from "../../core/useReadingAnchors";
+import { ReadingAnchors } from "../../core/useReadingAnchors";
 
 interface Props {
 	learningAssetId: string;
-	/** seq of the split currently at the top of the viewport. */
-	primarySeq: number;
 	/** Read point to restore to on open. */
 	initial: ReadingPosition;
+	/** Read point precedence to open with (the study session's Return keeps the last visit's). */
+	resumeSource?: ReadPointSource;
+	/** Called on unmount with the precedence the read point was left at. */
+	onLeave?: (source: ReadPointSource) => void;
 	/** The editable root of the mounted split `seq`, whose children are its blocks. */
 	getContentRoot: (seq: number) => HTMLElement | undefined;
 	/** Seq of the last split, to detect scrolling to the very end; `undefined` for an empty learning asset. */
 	lastSplitSeq: number | undefined;
 	/** `true` once the restore on open has landed; scrolls before that aren't the reader's, so aren't saved. */
 	restoredRef: RefObject<boolean>;
-	/** Where a manual set lands, shared with marks. */
-	anchors: Pick<ReadingAnchors, "resolveVisibleAnchor">;
+	/** Where a manual set lands (shared with marks), and what's at the viewport top. */
+	anchors: Pick<ReadingAnchors, "resolveVisibleAnchor" | "topVisibleBlock">;
 	/** When to re-measure the read point at the viewport top. */
 	onViewportChange: OnViewportChange;
 	/** Called when a manual set/clear lands, to move the on-screen marker; scrolling and extracts never call it. */
@@ -53,8 +51,9 @@ function isAtDocumentEnd(
 /** Tracks a text learning asset's read point from scrolling, extracts and the set/clear commands; `useReadPointPlacement` decides precedence. */
 export function useReadPoint({
 	learningAssetId,
-	primarySeq,
 	initial,
+	resumeSource,
+	onLeave,
 	getContentRoot,
 	lastSplitSeq,
 	restoredRef,
@@ -65,13 +64,9 @@ export function useReadPoint({
 	const { place, accepts } = useReadPointPlacement({
 		learningAssetId,
 		initial,
+		resumeSource,
+		onLeave,
 	});
-	// Read the latest primary seq from inside the (stable) scroll handler.
-	const primarySeqRef = useRef(primarySeq);
-	useEffect(() => {
-		primarySeqRef.current = primarySeq;
-	}, [primarySeq]);
-
 	// Only a manual placement moves the on-screen marker.
 	const placeManually = useCallback(
 		(readPoint: ReadingPosition) => {
@@ -85,20 +80,24 @@ export function useReadPoint({
 		const source: ReadPointSource = "automatic";
 		// The restore scroll on open isn't the reader's.
 		if (!restoredRef.current || !accepts(source) || !scrollElement) return;
-		const seq = primarySeqRef.current;
-		const root = getContentRoot(seq);
-		if (!root) return;
+		const top = anchors.topVisibleBlock();
+		if (!top) return;
 		// At the very end there's nothing left to resume from, so it clears.
-		if (seq === lastSplitSeq && isAtDocumentEnd(root, scrollElement)) {
+		const root = getContentRoot(top.split);
+		if (
+			top.split === lastSplitSeq &&
+			root &&
+			isAtDocumentEnd(root, scrollElement)
+		) {
 			place(NO_READ_POINT, source);
 			return;
 		}
-		const block = topVisibleBlockIndex(root, viewportTop(scrollElement));
-		place({ split: seq, block }, source);
+		place(top, source);
 	}, [
 		restoredRef,
 		accepts,
 		scrollElement,
+		anchors,
 		getContentRoot,
 		lastSplitSeq,
 		place,

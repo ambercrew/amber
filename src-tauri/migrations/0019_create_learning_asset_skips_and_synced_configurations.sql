@@ -1,0 +1,46 @@
+-- When each learning asset was last skipped in a study session (Unix ms), so every device puts today's skips last.
+-- Rewritten on each skip and never pruned, as a delete would leave a sync tombstone about as large as the row.
+CREATE TABLE learning_asset_skips(
+    element_id                  TEXT        NOT NULL        PRIMARY KEY,
+    skipped_at                  INTEGER     NOT NULL,
+    FOREIGN KEY (element_id) REFERENCES meta(element_id) ON DELETE CASCADE ON UPDATE CASCADE
+) WITHOUT ROWID;
+
+-- Preferences shared by every device, as JSON by name; per-machine ones stay in `local_configurations`.
+CREATE TABLE synced_configurations(
+    name                        TEXT        NOT NULL        PRIMARY KEY,
+    value                       TEXT        NOT NULL
+) WITHOUT ROWID;
+
+INSERT INTO synced_configurations(name, value)
+SELECT name, value FROM local_configurations WHERE name = 'FUZZ_FACTOR';
+DELETE FROM local_configurations WHERE name = 'FUZZ_FACTOR';
+
+-- The default mirrors DEFAULT_MAXIMUM_INTERVAL_DAYS in study_profile.rs.
+ALTER TABLE study_profiles ADD COLUMN maximum_interval_days INTEGER NOT NULL DEFAULT 36500;
+
+-- The defaults mirror DEFAULT_NEW_CARDS_PER_DAY and DEFAULT_LEECH_THRESHOLD in study_profile.rs.
+ALTER TABLE study_profiles ADD COLUMN new_cards_per_day INTEGER NOT NULL DEFAULT 20;
+ALTER TABLE study_profiles ADD COLUMN leech_threshold INTEGER NOT NULL DEFAULT 8;
+ALTER TABLE study_profiles ADD COLUMN leech_action TEXT NOT NULL DEFAULT 'tag_only';
+
+-- Anki's bury new and review siblings; burying new ones mirrors DEFAULT_BURY_NEW_SIBLINGS in study_profile.rs.
+ALTER TABLE study_profiles ADD COLUMN bury_new_siblings INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE study_profiles ADD COLUMN bury_review_siblings INTEGER NOT NULL DEFAULT 0;
+
+-- New cards' first due date, split from learning assets' and extracts'; each profile keeps what it had.
+-- The default mirrors DEFAULT_INITIAL_INTERVAL_DAYS; every device copies the same synced value, so it isn't staged.
+ALTER TABLE study_profiles ADD COLUMN card_initial_interval_days REAL NOT NULL DEFAULT 1.0;
+INSERT INTO sync_applying (x) VALUES (1);
+UPDATE study_profiles SET card_initial_interval_days = initial_interval_days;
+DELETE FROM sync_applying;
+
+DROP TRIGGER study_profiles_update_modified_at_after_update;
+
+CREATE TRIGGER study_profiles_update_modified_at_after_update
+    AFTER UPDATE OF name, is_default, desired_retention, fsrs_params, learning_steps, relearning_steps, maximum_interval_days, new_cards_per_day, leech_threshold, leech_action, card_initial_interval_days, bury_new_siblings, bury_review_siblings, initial_interval_multiplier, initial_interval_days, min_interval_days, priority_inheritance_placement, priority_inheritance_percentile, priority_inheritance_ceiling_percentile ON study_profiles
+BEGIN
+    UPDATE study_profiles
+    SET modified_at = datetime('now')
+    WHERE id = NEW.id;
+END;

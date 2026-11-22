@@ -1329,9 +1329,8 @@ async fn apply_remote_stale_update_after_tombstone_is_discarded() {
 async fn apply_remote_higher_hlc_update_after_delete_resurrects_row() {
     // Arrange
 
-    // A tombstone never clears itself when the row returns, so a later update is
-    // judged against its HLC; otherwise a reusable natural id could never come
-    // back once deleted.
+    // A tombstone never clears when the row returns, so the update is judged against its HLC;
+    // otherwise a reusable natural id could never come back once deleted.
 
     let injector = create_test_injector().await;
     let scope = injector.start_scope();
@@ -1489,9 +1488,8 @@ async fn apply_remote_shape_mismatch_rejects_whole_batch_fail_fast() {
     // Assert
 
     assert!(matches!(actual, Err(SyncError::CellShapeMismatch { .. })));
-    // `SetColumn` cells only materialize via the flush at the end of
-    // `apply_remote`; the second cell's error aborts before that, so the base
-    // table never sees the first one either.
+    // `SetColumn` cells only materialize in `apply_remote`'s final flush, which the second cell's
+    // error aborts, so the base table never sees the first either.
     assert_eq!(None, get_note_title(&tx, "1").await);
 }
 
@@ -1732,9 +1730,8 @@ async fn apply_remote_composite_primary_key_updates_matching_row() {
 async fn apply_remote_row_mode_recreated_row_after_tombstone_reuses_same_composite_row_id() {
     // Arrange
 
-    // A row-mode table with a natural composite key, so
-    // re-adding reuses the row id and the resurrection is judged against the
-    // tombstone's HLC (see `merge::decide`).
+    // A row-mode table with a natural composite key, so re-adding reuses the row id and is judged
+    // against the tombstone's HLC (see `merge::decide`).
 
     let injector = create_test_injector().await;
     let scope = injector.start_scope();
@@ -3686,9 +3683,8 @@ async fn apply_remote_last_page_with_unmaterialized_row_skips_foreign_key_repair
 
     // Act
 
-    // `required_notes` row 1 can never be materialized from this batch: its NOT
-    // NULL `title` is neither in the batch nor in the cell log, so local state is
-    // knowingly incomplete when the last page lands.
+    // Row 1 can never be materialized: its NOT NULL `title` is in neither the batch nor the cell log,
+    // so local state is knowingly incomplete when the last page lands.
     engine
         .apply_remote(
             ChangeBatch {

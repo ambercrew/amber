@@ -25,13 +25,8 @@ export interface DisplayMessage {
 }
 
 /**
- * Combines the persisted messages of a chat with the ephemeral,
- * not-yet-persisted human prompt and streaming assistant text so the message
- * list can render a consistent view while a response is streaming in.
- *
- * The backend only persists messages once `DefaultAiStreamer::stream`
- * finishes, so until then the human prompt and the assistant's growing reply
- * exist only in memory here.
+ * A chat's saved messages plus the prompt and streaming reply that exist only in memory until
+ * `DefaultAiStreamer::stream` saves them, so the list stays consistent while a reply streams.
  */
 /** An approval the user resolved since the messages were loaded. */
 export interface ResolvedApproval {

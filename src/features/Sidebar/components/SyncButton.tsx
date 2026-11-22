@@ -2,7 +2,7 @@ import { ActionIcon } from "@mantine/core";
 import { commandIcon } from "../../../commands/commandIcon";
 import { useRunCommand } from "../../../commands/useRunCommand";
 import useAppSelector from "../../../hooks/useAppSelector";
-import { selectIsSyncing } from "../../../stores/sync/syncSelector";
+import { selectIsSyncing } from "../../../stores/sync/syncSelectors";
 import {
 	selectIsSignedIn,
 	selectUserInformation,
@@ -27,6 +27,7 @@ function SyncButton() {
 			<ActionIcon
 				variant="subtle"
 				color="gray"
+				c="bright"
 				loading={isSyncing}
 				size="lg"
 				disabled={isSyncing}

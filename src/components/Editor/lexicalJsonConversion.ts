@@ -5,7 +5,9 @@ import {
 	defineExtension,
 } from "@lexical/extension";
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from "@lexical/html";
+import { $dfs } from "@lexical/utils";
 import {
+	$getRoot,
 	$insertNodes,
 	$setSelection,
 	type HTMLConfig,
@@ -22,6 +24,7 @@ import {
 	CodeHighlightExtension,
 	stripCodeThemes,
 } from "./plugins/CodeHighlightPlugin/CodeHighlightExtension";
+import { $isClozeHiddenNode } from "./plugins/ClozePlugin/ClozeHiddenNode";
 import { EquationNode } from "./plugins/EquationPlugin/EquationNode";
 
 // Stand-in for @lexical/clipboard's non-exported `BaseSerializedNode`.
@@ -62,6 +65,32 @@ export function runHeadless(populate: (editor: LexicalEditor) => void): string {
 	return json;
 }
 
+/** The plain text of a serialized Lexical editor state, e.g. a card side to hand the AI. */
+export function lexicalJsonToText(json: string): string {
+	// An empty side, such as a cloze card's back, is stored as "", which isn't JSON.
+	if (json.trim() === "") return "";
+	const editor = buildHeadlessEditor("headless-lexical-text");
+	try {
+		editor.setEditorState(editor.parseEditorState(json));
+		// Spells out each cloze's hidden phrase in the AI's cloze syntax, as its placeholder hides the answer.
+		editor.update(
+			() => {
+				for (const { node } of $dfs()) {
+					if ($isClozeHiddenNode(node))
+						node.setTextContent(`{{${node.getHiddenText()}}}`);
+				}
+			},
+			{ discrete: true },
+		);
+		return editor
+			.getEditorState()
+			.read(() => $getRoot().getTextContent())
+			.trim();
+	} finally {
+		editor.dispose();
+	}
+}
+
 /** Converts sanitized HTML into serialized Lexical editor state JSON. */
 export function htmlToLexicalJson(html: string): string {
 	return domToLexicalJson(new DOMParser().parseFromString(html, "text/html"));
@@ -81,9 +110,8 @@ export function markdownToLexicalJson(markdown: string): string {
 }
 
 /**
- * Converts serialized Lexical nodes (e.g. from `$generateJSONFromSelectedNodes`)
- * into standalone serialized editor state JSON. `mutate` runs after insertion
- * and can further edit the tree via `$` node APIs before it's serialized.
+ * Turns serialized nodes (e.g. from `$generateJSONFromSelectedNodes`) into a standalone editor state;
+ * `mutate` can edit the tree with `$` APIs before it's serialized.
  */
 export function serializedNodesToLexicalJson(
 	nodes: SerializedLexicalNodeTree[],

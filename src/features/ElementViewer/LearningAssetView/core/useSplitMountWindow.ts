@@ -9,11 +9,11 @@ import {
 import { LEARNING_ASSET_SPLIT_MOUNT_NEIGHBORS } from "./learningAssetViewConstants";
 import { useTopVisibleSlot } from "./useTopVisibleSlot";
 import { LearningAssetSplitMetaDto } from "../../../../types/elements/learningAssetSplitMetaDto";
-import { useMainScrollElement } from "../../../App/context/mainScrollContext";
+import { useMainScrollElement } from "../../../../components/AppLayout/appLayoutContext";
 import {
 	createScrollSampler,
 	SCROLL_SETTLE_IN_MILLISECONDS,
-} from "../../scrollPace";
+} from "../../utils/scrollPace";
 
 interface Props {
 	splits: LearningAssetSplitMetaDto[];
@@ -29,9 +29,8 @@ interface ReturnValue {
 	/** Ref callback for each slot's root element, observed for viewport entry. */
 	registerSlot: (seq: number) => (element: Element | null) => void;
 	/**
-	 * Forces the mount window onto `seq` and locks it there, bypassing the
-	 * viewport observer until `unlock` is called — otherwise the still-stale
-	 * scroll position would immediately override it.
+	 * Forces the mount window onto `seq` and locks it until `unlock`, as the
+	 * still-stale scroll position would override it at once.
 	 */
 	lockTo: (seq: number) => void;
 	/** Resumes viewport-observer-driven tracking after a `lockTo`. */

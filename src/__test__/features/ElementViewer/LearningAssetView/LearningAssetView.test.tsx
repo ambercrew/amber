@@ -5,11 +5,13 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { defineExtension, LexicalEditor } from "lexical";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runReadingCommand } from "../../../../commands/readingCommands";
+import { SearchHighlightRegistry } from "../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
+import { SearchHighlightRegistryContext } from "../../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistryContext";
 import {
 	HIGHLIGHT_CREATED_COMMAND,
 	HighlightCreatedPayload,
 } from "../../../../components/Editor/plugins/HighlightPlugin/highlightCommands";
-import { MainScrollContext } from "../../../../features/App/context/mainScrollContext";
+import { AppLayoutContext } from "../../../../components/AppLayout/appLayoutContext";
 import LearningAssetView from "../../../../features/ElementViewer/LearningAssetView/LearningAssetView";
 import { MetaResponseDto } from "../../../../api/elements/dto/anyElementDto";
 import { SearchState } from "../../../../stores/search/searchReducer";
@@ -52,7 +54,7 @@ function CaptureEditor({ id }: { id: string }) {
 
 // A stand-in for the Lexical editor: a root with a few blocks, reported like `RootElementPlugin` does,
 // and an empty Lexical editor for the split's plugins.
-vi.mock("../../../../features/ElementViewer/ElementEditor", () => ({
+vi.mock("../../../../features/ElementViewer/components/ElementEditor", () => ({
 	default: function MockElementEditor({
 		initialContent,
 		onRootElement,
@@ -102,11 +104,14 @@ vi.mock("../../../../features/ElementViewer/ElementEditor", () => ({
 	},
 }));
 
-vi.mock("../../../../features/ElementViewer/ContentOriginPanel", () => ({
-	default: () => null,
-}));
+vi.mock(
+	"../../../../features/ElementViewer/components/ContentOriginPanel",
+	() => ({
+		default: () => null,
+	}),
+);
 
-vi.mock("../../../../stores/sync/managers/syncEventManager", () => ({
+vi.mock("../../../../managers/syncEventManager", () => ({
 	defaultGlobalSyncEventManager: {
 		addListener: vi.fn(),
 		removeListener: vi.fn(),
@@ -142,14 +147,20 @@ function renderView({
 	const scrollTo = vi.fn();
 	scrollElement.scrollTo = scrollTo;
 	const rendered = renderWithProviders(
-		<MainScrollContext value={scrollElement}>
-			<LearningAssetView
-				learningAssetId="asset"
-				readPoint={readPoint}
-				meta={{} as MetaResponseDto}
-				buttons={[]}
-			/>
-		</MainScrollContext>,
+		<SearchHighlightRegistryContext value={new SearchHighlightRegistry()}>
+			<AppLayoutContext
+				value={{
+					mainScrollElement: scrollElement,
+					visibleAreaElement: null,
+				}}>
+				<LearningAssetView
+					learningAssetId="asset"
+					readPoint={readPoint}
+					meta={{} as MetaResponseDto}
+					buttons={[]}
+				/>
+			</AppLayoutContext>
+		</SearchHighlightRegistryContext>,
 		{ preloadedState: { search } },
 	);
 	return { ...rendered, scrollTo };
@@ -223,7 +234,7 @@ describe("LearningAssetView", () => {
 		api.getLearningAssetMarks.mockResolvedValue([
 			{ slot: 2, anchor: { split: 3, block: 2 } },
 		]);
-		const { findByTestId, queryByTestId, scrollTo } = renderView();
+		const { findByTestId, queryByTestId, scrollTo, store } = renderView();
 		await findByTestId("split-0");
 		await waitFor(() =>
 			expect(api.getLearningAssetMarks).toHaveBeenCalled(),
@@ -233,7 +244,7 @@ describe("LearningAssetView", () => {
 		// Act
 
 		await act(async () => {
-			runReadingCommand({ type: "go-to-mark", slot: 2 });
+			store.dispatch(runReadingCommand({ type: "go-to-mark", slot: 2 }));
 		});
 
 		// Assert
@@ -305,12 +316,14 @@ describe("LearningAssetView", () => {
 		// Arrange
 
 		const show = vi.spyOn(notifications, "show");
-		const { findByTestId } = renderView();
+		const { findByTestId, store } = renderView();
 		await findByTestId("split-0");
 
 		// Act
 
-		act(() => runReadingCommand({ type: "go-to-read-point" }));
+		act(() => {
+			store.dispatch(runReadingCommand({ type: "go-to-read-point" }));
+		});
 
 		// Assert
 

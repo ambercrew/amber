@@ -1,4 +1,5 @@
 import { createElement } from "react";
+import { nanoid } from "@reduxjs/toolkit";
 import { notifications } from "@mantine/notifications";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -12,16 +13,15 @@ import {
 	AnkiSyncProgressEventDto,
 } from "../../api/ankiSync/events/ankiSyncProgressEvent";
 import AnkiSyncProgress from "../../features/AnkiSync/components/AnkiSyncProgress";
-import { describeAnkiSync } from "../../features/AnkiSync/ankiSyncSummary";
+import { describeAnkiSync } from "../../features/AnkiSync/utils/ankiSyncSummary";
 import errorToString from "../../utils/errorToString";
 import {
-	loadCurrentElementAction,
 	loadElementTree,
+	reloadEditedCurrentElementAction,
 } from "../elements/elementsActions";
 import { AppDispatch, RootState } from "../store";
 import { sync } from "../sync/syncActions";
-import { bumpElementRefreshCount } from "../sync/syncReducer";
-import { selectIsSyncing } from "../sync/syncSelector";
+import { selectIsSyncing } from "../sync/syncSelectors";
 import {
 	selectIsOffline,
 	selectIsSignedIn,
@@ -47,9 +47,8 @@ function progressMessage(progress: AnkiSyncProgressEventDto | null) {
 }
 
 /**
- * Cloud-syncs around an Anki sync, so another computer syncing with its own Anki sees what this one
- * took from Anki first and doesn't take it again. Skipped offline, signed out or mid-sync. Resolves
- * true when the account syncs but this sync didn't happen, so another device's imports may be missing.
+ * Cloud-syncs around an Anki sync, so another computer sees what this one took from Anki and doesn't
+ * take it again; skipped offline, signed out or mid-sync. True when the account syncs but this didn't.
  */
 function syncWithOtherDevices() {
 	return async (
@@ -66,16 +65,13 @@ function syncWithOtherDevices() {
 	};
 }
 
-/** Bumped by each preview, so one the user closed or started again doesn't land in a newer review. */
-let previewRequest = 0;
-
 /** Opens the review at once and fills it with a sync's preview; `runAnkiSync` runs it once they confirm. */
 export function startAnkiSync() {
 	return async (dispatch: AppDispatch, getState: () => RootState) => {
 		if (selectIsAnkiSyncBusy(getState())) return;
 		if (selectAnkiSyncReview(getState())?.status === "loading") return;
-		const request = ++previewRequest;
-		dispatch(setAnkiSyncReview({ status: "loading" }));
+		const requestId = nanoid();
+		dispatch(setAnkiSyncReview({ status: "loading", requestId }));
 		// First, so the preview counts what other devices already brought over from their Anki.
 		const missedCloudSync = await dispatch(syncWithOtherDevices());
 		let review: AnkiSyncReview;
@@ -85,9 +81,10 @@ export function startAnkiSync() {
 		} catch (error) {
 			review = { status: "failed", error: errorToString(error) };
 		}
+		// One the user closed or started again doesn't land in a newer review.
+		const current = selectAnkiSyncReview(getState());
 		const isCurrent =
-			request === previewRequest &&
-			selectAnkiSyncReview(getState())?.status === "loading";
+			current?.status === "loading" && current.requestId === requestId;
 		if (isCurrent) dispatch(setAnkiSyncReview(review));
 	};
 }
@@ -117,7 +114,9 @@ export function runAnkiSync(deckChoices: AnkiDeckChoiceDto[]) {
 			// An occlusion edited in Anki trashes the cards of its removed masks.
 			treeChanged =
 				summary.trashedCards > 0 || summary.editedCards.length > 0;
-			await dispatch(reloadEditedCurrentElement(summary.editedCards));
+			await dispatch(
+				reloadEditedCurrentElementAction(summary.editedCards),
+			);
 			notifications.update({
 				id,
 				autoClose: 6000,
@@ -143,15 +142,5 @@ export function runAnkiSync(deckChoices: AnkiDeckChoiceDto[]) {
 		}
 		// Even after a failure, which may have taken things from Anki already.
 		await dispatch(syncWithOtherDevices());
-	};
-}
-
-/** Shows the open card's new content when the sync replaced it with an edit from Anki. */
-function reloadEditedCurrentElement(editedCards: string[]) {
-	return async (dispatch: AppDispatch, getState: () => RootState) => {
-		const current = getState().elements.currentElement?.data.meta.elementId;
-		if (!current || !editedCards.includes(current.id)) return;
-		if (await dispatch(loadCurrentElementAction(current)))
-			dispatch(bumpElementRefreshCount());
 	};
 }

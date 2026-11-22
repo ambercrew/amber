@@ -10,14 +10,22 @@ import { useReadingCommand } from "../../../../commands/readingCommands";
 import { ReadingPosition } from "../../../../types/elements/readingPosition";
 import { isNoReadPoint, NO_READ_POINT } from "../../readPoint/readingPosition";
 import { useGoToReadPointCommand } from "../../readPoint/useGoToReadPointCommand";
+import { ReadPointSource } from "../../../../types/elements/readPointSource";
 import { useReadPointPlacement } from "../../readPoint/useReadPointPlacement";
 import { GoToPage } from "../core/usePdfNavigator";
+import { PdfViewPosition } from "../../../../types/elements/pdfViewPosition";
 
 interface Props {
 	learningAssetId: string;
 	documentId: string;
 	/** Read point to restore to on open. `split` is the 1-based page number; `block` is unused for PDFs. */
 	initial: ReadingPosition;
+	/** Spot to restore to in place of the read point. */
+	initialViewPosition?: PdfViewPosition;
+	/** Read point precedence to open with (the study session's Return keeps the last visit's). */
+	resumeSource?: ReadPointSource;
+	/** Called on unmount with the precedence the read point was left at. */
+	onLeave?: (source: ReadPointSource) => void;
 	/** Set once the first layout is ready, which is when the restore runs. */
 	layoutReady: boolean;
 	pageCount: number;
@@ -40,6 +48,9 @@ export function usePdfReadPoint({
 	learningAssetId,
 	documentId,
 	initial,
+	initialViewPosition,
+	resumeSource,
+	onLeave,
 	layoutReady,
 	pageCount,
 	goToPage,
@@ -49,6 +60,8 @@ export function usePdfReadPoint({
 	const { place, accepts, reset } = useReadPointPlacement({
 		learningAssetId,
 		initial,
+		resumeSource,
+		onLeave,
 	});
 	// Gates automatic saves until the restore has run, so its own scroll isn't saved as the reader jumping to page 1.
 	const restoredRef = useRef(false);
@@ -65,6 +78,14 @@ export function usePdfReadPoint({
 	// `initial` is only meaningful for this opening's first layout.
 	const restore = useEffectEvent(() => {
 		restoredRef.current = true;
+		// A page the document no longer has falls back to the read point.
+		if (initialViewPosition && initialViewPosition.pageIndex < pageCount) {
+			goToPage(initialViewPosition.pageIndex + 1, {
+				behavior: "instant",
+				position: initialViewPosition,
+			});
+			return;
+		}
 		if (isNoReadPoint(initial)) return;
 		goToPage(Math.min(Math.max(initial.split, 1), pageCount), {
 			behavior: "instant",

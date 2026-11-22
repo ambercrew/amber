@@ -17,7 +17,7 @@ function LearningAssetsAndExtractsTab({
 				label={
 					<FieldLabel
 						label="Initial interval (days)"
-						tooltip="Days until the first due date for learning assets, extracts and cards created under this profile."
+						tooltip="Days until the first due date for learning assets and extracts created under this profile."
 					/>
 				}
 				min={0}

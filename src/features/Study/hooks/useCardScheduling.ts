@@ -20,9 +20,8 @@ export interface CardScheduling {
 }
 
 /**
- * Loads a card's review state and study profile, and schedules it with
- * ts-fsrs. Reloads whenever the card changes or is shown again — a card
- * requeued within the session keeps its id but not its review state.
+ * Loads a card's review state and profile and schedules it with ts-fsrs, again whenever it's shown,
+ * as a card requeued in the session keeps its id but not its review state.
  */
 export function useCardScheduling(
 	cardId: string | null,

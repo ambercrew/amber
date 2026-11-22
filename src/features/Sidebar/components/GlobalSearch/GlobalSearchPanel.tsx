@@ -27,6 +27,7 @@ import AppTooltip from "../../../../components/AppTooltip/AppTooltip";
 import useAppDispatch from "../../../../hooks/useAppDispatch";
 import { useFocusOnRequest } from "../../../../hooks/useFocusRequest";
 import { paths } from "../../../../paths";
+import { spotNavigationState } from "../../../../types/elements/spotNavigationState";
 import { openSearchAtMatch } from "../../../../stores/search/searchReducer";
 import { useGlobalSearch } from "../../hooks/useGlobalSearch";
 import {
@@ -100,7 +101,9 @@ function GlobalSearchPanel() {
 		if (!results) return;
 		const { elementId } = element;
 		setSelectedKey(searchMatchKey(elementId.id, match.index));
-		void navigate(paths.element(elementId.type, elementId.id));
+		void navigate(paths.element(elementId.type, elementId.id), {
+			state: spotNavigationState(),
+		});
 		dispatch(
 			openSearchAtMatch({
 				query: results.query,

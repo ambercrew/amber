@@ -44,14 +44,6 @@ pub struct PdfExtractionDto {
     pub page_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PdfImportProgressEvent {
-    pub request_id: String,
-    pub done: usize,
-    pub total: usize,
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpubExtractionDto {
@@ -68,7 +60,7 @@ pub struct ImportAnkiRequestDto {
     pub bytes_base64: String,
     pub parent: Option<ElementId>,
     pub bibliographical_source_id: Option<Uuid>,
-    /// Added to the folder the import resolves to, in the import's transaction.
+    /// The top-level folders' tags; `None` copies the parent's.
     #[serde(default)]
-    pub tags: Vec<String>,
+    pub tags: Option<Vec<String>>,
 }

@@ -8,14 +8,8 @@ use crate::sync::hlc::{DeviceId, Hlc, HlcClock};
 /// it lives in.
 pub const DEVICE_ID_CONFIG: &str = "sync_device_id";
 
-/// The HLC clock of one database: created by `create_sqlite_pool` alongside its
-/// pool, given to every connection as the `hlc_now()` / `device_id()` SQL
-/// functions' app data, and injected into services through `DbPool`. Owned per
-/// database rather than process-wide so a second database open in the same
-/// process issues HLCs under its own device id.
-///
-/// Empty between opening the pool and [`SyncClock::initialize`]; nothing can
-/// write a cell in that window, since the sync tables don't exist yet.
+/// One database's HLC clock, the `hlc_now()`/`device_id()` functions' app data, owned per database so
+/// a second one issues HLCs under its own device id. Empty until [`SyncClock::initialize`].
 #[derive(Default)]
 pub struct SyncClock {
     clock: OnceLock<HlcClock>,
@@ -26,17 +20,12 @@ impl SyncClock {
         Arc::new(Self::default())
     }
 
-    /// Resolves (or creates) `pool`'s persistent device id and seeds the clock
-    /// past the highest HLC that database has stored, so a restart can never
-    /// reissue an HLC. Runs once per clock, after the sync tables are migrated.
+    /// Resolves or creates `pool`'s device id and seeds the clock past its highest stored HLC, so a
+    /// restart can't reissue one. Runs once, after the sync tables are migrated.
     pub async fn initialize(&self, pool: &SqlitePool) -> Result<(), sqlx::Error> {
         let device_id = get_or_create_device_id(pool).await?;
 
-        let max_hlc: Option<String> = sqlx::query("SELECT max(hlc) AS max_hlc FROM sync_cells")
-            .fetch_one(pool)
-            .await?
-            .try_get("max_hlc")
-            .ok();
+        let max_hlc = max_stored_hlc(pool).await?;
 
         let seed = compute_seed(
             max_hlc.and_then(|value| Hlc::parse(&value).ok()),
@@ -68,6 +57,25 @@ impl SyncClock {
 
 /// Seeds past the highest HLC this database has seen, or from wall time on a
 /// fresh database.
+// A plain `max(hlc)` reads all of `idx_sync_cells_device_hlc` (500 ms cold on a hard disk); this
+// walks it per device instead, two seeks each, so no migration is needed for an `hlc` index.
+const MAX_STORED_HLC_SQL: &str = "
+    WITH RECURSIVE devices(id) AS (
+        SELECT min(device_id) FROM sync_cells
+        UNION ALL
+        SELECT (SELECT min(device_id) FROM sync_cells WHERE device_id > devices.id)
+        FROM devices WHERE devices.id IS NOT NULL
+    )
+    SELECT max((SELECT max(hlc) FROM sync_cells WHERE device_id = devices.id))
+    FROM devices WHERE devices.id IS NOT NULL";
+
+/// The highest HLC stored in `sync_cells`, from any device.
+async fn max_stored_hlc(pool: &SqlitePool) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, Option<String>>(MAX_STORED_HLC_SQL)
+        .fetch_one(pool)
+        .await
+}
+
 fn compute_seed(max_hlc: Option<Hlc>, wall_ms: u64, device_id: DeviceId) -> Hlc {
     let seed = match max_hlc {
         Some(existing) => crate::sync::hlc::tick(&existing, wall_ms),
@@ -122,6 +130,77 @@ mod tests {
             .execute(pool)
             .await
             .unwrap();
+    }
+
+    async fn insert_cell(pool: &SqlitePool, row_id: &str, hlc: &Hlc) {
+        sqlx::query(
+            "INSERT INTO sync_cells(tbl, row_id, col, value, hlc, device_id)
+             VALUES ('test', ?1, 'col', NULL, ?2, ?3)",
+        )
+        .bind(row_id)
+        .bind(hlc.format())
+        .bind(hlc.device_id.to_string())
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn max_stored_hlc_cells_from_several_devices_returns_highest_of_any_device() {
+        // Arrange
+
+        let (pool, _) = create_sqlite_pool("sqlite::memory:").await.unwrap();
+        sqlx::query("DELETE FROM sync_cells")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let highest = Hlc::new(3_000, 0, DeviceId::from_name("device-b"));
+        insert_cell(
+            &pool,
+            "1",
+            &Hlc::new(1_000, 7, DeviceId::from_name("device-a")),
+        )
+        .await;
+        insert_cell(
+            &pool,
+            "2",
+            &Hlc::new(2_000, 0, DeviceId::from_name("device-a")),
+        )
+        .await;
+        insert_cell(&pool, "3", &highest).await;
+        insert_cell(
+            &pool,
+            "4",
+            &Hlc::new(2_500, 9, DeviceId::from_name("device-c")),
+        )
+        .await;
+
+        // Act
+
+        let actual = max_stored_hlc(&pool).await.unwrap();
+
+        // Assert
+
+        assert_eq!(Some(highest.format()), actual);
+    }
+
+    #[tokio::test]
+    async fn max_stored_hlc_no_cells_returns_none() {
+        // Arrange
+
+        let (pool, _) = create_sqlite_pool("sqlite::memory:").await.unwrap();
+        sqlx::query("DELETE FROM sync_cells")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // Act
+
+        let actual = max_stored_hlc(&pool).await.unwrap();
+
+        // Assert
+
+        assert_eq!(None, actual);
     }
 
     #[test]

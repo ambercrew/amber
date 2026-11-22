@@ -22,7 +22,7 @@ vi.mock("../../../../api/elements/api/elementsApi", () => ({
 	updateLearningAsset: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("../../../../features/ElementViewer/ElementEditor", () => ({
+vi.mock("../../../../features/ElementViewer/components/ElementEditor", () => ({
 	default: (props: NonNullable<typeof editorProps.current>) => {
 		editorProps.current = props;
 		return <div data-testid="editor">{props.initialContent}</div>;

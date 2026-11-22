@@ -58,9 +58,8 @@ pub(super) async fn repair_foreign_keys(tx: &mut SqliteConnection) -> Result<(),
     Err(SyncError::FkRepairDidNotConverge)
 }
 
-/// Whether any synced-table row currently violates a declared or configured
-/// foreign key: configured policies cover implicit non-SQL references,
-/// `PRAGMA foreign_key_check` covers declared SQL FKs without a policy.
+/// Whether any synced row violates a foreign key: configured policies cover non-SQL references,
+/// `PRAGMA foreign_key_check` the declared ones without a policy.
 pub(super) async fn has_unresolved_foreign_keys(
     tx: &mut SqliteConnection,
 ) -> Result<bool, SyncError> {
@@ -278,9 +277,8 @@ async fn registered_tables(tx: &mut SqliteConnection) -> Result<Vec<String>, Syn
     Ok(rows)
 }
 
-/// Declared SQL foreign keys for `table`, via `PRAGMA foreign_key_list`. A
-/// `NULL` "to" column means the FK targets the parent's primary key, resolved
-/// from `PRAGMA table_info` on the parent.
+/// `table`'s declared foreign keys from `PRAGMA foreign_key_list`; a `NULL` target column means the
+/// parent's primary key, read from its `PRAGMA table_info`.
 async fn declared_foreign_keys(
     tx: &mut SqliteConnection,
     table: &str,
@@ -319,13 +317,11 @@ async fn declared_foreign_keys(
     Ok(fks)
 }
 
-/// Alias for the referenced table inside a [`violation_predicate`] subquery.
-/// Required for self-referential FKs: unaliased, the subquery would shadow the
-/// outer row's table name and make `NOT EXISTS` spuriously true.
+/// Alias for the referenced table in a [`violation_predicate`] subquery; without it a self-referential
+/// FK's subquery shadows the outer table and `NOT EXISTS` is wrongly true.
 const VIOLATION_PREDICATE_REF_ALIAS: &str = "__fk_ref";
 
-/// The `NOT EXISTS` predicate for one FK relationship: true for a row in
-/// `table` whose `column` is set but has no matching row in
+/// True for a row in `table` whose `column` is set but matches no
 /// `referenced_table.referenced_column`.
 fn violation_predicate(
     table: &str,

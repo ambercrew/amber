@@ -5,7 +5,7 @@ use mockall::automock;
 use thiserror::Error;
 
 use crate::SourceError;
-use crate::backend::backend_dto::{UpdatePasswordDto, UserInformationDto};
+use crate::backend::dto::backend_dto::{UpdatePasswordDto, UserInformationDto};
 use crate::generated_code::{ChangeBatch, PullResponse};
 
 #[derive(Error, Debug)]

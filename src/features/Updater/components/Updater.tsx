@@ -25,9 +25,8 @@ function Updater() {
 
 				setPendingUpdate(update);
 			} catch (e) {
-				// Passive background check — don't interrupt the user over a
-				// network hiccup or being offline. A real failure during an
-				// install still surfaces via handleConfirm below.
+				// A passive check mustn't interrupt over a network hiccup; a failed install still shows via
+				// handleConfirm below.
 				// eslint-disable-next-line no-console
 				console.error(e);
 			}

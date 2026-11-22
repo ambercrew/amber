@@ -6,6 +6,10 @@ import { PdfExtractionDto } from "../dto/pdfExtractionDto";
 import { EpubExtractionDto } from "../dto/epubExtractionDto";
 import { ImportAnkiRequestDto } from "../dto/importAnkiRequestDto";
 import { ElementId } from "../../../types/elements/elementId";
+import {
+	PDF_IMPORT_PROGRESS_EVENT,
+	PdfImportProgressEventDto,
+} from "../events/pdfImportProgressEvent";
 
 export function fetchPage(url: string): Promise<FetchedPageDto> {
 	return invoke("fetch_page", { url });
@@ -18,28 +22,23 @@ export function fetchImage(
 	return invoke("fetch_image", { url, referer });
 }
 
-interface PdfImportProgressEvent {
-	requestId: string;
-	done: number;
-	total: number;
-}
-
-let nextPdfExtractionRequestId = 0;
-
 export async function extractPdf(
 	bytesBase64: string,
 	onProgress?: (progress: { done: number; total: number }) => void,
 ): Promise<PdfExtractionDto> {
-	const requestId = String(nextPdfExtractionRequestId++);
+	const requestId = crypto.randomUUID();
 
 	const unlisten = onProgress
-		? await listen<PdfImportProgressEvent>("pdf-import-progress", event => {
-				if (event.payload.requestId !== requestId) return;
-				onProgress({
-					done: event.payload.done,
-					total: event.payload.total,
-				});
-			})
+		? await listen<PdfImportProgressEventDto>(
+				PDF_IMPORT_PROGRESS_EVENT,
+				event => {
+					if (event.payload.requestId !== requestId) return;
+					onProgress({
+						done: event.payload.done,
+						total: event.payload.total,
+					});
+				},
+			)
 		: null;
 
 	try {

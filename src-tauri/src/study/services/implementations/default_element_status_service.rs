@@ -9,9 +9,7 @@ use crate::common::event_manager::EventManager;
 use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::study::events::element_due_changed_event::emit_element_due_changed;
-use crate::study::events::elements_suspended_event::{
-    ELEMENTS_SUSPENDED_EVENT, ElementsSuspendedEventDto,
-};
+use crate::study::events::elements_suspended_event::emit_elements_suspended;
 use crate::study::repositories::learning_asset_review_repository::LearningAssetReviewRepository;
 use crate::study::services::element_status_service::ElementStatusService;
 use crate::study::services::learning_asset_scheduling_service::{
@@ -52,7 +50,7 @@ impl ElementStatusService for DefaultElementStatusService {
             if !changed.is_empty() {
                 emit_element_due_changed(&self.event_manager).await;
                 if suspended {
-                    self.emit_elements_suspended(changed).await;
+                    emit_elements_suspended(&self.event_manager, changed).await;
                 }
             }
         }
@@ -101,14 +99,6 @@ impl DefaultElementStatusService {
                 .await?;
         }
         Ok(())
-    }
-
-    async fn emit_elements_suspended(&self, element_ids: Vec<ElementId>) {
-        let body = serde_json::to_value(ElementsSuspendedEventDto { element_ids })
-            .expect("ElementsSuspendedEventDto always serializes");
-        self.event_manager
-            .push(ELEMENTS_SUSPENDED_EVENT, body)
-            .await;
     }
 }
 

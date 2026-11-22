@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-/// Whether a learning asset's content is the original PDF file (rendered as a
-/// page-accurate PDF) or was converted to Lexical text at import time (rendered
-/// like any other document).
+/// Whether a learning asset is the original PDF (rendered page-accurate) or was converted to Lexical
+/// text at import (rendered like any document).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum LearningAssetType {

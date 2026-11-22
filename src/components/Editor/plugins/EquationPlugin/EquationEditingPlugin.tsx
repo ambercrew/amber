@@ -17,9 +17,8 @@ import AutosizeTextInput from "../../../AutosizeTextInput/AutosizeTextInput";
 import { $isEquationNode, equationContentOf } from "./EquationNode";
 
 /**
- * The equation that is the entire selection. One that is merely part of a
- * wider selection is not treated as the caret's position, so it neither shows
- * as selected nor claims Enter.
+ * The equation that is the whole selection; one only part of a wider selection isn't the caret's spot,
+ * so it neither shows as selected nor claims Enter.
  */
 function $soleSelectedEquationKey(): NodeKey | null {
 	const selection = $getSelection();
@@ -174,9 +173,8 @@ function EquationField({ nodeKey, onClose }: EquationFieldProps) {
 	}
 
 	function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-		// Keys typed in this field belong to it alone: without this the editor
-		// root also sees them and, for Enter, inserts a paragraph behind the
-		// field.
+		// Keys typed here belong to the field alone; otherwise the editor root sees them too
+		// and, for Enter, inserts a paragraph behind it.
 		e.stopPropagation();
 		if (e.key === "Enter") {
 			e.preventDefault();

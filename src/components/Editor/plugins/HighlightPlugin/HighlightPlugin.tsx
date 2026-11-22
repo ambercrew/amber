@@ -58,10 +58,8 @@ export function HighlightPlugin() {
 					id,
 					ids => $createHighlightNode(ids, color),
 				);
-				// A `null` selection tells $generateJSONFromSelectedNodes to
-				// include every node, i.e. the whole document — read live from
-				// the active (not-yet-committed) update, unlike
-				// `editor.getEditorState()`.
+				// A `null` selection makes $generateJSONFromSelectedNodes include the whole document, read live
+				// from this not-yet-committed update, unlike `editor.getEditorState()`.
 				const { nodes: fullNodes } =
 					$generateJSONFromSelectedNodes<SerializedLexicalNodeTree>(
 						editor,

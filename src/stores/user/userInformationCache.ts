@@ -1,8 +1,6 @@
 /**
- * Local cache of the last successfully fetched UserInformationDto, so that a
- * signed-in user who opens the app offline can still be shown their profile
- * (as stale/offline) instead of looking indistinguishable from someone who
- * never signed in.
+ * The last fetched UserInformationDto, so a user opening the app offline still sees their
+ * profile (as offline) rather than looking signed out.
  */
 
 import { UserInformationDto } from "../../api/backend/dto/userInformationDto";

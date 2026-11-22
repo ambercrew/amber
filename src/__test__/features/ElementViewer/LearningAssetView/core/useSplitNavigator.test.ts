@@ -1,9 +1,12 @@
 import { createElement, ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MainScrollContext } from "../../../../../features/App/context/mainScrollContext";
+import { AppLayoutContext } from "../../../../../components/AppLayout/appLayoutContext";
 import { landOnBlock } from "../../../../../features/ElementViewer/LearningAssetView/core/landOnBlock";
-import { useSplitNavigator } from "../../../../../features/ElementViewer/LearningAssetView/core/useSplitNavigator";
+import {
+	Land,
+	useSplitNavigator,
+} from "../../../../../features/ElementViewer/LearningAssetView/core/useSplitNavigator";
 import { LEARNING_ASSET_VIEWPORT_TOP_OFFSET_IN_PX } from "../../../../../features/ElementViewer/LearningAssetView/core/learningAssetViewConstants";
 import { LearningAssetSplitMetaDto } from "../../../../../types/elements/learningAssetSplitMetaDto";
 import { ReadingPosition } from "../../../../../types/elements/readingPosition";
@@ -26,6 +29,7 @@ const SPLIT_HEIGHT_IN_PX = 1000;
 
 function renderNavigator(overrides: {
 	initial: ReadingPosition;
+	initialLand?: Land;
 	getContentRoot: (seq: number) => HTMLElement | undefined;
 	lockTo?: () => void;
 	unlock?: () => void;
@@ -33,6 +37,7 @@ function renderNavigator(overrides: {
 }) {
 	const {
 		initial,
+		initialLand,
 		getContentRoot,
 		lockTo = vi.fn(),
 		unlock = vi.fn(),
@@ -43,6 +48,7 @@ function renderNavigator(overrides: {
 			useSplitNavigator({
 				splits: SPLITS,
 				initial,
+				initialLand,
 				getContentRoot,
 				getHeight: () => SPLIT_HEIGHT_IN_PX,
 				lockTo,
@@ -51,8 +57,13 @@ function renderNavigator(overrides: {
 		{
 			wrapper: ({ children }: { children: ReactNode }) =>
 				createElement(
-					MainScrollContext,
-					{ value: scrollElement },
+					AppLayoutContext,
+					{
+						value: {
+							mainScrollElement: scrollElement,
+							visibleAreaElement: null,
+						},
+					},
 					children,
 				),
 		},
@@ -102,6 +113,33 @@ describe("useSplitNavigator", () => {
 			expect(scrollIntoView).not.toHaveBeenCalled();
 			expect(result.current.restoredRef.current).toBe(false);
 			expect(unlock).not.toHaveBeenCalled();
+		});
+
+		it("Should land with the initial landing instead of the read point when one is given", () => {
+			// Arrange
+
+			const root = makeRoot(5);
+			const scrollIntoView = vi.fn();
+			(root.children[2] as HTMLElement).scrollIntoView = scrollIntoView;
+			const initialLand = vi.fn<Land>();
+			const { result } = renderNavigator({
+				initial: { split: 3, block: 2 },
+				initialLand,
+				getContentRoot: () => root,
+			});
+
+			// Act
+
+			act(() => {
+				result.current.notifySplitReady(3);
+				vi.runAllTimers();
+			});
+
+			// Assert
+
+			expect(initialLand).toHaveBeenCalledWith(root, null);
+			expect(scrollIntoView).not.toHaveBeenCalled();
+			expect(result.current.restoredRef.current).toBe(true);
 		});
 
 		it("Should scroll the saved block into view and mark restored when the target split is ready", () => {
@@ -327,9 +365,8 @@ describe("useSplitNavigator", () => {
 			const root = makeRoot(5);
 			const scrollIntoView = vi.fn();
 			(root.children[1] as HTMLElement).scrollIntoView = scrollIntoView;
-			// Not mounted yet at `navigate` time, mounted by the time
-			// `notifySplitReady` fires — matches a split swapping from a
-			// placeholder to a live editor after being forced into the window.
+			// Unmounted at `navigate`, mounted by `notifySplitReady`, as a split forced into the window
+			// swaps its placeholder for an editor.
 			const state: { root?: HTMLElement } = {};
 			const { result } = renderNavigator({
 				initial: { split: 0, block: 0 },

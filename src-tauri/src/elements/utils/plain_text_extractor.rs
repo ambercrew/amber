@@ -4,12 +4,8 @@ const BLOCK_NODE_TYPES: [&str; 4] = ["paragraph", "heading", "listitem", "quote"
 /// Mirrors `ClozeHiddenNode.getType()` on the frontend.
 const CLOZE_HIDDEN_NODE_TYPE: &str = "cloze-hidden";
 
-/// Derives the plain-text content of a serialized Lexical editor state, for
-/// storage in a `content_text` column (e.g. for full-text search) without the
-/// backend needing to understand the full Lexical node schema. Any object with
-/// a `text` string is treated as a leaf; every nested object/array is walked
-/// recursively (regardless of the key it's nested under, e.g. the top-level
-/// `root` wrapper); block-level node types get a trailing newline.
+/// Plain text of a serialized Lexical state for `content_text`, without knowing Lexical's schema: every
+/// `text` string is a leaf, every object and array is walked, and block nodes end with a newline.
 pub fn extract_plain_text(content: &str) -> String {
     let Ok(root) = serde_json::from_str::<Value>(content) else {
         return String::new();

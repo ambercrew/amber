@@ -1,7 +1,7 @@
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "../../../stores/sync/managers/syncEventManager";
+} from "../../../managers/syncEventManager";
 import { sync } from "../../../stores/sync/syncActions";
 import { setIsSyncing } from "../../../stores/sync/syncReducer";
 import { setOnline } from "../../../stores/user/userReducer";
@@ -9,7 +9,7 @@ import { sync as syncApi } from "../../../api/sync/api/syncApi";
 import { RootState } from "../../../stores/store";
 import { cleanNotifications, notificationsStore } from "@mantine/notifications";
 
-vi.mock("../../../stores/sync/managers/syncEventManager");
+vi.mock("../../../managers/syncEventManager");
 vi.mock("../../../api/sync/api/syncApi.ts");
 
 const createGetState = ({

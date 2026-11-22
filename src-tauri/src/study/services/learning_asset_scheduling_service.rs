@@ -9,9 +9,8 @@ use crate::study::services::profile_resolution_service::ProfileResolutionError;
 
 #[async_trait]
 pub trait LearningAssetSchedulingService: Send + Sync {
-    /// Advances the element to its next interval (`interval_days * interval_multiplier`, or
-    /// `profile.initial_interval_days` on the first pass), floored by
-    /// `profile.min_interval_days`. `duration_ms` is the time spent reading, logged as study time.
+    /// Advances to the next interval (`interval_days * interval_multiplier`, or `initial_interval_days` at
+    /// first), at least `min_interval_days`; `duration_ms` is logged as study time.
     async fn next(
         &self,
         element_id: ElementId,

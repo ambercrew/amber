@@ -6,16 +6,22 @@ use injector_derive::ScopeInjectable;
 use uuid::Uuid;
 
 use crate::common::event_manager::EventManager;
+use crate::elements::repositories::meta_repository::MetaRepository;
 use crate::elements::value_objects::element_id::ElementId;
+use crate::image_occlusion::repositories::image_occlusion_repository::ImageOcclusionRepository;
 use crate::study::entities::card_review::CardReview;
 use crate::study::entities::card_review_log::CardReviewLog;
 use crate::study::entities::study_profile::StudyProfile;
+use crate::study::events::card_leeched_event::{CARD_LEECHED_EVENT, CardLeechedEventDto};
 use crate::study::events::element_due_changed_event::emit_element_due_changed;
 use crate::study::repositories::card_review_log_repository::CardReviewLogRepository;
 use crate::study::repositories::card_review_repository::CardReviewRepository;
-use crate::study::services::card_grading_service::{CardGradingService, GradeCardError};
+use crate::study::services::card_grading_service::{
+    CardGradingService, GradeCardError, RegisteredReview,
+};
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use crate::study::utils::day_boundary::start_of_due_day;
+use crate::study::value_objects::leech_action::LeechAction;
 use crate::study::value_objects::rating::Rating;
 
 #[derive(ScopeInjectable)]
@@ -23,8 +29,13 @@ pub struct DefaultCardGradingService {
     card_review_repository: Arc<dyn CardReviewRepository>,
     card_review_log_repository: Arc<dyn CardReviewLogRepository>,
     profile_resolution_service: Arc<dyn ProfileResolutionService>,
+    meta_repository: Arc<dyn MetaRepository>,
     event_manager: Arc<dyn EventManager>,
+    image_occlusion_repository: Arc<dyn ImageOcclusionRepository>,
 }
+
+/// The tag a card gets on becoming a leech, which the Browser can search for.
+pub const LEECH_TAG: &str = "leech";
 
 #[async_trait]
 impl CardGradingService for DefaultCardGradingService {
@@ -33,7 +44,12 @@ impl CardGradingService for DefaultCardGradingService {
         review: CardReview,
         rating: Rating,
         duration_ms: Option<u32>,
-    ) -> Result<CardReview, GradeCardError> {
+    ) -> Result<RegisteredReview, GradeCardError> {
+        let previous_lapses = self
+            .card_review_repository
+            .get_by_card_id(review.card_id)
+            .await?
+            .map_or(0, |previous| previous.lapses);
         self.card_review_repository.upsert(&review).await?;
         self.card_review_log_repository
             .create(&CardReviewLog {
@@ -44,8 +60,7 @@ impl CardGradingService for DefaultCardGradingService {
                 duration_ms,
             })
             .await?;
-
-        Ok(review)
+        self.flag_if_leech(review, previous_lapses).await
     }
 
     async fn scheduling_inputs(
@@ -101,6 +116,66 @@ impl CardGradingService for DefaultCardGradingService {
     }
 }
 
+impl DefaultCardGradingService {
+    /// Tags the card a leech, and suspends it if its profile says so, when this review's lapse makes it one.
+    async fn flag_if_leech(
+        &self,
+        review: CardReview,
+        previous_lapses: u32,
+    ) -> Result<RegisteredReview, GradeCardError> {
+        let not_leeched = |review| RegisteredReview {
+            review,
+            leeched: false,
+            suspended: false,
+        };
+        // Most grades don't lapse, and resolving the profile walks the card's ancestors.
+        if review.lapses <= previous_lapses {
+            return Ok(not_leeched(review));
+        }
+        let card_id = ElementId::Card(review.card_id);
+        let profile = self
+            .profile_resolution_service
+            .resolve_profile(Some(card_id))
+            .await?;
+        if !is_leech_lapse(previous_lapses, review.lapses, profile.leech_threshold) {
+            return Ok(not_leeched(review));
+        }
+
+        self.meta_repository
+            .add_tags(card_id, vec![LEECH_TAG.to_string()])
+            .await?;
+        let suspended = profile.leech_action == LeechAction::Suspend
+            && self.meta_repository.set_suspended(card_id, true).await?;
+        // No due-changed, suspended or card-changed events: the session grading the card moves on
+        // itself, and reacting to them too would advance it again or reload the card over the next one.
+        let body = serde_json::to_value(CardLeechedEventDto {
+            card_id: review.card_id,
+            lapses: review.lapses,
+            suspended,
+            rewritable: !self
+                .image_occlusion_repository
+                .is_card_linked(review.card_id)
+                .await?,
+        })
+        .expect("CardLeechedEventDto always serializes");
+        self.event_manager.push(CARD_LEECHED_EVENT, body).await;
+        Ok(RegisteredReview {
+            review,
+            leeched: true,
+            suspended,
+        })
+    }
+}
+
+/// Whether going from `previous` to `current` lapses reaches `threshold`, or every half of it past
+/// that, as Anki flags leeches; a threshold of 0 never does.
+fn is_leech_lapse(previous: u32, current: u32, threshold: u32) -> bool {
+    if threshold == 0 || current <= previous || current < threshold {
+        return false;
+    }
+    (current - threshold).is_multiple_of((threshold / 2).max(1))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::elements::value_objects::name_source::NameSource;
@@ -118,9 +193,11 @@ mod tests {
             sqlite_card_repository::SqliteCardRepository,
             sqlite_card_review_log_repository::SqliteCardReviewLogRepository,
             sqlite_card_review_repository::SqliteCardReviewRepository,
+            sqlite_image_occlusion_repository::SqliteImageOcclusionRepository,
             sqlite_meta_repository::SqliteMetaRepository,
             sqlite_study_profile_repository::SqliteStudyProfileRepository,
         },
+        study::entities::study_profile::StudyProfile,
         study::repositories::study_profile_repository::StudyProfileRepository,
         study::services::implementations::default_profile_resolution_service::DefaultProfileResolutionService,
         study::value_objects::card_state::CardState,
@@ -152,6 +229,11 @@ mod tests {
             injector,
             dyn ProfileResolutionService,
             DefaultProfileResolutionService
+        );
+        register_scope!(
+            injector,
+            dyn ImageOcclusionRepository,
+            SqliteImageOcclusionRepository
         );
         register_scope!(injector, dyn CardGradingService, DefaultCardGradingService);
         injector
@@ -394,5 +476,194 @@ mod tests {
         assert_eq!(due.timestamp(), actual.due.timestamp());
         assert_eq!(due.timestamp(), stored.due.timestamp());
         assert_eq!(CardState::New, stored.state);
+    }
+
+    /// Gives the default profile `threshold` and `action`, and the card `lapses` lapses already.
+    async fn arrange_leech(
+        scope: &injector::injector_scope::InjectorScope<'_>,
+        card_id: Uuid,
+        lapses: u32,
+        threshold: u32,
+        action: LeechAction,
+    ) {
+        let profile = scope
+            .resolve::<dyn ProfileResolutionService>()
+            .await
+            .resolve_profile(None)
+            .await
+            .unwrap();
+        scope
+            .resolve::<dyn StudyProfileRepository>()
+            .await
+            .update(&StudyProfile {
+                leech_threshold: threshold,
+                leech_action: action,
+                ..profile
+            })
+            .await
+            .unwrap();
+        scope
+            .resolve::<dyn CardReviewRepository>()
+            .await
+            .upsert(&CardReview {
+                lapses,
+                ..scheduled_review(card_id)
+            })
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn register_review_lapse_reaching_threshold_tags_card_as_leech() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_id = create_test_card(&scope).await;
+        arrange_leech(&scope, card_id, 7, 8, LeechAction::TagOnly).await;
+        let service = scope.resolve::<dyn CardGradingService>().await;
+
+        // Act
+
+        let actual = service
+            .register_review(
+                CardReview {
+                    lapses: 8,
+                    ..scheduled_review(card_id)
+                },
+                Rating::Again,
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        let meta_repo = scope.resolve::<dyn MetaRepository>().await;
+        let tags = meta_repo.get_tags(ElementId::Card(card_id)).await.unwrap();
+        assert!(tags.iter().any(|tag| tag.name == LEECH_TAG));
+        assert!(!meta_repo.get_by_id(card_id).await.unwrap().suspended);
+        assert!(actual.leeched);
+        assert!(!actual.suspended);
+    }
+
+    #[tokio::test]
+    async fn register_review_leech_with_suspend_action_suspends_card() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_id = create_test_card(&scope).await;
+        arrange_leech(&scope, card_id, 7, 8, LeechAction::Suspend).await;
+        let service = scope.resolve::<dyn CardGradingService>().await;
+
+        // Act
+
+        let actual = service
+            .register_review(
+                CardReview {
+                    lapses: 8,
+                    ..scheduled_review(card_id)
+                },
+                Rating::Again,
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        let meta = scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .get_by_id(card_id)
+            .await
+            .unwrap();
+        assert!(meta.suspended);
+        assert!(actual.suspended);
+    }
+
+    #[tokio::test]
+    async fn register_review_lapse_below_threshold_leaves_card_untagged() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let card_id = create_test_card(&scope).await;
+        arrange_leech(&scope, card_id, 6, 8, LeechAction::Suspend).await;
+        let service = scope.resolve::<dyn CardGradingService>().await;
+
+        // Act
+
+        let actual = service
+            .register_review(
+                CardReview {
+                    lapses: 7,
+                    ..scheduled_review(card_id)
+                },
+                Rating::Again,
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Assert
+
+        let tags = scope
+            .resolve::<dyn MetaRepository>()
+            .await
+            .get_tags(ElementId::Card(card_id))
+            .await
+            .unwrap();
+        assert!(tags.is_empty());
+        assert!(!actual.leeched);
+    }
+
+    #[test]
+    fn is_leech_lapse_each_half_threshold_past_it_flags_again() {
+        // Arrange
+
+        let lapses = [7, 8, 9, 10, 11, 12, 16];
+
+        // Act
+
+        let actual: Vec<bool> = lapses
+            .iter()
+            .map(|&current| is_leech_lapse(current - 1, current, 8))
+            .collect();
+
+        // Assert
+
+        assert_eq!(vec![false, true, false, false, false, true, true], actual);
+    }
+
+    #[test]
+    fn is_leech_lapse_zero_threshold_never_flags() {
+        // Arrange
+
+        let (previous, current) = (0, 1);
+
+        // Act
+
+        let actual = is_leech_lapse(previous, current, 0);
+
+        // Assert
+
+        assert!(!actual);
+    }
+
+    #[test]
+    fn is_leech_lapse_unchanged_lapses_does_not_flag_again() {
+        // Arrange
+
+        let (previous, current) = (8, 8);
+
+        // Act
+
+        let actual = is_leech_lapse(previous, current, 8);
+
+        // Assert
+
+        assert!(!actual);
     }
 }

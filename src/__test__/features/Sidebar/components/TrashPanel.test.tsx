@@ -100,9 +100,10 @@ describe("TrashPanel", () => {
 		);
 	});
 
-	/** The confirmation content mounts a transition tick after the click, and
-	 * "Empty trash" names both the panel's icon and the confirm button, so the
-	 * queries have to wait and stay inside the dialog. */
+	/**
+	 * The confirmation mounts a transition tick after the click, and "Empty trash" names both the
+	 * icon and the confirm button, so wait and stay inside the dialog.
+	 */
 	async function openedConfirmation() {
 		return within(await screen.findByRole("dialog"));
 	}

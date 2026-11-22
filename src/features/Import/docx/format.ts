@@ -1,4 +1,4 @@
-import { FileFormat } from "../fileFormat";
+import { FileFormat } from "../utils/fileFormat";
 import { extractDocx } from "./extract";
 
 export const docxFormat: FileFormat = {
@@ -7,5 +7,5 @@ export const docxFormat: FileFormat = {
 	mimeTypes: [
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	],
-	extract: bytes => extractDocx(bytes),
+	extract: extractDocx,
 };

@@ -7,8 +7,8 @@ import {
 } from "../../../stores/search/searchSelectors";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
 import { scrollToRange } from "../../../components/Editor/plugins/SearchHighlightPlugin/scrollToRange";
-import { searchHighlightRegistry } from "../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistry";
-import { HEADER_AND_FOOTER_HEIGHT } from "../../App/components/App";
+import { useSearchHighlightRegistry } from "../../../components/Editor/plugins/SearchHighlightPlugin/searchHighlightRegistryContext";
+import { HEADER_AND_FOOTER_HEIGHT } from "../../../config/layout";
 import {
 	useSingleEditorSearch,
 	type MatchTarget,
@@ -24,12 +24,11 @@ interface ReturnValue {
 }
 
 /**
- * Wires up find-in-page for a small, fixed, always-mounted set of editors
- * (an extract's single editor, or a card's front/back). LearningAsset uses
- * its search plugin (`LearningAssetView/plugins/search/`) instead, since
- * unmounted splits make that case more involved.
+ * Find-in-page for a fixed, always-mounted set of editors (an extract, or a card's front and back);
+ * learning assets use their search plugin, as unmounted splits complicate it.
  */
 export function useEditorFindInPage(editorKeys: string[]): ReturnValue {
+	const searchHighlightRegistry = useSearchHighlightRegistry();
 	const query = useAppSelector(selectSearchQuery);
 	const caseSensitive = useAppSelector(selectSearchCaseSensitive);
 	const currentIndex = useAppSelector(selectSearchCurrentIndex);
@@ -44,12 +43,15 @@ export function useEditorFindInPage(editorKeys: string[]): ReturnValue {
 			JSON.stringify([elementId, query, caseSensitive]),
 		);
 
-	const handleNavigate = useCallback((target: MatchTarget) => {
-		const range = searchHighlightRegistry.getRanges(target.editorKey)?.[
-			target.localIndex
-		];
-		if (range) scrollToRange(range);
-	}, []);
+	const handleNavigate = useCallback(
+		(target: MatchTarget) => {
+			const range = searchHighlightRegistry.getRanges(target.editorKey)?.[
+				target.localIndex
+			];
+			if (range) scrollToRange(range);
+		},
+		[searchHighlightRegistry],
+	);
 
 	// Nearest match at or below the viewport, scanning editors in order and
 	// wrapping to the first match if none qualify.
@@ -70,7 +72,7 @@ export function useEditorFindInPage(editorKeys: string[]): ReturnValue {
 			globalIndex += ranges.length;
 		}
 		return firstMatchIndex ?? 0;
-	}, [editorKeys]);
+	}, [editorKeys, searchHighlightRegistry]);
 
 	useSyncSearchMatches({
 		totalMatches,

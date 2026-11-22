@@ -2,9 +2,8 @@ import { PayloadAction, createSlice } from "@reduxjs/toolkit";
 
 interface SyncState {
 	isSyncing: boolean;
-	// Bumped once the currently open element's data has been reloaded after a
-	// sync. Components key off this to remount fields that hold their own
-	// uncontrolled input state (e.g. tags), so a remote change lands in them.
+	// Bumped once the open element has reloaded after a sync, so fields holding their own
+	// uncontrolled input (e.g. tags) remount with the remote change.
 	elementRefreshCount: number;
 }
 

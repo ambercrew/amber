@@ -6,22 +6,8 @@ use injector_derive::ScopeInjectable;
 use crate::sync::post_sync_task::{PostSyncTask, PostSyncTaskError};
 use crate::trash::repositories::trash_repository::TrashRepository;
 
-/// Restores the "nothing live hangs under a trashed element" invariant after a
-/// sync.
-///
-/// Trashing writes `trashed_at` onto every row of the subtree as it stood on
-/// that device. Cell-level last-writer-wins knows nothing of that subtree, so a
-/// child created or moved under the element on another device merges in with no
-/// `trashed_at` of its own and would resurface as a live orphan under a parent
-/// the user cannot see.
-///
-/// Each such element is trashed into the subtree of the trashed ancestor it
-/// hangs from — inheriting its `trashed_at` and never becoming a trash root —
-/// so restoring that ancestor brings it back too. The cascade continues through
-/// its own descendants.
-///
-/// The outcome follows from `parent_id` and `trashed_at` alone, both synced, so
-/// every device repairs the tree the same way.
+/// After a sync, trashes anything live under a trashed element (LWW lets another device's child slip in)
+/// into that element's subtree, so restoring it brings them back; decided from synced `parent_id`/`trashed_at`.
 #[derive(ScopeInjectable)]
 pub struct TrashedSubtreePostSyncTask {
     trash_repository: Arc<dyn TrashRepository>,

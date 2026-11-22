@@ -30,9 +30,8 @@ pub(super) async fn read_table_info(
     Ok(columns)
 }
 
-/// This table's primary key columns, ordered by position within the key so
-/// callers encode/decode `row_id` consistently. Errors if the table has no
-/// primary key, or a key column has BLOB affinity.
+/// The table's primary key columns in key order, so `row_id` encodes and decodes consistently.
+/// Errors without a primary key or with a BLOB-affinity key column.
 pub(super) fn primary_key_columns<'a>(
     table: &str,
     columns: &'a [ColumnInfo],

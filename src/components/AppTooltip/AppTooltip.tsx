@@ -17,16 +17,14 @@ export interface AppTooltipProps extends Omit<
 	events?: Partial<NonNullable<TooltipProps["events"]>>;
 
 	/**
-	 * Open the tooltip on tap. Off by default so tapping a labeled control
-	 * still performs its action; enable on targets whose meaning is otherwise
-	 * unreachable on touch (info icons, study session buttons).
+	 * Opens on tap too. Off by default so tapping a labeled control still acts; use it where the meaning
+	 * is otherwise unreachable on touch (info icons, study session buttons).
 	 */
 	touch?: boolean;
 
 	/**
-	 * Raw shortcut in `useHotkeys` notation (e.g. `"mod+K"`), appended to the
-	 * label as `useShortcutDisplay` renders it — so it's left out on touch
-	 * input, where there's no keyboard to press it with.
+	 * A raw `useHotkeys` shortcut (e.g. `"mod+K"`), appended to the label through `useShortcutDisplay`,
+	 * so it's left out on touch.
 	 */
 	shortcut?: string;
 }
@@ -43,9 +41,8 @@ function labelWithShortcut(label: ReactNode, shortcut: string): ReactNode {
 }
 
 /**
- * The app's Tooltip: Mantine's `Tooltip` plus a `shortcut` rendered next to
- * the label on pointer devices only. Pass `touch` to also open on tap.
- * Opens after a short hover delay, but at once on touch, where it's tapped deliberately.
+ * Mantine's `Tooltip` plus a `shortcut` shown on pointer devices only; `touch` also opens it on tap.
+ * Opens after a short hover delay, but at once on a tap, which is deliberate.
  */
 function AppTooltip({
 	label,

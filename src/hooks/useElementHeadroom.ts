@@ -18,10 +18,10 @@ export interface UseElementHeadroomInput {
 export interface UseElementHeadroomReturnValue {
 	/** True when the element is at least partially visible. */
 	pinned: boolean;
-	/** Ignore scroll events (programmatic ones, e.g. from zoom recentering)
-	 * until they stop for `quietMs` — a zoom can trigger more than one
-	 * scroll adjustment (e.g. the browser clamping scrollTop as content
-	 * shrinks, then the plugin's own recenter). */
+	/**
+	 * Ignores scroll events until they've stopped for `quietMs`, as one zoom can scroll several
+	 * times (the browser clamping `scrollTop`, then the plugin recentering).
+	 */
 	pause: (quietMs?: number) => void;
 }
 
@@ -37,13 +37,8 @@ export function hideHeadroom(element: HeadroomScroller) {
 }
 
 /**
- * Element-scoped equivalent of Mantine's `useHeadroom`, which can only observe
- * the window scroller. Returns whether pinned chrome (the header, the footer)
- * should be shown: always within `fixedAt` of the top, and below that it takes
- * `scrollDistance` px of scrolling to fully hide or reveal it again.
- *
- * The progress is accumulated across direction changes, so reversing mid-hide
- * continues from where it stopped instead of snapping, exactly as Mantine does.
+ * Mantine's `useHeadroom` for an element rather than the window: chrome shows within `fixedAt` of the top,
+ * and below that takes `scrollDistance` px to hide or reveal, carried across direction changes.
  */
 export function useElementHeadroom({
 	element,

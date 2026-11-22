@@ -23,6 +23,7 @@ export default interface SettingsDto {
 	zoomPercentage: number;
 	lineWidth: LineWidth;
 	autoSync: boolean;
+	spellCheck: boolean;
 	trashRetentionDays: number;
 
 	enableAi: boolean;

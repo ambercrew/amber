@@ -1,4 +1,4 @@
-import { useChromeInsets } from "../../../App/context/chromeInsetsContext";
+import { useChromeInsets } from "../../../../hooks/useChromeInsets";
 import MarkScrollbarTicks from "../../marks/MarkScrollbarTicks";
 import { useDisplayedReadPoint } from "../../readPoint/readPointContext";
 

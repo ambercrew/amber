@@ -12,9 +12,18 @@ use crate::sync::sync_completion::SyncCompletion;
 pub async fn sync(injector: State<'_, Arc<Injector>>) -> Result<(), ApiError> {
     let scope = injector.start_scope();
 
-    scope.resolve::<dyn SyncEngine>().await.sync().await?;
-    scope.save_changes().await?;
-    scope.resolve::<SyncCompletion>().await.mark_completed();
+    let result: Result<(), ApiError> = async {
+        scope.resolve::<dyn SyncEngine>().await.sync().await?;
+        scope.save_changes().await?;
+        Ok(())
+    }
+    .await;
 
-    Ok(())
+    let completion = scope.resolve::<SyncCompletion>().await;
+    match result {
+        Ok(()) => completion.mark_completed(),
+        Err(_) => completion.mark_attempted(),
+    }
+
+    result
 }

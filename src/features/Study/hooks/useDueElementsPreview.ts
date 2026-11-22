@@ -16,7 +16,7 @@ import {
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
-} from "../../../stores/sync/managers/syncEventManager";
+} from "../../../managers/syncEventManager";
 import { PRIORITY_CHANGED } from "../../../types/events/priorityChangedEvent";
 import { SAVED_SEARCHES_CHANGED } from "../../../types/events/savedSearchesChangedEvent";
 import { STUDY_SESSION_SETTINGS_CHANGED } from "../../../types/events/studySessionSettingsChangedEvent";
@@ -24,9 +24,8 @@ import { STUDY_SESSION_SETTINGS_CHANGED } from "../../../types/events/studySessi
 /** A big import announces elements by the thousand; they share one refresh. */
 const CREATED_REFRESH_DELAY_MS = 200;
 
-// Lets the sidebar preview which elements are due before a session starts,
-// without affecting status/counts/etc. Once a session is active, the queue
-// is only ever driven by the session engine itself.
+// Previews the due elements in the sidebar before a session starts; once one is running,
+// only the session drives the queue.
 export function useDueElementsPreview() {
 	const dispatch = useAppDispatch();
 	const status = useAppSelector(selectStudyStatus);

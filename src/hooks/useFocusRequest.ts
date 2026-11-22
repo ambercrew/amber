@@ -1,56 +1,50 @@
-import { useEffect, useEffectEvent, useSyncExternalStore } from "react";
+import { addListener } from "@reduxjs/toolkit";
+import { useEffect, useEffectEvent } from "react";
+import useAppDispatch from "./useAppDispatch";
+import useAppSelector from "./useAppSelector";
+import {
+	FocusTarget,
+	focusTaken,
+	requestFocus,
+} from "../stores/app/appReducer";
+import { selectPendingFocus } from "../stores/app/appSelectors";
 
-export type FocusTarget = "tree" | "aiChat" | "globalSearch";
+export type { FocusTarget };
+export { requestFocus };
 
-// A focus shortcut's target may not be mounted yet, so its request waits here until it is.
-let pending: FocusTarget | null = null;
-const storeListeners = new Set<() => void>();
-const requestListeners = new Set<(target: FocusTarget) => void>();
-
-function setPending(target: FocusTarget | null) {
-	pending = target;
-	storeListeners.forEach(listener => listener());
-}
-
-function subscribe(listener: () => void) {
-	storeListeners.add(listener);
-	return () => {
-		storeListeners.delete(listener);
-	};
-}
-
-/** Asks `target` to take focus, now if it's mounted or else as soon as it mounts. */
-export function requestFocus(target: FocusTarget) {
-	requestListeners.forEach(listener => listener(target));
-	setPending(target);
-}
-
-/** Runs `onRequested` whenever focus is requested for `target`, e.g. to reveal its panel. */
+/** Runs `onRequested` whenever focus is requested for `target` while mounted, e.g. to reveal its panel. */
 export function useFocusRequested(
 	target: FocusTarget,
 	onRequested: () => void,
 ) {
+	const dispatch = useAppDispatch();
 	const handleRequest = useEffectEvent(onRequested);
 
-	useEffect(() => {
-		const listener = (requested: FocusTarget) => {
-			if (requested === target) handleRequest();
-		};
-		requestListeners.add(listener);
-		return () => {
-			requestListeners.delete(listener);
-		};
-	}, [target]);
+	useEffect(
+		() =>
+			dispatch(
+				addListener({
+					actionCreator: requestFocus,
+					effect: ({ payload }) => {
+						if (payload === target) handleRequest();
+					},
+				}),
+			),
+		[dispatch, target],
+	);
 }
 
 /** Calls `focus` once a request for `target` is pending while this component is mounted. */
 export function useFocusOnRequest(target: FocusTarget, focus: () => void) {
-	const requested = useSyncExternalStore(subscribe, () => pending === target);
+	const dispatch = useAppDispatch();
+	const requested = useAppSelector(
+		state => selectPendingFocus(state) === target,
+	);
 	const handleFocus = useEffectEvent(focus);
 
 	useEffect(() => {
 		if (!requested) return;
-		setPending(null);
+		dispatch(focusTaken(target));
 		handleFocus();
-	}, [requested]);
+	}, [dispatch, requested, target]);
 }

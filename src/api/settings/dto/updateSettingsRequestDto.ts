@@ -16,6 +16,7 @@ export default interface UpdateSettingsRequestDto {
 	zoomPercentage: number | null;
 	lineWidth: LineWidth | null;
 	autoSync: boolean | null;
+	spellCheck: boolean | null;
 	trashRetentionDays: number | null;
 
 	enableAi: boolean | null;
@@ -24,9 +25,8 @@ export default interface UpdateSettingsRequestDto {
 }
 
 /**
- * Builds an {@link UpdateSettingsRequestDto} that leaves every field unchanged
- * (all `null`), overriding only the fields provided. Use this so callers only
- * specify the settings they actually want to change.
+ * An {@link UpdateSettingsRequestDto} leaving every field unchanged (`null`) but those given,
+ * so callers name only the settings they change.
  */
 export function buildUpdateSettingsRequest(
 	overrides: Partial<UpdateSettingsRequestDto>,
@@ -40,6 +40,7 @@ export function buildUpdateSettingsRequest(
 		zoomPercentage: null,
 		lineWidth: null,
 		autoSync: null,
+		spellCheck: null,
 		trashRetentionDays: null,
 		enableAi: null,
 		aiProvider: null,
