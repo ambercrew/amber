@@ -47,6 +47,13 @@ import ImportItemList from "./ImportItemList";
 import ImportFilePicker from "./ImportFilePicker";
 import ImportField from "./ImportField";
 import { useImportPriority } from "../hooks/useImportPriority";
+import { useParentTags } from "../hooks/useParentTags";
+import {
+	applyTagEdits,
+	NO_TAG_EDITS,
+	TagEdits,
+	tagEditsBetween,
+} from "../utils/tagEdits";
 import ModalActions from "../../../components/AppModal/ModalActions";
 
 // Dropzone turns off pointer events on its contents, so the form turns them back on. It and the
@@ -95,7 +102,8 @@ function ImportModal() {
 
 	const [value, setValue] = useState("");
 	const [items, setItems] = useState<ImportItem[]>([]);
-	const [tags, setTags] = useState<string[]>([]);
+	// The user's edits to the parent's tags, kept when the parent changes.
+	const [tagEdits, setTagEdits] = useState<TagEdits>(NO_TAG_EDITS);
 	// `undefined` until the user picks, so it follows the open element.
 	const [pickedParent, setPickedParent] = useState<ElementId | null>();
 	const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -104,13 +112,16 @@ function ImportModal() {
 			? defaultParent(currentElement?.data.meta.elementId ?? null)
 			: pickedParent;
 	const priority = useImportPriority(opened, parent);
+	const parentTags = useParentTags(opened ? parent : null);
+	// `null` while the parent's tags load, so an import then lets the backend copy them.
+	const tags = parentTags.tags && applyTagEdits(parentTags.tags, tagEdits);
 	const openRef = useRef<() => void>(null);
 	const cancelledRef = useRef(false);
 
 	function reset() {
 		setValue("");
 		setItems([]);
-		setTags([]);
+		setTagEdits(NO_TAG_EDITS);
 		setPickedParent(undefined);
 		setPhase({ kind: "idle" });
 		priority.reset();
@@ -158,7 +169,7 @@ function ImportModal() {
 			dispatch,
 			parent,
 			priorityPosition: await priority.resolvePosition(),
-			tags,
+			tags: tags ?? undefined,
 		};
 		// Each element takes the next position, keeping the batch in order.
 		let placed = 0;
@@ -260,6 +271,7 @@ function ImportModal() {
 			? { key: phase.key, ...phase.error }
 			: null;
 	const count = items.length + (value.trim() ? 1 : 0);
+	const tagCount = tags?.length ?? 0;
 
 	const input = (
 		<AutosizeTextInput
@@ -382,17 +394,26 @@ function ImportModal() {
 							<ImportField
 								label="Tags"
 								description={
-									count > 1 && tags.length > 0
+									count > 1 && tagCount > 0
 										? `Applied to all ${itemsLabel(count)}`
 										: undefined
 								}>
 								<TagsInput
 									placeholder={
-										tags.length > 0 ? undefined : "Add tag"
+										tagCount > 0 ? undefined : "Add tag"
 									}
 									aria-label="Tags"
-									value={tags}
-									onChange={setTags}
+									value={tags ?? []}
+									disabled={tags === null}
+									error={parentTags.errorMessage}
+									onChange={value =>
+										setTagEdits(
+											tagEditsBetween(
+												parentTags.tags ?? [],
+												value,
+											),
+										)
+									}
 								/>
 							</ImportField>
 							<ImportPrioritySection

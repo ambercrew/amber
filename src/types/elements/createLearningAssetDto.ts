@@ -9,6 +9,6 @@ export interface CreateLearningAssetDto {
 	initialPriorityPosition?: number;
 	pdfBytesBase64?: string;
 	pdfPageCount?: number;
-	/** Added beside the parent's, in the same transaction. */
+	/** The learning asset's tags; unset copies the parent's. */
 	tags?: string[];
 }

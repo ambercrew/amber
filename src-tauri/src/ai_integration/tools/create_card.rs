@@ -416,6 +416,7 @@ pub(super) mod tests {
                         bibliographical_source_id: Some(bibliographical_source_id),
                     },
                 },
+                tags: None,
             })
             .await
             .unwrap();

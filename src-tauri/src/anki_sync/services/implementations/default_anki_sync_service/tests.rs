@@ -2171,6 +2171,7 @@ async fn preview_folder_made_in_amber_sent_under_the_amber_deck_and_imported_one
                         bibliographical_source_id: None,
                     },
                 },
+                tags: None,
             })
             .await
             .unwrap();
@@ -2227,6 +2228,7 @@ async fn create_folder_in(
                     bibliographical_source_id: None,
                 },
             },
+            tags: None,
         })
         .await
         .unwrap();

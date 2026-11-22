@@ -2,14 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { getPriorityPositionForNewElement } from "../../../api/elements/api/elementsApi";
 import { NewElementPriorityDto } from "../../../api/elements/dto/newElementPriorityDto";
 import { ElementId } from "../../../types/elements/elementId";
+import { parentKey } from "../utils/parentKey";
 
 /** Falls back to the front of the queue if the lookup fails, rather than
  * letting a priority-placement hiccup block the import itself. */
 const FALLBACK: NewElementPriorityDto = { position: 1, total: 1 };
-
-function keyOf(parent: ElementId | null): string {
-	return parent ? `${parent.type}:${parent.id}` : "";
-}
 
 /**
  * Queue size (counting the element to create) and the position new imports take: by default where the
@@ -25,7 +22,7 @@ export function useImportPriority(opened: boolean, parent: ElementId | null) {
 	} | null>(null);
 
 	function fetchDefault(): Promise<NewElementPriorityDto> {
-		const key = keyOf(parent);
+		const key = parentKey(parent);
 		if (defaultRef.current?.key !== key) {
 			defaultRef.current = {
 				key,
@@ -44,7 +41,7 @@ export function useImportPriority(opened: boolean, parent: ElementId | null) {
 			if (!customizedRef.current) setPosition(fetched.position);
 		});
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [opened, keyOf(parent)]);
+	}, [opened, parentKey(parent)]);
 
 	function handlePositionChange(newPosition: number) {
 		customizedRef.current = true;

@@ -54,12 +54,14 @@ impl AnkiImportService for DefaultAnkiImportService {
         bytes: Vec<u8>,
         parent: Option<ElementId>,
         bibliographical_source_id: Option<Uuid>,
+        tags: Option<Vec<String>>,
     ) -> Result<Option<ElementId>, AnkiImportError> {
         let extraction = tokio::task::spawn_blocking(move || extract_anki(bytes)).await??;
         self.create_decks(
             extraction,
             parent,
             bibliographical_source_id,
+            tags,
             HashMap::new(),
             Arc::new(|_| true),
         )
@@ -93,6 +95,7 @@ impl AnkiImportService for DefaultAnkiImportService {
             extraction,
             None,
             bibliographical_source_id,
+            None,
             folders,
             on_progress,
         )
@@ -103,12 +106,13 @@ impl AnkiImportService for DefaultAnkiImportService {
 
 impl DefaultAnkiImportService {
     /// A folder per deck and subdeck missing from `folders`, holding the deck's cards and occlusions.
-    /// Returns the first top-level folder created.
+    /// Top-level folders get `root_tags` (`None` copies the parent's). Returns the first one created.
     async fn create_decks(
         &self,
         extraction: AnkiExtraction,
         parent: Option<ElementId>,
         bibliographical_source_id: Option<Uuid>,
+        root_tags: Option<Vec<String>>,
         mut folders: HashMap<Vec<String>, ElementId>,
         on_progress: AnkiImportProgress,
     ) -> Result<Option<ElementId>, AnkiImportError> {
@@ -169,6 +173,7 @@ impl DefaultAnkiImportService {
                             parent: deck_parent,
                             origin: origin(),
                         },
+                        tags: if depth == 1 { root_tags.clone() } else { None },
                     })
                     .await?;
                 self.anki_card_link_repository
@@ -377,7 +382,7 @@ mod tests {
         // Act
 
         let root = service
-            .import_package(legacy_package(), None, None)
+            .import_package(legacy_package(), None, None, None)
             .await
             .unwrap();
 
@@ -436,7 +441,7 @@ mod tests {
         // Act
 
         service
-            .import_package(legacy_package(), None, None)
+            .import_package(legacy_package(), None, None, None)
             .await
             .unwrap();
 
@@ -555,7 +560,10 @@ mod tests {
 
         // Act
 
-        let root = service.import_package(package, None, None).await.unwrap();
+        let root = service
+            .import_package(package, None, None, None)
+            .await
+            .unwrap();
 
         // Assert
 

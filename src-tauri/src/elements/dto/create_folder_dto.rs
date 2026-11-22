@@ -10,4 +10,7 @@ pub struct CreateFolderDto {
     #[serde(default = "Uuid::new_v4")]
     pub id: Uuid,
     pub meta: CreateMetaDto,
+    /// The folder's tags; `None` copies the parent's.
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
 }

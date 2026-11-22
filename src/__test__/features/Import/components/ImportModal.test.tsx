@@ -4,7 +4,14 @@ import ImportModal from "../../../../features/Import/components/ImportModal";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { runFileImport } from "../../../../features/Import/flows/file";
 import { runUrlImport } from "../../../../features/Import/flows/url";
-import { getPriorityPositionForNewElement } from "../../../../api/elements/api/elementsApi";
+import {
+	getElementMeta,
+	getPriorityPositionForNewElement,
+} from "../../../../api/elements/api/elementsApi";
+import {
+	AnyElementDto,
+	MetaResponseDto,
+} from "../../../../api/elements/dto/anyElementDto";
 import { openImportedElement } from "../../../../features/Import/utils/openImportedElement";
 
 vi.mock(import("../../../../features/Import/flows/file"));
@@ -49,9 +56,33 @@ function pasteFiles(input: HTMLElement, files: File[]) {
 	});
 }
 
-async function renderOpenedModal() {
+const FOLDER_META: MetaResponseDto = {
+	elementId: { type: "folder", id: "folder-1" },
+	name: "History",
+	nameSource: "manual",
+	parent: null,
+	position: "a",
+	tags: ["rome", "greece"].map(name => ({
+		name,
+		createdAt: "",
+		modifiedAt: "",
+	})),
+	createdAt: "",
+	modifiedAt: "",
+	bibliographicalSourceId: null,
+	derivedFrom: null,
+};
+
+async function renderOpenedModal(currentElement: AnyElementDto | null = null) {
 	const result = renderWithProviders(<ImportModal />, {
 		preloadedState: {
+			elements: {
+				tree: [],
+				isLoading: false,
+				error: null,
+				currentElement,
+				zoomOwnedByCurrentView: false,
+			},
 			app: {
 				startedInitialStateLoading: false,
 				importModalOpened: true,
@@ -316,6 +347,39 @@ describe("ImportModal", () => {
 			true,
 			expect.any(Function),
 		);
+	});
+
+	it("Should import with the parent's tags less the removed ones when a parent tag is removed", async () => {
+		// Arrange
+
+		vi.mocked(getElementMeta).mockResolvedValue(FOLDER_META);
+		await renderOpenedModal({
+			type: "folder",
+			data: { meta: FOLDER_META },
+		});
+		pasteText(
+			screen.getByPlaceholderText("Paste a link or content"),
+			"https://jqlang.org/manual",
+		);
+		await screen.findByText("greece");
+		// Backspace in the empty input removes the last tag.
+		await userEvent.type(
+			screen.getByRole("combobox", { name: "Tags" }),
+			"{Backspace}jq{Enter}",
+		);
+
+		// Act
+
+		fireEvent.click(screen.getByRole("button", { name: "Import" }));
+
+		// Assert
+
+		await waitFor(() => {
+			expect(runUrlImport).toHaveBeenCalledWith(
+				"https://jqlang.org/manual",
+				expect.objectContaining({ tags: ["rome", "jq"] }),
+			);
+		});
 	});
 
 	it("Should keep only the failed and remaining items when an item fails", async () => {
