@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalExtensionComposer } from "@lexical/react/LexicalExtensionComposer";
 import { configExtension, defineExtension } from "lexical";
+import { CodeIndentExtension } from "@lexical/code-core";
 import {
 	Box,
 	Menu,
@@ -12,6 +13,8 @@ import {
 } from "@mantine/core";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { SlashMenuPlugin } from "./plugins/SlashMenuPlugin";
+import { CodeLanguagePlugin } from "./plugins/CodePlugin/CodeLanguagePlugin";
+import { CodeShortcutsExtension } from "./plugins/CodePlugin/CodeShortcutsExtension";
 import { EquationExtension } from "./plugins/EquationPlugin/EquationExtension";
 import { CodeHighlightExtension } from "./plugins/CodeHighlightPlugin/CodeHighlightExtension";
 import {
@@ -117,6 +120,11 @@ function EditorContent({
 				dependencies: [
 					...editorExtensionDependencies,
 					EquationExtension,
+					CodeShortcutsExtension,
+					// ArrowDown or ArrowRight at the end of a last code block adds a paragraph after it.
+					configExtension(CodeIndentExtension, {
+						escapeWithArrows: true,
+					}),
 					configExtension(CodeHighlightExtension, {
 						theme:
 							colorScheme === "dark"
@@ -168,6 +176,7 @@ function EditorContent({
 								}
 							/>
 							<SlashMenuPlugin />
+							<CodeLanguagePlugin />
 							<ImagePlugin />
 							<EquationEditingPlugin />
 							<LinkClickPlugin

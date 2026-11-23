@@ -1,3 +1,4 @@
+import { $createCodeNode } from "@lexical/code-core";
 import {
 	INSERT_ORDERED_LIST_COMMAND,
 	INSERT_UNORDERED_LIST_COMMAND,
@@ -12,6 +13,7 @@ import {
 	LexicalEditor,
 } from "lexical";
 import {
+	CodeBlockIcon,
 	ListBulletsIcon,
 	ListNumbersIcon,
 	ParagraphIcon,
@@ -21,6 +23,7 @@ import {
 	TextHTwoIcon,
 	type Icon,
 } from "@phosphor-icons/react";
+import { OPEN_CODE_LANGUAGE_PICKER_COMMAND } from "./CodePlugin/codeCommands";
 
 export type BlockIcon = Icon;
 
@@ -125,6 +128,24 @@ export function getBlockOptions(editor: LexicalEditor): BlockOption[] {
 						$setBlocksType(selection, () => $createQuoteNode());
 					}
 				}),
+		}),
+		new BlockOption("Code Block", {
+			Icon: CodeBlockIcon,
+			keywords: ["code", "codeblock", "snippet", "pre"],
+			onSelect: () => {
+				editor.update(() => {
+					const selection = $getSelection();
+					if ($isRangeSelection(selection)) {
+						$setBlocksType(selection, () =>
+							$createCodeNode("plaintext"),
+						);
+					}
+				});
+				editor.dispatchCommand(
+					OPEN_CODE_LANGUAGE_PICKER_COMMAND,
+					undefined,
+				);
+			},
 		}),
 	];
 }

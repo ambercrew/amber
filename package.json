@@ -38,6 +38,7 @@
 		"@lexical/link": "0.53.0",
 		"@lexical/list": "0.53.0",
 		"@lexical/mark": "0.53.0",
+		"@lexical/markdown": "0.53.0",
 		"@lexical/react": "0.53.0",
 		"@lexical/utils": "0.53.0",
 		"@mantine/charts": "^9.7.4",

@@ -8,6 +8,8 @@ import {
 	$getSelection,
 	$isElementNode,
 	$isRangeSelection,
+	$isParagraphNode,
+	KEY_ARROW_DOWN_COMMAND,
 	type LexicalEditor,
 	PASTE_TAG,
 	type TextNode,
@@ -179,6 +181,48 @@ describe("Editor", () => {
 		expect(
 			editor.getEditorState().read(() => $getRoot().getTextContent()),
 		).toBe("echo $PATH:$HOME");
+	});
+
+	it("Should add a paragraph after a last code block when ArrowDown is pressed at its end", async () => {
+		// Arrange
+
+		const editor = renderCapturedEditor();
+		await act(async () => {
+			editor.update(
+				() => {
+					const code = $createCodeNode();
+					code.append($createTextNode("ls"));
+					$getRoot().clear().append(code);
+				},
+				{ discrete: true },
+			);
+		});
+
+		// Act
+
+		await act(async () => {
+			editor.update(() => {
+				// Here, as the test DOM's selection resets it once highlighting settles.
+				$getRoot().getFirstChildOrThrow().selectEnd();
+				editor.dispatchCommand(
+					KEY_ARROW_DOWN_COMMAND,
+					new KeyboardEvent("keydown", { key: "ArrowDown" }),
+				);
+			});
+		});
+
+		// Assert
+
+		const caretInNewParagraph = editor.getEditorState().read(() => {
+			const last = $getRoot().getLastChild();
+			const selection = $getSelection();
+			return (
+				$isParagraphNode(last) &&
+				$isRangeSelection(selection) &&
+				selection.anchor.getNode().is(last)
+			);
+		});
+		expect(caretInNewParagraph).toBe(true);
 	});
 
 	it("Should leave $…$ as text when given stored text the caret is not in", async () => {
