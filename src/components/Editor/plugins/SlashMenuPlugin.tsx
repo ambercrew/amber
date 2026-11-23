@@ -73,7 +73,7 @@ export function SlashMenuPlugin() {
 				if (!anchorElementRef.current || options.length === 0)
 					return null;
 				return createPortal(
-					<Paper withBorder shadow="lg" p={4} miw={220}>
+					<Paper withBorder shadow="lg" p={4} miw={180}>
 						<ScrollArea.Autosize mah={300}>
 							{options.map((option, i) => (
 								<UnstyledButton
@@ -83,7 +83,8 @@ export function SlashMenuPlugin() {
 										option.setRefElement as React.Ref<HTMLButtonElement>
 									}
 									w="100%"
-									p="xs"
+									px="xs"
+									py={6}
 									className={styles["slash-menu-option"]}
 									bg={
 										i === selectedIndex
@@ -100,8 +101,8 @@ export function SlashMenuPlugin() {
 									}
 									onMouseEnter={() => setHighlightedIndex(i)}>
 									<Group gap="xs">
-										<option.Icon size={16} />
-										<Text size="md">{option.title}</Text>
+										<option.Icon size={14} />
+										<Text size="sm">{option.title}</Text>
 									</Group>
 								</UnstyledButton>
 							))}
