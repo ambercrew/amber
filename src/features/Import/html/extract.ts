@@ -1,5 +1,6 @@
 import Defuddle from "defuddle";
 import { hydrateLazyImages } from "../normalize/hydrateLazyImages";
+import { markCodeLanguages } from "../normalize/codeBlocks";
 
 export interface HtmlExtraction {
 	title: string | null;
@@ -12,6 +13,7 @@ export interface HtmlExtraction {
 export function extractHtml(text: string): HtmlExtraction {
 	const doc = new DOMParser().parseFromString(text, "text/html");
 	hydrateLazyImages(doc);
+	markCodeLanguages(doc);
 	const rawHtml = doc.body.innerHTML;
 	const documentTitle = doc.title.trim() || null;
 

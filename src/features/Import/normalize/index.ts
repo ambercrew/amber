@@ -2,6 +2,7 @@ import { sanitizeBody } from "../../../utils/sanitizeHtml";
 import { assetIdFromSrc, toCanonicalImageSrc } from "../../../utils/assetUrl";
 import { localizeImages } from "../images/localize";
 import { convertMath } from "./convertMath";
+import { prepareCodeBlocks } from "./codeBlocks";
 import { convertInlineSvgs } from "../images/svg";
 
 export interface NormalizeOptions {
@@ -12,7 +13,7 @@ export interface NormalizeOptions {
 	localizeImages?: typeof localizeImages;
 }
 
-/** Converts math to equations and inline SVGs to images, sanitizes HTML, and localizes its images. The result is stored directly as
+/** Converts math to equations and inline SVGs to images, prepares code blocks, sanitizes HTML, and localizes its images. The result is stored directly as
  * a LearningAsset's content — the editor already knows how to load HTML. */
 export async function normalize(
 	html: string,
@@ -30,6 +31,8 @@ export async function normalizeDocument(
 	// After math, so rendered math's SVGs become equations rather than images.
 	convertMath(raw);
 	convertInlineSvgs(raw);
+	// Before sanitizing, which drops the wrappers that may name the language.
+	prepareCodeBlocks(raw);
 	const body = sanitizeBody(raw.body);
 	const images = Array.from(body.querySelectorAll("img[src]"));
 

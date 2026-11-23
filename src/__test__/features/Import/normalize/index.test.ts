@@ -1,10 +1,22 @@
 import { normalize } from "../../../../features/Import/normalize";
+import { htmlToLexicalJson } from "../../../../components/Editor/lexicalJsonConversion";
 import {
 	localizeImages,
 	LocalizedImage,
 } from "../../../../features/Import/images/localize";
 
 vi.mock(import("../../../../features/Import/images/localize"));
+
+interface SerializedNode {
+	type: string;
+	language?: string;
+	children?: SerializedNode[];
+}
+
+function codeLanguages(node: SerializedNode): (string | undefined)[] {
+	const own = node.type === "code" ? [node.language] : [];
+	return [...own, ...(node.children ?? []).flatMap(codeLanguages)];
+}
 
 function localizeEveryImageAs(localized: LocalizedImage) {
 	vi.mocked(localizeImages).mockImplementation(async urls =>
@@ -29,6 +41,40 @@ describe("normalize", () => {
 		// Assert
 
 		expect(actual).toBe("<p>kept</p>");
+	});
+
+	it("Should keep the code block's language through sanitizing when its code names one", async () => {
+		// Arrange
+
+		const html =
+			'<div class="highlight-source-python"><pre><code>x = 1</code></pre></div>';
+
+		// Act
+
+		const actual = await normalize(html, { baseUrl: null });
+
+		// Assert
+
+		expect(actual).toBe('<pre data-language="python">x = 1</pre>');
+	});
+
+	it("Should make one code block with the language when the code spans lines", async () => {
+		// Arrange
+
+		const html =
+			'<pre><code class="language-rust">let a = 1;\nlet b = 2;</code></pre>';
+
+		// Act
+
+		const json = htmlToLexicalJson(
+			await normalize(html, { baseUrl: null }),
+		);
+
+		// Assert
+
+		expect(
+			codeLanguages((JSON.parse(json) as { root: SerializedNode }).root),
+		).toEqual(["rust"]);
 	});
 
 	it("Should keep math as an equation element through sanitizing when given MathML", async () => {
