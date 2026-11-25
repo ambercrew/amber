@@ -1,4 +1,11 @@
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ImportModal from "../../../../features/Import/components/ImportModal";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
@@ -13,6 +20,11 @@ import {
 	MetaResponseDto,
 } from "../../../../api/elements/dto/anyElementDto";
 import { openImportedElement } from "../../../../features/Import/utils/openImportedElement";
+import { ReactElement } from "react";
+import { cleanNotifications, notificationsStore } from "@mantine/notifications";
+import { MantineProvider } from "@mantine/core";
+import { openImportModal } from "../../../../stores/app/appReducer";
+import { AppStore } from "../../../../stores/store";
 
 vi.mock(import("../../../../features/Import/flows/file"));
 vi.mock(import("../../../../features/Import/flows/url"));
@@ -117,7 +129,48 @@ async function renderOpenedModal(currentElement: AnyElementDto | null = null) {
 	return result;
 }
 
+function deferred<T>() {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>(r => (resolve = r));
+	return { promise, resolve };
+}
+
+/** Starts importing one PDF whose import waits on the returned `finish`, then closes the modal. */
+async function closeDuringImport() {
+	const pending = deferred<Awaited<ReturnType<typeof runFileImport>>>();
+	vi.mocked(runFileImport).mockReturnValueOnce(pending.promise);
+	const { store } = await renderOpenedModal();
+	pasteFiles(screen.getByPlaceholderText("Paste a link or content"), [
+		pdfFile("article.pdf"),
+	]);
+	fireEvent.click(screen.getByRole("button", { name: "Import" }));
+	await screen.findByText("Importing…");
+	fireEvent.click(screen.getByRole("button", { name: "Close" }));
+	return { store, finish: pending.resolve };
+}
+
+function shownNotifications() {
+	return notificationsStore.getState().notifications;
+}
+
+/** Renders a notification's message on its own, so its button can be clicked. */
+function renderNotificationMessage(index: number) {
+	render(
+		<MantineProvider>
+			{shownNotifications()[index].message as ReactElement}
+		</MantineProvider>,
+	);
+}
+
+function isModalOpened(store: AppStore) {
+	return store.getState().app.importModalOpened;
+}
+
 describe("ImportModal", () => {
+	afterEach(() => {
+		act(() => cleanNotifications());
+	});
+
 	beforeEach(() => {
 		vi.mocked(getPriorityPositionForNewElement).mockResolvedValue({
 			position: 5,
@@ -490,5 +543,137 @@ describe("ImportModal", () => {
 		expect(vi.mocked(runFileImport).mock.calls[0][1].priorityPosition).toBe(
 			6,
 		);
+	});
+
+	it("Should keep importing and show its progress in a notification when the modal is closed during an import", async () => {
+		// Arrange & Act
+
+		const { store } = await closeDuringImport();
+
+		// Assert
+
+		expect(isModalOpened(store)).toBe(false);
+		await waitFor(() => {
+			expect(shownNotifications()).toContainEqual(
+				expect.objectContaining({
+					id: "import-progress",
+					loading: true,
+				}),
+			);
+		});
+	});
+
+	it("Should report the import in a notification without opening its element when it finishes with the modal closed", async () => {
+		// Arrange
+
+		const { finish } = await closeDuringImport();
+
+		// Act
+
+		await act(async () => finish(created("article-id")));
+
+		// Assert
+
+		await waitFor(() => {
+			expect(shownNotifications()).toHaveLength(1);
+		});
+		expect(shownNotifications()[0].id).not.toBe("import-progress");
+		expect(openImportedElement).not.toHaveBeenCalled();
+		renderNotificationMessage(0);
+		expect(screen.getByText("Imported 1 item.")).toBeInTheDocument();
+	});
+
+	it("Should open the imported element when Open is clicked in the finished import's notification", async () => {
+		// Arrange
+
+		const { finish } = await closeDuringImport();
+		await act(async () => finish(created("article-id")));
+		await waitFor(() => {
+			expect(shownNotifications()).toHaveLength(1);
+		});
+		renderNotificationMessage(0);
+
+		// Act
+
+		fireEvent.click(screen.getByRole("button", { name: "Open" }));
+
+		// Assert
+
+		expect(openImportedElement).toHaveBeenCalledExactlyOnceWith(
+			expect.any(Function),
+			expect.any(Function),
+			{ type: "learningAsset", id: "article-id" },
+		);
+	});
+
+	it("Should report the failure in a notification and keep the failed item when an import fails with the modal closed", async () => {
+		// Arrange
+
+		const { store, finish } = await closeDuringImport();
+
+		// Act
+
+		await act(async () => finish(NO_TEXT_LAYER));
+
+		// Assert
+
+		await waitFor(() => {
+			expect(shownNotifications()).toContainEqual(
+				expect.objectContaining({ color: "red" }),
+			);
+		});
+		act(() => {
+			store.dispatch(openImportModal());
+		});
+		expect(
+			await screen.findByText("This PDF has no selectable text."),
+		).toBeInTheDocument();
+		expect(screen.getByText("article.pdf")).toBeInTheDocument();
+	});
+
+	it("Should show the import's progress again when Show is clicked in its notification", async () => {
+		// Arrange
+
+		const { store } = await closeDuringImport();
+		await waitFor(() => {
+			expect(shownNotifications()[0]?.message).toBeTruthy();
+		});
+		renderNotificationMessage(0);
+
+		// Act
+
+		fireEvent.click(screen.getByRole("button", { name: "Show" }));
+
+		// Assert
+
+		expect(isModalOpened(store)).toBe(true);
+		expect(
+			within(await screen.findByRole("dialog")).getByText("Importing…"),
+		).toBeInTheDocument();
+		await waitFor(() => {
+			expect(shownNotifications()).toHaveLength(0);
+		});
+	});
+
+	it("Should clear the staged items when the modal is closed with nothing importing", async () => {
+		// Arrange
+
+		const { store } = await renderOpenedModal();
+		pasteFiles(screen.getByPlaceholderText("Paste a link or content"), [
+			pdfFile("article.pdf"),
+		]);
+
+		// Act
+
+		fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+		act(() => {
+			store.dispatch(openImportModal());
+		});
+
+		// Assert
+
+		expect(isModalOpened(store)).toBe(true);
+		expect(screen.queryByText("article.pdf")).not.toBeInTheDocument();
+		expect(runFileImport).not.toHaveBeenCalled();
 	});
 });

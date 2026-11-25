@@ -2,10 +2,13 @@ import {
 	ClipboardEvent,
 	KeyboardEvent,
 	SyntheticEvent,
+	useEffect,
 	useRef,
 	useState,
 } from "react";
 import { useNavigate } from "react-router";
+import { useStore } from "react-redux";
+import { notifications } from "@mantine/notifications";
 import {
 	Button,
 	Loader,
@@ -23,7 +26,12 @@ import useAppSelector from "../../../hooks/useAppSelector";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { selectIsImportModalOpened } from "../../../stores/app/appSelectors";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
-import { closeImportModal } from "../../../stores/app/appReducer";
+import {
+	closeImportModal,
+	openImportModal,
+} from "../../../stores/app/appReducer";
+import { RootState } from "../../../stores/store";
+import { countNoun } from "../../../utils/countNoun";
 import { ElementId } from "../../../types/elements/elementId";
 import { ElementNodeType } from "../../../types/elements/elementNodeType";
 import { asUrl, classifyPaste } from "../utils/classify";
@@ -55,6 +63,7 @@ import {
 	tagEditsBetween,
 } from "../utils/tagEdits";
 import ModalActions from "../../../components/AppModal/ModalActions";
+import ImportNotificationMessage from "./ImportNotificationMessage";
 
 // Dropzone turns off pointer events on its contents, so the form turns them back on. It and the
 // Dropzone fill the body, so a full-screen modal's buttons reach its bottom.
@@ -76,6 +85,8 @@ const DROPZONE_STYLES = {
 
 const PARENT_TYPES: ElementNodeType[] = ["folder", "learningAsset", "extract"];
 
+const PROGRESS_NOTIFICATION_ID = "import-progress";
+
 type Phase =
 	| { kind: "idle" }
 	| {
@@ -94,11 +105,16 @@ function itemsLabel(count: number): string {
 	return count === 1 ? "1 item" : `${count} items`;
 }
 
+function progressText(label: string, progress?: PdfProgress): string {
+	return progress ? `${label} ${progress.done}/${progress.total}` : label;
+}
+
 function ImportModal() {
 	const opened = useAppSelector(selectIsImportModalOpened);
 	const currentElement = useAppSelector(selectCurrentElement);
 	const dispatch = useAppDispatch();
 	const navigate = useNavigate();
+	const store = useStore<RootState>();
 
 	const [value, setValue] = useState("");
 	const [items, setItems] = useState<ImportItem[]>([]);
@@ -127,11 +143,21 @@ function ImportModal() {
 		priority.reset();
 	}
 
+	// Read when the import ends, as the user may have closed or reopened the modal since it started.
+	function isModalClosed() {
+		return !selectIsImportModalOpened(store.getState());
+	}
+
 	function handleClose() {
-		cancelledRef.current = true;
-		reset();
+		// Closing mid-import only hides the modal: the import goes on and reports in a notification.
+		if (phase.kind !== "importing") {
+			cancelledRef.current = true;
+			reset();
+		}
 		dispatch(closeImportModal());
 	}
+
+	const showModal = () => dispatch(openImportModal());
 
 	function updateItems(update: (items: ImportItem[]) => ImportItem[]) {
 		setItems(update);
@@ -201,13 +227,42 @@ function ImportModal() {
 				setItems(toImport.slice(index));
 				setPhase({ kind: "error", key: item.key, error: result.error });
 				if (placed > 0) priority.advance(ctx.priorityPosition, placed);
-				if (lastCreated)
+				if (isModalClosed()) {
+					notifications.show({
+						color: "red",
+						autoClose: false,
+						message: (
+							<ImportNotificationMessage
+								text={`Import stopped: ${result.error.message}`}
+								actionLabel="Show"
+								onAction={showModal}
+							/>
+						),
+					});
+				} else if (lastCreated)
 					await openImportedElement(dispatch, navigate, lastCreated);
 				return;
 			}
 		}
 
-		if (lastCreated)
+		// A user who moved on isn't taken away from what they're doing; the notification offers the element.
+		if (isModalClosed()) {
+			const text = `Imported ${countNoun(toImport.length, "item")}.`;
+			const opened = lastCreated;
+			notifications.show({
+				message: opened ? (
+					<ImportNotificationMessage
+						text={text}
+						actionLabel="Open"
+						onAction={() =>
+							void openImportedElement(dispatch, navigate, opened)
+						}
+					/>
+				) : (
+					text
+				),
+			});
+		} else if (lastCreated)
 			await openImportedElement(dispatch, navigate, lastCreated);
 		reset();
 		dispatch(closeImportModal());
@@ -262,6 +317,40 @@ function ImportModal() {
 	}
 
 	const isImporting = phase.kind === "importing";
+	const backgroundProgress =
+		!opened && phase.kind === "importing"
+			? progressText(phase.label, phase.progress)
+			: null;
+	const isImportingInBackground = backgroundProgress !== null;
+
+	// While the modal is closed, a notification stands in for its progress view.
+	useEffect(() => {
+		if (!isImportingInBackground) return;
+		notifications.show({
+			id: PROGRESS_NOTIFICATION_ID,
+			loading: true,
+			autoClose: false,
+			withCloseButton: false,
+			message: "",
+		});
+		return () => {
+			notifications.hide(PROGRESS_NOTIFICATION_ID);
+		};
+	}, [isImportingInBackground]);
+
+	useEffect(() => {
+		if (backgroundProgress === null) return;
+		notifications.update({
+			id: PROGRESS_NOTIFICATION_ID,
+			message: (
+				<ImportNotificationMessage
+					text={backgroundProgress}
+					actionLabel="Show"
+					onAction={() => dispatch(openImportModal())}
+				/>
+			),
+		});
+	}, [backgroundProgress, dispatch]);
 	const inputError =
 		phase.kind === "error" && phase.key === null
 			? phase.error.message
@@ -300,10 +389,7 @@ function ImportModal() {
 			onClose={handleClose}
 			title="Import"
 			size="lg"
-			fullScreenOnSmallScreen
-			withCloseButton={!isImporting}
-			closeOnClickOutside={!isImporting}
-			closeOnEscape={!isImporting}>
+			fullScreenOnSmallScreen>
 			<Dropzone
 				accept={FILE_FORMATS_ACCEPT}
 				activateOnClick={false}
@@ -325,10 +411,11 @@ function ImportModal() {
 					<Stack align="center" gap="sm" py="md">
 						<Loader size="sm" />
 						<Text size="sm" c="dimmed">
-							{phase.label}
-							{phase.progress
-								? ` ${phase.progress.done}/${phase.progress.total}`
-								: ""}
+							{progressText(phase.label, phase.progress)}
+						</Text>
+						<Text size="xs" c="dimmed" ta="center">
+							You can close this and keep working; the import
+							carries on.
 						</Text>
 						{phase.progress && (
 							<Progress
