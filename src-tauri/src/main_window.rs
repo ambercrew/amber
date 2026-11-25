@@ -24,7 +24,24 @@ pub fn create_config_windows(app: &App<AppRuntime>) -> tauri::Result<()> {
         };
         #[cfg(all(feature = "cef", debug_assertions))]
         let builder = builder.initialization_script(F12_DEVTOOLS_SCRIPT);
-        builder.build()?;
+        #[cfg_attr(not(feature = "cef"), expect(unused_variables))]
+        let window = builder.build()?;
+        #[cfg(feature = "cef")]
+        refocus_webview_on_activation(&window);
     }
     Ok(())
+}
+
+/// CEF leaves keyboard focus off the browser when its window is reactivated (e.g. by Alt+Tab),
+/// so the page, and its focused editor, stops receiving keys until clicked.
+#[cfg(feature = "cef")]
+fn refocus_webview_on_activation(window: &tauri::WebviewWindow<AppRuntime>) {
+    let webview = window.as_ref().clone();
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::Focused(true) = event
+            && let Err(error) = webview.set_focus()
+        {
+            log::warn!("Couldn't refocus the webview: {error}");
+        }
+    });
 }
