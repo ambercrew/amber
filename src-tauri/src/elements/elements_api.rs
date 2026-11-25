@@ -469,6 +469,21 @@ pub async fn update_element_tags(
 }
 
 #[tauri::command]
+pub async fn search_tags(
+    injector: State<'_, Arc<Injector>>,
+    query: String,
+    limit: u32,
+) -> Result<Vec<String>, ApiError> {
+    let scope = injector.start_scope();
+    let names = scope
+        .resolve::<dyn MetaRepository>()
+        .await
+        .search_tags(&query, limit)
+        .await?;
+    Ok(names)
+}
+
+#[tauri::command]
 pub async fn add_tag_bulk(
     injector: State<'_, Arc<Injector>>,
     element_ids: Vec<ElementId>,

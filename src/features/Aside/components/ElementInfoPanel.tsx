@@ -5,7 +5,6 @@ import {
 	NumberInput,
 	Stack,
 	Text,
-	TagsInput,
 } from "@mantine/core";
 import useAppSelector from "../../../hooks/useAppSelector";
 import useAppDispatch from "../../../hooks/useAppDispatch";
@@ -32,6 +31,7 @@ import ReviewDetails from "./ReviewDetails";
 import OriginSection from "./OriginSection";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import { useSyncFlushedDebouncedCallback } from "../hooks/useSyncFlushedDebouncedCallback";
+import TagInput from "../../../components/TagInput/TagInput";
 
 function ElementInfoPanel() {
 	const currentElement = useAppSelector(selectCurrentElement);
@@ -72,7 +72,7 @@ function ElementInfoPanel() {
 					nameSource={storedMeta.nameSource}
 				/>
 				<InfoField label="Tags">
-					<TagsInput
+					<TagInput
 						key={`tags-${storedMeta.elementId.id}-${refreshCount}`}
 						placeholder="Enter tag"
 						size="sm"

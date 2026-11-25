@@ -180,6 +180,31 @@ impl MetaRepository for SqliteMetaRepository {
         Ok(())
     }
 
+    async fn search_tags(&self, query: &str, limit: u32) -> Result<Vec<String>, RepositoryError> {
+        let query = query.trim().to_lowercase();
+        let limit = i64::from(limit);
+        let mut tx = self.tx.lock().await;
+        let tx = tx.as_mut();
+
+        // Reads only `element_tags_tag_id_index`, never the table; `instr` needs no LIKE escaping.
+        let names = sqlx::query_scalar!(
+            r#"SELECT tag_id FROM element_tags
+            WHERE instr(lower(tag_id), $1) > 0
+            GROUP BY tag_id
+            ORDER BY lower(tag_id) = $1 DESC,
+                instr(lower(tag_id), $1) = 1 DESC,
+                COUNT(*) DESC,
+                tag_id COLLATE NOCASE
+            LIMIT $2"#,
+            query,
+            limit,
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+
+        Ok(names)
+    }
+
     async fn add_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError> {
         let uuid = id.id().hyphenated();
         let mut tx = self.tx.lock().await;
@@ -1172,6 +1197,74 @@ mod tests {
         // Assert
 
         assert_eq!(vec!["philosophy".to_string(), "history".to_string()], tags);
+    }
+
+    async fn tag_two_elements(repo: &Arc<dyn MetaRepository>, first: &[&str], second: &[&str]) {
+        for tags in [first, second] {
+            let id = ElementId::Folder(Uuid::new_v4());
+            repo.create_meta(&make_meta(id)).await.unwrap();
+            let tags = tags.iter().map(|t| t.to_string()).collect();
+            repo.update_tags(id, tags).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn search_tags_empty_query_orders_most_used_first() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        tag_two_elements(&repo, &["history", "philosophy"], &["philosophy", "Art"]).await;
+
+        // Act
+
+        let actual = repo.search_tags("", 10).await.unwrap();
+
+        // Assert
+
+        assert_eq!(vec!["philosophy", "Art", "history"], actual);
+    }
+
+    #[tokio::test]
+    async fn search_tags_query_ranks_exact_then_prefix_then_containing() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        tag_two_elements(
+            &repo,
+            &["prehistory", "histology"],
+            &["prehistory", "History", "art"],
+        )
+        .await;
+
+        // Act
+
+        let actual = repo.search_tags(" HIST", 10).await.unwrap();
+
+        // Assert
+
+        assert_eq!(vec!["histology", "History", "prehistory"], actual);
+    }
+
+    #[tokio::test]
+    async fn search_tags_more_matches_than_limit_returns_only_limit() {
+        // Arrange
+
+        let injector = initialize_test_injector().await;
+        let scope = injector.start_scope();
+        let repo = scope.resolve::<dyn MetaRepository>().await;
+        tag_two_elements(&repo, &["a1", "a2"], &["a3"]).await;
+
+        // Act
+
+        let actual = repo.search_tags("a", 2).await.unwrap();
+
+        // Assert
+
+        assert_eq!(2, actual.len());
     }
 
     #[tokio::test]

@@ -1,4 +1,5 @@
-import { Stack, TagsInput } from "@mantine/core";
+import { Stack } from "@mantine/core";
+import TagInput from "../../TagInput/TagInput";
 import { TagsFilter } from "../../../api/savedSearches/dto/elementFilter";
 import { FILTER_EDITOR_WIDTH } from "../constants";
 import FilterOperatorSelect from "./FilterOperatorSelect";
@@ -28,7 +29,7 @@ export default function TagsFilterEditor({
 					})
 				}
 			/>
-			<TagsInput
+			<TagInput
 				placeholder="Add tags"
 				data-autofocus
 				value={filter.tags}

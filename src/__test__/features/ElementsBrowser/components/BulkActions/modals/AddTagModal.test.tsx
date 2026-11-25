@@ -2,7 +2,10 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import AddTagModal from "../../../../../../features/ElementsBrowser/components/BulkActions/modals/AddTagModal";
 import { BulkCallApi } from "../../../../../../features/ElementsBrowser/components/BulkActions/bulkCallApi";
-import { addTagBulk } from "../../../../../../api/elements/api/elementsApi";
+import {
+	addTagBulk,
+	searchTags,
+} from "../../../../../../api/elements/api/elementsApi";
 import { ElementId } from "../../../../../../types/elements/elementId";
 import { renderWithProviders } from "../../../../../test-utils/renderWithProviders";
 
@@ -32,6 +35,7 @@ function render() {
 describe("AddTagModal", () => {
 	beforeEach(() => {
 		vi.mocked(addTagBulk).mockResolvedValue(undefined);
+		vi.mocked(searchTags).mockResolvedValue(["philosophy", "history"]);
 	});
 
 	it("Should render the title and an empty tags input when opened", () => {

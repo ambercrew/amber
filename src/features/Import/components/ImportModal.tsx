@@ -9,19 +9,13 @@ import {
 import { useNavigate } from "react-router";
 import { useStore } from "react-redux";
 import { notifications } from "@mantine/notifications";
-import {
-	Button,
-	Loader,
-	Progress,
-	Stack,
-	TagsInput,
-	Text,
-} from "@mantine/core";
+import { Button, Loader, Progress, Stack, Text } from "@mantine/core";
 import { Dropzone } from "@mantine/dropzone";
 import { ArrowsInSimpleIcon } from "@phosphor-icons/react";
 import AppModal from "../../../components/AppModal/AppModal";
 import AutosizeTextInput from "../../../components/AutosizeTextInput/AutosizeTextInput";
 import ElementSelect from "../../../components/ElementSelect/ElementSelect";
+import TagInput from "../../../components/TagInput/TagInput";
 import useAppSelector from "../../../hooks/useAppSelector";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { selectIsImportModalOpened } from "../../../stores/app/appSelectors";
@@ -485,7 +479,7 @@ function ImportModal() {
 										? `Applied to all ${itemsLabel(count)}`
 										: undefined
 								}>
-								<TagsInput
+								<TagInput
 									placeholder={
 										tagCount > 0 ? undefined : "Add tag"
 									}

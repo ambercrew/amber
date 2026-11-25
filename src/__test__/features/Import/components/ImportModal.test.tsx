@@ -14,6 +14,7 @@ import { runUrlImport } from "../../../../features/Import/flows/url";
 import {
 	getElementMeta,
 	getPriorityPositionForNewElement,
+	searchTags,
 } from "../../../../api/elements/api/elementsApi";
 import {
 	AnyElementDto,
@@ -172,6 +173,7 @@ describe("ImportModal", () => {
 	});
 
 	beforeEach(() => {
+		vi.mocked(searchTags).mockResolvedValue([]);
 		vi.mocked(getPriorityPositionForNewElement).mockResolvedValue({
 			position: 5,
 			total: 10,

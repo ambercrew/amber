@@ -200,6 +200,7 @@ pub async fn run() {
             get_element_name,
             move_element,
             update_element_tags,
+            search_tags,
             add_tag_bulk,
             remove_tag_bulk,
             set_derived_from,

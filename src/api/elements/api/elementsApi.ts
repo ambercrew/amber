@@ -197,6 +197,10 @@ export function updateElementTags(
 	return invoke("update_element_tags", { elementId, tags });
 }
 
+export function searchTags(query: string, limit: number): Promise<string[]> {
+	return invoke("search_tags", { query, limit });
+}
+
 export function addTagBulk(
 	elementIds: ElementId[],
 	tags: string[],

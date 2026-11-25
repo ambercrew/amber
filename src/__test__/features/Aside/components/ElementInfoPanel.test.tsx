@@ -11,7 +11,10 @@ import {
 	setElementDue,
 	setElementsStatus,
 } from "../../../../api/study/api/studyApi";
-import { updateElementTags } from "../../../../api/elements/api/elementsApi";
+import {
+	searchTags,
+	updateElementTags,
+} from "../../../../api/elements/api/elementsApi";
 import {
 	defaultGlobalSyncEventManager,
 	ListenerType,
@@ -145,6 +148,7 @@ function renderPanel(currentElement: AnyElementDto, details = makeDetails()) {
 
 describe("ElementInfoPanel", () => {
 	beforeEach(() => {
+		vi.mocked(searchTags).mockResolvedValue([]);
 		vi.mocked(listBibliographicalSources).mockResolvedValue([]);
 		localStorage.setItem("element-info-panel.details.opened", "true");
 		localStorage.setItem("element-info-panel.study.opened", "true");

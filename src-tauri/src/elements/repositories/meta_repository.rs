@@ -29,6 +29,10 @@ pub trait MetaRepository: Send + Sync {
     ) -> Result<std::collections::HashMap<Uuid, Vec<String>>, RepositoryError>;
     async fn update_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError>;
 
+    /// Up to `limit` tags in use containing `query` (case-insensitive), for autocompleting tag
+    /// inputs: an exact match first, then ones starting with it, then the rest, most used first.
+    async fn search_tags(&self, query: &str, limit: u32) -> Result<Vec<String>, RepositoryError>;
+
     /// Adds `tags` to the element's existing tags, ignoring ones already present.
     async fn add_tags(&self, id: ElementId, tags: Vec<String>) -> Result<(), RepositoryError>;
 
