@@ -178,12 +178,37 @@ describe("useAutoSave", () => {
 
 		const { onSaveCompleteCb } = renderAutoSave();
 		await addListenerSpy.mock.calls.find(
-			a => a[0] === ListenerType.PreSyncComplete,
+			a =>
+				a[0] === ListenerType.PreSyncComplete &&
+				a[1] === onSaveCompleteCb,
 		)![1]();
 
 		// Assert
 
 		expect(onSaveCompleteCb).toHaveBeenCalled();
+	});
+
+	it("Should save content typed during a sync when the sync completes", async () => {
+		// Arrange
+
+		const addListenerSpy = vi.spyOn(
+			defaultGlobalSyncEventManager,
+			"addListener",
+		);
+		const { returnValue, onSaveCb, onSaveCompleteCb } = renderAutoSave();
+		returnValue.result.current.onContentUpdate(() => "typed during sync");
+
+		// Act
+
+		await addListenerSpy.mock.calls.find(
+			a =>
+				a[0] === ListenerType.PreSyncComplete &&
+				a[1] !== onSaveCompleteCb,
+		)![1]();
+
+		// Assert
+
+		expect(onSaveCb).toHaveBeenCalledWith("typed during sync");
 	});
 
 	it("Should register a close-requested handler per instance when several editors are mounted at once", async () => {

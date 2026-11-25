@@ -44,7 +44,9 @@ describe("Anki sync HTML round trip", () => {
 		["a numbered list", "<ol><li>one</li><li>two</li></ol>"],
 		["headings", "<h1>Title</h1><h2>Section</h2><p>Text</p>"],
 		["a quote", "<blockquote>Veni, vidi, vici</blockquote>"],
-		["code", "<pre><code>let x = 1;</code></pre>"],
+		// The editor always sets a code block's language, which import keeps.
+		["code", '<pre data-language="javascript">let x = 1;</pre>'],
+		["plain text code", '<pre data-language="plaintext">x = 1</pre>'],
 		["inline code", "<p>Call <code>f(x)</code></p>"],
 		[
 			"equations",

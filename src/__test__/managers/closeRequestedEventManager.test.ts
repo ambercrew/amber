@@ -43,6 +43,54 @@ describe("CloseRequestedEventManager", () => {
 		expect(cb).toHaveBeenCalled();
 	});
 
+	it("Should keep the window open and skip later handlers when a handler resolves false", async () => {
+		// Arrange
+
+		manager.addHandler("keeps open", {
+			priority: 0,
+			cb: () => Promise.resolve(false),
+		});
+		const later = vi.fn();
+		manager.addHandler("later", { priority: 1, cb: later });
+		const event = { preventDefault: vi.fn() };
+
+		// Act
+
+		await (
+			onCloseRequestedMock.mock.calls[0][0] as (
+				e: typeof event,
+			) => Promise<void>
+		)(event);
+
+		// Assert
+
+		expect(event.preventDefault).toHaveBeenCalled();
+		expect(later).not.toHaveBeenCalled();
+	});
+
+	it("Should let the window close when every handler finishes", async () => {
+		// Arrange
+
+		manager.addHandler("saves", { priority: 0, cb: vi.fn() });
+		manager.addHandler("syncs", {
+			priority: 1,
+			cb: () => Promise.resolve(true),
+		});
+		const event = { preventDefault: vi.fn() };
+
+		// Act
+
+		await (
+			onCloseRequestedMock.mock.calls[0][0] as (
+				e: typeof event,
+			) => Promise<void>
+		)(event);
+
+		// Assert
+
+		expect(event.preventDefault).not.toHaveBeenCalled();
+	});
+
 	it("Should not call removed handler", async () => {
 		// Arrange
 

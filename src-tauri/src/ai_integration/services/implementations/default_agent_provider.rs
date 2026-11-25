@@ -420,9 +420,13 @@ pub mod tests {
         let injector = initialize_test_injector(mock_client).await;
         let scope = injector.start_scope();
         scope
-            .resolve::<dyn MetaRepository>()
+            .resolve::<dyn ExtractRepository>()
             .await
-            .create_meta(&make_meta(element_id, None))
+            .create(Extract {
+                meta: make_meta(element_id, None),
+                content: String::new(),
+                interval_multiplier: 1.2,
+            })
             .await
             .unwrap();
         let service = scope.resolve::<dyn AgentProvider>().await;

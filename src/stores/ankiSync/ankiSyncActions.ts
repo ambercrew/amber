@@ -21,7 +21,6 @@ import {
 } from "../elements/elementsActions";
 import { AppDispatch, RootState } from "../store";
 import { sync } from "../sync/syncActions";
-import { selectIsSyncing } from "../sync/syncSelectors";
 import {
 	selectIsOffline,
 	selectIsSignedIn,
@@ -47,10 +46,11 @@ function progressMessage(progress: AnkiSyncProgressEventDto | null) {
 }
 
 /**
- * Cloud-syncs around an Anki sync, so another computer sees what this one took from Anki and doesn't
- * take it again; skipped offline, signed out or mid-sync. True when the account syncs but this didn't.
+ * Cloud-syncs around an Anki sync, so another computer sees what this one took from Anki and doesn't take it
+ * again; skipped offline or signed out. True when the account syncs but this didn't. `afterAnkiSync` runs a
+ * new sync rather than joining a running one, which may have pushed before the Anki sync's writes.
  */
-function syncWithOtherDevices() {
+function syncWithOtherDevices(afterAnkiSync = false) {
 	return async (
 		dispatch: AppDispatch,
 		getState: () => RootState,
@@ -60,8 +60,8 @@ function syncWithOtherDevices() {
 			selectIsSignedIn(state) &&
 			!!selectUserInformation(state)?.isEmailVerified;
 		if (!syncs) return false;
-		if (selectIsOffline(state) || selectIsSyncing(state)) return true;
-		return !(await dispatch(sync()));
+		if (selectIsOffline(state)) return true;
+		return !(await dispatch(sync({ afterRunning: afterAnkiSync })));
 	};
 }
 
@@ -141,6 +141,6 @@ export function runAnkiSync(deckChoices: AnkiDeckChoiceDto[]) {
 			dispatch(setIsAnkiSyncBusy(false));
 		}
 		// Even after a failure, which may have taken things from Anki already.
-		await dispatch(syncWithOtherDevices());
+		await dispatch(syncWithOtherDevices(true));
 	};
 }

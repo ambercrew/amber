@@ -176,9 +176,10 @@ calls. Writes to Anki can't be undone, so they come after the Amber writes they 
 Each device keeps its own records of a profile (sent notes, pairs, last sync, deck choices); only
 `anki_card_links`, `anki_answered_reviews` and `folders.anki_deck` are cloud-synced. So the frontend
 cloud-syncs before the preview and after the Anki sync (`syncWithOtherDevices` in `ankiSyncActions.ts`), and
-another computer sees what this one took from Anki before taking it again. When the account syncs but that
-first sync couldn't run (offline, already syncing, failed), the review gets `missedCloudSync` and warns that
-ticked decks may be imported twice. Keep anything that must agree across devices deterministic or synced.
+another computer sees what this one took from Anki before taking it again. The first joins a cloud sync already
+running, as it only needs to pull; the second passes `afterRunning`, as a running one may have pushed before the
+Anki sync's writes. When the account syncs but that first sync couldn't run (offline, failed), the review gets
+`missedCloudSync` and warns that ticked decks may be imported twice. Keep anything that must agree across devices deterministic or synced.
 
 ## Changing it
 

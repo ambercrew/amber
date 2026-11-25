@@ -7,7 +7,6 @@ import {
 	Text,
 	TagsInput,
 } from "@mantine/core";
-import { useDebouncedCallback } from "@mantine/hooks";
 import useAppSelector from "../../../hooks/useAppSelector";
 import useAppDispatch from "../../../hooks/useAppDispatch";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
@@ -32,6 +31,7 @@ import InfoGroup from "./InfoGroup";
 import ReviewDetails from "./ReviewDetails";
 import OriginSection from "./OriginSection";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
+import { useSyncFlushedDebouncedCallback } from "../hooks/useSyncFlushedDebouncedCallback";
 
 function ElementInfoPanel() {
 	const currentElement = useAppSelector(selectCurrentElement);
@@ -40,12 +40,13 @@ function ElementInfoPanel() {
 	const details = useAppSelector(selectCurrentElementDetails);
 	const refreshCount = useAppSelector(selectElementRefreshCount);
 
-	const debouncedUpdateTags = useDebouncedCallback(
+	// Both fields remount when a sync changed the element, so their pending writes land first.
+	const debouncedUpdateTags = useSyncFlushedDebouncedCallback(
 		(id: ElementId, tags: string[]) => updateElementTags(id, tags),
 		500,
 	);
 
-	const debouncedUpdateIntervalMultiplier = useDebouncedCallback(
+	const debouncedUpdateIntervalMultiplier = useSyncFlushedDebouncedCallback(
 		(id: ElementId, value: number) => updateIntervalMultiplier(id, value),
 		500,
 	);

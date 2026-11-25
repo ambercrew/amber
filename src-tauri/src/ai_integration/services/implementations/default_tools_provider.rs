@@ -152,8 +152,13 @@ mod tests {
     use injector::{injector::Injector, register_scope};
 
     use crate::{
+        elements::entities::folder::Folder,
+        elements::repositories::folder_repository::FolderRepository,
         elements::value_objects::meta::Meta,
-        infrastructure::repositories::sqlite::sqlite_meta_repository::SqliteMetaRepository,
+        infrastructure::repositories::sqlite::{
+            sqlite_folder_repository::SqliteFolderRepository,
+            sqlite_meta_repository::SqliteMetaRepository,
+        },
         test_utils::create_test_injector,
     };
 
@@ -164,6 +169,7 @@ mod tests {
         let mut injector = create_test_injector().await;
 
         register_scope!(injector, dyn MetaRepository, SqliteMetaRepository);
+        register_scope!(injector, dyn FolderRepository, SqliteFolderRepository);
 
         injector
     }
@@ -193,9 +199,13 @@ mod tests {
         let scope = injector.start_scope();
         let meta_repository = scope.resolve::<dyn MetaRepository>().await;
 
-        let element_id = ElementId::LearningAsset(Uuid::new_v4());
-        meta_repository
-            .create_meta(&make_meta(element_id))
+        let element_id = ElementId::Folder(Uuid::new_v4());
+        scope
+            .resolve::<dyn FolderRepository>()
+            .await
+            .create(Folder {
+                meta: make_meta(element_id),
+            })
             .await
             .unwrap();
 

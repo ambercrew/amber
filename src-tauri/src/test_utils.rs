@@ -40,24 +40,39 @@ pub async fn create_temp_directory() -> PathBuf {
     path
 }
 
+/// A test injector's temp directory, removed when the injector drops it.
+struct TestDirectory(PathBuf);
+
+impl Drop for TestDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 pub async fn create_test_injector() -> Injector {
-    create_test_injector_with_sqlite_url("sqlite::memory:").await
+    create_test_injector_with_database(false).await
 }
 
 /// Backed by a temp-file SQLite database in WAL mode, for tests that open a second connection while
 /// the first is mid-transaction (e.g. `save_changes` mid-scope): a shared `:memory:` one can deadlock.
 pub async fn create_file_backed_test_injector() -> Injector {
-    let db_path = create_temp_directory().await.join("amber.db");
-    create_test_injector_with_sqlite_url(&format!("sqlite:///{}", db_path.to_string_lossy())).await
+    create_test_injector_with_database(true).await
 }
 
-async fn create_test_injector_with_sqlite_url(sqlite_url: &str) -> Injector {
+async fn create_test_injector_with_database(file_backed: bool) -> Injector {
     let mut injector = Injector::default();
 
-    let app_data_directory = AppDataDirectory::new(create_temp_directory().await);
+    let directory = create_temp_directory().await;
+    let sqlite_url = if file_backed {
+        format!("sqlite:///{}", directory.join("amber.db").to_string_lossy())
+    } else {
+        "sqlite::memory:".to_string()
+    };
+    let app_data_directory = AppDataDirectory::new(directory.clone());
     injector.register_singleton(Arc::new(app_data_directory.clone()));
+    injector.register_singleton(Arc::new(TestDirectory(directory)));
 
-    let (sqlite_pool, sync_clock) = create_sqlite_pool(sqlite_url).await.unwrap();
+    let (sqlite_pool, sync_clock) = create_sqlite_pool(&sqlite_url).await.unwrap();
     let database_location = DatabaseLocation::new_unchecked(app_data_directory.get_path().clone());
 
     let db_pool = DbPool::new(sqlite_pool, database_location, sync_clock);
@@ -128,4 +143,31 @@ impl EventManager for RecordingEventManager {
     }
 
     async fn emit_all(&self) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn create_file_backed_test_injector_injector_dropped_removes_its_directory() {
+        // Arrange
+
+        let injector = create_file_backed_test_injector().await;
+        let directory = injector
+            .start_scope()
+            .resolve::<AppDataDirectory>()
+            .await
+            .get_path()
+            .clone();
+        assert!(directory.join("amber.db").exists());
+
+        // Act
+
+        drop(injector);
+
+        // Assert
+
+        assert!(!directory.exists());
+    }
 }

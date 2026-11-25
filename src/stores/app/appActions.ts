@@ -3,7 +3,7 @@ import { paths } from "../../paths";
 import { loadSettings, saveSettings } from "../settings/settingsActions";
 import { buildUpdateSettingsRequest } from "../../api/settings/dto/updateSettingsRequestDto";
 import { AppDispatch, RootState } from "../store";
-import { sync } from "../sync/syncActions";
+import { sync, withoutSync } from "../sync/syncActions";
 import { loadUserState } from "../user/userActions";
 import { UserInformationDto } from "../../api/backend/dto/userInformationDto";
 import { setUserInformation } from "../user/userReducer";
@@ -51,11 +51,16 @@ export function changeDatabaseDirectory(
 	navigate: NavigateFunction,
 ) {
 	return async function (dispatch: AppDispatch): Promise<void> {
+		// Saving reconnects the backend to another database, which mustn't happen mid-sync.
 		await dispatch(
-			saveSettings(
-				buildUpdateSettingsRequest({
-					baseDatabaseDirectory: directory,
-				}),
+			withoutSync(() =>
+				dispatch(
+					saveSettings(
+						buildUpdateSettingsRequest({
+							baseDatabaseDirectory: directory,
+						}),
+					),
+				),
 			),
 		);
 		await dispatch(reloadApplicationState(navigate));
@@ -103,12 +108,17 @@ async function loadAppState(
 		await dispatch(loadUserState());
 	}
 
-	// Sync on app close is registered as an event by the SettingsSync component.
-	if (settings?.autoSync) await dispatch(sync({ skipIfKnownOffline: true }));
-
-	// Check the profile again now that sync may have confirmed connectivity, so a brief
-	// offline start doesn't linger all session.
-	if (!userInformationDto) await dispatch(loadUserState());
+	// In the background, so the app is usable meanwhile. Sync on close is registered by SettingsSync.
+	if (settings?.autoSync)
+		void dispatch(sync({ skipIfKnownOffline: true }))
+			.then(async () => {
+				// Check the profile again now that sync may have confirmed connectivity, so a brief
+				// offline start doesn't linger all session.
+				if (!userInformationDto) await dispatch(loadUserState());
+			})
+			// Nothing awaits it, so a failure would otherwise go unhandled.
+			// eslint-disable-next-line no-console
+			.catch(e => console.error(e));
 
 	await elementTreePromise;
 }

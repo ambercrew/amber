@@ -1,9 +1,10 @@
 import { listen, TauriEvent } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { CloseRequestedEvent, getCurrentWindow } from "@tauri-apps/api/window";
 import { isMobile } from "../utils/tauriUtils";
 
 interface Handler {
-	cb: () => Promise<void>;
+	/** Resolves `false` to keep the window open, skipping the handlers after it; a suspend can't be stopped. */
+	cb: () => Promise<boolean | void>;
 	priority: number;
 }
 
@@ -38,12 +39,15 @@ export class CloseRequestedEventManager {
 		this.handlers.delete(name);
 	}
 
-	private async callHandlers() {
+	private async callHandlers(event?: CloseRequestedEvent) {
 		const handlers = Array.from(this.handlers.values()).sort(
 			(a, b) => a.priority - b.priority,
 		);
 		for (const handler of handlers) {
-			await handler.cb();
+			if ((await handler.cb()) === false) {
+				event?.preventDefault();
+				return;
+			}
 		}
 	}
 }

@@ -266,6 +266,37 @@ describe("ankiSyncActions", () => {
 		expect(calls).toEqual(["anki", "cloud"]);
 	});
 
+	it("Should start a new cloud sync after syncing with Anki rather than join a running one when it finishes", async () => {
+		// Arrange
+
+		const store = setupStore();
+		store.dispatch(setUserInformation(user));
+
+		// Act
+
+		await store.dispatch(runAnkiSync([]));
+
+		// Assert
+
+		expect(sync).toHaveBeenLastCalledWith({ afterRunning: true });
+	});
+
+	it("Should join a running cloud sync before previewing when a sync is started", async () => {
+		// Arrange
+
+		const store = setupStore();
+		store.dispatch(setUserInformation(user));
+		vi.mocked(previewAnkiSync).mockResolvedValue(settled);
+
+		// Act
+
+		await store.dispatch(startAnkiSync());
+
+		// Assert
+
+		expect(sync).toHaveBeenCalledWith({ afterRunning: false });
+	});
+
 	it("Should cloud-sync after syncing with Anki when it fails", async () => {
 		// Arrange
 
@@ -299,7 +330,7 @@ describe("ankiSyncActions", () => {
 		expect(sync).not.toHaveBeenCalled();
 	});
 
-	it("Should not cloud-sync around an Anki sync when a cloud sync is running", async () => {
+	it("Should still cloud-sync around an Anki sync when a cloud sync is running", async () => {
 		// Arrange
 
 		const store = setupStore();
@@ -312,7 +343,7 @@ describe("ankiSyncActions", () => {
 
 		// Assert
 
-		expect(sync).not.toHaveBeenCalled();
+		expect(sync).toHaveBeenCalled();
 	});
 
 	it("Should note the missed cloud sync in the review when the cloud sync fails", async () => {

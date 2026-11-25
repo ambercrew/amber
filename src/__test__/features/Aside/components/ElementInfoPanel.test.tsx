@@ -11,6 +11,11 @@ import {
 	setElementDue,
 	setElementsStatus,
 } from "../../../../api/study/api/studyApi";
+import { updateElementTags } from "../../../../api/elements/api/elementsApi";
+import {
+	defaultGlobalSyncEventManager,
+	ListenerType,
+} from "../../../../managers/syncEventManager";
 import { listBibliographicalSources } from "../../../../api/bibliographicalSources/api/bibliographicalSourcesApi";
 import {
 	fromDateInputValue,
@@ -208,6 +213,34 @@ describe("ElementInfoPanel", () => {
 				fromDateInputValue(next),
 			);
 		});
+	});
+
+	it("Should save a pending tag edit before a sync's refresh when a sync completes", async () => {
+		// Arrange
+
+		vi.mocked(updateElementTags).mockResolvedValue(undefined);
+		const user = userEvent.setup();
+		const element = learningAsset();
+		renderPanel(element);
+		await act(async () => {});
+		await user.type(screen.getByPlaceholderText("Enter tag"), "new{Enter}");
+		const savedBeforeSync = vi.mocked(updateElementTags).mock.calls.length;
+
+		// Act
+
+		await act(() =>
+			defaultGlobalSyncEventManager.notifyListeners(
+				ListenerType.PreSyncComplete,
+			),
+		);
+
+		// Assert
+
+		expect(savedBeforeSync).toBe(0);
+		expect(updateElementTags).toHaveBeenCalledWith(
+			element.data.meta.elementId,
+			["new"],
+		);
 	});
 
 	it("Should set the learning asset's status when a status is picked", async () => {

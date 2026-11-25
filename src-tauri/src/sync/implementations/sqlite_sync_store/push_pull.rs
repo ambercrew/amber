@@ -75,18 +75,6 @@ pub(super) async fn set_last_pulled_server_seq(
     tx: &mut SqliteConnection,
     seq: i64,
 ) -> Result<(), SyncError> {
-    // Nothing re-pulls if the cursor falls behind the server's retained history, so log a large
-    // jump to make a resume after history compaction visible.
-    if let Some(previous) = get_last_pulled_server_seq(tx).await?
-        && seq - previous > 100_000
-    {
-        log::warn!(
-            "Sync cursor is jumping from server seq {previous} to {seq} — if the backend has \
-             compacted history older than this device's cursor, this could resume mid-gap \
-             with no local fallback to a full re-sync."
-        );
-    }
-
     sqlx::query(
         "INSERT INTO local_configurations(name, value) VALUES (?1, ?2)
          ON CONFLICT(name) DO UPDATE SET value = excluded.value",

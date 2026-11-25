@@ -3,6 +3,7 @@ use sqlx::Row;
 use injector::injector_scope::InjectorScope;
 
 use crate::generated_code::{CellChange, ChangeBatch};
+use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::infrastructure::value_objects::db_pool::DbPool;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
 use crate::sync::errors::SyncError;
@@ -12,7 +13,7 @@ use crate::sync::utils::merge;
 use crate::sync::value_objects::fk_constraint::FkConstraint;
 use crate::sync::value_objects::fk_policy::FkPolicy;
 use crate::sync::value_objects::granularity::Granularity;
-use crate::test_utils::create_test_injector;
+use crate::test_utils::{create_file_backed_test_injector, create_test_injector};
 
 /// Far enough ahead of wall time that a remote cell stamped with it always
 /// wins the last-writer-wins merge against anything the local clock issues.
@@ -2069,7 +2070,8 @@ async fn apply_remote_column_update_on_existing_row_leaves_untouched_not_null_co
 }
 
 #[tokio::test]
-async fn apply_remote_page_buffers_new_row_until_last_page_then_materializes_it() {
+async fn apply_remote_page_new_row_with_its_required_columns_writes_it_and_a_later_page_completes_it()
+ {
     // Arrange
 
     let injector = create_test_injector().await;
@@ -2122,7 +2124,7 @@ async fn apply_remote_page_buffers_new_row_until_last_page_then_materializes_it(
 
     // Assert
 
-    assert_eq!(None, after_first_page);
+    assert_eq!(Some(("Hi".to_string(), None)), after_first_page);
     assert_eq!(
         Some(("Hi".to_string(), Some("Body".to_string()))),
         get_required_note(&tx, "1").await
@@ -2242,7 +2244,6 @@ async fn apply_remote_partial_edit_after_tombstone_discards_it_without_leaving_t
 
     assert!(actual.is_ok(), "{actual:?}");
     assert_eq!(None, get_required_note(&tx, "1").await);
-    assert!(!engine.has_pending_changes().await.unwrap());
 }
 
 #[tokio::test]
@@ -2546,16 +2547,6 @@ async fn create_parents_table(tx: &DbTransaction) {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
     sqlx::query("CREATE TABLE parents (id TEXT PRIMARY KEY, name TEXT)")
-        .execute(&mut *conn)
-        .await
-        .unwrap();
-}
-
-/// Self-referential FK case: `parent_id` references this same table's `id`.
-async fn create_self_referencing_table(tx: &DbTransaction) {
-    let mut guard = tx.lock().await;
-    let conn = guard.as_mut();
-    sqlx::query("CREATE TABLE nodes (id TEXT PRIMARY KEY, parent_id TEXT)")
         .execute(&mut *conn)
         .await
         .unwrap();
@@ -2994,7 +2985,6 @@ async fn apply_remote_last_page_absent_parent_without_tombstone_keeps_row() {
             .await
             .is_none()
     );
-    assert!(engine.has_unresolved_foreign_keys().await.unwrap());
 }
 
 fn schema_version_cell(version: i64, ms: u64) -> CellChange {
@@ -3387,275 +3377,6 @@ async fn apply_remote_last_page_repair_records_local_tombstone_in_sync_cells() {
 }
 
 #[tokio::test]
-async fn has_unresolved_foreign_keys_orphan_child_via_configured_policy_returns_true() {
-    // Arrange
-
-    let injector = create_test_injector().await;
-    let scope = injector.start_scope();
-    let tx = scope.resolve::<DbTransaction>().await;
-    create_parents_table(&tx).await;
-    create_children_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncStore>().await;
-    engine
-        .register_table(
-            "children",
-            Granularity::Row,
-            &[FkConstraint::new(
-                "parent_id",
-                "parents",
-                "id",
-                FkPolicy::DiscardRow,
-            )],
-        )
-        .await
-        .unwrap();
-    let ms = far_future_ms();
-    engine
-        .apply_remote(
-            ChangeBatch {
-                cells: vec![row_cell(
-                    "children",
-                    "c1",
-                    serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
-                    ms,
-                    0,
-                )],
-            },
-            false,
-        )
-        .await
-        .unwrap();
-
-    // Act
-
-    let actual = engine.has_unresolved_foreign_keys().await.unwrap();
-
-    // Assert
-
-    assert!(actual);
-}
-
-#[tokio::test]
-async fn has_unresolved_foreign_keys_orphan_child_via_declared_fk_without_policy_returns_true() {
-    // Arrange
-
-    let injector = create_test_injector().await;
-    let scope = injector.start_scope();
-    let tx = scope.resolve::<DbTransaction>().await;
-    create_parents_table(&tx).await;
-    create_children_fk_table(&tx).await;
-    defer_foreign_keys(&tx).await;
-    let engine = scope.resolve::<dyn SyncStore>().await;
-    engine
-        .register_table("children_fk", Granularity::Row, &[])
-        .await
-        .unwrap();
-    let ms = far_future_ms();
-    engine
-        .apply_remote(
-            ChangeBatch {
-                cells: vec![row_cell(
-                    "children_fk",
-                    "c1",
-                    serde_json::json!({"id": "c1", "parent_id": "missing-parent"}),
-                    ms,
-                    0,
-                )],
-            },
-            false,
-        )
-        .await
-        .unwrap();
-
-    // Act
-
-    let actual = engine.has_unresolved_foreign_keys().await.unwrap();
-
-    // Assert
-
-    assert!(actual);
-}
-
-#[tokio::test]
-async fn has_unresolved_foreign_keys_all_references_satisfied_returns_false() {
-    // Arrange
-
-    let injector = create_test_injector().await;
-    let scope = injector.start_scope();
-    let tx = scope.resolve::<DbTransaction>().await;
-    create_parents_table(&tx).await;
-    create_children_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncStore>().await;
-    engine
-        .register_table("parents", Granularity::Row, &[])
-        .await
-        .unwrap();
-    engine
-        .register_table(
-            "children",
-            Granularity::Row,
-            &[FkConstraint::new(
-                "parent_id",
-                "parents",
-                "id",
-                FkPolicy::DiscardRow,
-            )],
-        )
-        .await
-        .unwrap();
-    let ms = far_future_ms();
-    engine
-        .apply_remote(
-            ChangeBatch {
-                cells: vec![row_cell(
-                    "parents",
-                    "p1",
-                    serde_json::json!({"id": "p1", "name": "Parent"}),
-                    ms,
-                    0,
-                )],
-            },
-            false,
-        )
-        .await
-        .unwrap();
-    engine
-        .apply_remote(
-            ChangeBatch {
-                cells: vec![row_cell(
-                    "children",
-                    "c1",
-                    serde_json::json!({"id": "c1", "parent_id": "p1"}),
-                    ms,
-                    1,
-                )],
-            },
-            false,
-        )
-        .await
-        .unwrap();
-
-    // Act
-
-    let actual = engine.has_unresolved_foreign_keys().await.unwrap();
-
-    // Assert
-
-    assert!(!actual);
-}
-
-#[tokio::test]
-async fn has_unresolved_foreign_keys_self_referential_fk_with_missing_parent_returns_true() {
-    // Arrange
-
-    let injector = create_test_injector().await;
-    let scope = injector.start_scope();
-    let tx = scope.resolve::<DbTransaction>().await;
-    create_self_referencing_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncStore>().await;
-    engine
-        .register_table(
-            "nodes",
-            Granularity::Row,
-            &[FkConstraint::new(
-                "parent_id",
-                "nodes",
-                "id",
-                FkPolicy::DiscardRow,
-            )],
-        )
-        .await
-        .unwrap();
-    let ms = far_future_ms();
-    engine
-        .apply_remote(
-            ChangeBatch {
-                cells: vec![row_cell(
-                    "nodes",
-                    "orphan",
-                    serde_json::json!({"id": "orphan", "parent_id": "missing-parent"}),
-                    ms,
-                    0,
-                )],
-            },
-            false,
-        )
-        .await
-        .unwrap();
-
-    // Act
-
-    let actual = engine.has_unresolved_foreign_keys().await.unwrap();
-
-    // Assert
-
-    assert!(actual);
-}
-
-#[tokio::test]
-async fn has_unresolved_foreign_keys_self_referential_fk_with_existing_parent_returns_false() {
-    // Arrange
-
-    let injector = create_test_injector().await;
-    let scope = injector.start_scope();
-    let tx = scope.resolve::<DbTransaction>().await;
-    create_self_referencing_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncStore>().await;
-    engine
-        .register_table(
-            "nodes",
-            Granularity::Row,
-            &[FkConstraint::new(
-                "parent_id",
-                "nodes",
-                "id",
-                FkPolicy::DiscardRow,
-            )],
-        )
-        .await
-        .unwrap();
-    let ms = far_future_ms();
-    engine
-        .apply_remote(
-            ChangeBatch {
-                cells: vec![row_cell(
-                    "nodes",
-                    "root",
-                    serde_json::json!({"id": "root", "parent_id": null}),
-                    ms,
-                    0,
-                )],
-            },
-            false,
-        )
-        .await
-        .unwrap();
-    engine
-        .apply_remote(
-            ChangeBatch {
-                cells: vec![row_cell(
-                    "nodes",
-                    "child",
-                    serde_json::json!({"id": "child", "parent_id": "root"}),
-                    ms,
-                    1,
-                )],
-            },
-            false,
-        )
-        .await
-        .unwrap();
-
-    // Act
-
-    let actual = engine.has_unresolved_foreign_keys().await.unwrap();
-
-    // Assert
-
-    assert!(!actual);
-}
-
-#[tokio::test]
 async fn apply_remote_last_page_with_unmaterialized_row_skips_foreign_key_repair() {
     // Arrange
 
@@ -3716,67 +3437,6 @@ async fn apply_remote_last_page_with_unmaterialized_row_skips_foreign_key_repair
             .iter()
             .any(|(col, _)| col == merge::DELETED_COL),
         "no deletion should be staged for pushing to other devices"
-    );
-}
-
-#[tokio::test]
-async fn has_pending_changes_materializing_a_row_does_not_stage_it_as_a_local_change() {
-    // Arrange
-
-    let injector = create_test_injector().await;
-    let scope = injector.start_scope();
-    let tx = scope.resolve::<DbTransaction>().await;
-    create_required_notes_table(&tx).await;
-    let engine = scope.resolve::<dyn SyncStore>().await;
-    engine
-        .register_table("required_notes", Granularity::Column, &[])
-        .await
-        .unwrap();
-    let ms = far_future_ms();
-
-    // A non-final page buffers both columns without materializing the row.
-    engine
-        .apply_remote(
-            ChangeBatch {
-                cells: vec![
-                    remote_cell_for("required_notes", "1", "title", Some(b"Hi".to_vec()), ms, 0),
-                    remote_cell_for("required_notes", "1", "body", Some(b"Body".to_vec()), ms, 1),
-                ],
-            },
-            false,
-        )
-        .await
-        .unwrap();
-
-    // Act
-
-    // `sync_inner` calls this between pages to decide whether it can commit; it
-    // materializes the row, firing the change-tracking triggers.
-    let still_buffered = engine.has_pending_changes().await.unwrap();
-
-    // Assert
-
-    assert!(!still_buffered);
-    assert_eq!(
-        Some(("Hi".to_string(), Some("Body".to_string()))),
-        get_required_note(&tx, "1").await
-    );
-    assert_eq!(
-        "remote-device",
-        get_cell(&tx, "required_notes", "1", "title")
-            .await
-            .unwrap()
-            .2,
-        "materializing a pulled row must not rewrite its cell as locally authored"
-    );
-    assert!(
-        engine
-            .changes_since_last_push()
-            .await
-            .unwrap()
-            .cells
-            .is_empty(),
-        "freshly pulled data must never be echoed back to the server as a local change"
     );
 }
 
@@ -3888,3 +3548,805 @@ async fn deleted_rows_mixed_keys_returns_only_deleted_ones() {
 
     assert_eq!(std::collections::HashSet::from(["1".to_string()]), actual);
 }
+
+// Multi-device sync: devices run the real `DefaultSyncEngine` against `FakeServer`, an in-memory
+// stand-in for amber-backend.
+
+#[tokio::test]
+async fn take_staged_more_staged_than_limit_returns_oldest_in_pull_order() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let store = scope.resolve::<dyn SyncStore>().await;
+    let ms = far_future_ms();
+    let cells: Vec<CellChange> = (0..5)
+        .map(|i| remote_cell(&i.to_string(), "title", None, ms, i))
+        .collect();
+    store
+        .stage_remote(ChangeBatch {
+            cells: cells[..3].to_vec(),
+        })
+        .await
+        .unwrap();
+    store
+        .stage_remote(ChangeBatch {
+            cells: cells[3..].to_vec(),
+        })
+        .await
+        .unwrap();
+
+    // Act
+
+    let first = store.take_staged(4).await.unwrap();
+    let rest = store.take_staged(4).await.unwrap();
+
+    // Assert
+
+    assert_eq!(cells[..4].to_vec(), first.cells);
+    assert_eq!(cells[4..].to_vec(), rest.cells);
+    assert!(!store.has_staged().await.unwrap());
+}
+
+#[tokio::test]
+async fn take_staged_limit_inside_a_rows_cells_takes_the_rest_of_that_row() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let store = scope.resolve::<dyn SyncStore>().await;
+    let ms = far_future_ms();
+    let cells = vec![
+        remote_cell("1", "title", None, ms, 0),
+        remote_cell("2", "title", None, ms, 1),
+        remote_cell("2", "body", None, ms, 2),
+        remote_cell("2", "extra", None, ms, 3),
+        remote_cell("3", "title", None, ms, 4),
+    ];
+    store
+        .stage_remote(ChangeBatch {
+            cells: cells.clone(),
+        })
+        .await
+        .unwrap();
+
+    // Act
+
+    let first = store.take_staged(2).await.unwrap();
+    let rest = store.take_staged(2).await.unwrap();
+
+    // Assert
+
+    assert_eq!(cells[..4].to_vec(), first.cells);
+    assert_eq!(cells[4..].to_vec(), rest.cells);
+}
+
+#[tokio::test]
+async fn take_staged_rows_cells_staged_far_apart_takes_them_together() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let store = scope.resolve::<dyn SyncStore>().await;
+    let ms = far_future_ms();
+    let cells = vec![
+        remote_cell("1", "title", None, ms, 0),
+        remote_cell("2", "title", None, ms, 1),
+        remote_cell("3", "title", None, ms, 2),
+        remote_cell("1", "body", None, ms, 3),
+    ];
+    store
+        .stage_remote(ChangeBatch {
+            cells: cells.clone(),
+        })
+        .await
+        .unwrap();
+
+    // Act
+
+    let first = store.take_staged(1).await.unwrap();
+    let rest = store.take_staged(10).await.unwrap();
+
+    // Assert
+
+    assert_eq!(vec![cells[0].clone(), cells[3].clone()], first.cells);
+    assert_eq!(cells[1..3].to_vec(), rest.cells);
+}
+
+#[tokio::test]
+async fn apply_remote_new_column_row_in_a_committed_earlier_batch_is_written_before_a_crash() {
+    // Arrange
+
+    let injector = create_file_backed_test_injector().await;
+    let setup = injector.start_scope();
+    create_notes_table(&*setup.resolve::<DbTransaction>().await).await;
+    setup
+        .resolve::<dyn SyncStore>()
+        .await
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    setup.save_changes().await.unwrap();
+    let ms = far_future_ms();
+    let batch = ChangeBatch {
+        cells: vec![
+            remote_cell("1", "title", Some(b"Title".to_vec()), ms, 0),
+            remote_cell("1", "body", Some(b"Body".to_vec()), ms, 1),
+        ],
+    };
+
+    // Act
+
+    {
+        // Not the last batch, and the sync stops after its commit, as a quit or crash would leave it.
+        let scope = injector.start_scope();
+        scope
+            .resolve::<dyn SyncStore>()
+            .await
+            .apply_remote(batch, false)
+            .await
+            .unwrap();
+        scope.save_changes().await.unwrap();
+    }
+
+    // Assert
+
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    assert_eq!(
+        Some((Some("Title".to_string()), Some("Body".to_string()))),
+        get_note(&tx, "1").await
+    );
+}
+
+#[tokio::test]
+async fn apply_remote_incomplete_row_lost_from_the_buffer_by_a_crash_is_rebuilt_when_the_rest_arrives()
+ {
+    // Arrange
+
+    let injector = create_file_backed_test_injector().await;
+    let setup = injector.start_scope();
+    create_required_notes_table(&*setup.resolve::<DbTransaction>().await).await;
+    setup
+        .resolve::<dyn SyncStore>()
+        .await
+        .register_table("required_notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    setup.save_changes().await.unwrap();
+    let ms = far_future_ms();
+    {
+        // The required title hasn't arrived, so the row stays buffered when this batch commits.
+        let scope = injector.start_scope();
+        let body = remote_cell_for("required_notes", "1", "body", Some(b"Body".to_vec()), ms, 0);
+        scope
+            .resolve::<dyn SyncStore>()
+            .await
+            .apply_remote(ChangeBatch { cells: vec![body] }, false)
+            .await
+            .unwrap();
+        scope.save_changes().await.unwrap();
+    }
+
+    // Act
+
+    let scope = injector.start_scope();
+    let title = remote_cell_for("required_notes", "1", "title", Some(b"Hi".to_vec()), ms, 1);
+    scope
+        .resolve::<dyn SyncStore>()
+        .await
+        .apply_remote(ChangeBatch { cells: vec![title] }, true)
+        .await
+        .unwrap();
+
+    // Assert
+
+    let tx = scope.resolve::<DbTransaction>().await;
+    assert_eq!(
+        Some(("Hi".to_string(), Some("Body".to_string()))),
+        get_required_note(&tx, "1").await
+    );
+}
+
+#[tokio::test]
+async fn take_staged_transaction_rolled_back_keeps_cells_staged() {
+    // Arrange
+
+    let injector = create_file_backed_test_injector().await;
+    let setup_scope = injector.start_scope();
+    let setup_store = setup_scope.resolve::<dyn SyncStore>().await;
+    setup_store
+        .stage_remote(ChangeBatch {
+            cells: vec![remote_cell("1", "title", None, far_future_ms(), 0)],
+        })
+        .await
+        .unwrap();
+    setup_scope.save_changes().await.unwrap();
+
+    // Act
+
+    {
+        let scope = injector.start_scope();
+        let store = scope.resolve::<dyn SyncStore>().await;
+        store.take_staged(10).await.unwrap();
+    }
+
+    // Assert
+
+    let scope = injector.start_scope();
+    let store = scope.resolve::<dyn SyncStore>().await;
+    assert!(store.has_staged().await.unwrap());
+}
+
+#[tokio::test]
+async fn stage_remote_page_from_newer_schema_stages_nothing() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    let newer = latest_migration(&tx).await + 1;
+    let store = scope.resolve::<dyn SyncStore>().await;
+    let ms = far_future_ms();
+
+    // Act
+
+    let actual = store
+        .stage_remote(ChangeBatch {
+            cells: vec![
+                remote_cell("1", "title", None, ms, 0),
+                schema_version_cell(newer, ms),
+            ],
+        })
+        .await;
+
+    // Assert
+
+    assert!(matches!(actual, Err(SyncError::AppUpdateRequired { .. })));
+    assert!(!store.has_staged().await.unwrap());
+}
+
+#[tokio::test]
+async fn stage_remote_malformed_hlc_stages_nothing() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let store = scope.resolve::<dyn SyncStore>().await;
+    let mut malformed = remote_cell("2", "title", None, far_future_ms(), 1);
+    malformed.hlc = "not-an-hlc".to_string();
+
+    // Act
+
+    let actual = store
+        .stage_remote(ChangeBatch {
+            cells: vec![
+                remote_cell("1", "title", None, far_future_ms(), 0),
+                malformed,
+            ],
+        })
+        .await;
+
+    // Assert
+
+    assert!(actual.is_err());
+    assert!(!store.has_staged().await.unwrap());
+}
+
+#[tokio::test]
+async fn stage_remote_page_advances_clock_past_its_cells() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let store = scope.resolve::<dyn SyncStore>().await;
+    let staged = remote_cell("1", "title", None, far_future_ms(), 0);
+
+    // Act
+
+    store
+        .stage_remote(ChangeBatch {
+            cells: vec![staged.clone()],
+        })
+        .await
+        .unwrap();
+
+    // Assert
+
+    let clock = scope.resolve::<DbPool>().await.sync_clock().await;
+    assert!(clock.get().now() > Hlc::parse(&staged.hlc).unwrap());
+}
+
+mod multi_device {
+    use std::collections::{HashMap, HashSet};
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use injector::injector::Injector;
+    use injector::register_scope;
+
+    use super::{
+        create_notes_table, delete_note, get_note, insert_note, single_row_id, update_note_title,
+    };
+    use crate::backend::clients::amber_backend_client::{
+        AmberBackendClient, AmberBackendClientError, MockAmberBackendClient,
+    };
+    use crate::generated_code::{CellChange, ChangeBatch, PullResponse};
+    use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
+    use crate::infrastructure::value_objects::db_transaction::DbTransaction;
+    use crate::sync::engine::SyncEngine;
+    use crate::sync::errors::SyncError;
+    use crate::sync::implementations::default_sync_engine::DefaultSyncEngine;
+    use crate::sync::store::SyncStore;
+    use crate::sync::utils::merge;
+    use crate::sync::value_objects::granularity::Granularity;
+    use crate::test_utils::create_file_backed_test_injector;
+
+    /// Small, so a few rows already span several pull pages.
+    const PAGE_SIZE: usize = 3;
+
+    #[derive(Default)]
+    struct ServerState {
+        cells: HashMap<(String, String, String), (CellChange, i64)>,
+        last_seq: i64,
+        /// Successful pulls left before one fails, as a dropped connection would.
+        pulls_before_failure: Option<usize>,
+    }
+
+    /// The backend's rules: LWW per cell by HLC, a tombstone drops the row's older cells, and
+    /// every stored write takes the next server seq, which pulls page through.
+    #[derive(Default)]
+    struct FakeServer {
+        state: Mutex<ServerState>,
+        latency: Mutex<Duration>,
+    }
+
+    impl FakeServer {
+        fn push(&self, batch: ChangeBatch) {
+            std::thread::sleep(*self.latency.lock().unwrap());
+            let mut state = self.state.lock().unwrap();
+            let mut cells = batch.cells;
+            cells.sort_by_key(|cell| cell.col != merge::DELETED_COL);
+            for cell in cells {
+                let key = (cell.tbl.clone(), cell.row_id.clone(), cell.col.clone());
+                if state
+                    .cells
+                    .get(&key)
+                    .is_some_and(|(stored, _)| stored.hlc >= cell.hlc)
+                {
+                    continue;
+                }
+                let tombstone_key = (
+                    cell.tbl.clone(),
+                    cell.row_id.clone(),
+                    merge::DELETED_COL.to_string(),
+                );
+                if cell.col == merge::DELETED_COL {
+                    state.cells.retain(|(tbl, row_id, col), (stored, _)| {
+                        !(tbl == &cell.tbl
+                            && row_id == &cell.row_id
+                            && col != merge::DELETED_COL
+                            && stored.hlc < cell.hlc)
+                    });
+                } else if state
+                    .cells
+                    .get(&tombstone_key)
+                    .is_some_and(|(tombstone, _)| tombstone.hlc >= cell.hlc)
+                {
+                    continue;
+                }
+                state.last_seq += 1;
+                let seq = state.last_seq;
+                state.cells.insert(key, (cell, seq));
+            }
+        }
+
+        fn pull(&self, since: Option<i64>) -> Result<PullResponse, AmberBackendClientError> {
+            std::thread::sleep(*self.latency.lock().unwrap());
+            let mut state = self.state.lock().unwrap();
+            match state.pulls_before_failure {
+                Some(0) => {
+                    state.pulls_before_failure = None;
+                    return Err(AmberBackendClientError::Unauthorized);
+                }
+                Some(left) => state.pulls_before_failure = Some(left - 1),
+                None => {}
+            }
+            let since = since.unwrap_or(0);
+            let mut page: Vec<&(CellChange, i64)> = state
+                .cells
+                .values()
+                .filter(|(_, seq)| *seq > since)
+                .collect();
+            page.sort_by_key(|(_, seq)| *seq);
+            page.truncate(PAGE_SIZE);
+            Ok(PullResponse {
+                next_server_seq: page.last().map_or(since, |(_, seq)| *seq),
+                has_more: page.len() == PAGE_SIZE,
+                cells: page.into_iter().map(|(cell, _)| cell.clone()).collect(),
+            })
+        }
+
+        fn set_latency(&self, latency: Duration) {
+            *self.latency.lock().unwrap() = latency;
+        }
+
+        fn fail_pull_after(&self, successful_pulls: usize) {
+            self.state.lock().unwrap().pulls_before_failure = Some(successful_pulls);
+        }
+    }
+
+    /// One install with its own database and device id, syncing through `server`.
+    struct Device {
+        injector: Injector,
+    }
+
+    impl Device {
+        async fn new(server: &Arc<FakeServer>) -> Self {
+            let mut client = MockAmberBackendClient::new();
+            let pushing = server.clone();
+            client.expect_push_changes().returning(move |batch| {
+                pushing.push(batch);
+                Ok(())
+            });
+            let pulling = server.clone();
+            client
+                .expect_pull_changes()
+                .returning(move |since| pulling.pull(since));
+
+            let mut injector = create_file_backed_test_injector().await;
+            injector.register_singleton::<dyn AmberBackendClient>(Arc::new(client));
+            register_scope!(injector, dyn SyncEngine, DefaultSyncEngine);
+
+            let device = Self { injector };
+            device.commit(async |tx| create_notes_table(tx).await).await;
+            let scope = device.injector.start_scope();
+            scope
+                .resolve::<dyn SyncStore>()
+                .await
+                .register_table("notes", Granularity::Column, &[])
+                .await
+                .unwrap();
+            scope.save_changes().await.unwrap();
+            device
+        }
+
+        async fn try_sync(&self) -> Result<(), SyncError> {
+            let scope = self.injector.start_scope();
+            scope.resolve::<dyn SyncEngine>().await.sync().await?;
+            scope.save_changes().await.unwrap();
+            Ok(())
+        }
+
+        async fn sync(&self) {
+            self.try_sync().await.unwrap()
+        }
+
+        /// Runs `write` in its own scope and commits it, as a Tauri command does.
+        async fn commit(&self, write: impl AsyncFnOnce(&DbTransaction)) {
+            let scope = self.injector.start_scope();
+            write(&*scope.resolve::<DbTransaction>().await).await;
+            scope.save_changes().await.unwrap();
+        }
+
+        async fn insert(&self, id: &str, title: &str, body: &str) {
+            self.commit(async |tx| insert_note(tx, id, title, body).await)
+                .await;
+        }
+
+        async fn set_title(&self, id: &str, title: &str) {
+            self.commit(async |tx| update_note_title(tx, id, title).await)
+                .await;
+        }
+
+        async fn set_body(&self, id: &str, body: &str) {
+            self.commit(async |tx| {
+                let mut guard = tx.lock().await;
+                sqlx::query("UPDATE notes SET body = ?1 WHERE id = ?2")
+                    .bind(body)
+                    .bind(id)
+                    .execute(guard.as_mut())
+                    .await
+                    .unwrap();
+            })
+            .await;
+        }
+
+        async fn delete(&self, id: &str) {
+            self.commit(async |tx| delete_note(tx, id).await).await;
+        }
+
+        async fn note(&self, id: &str) -> Option<(String, String)> {
+            let scope = self.injector.start_scope();
+            let tx = scope.resolve::<DbTransaction>().await;
+            get_note(&tx, id)
+                .await
+                .map(|(title, body)| (title.unwrap(), body.unwrap()))
+        }
+
+        async fn pending_row_ids(&self) -> HashSet<String> {
+            let scope = self.injector.start_scope();
+            let batch = scope
+                .resolve::<dyn SyncStore>()
+                .await
+                .changes_since_last_push()
+                .await
+                .unwrap();
+            batch.cells.into_iter().map(|cell| cell.row_id).collect()
+        }
+    }
+
+    fn note(title: &str, body: &str) -> Option<(String, String)> {
+        Some((title.to_string(), body.to_string()))
+    }
+
+    #[tokio::test]
+    async fn sync_note_created_on_one_device_reaches_the_other() {
+        // Arrange
+
+        let server = Arc::new(FakeServer::default());
+        let a = Device::new(&server).await;
+        let b = Device::new(&server).await;
+        a.insert("1", "Title", "Body").await;
+
+        // Act
+
+        a.sync().await;
+        b.sync().await;
+
+        // Assert
+
+        assert_eq!(note("Title", "Body"), b.note("1").await);
+    }
+
+    #[tokio::test]
+    async fn sync_offline_edits_to_different_columns_both_survive_and_same_column_later_wins() {
+        // Arrange
+
+        let server = Arc::new(FakeServer::default());
+        let a = Device::new(&server).await;
+        let b = Device::new(&server).await;
+        a.insert("1", "Original", "Original").await;
+        a.sync().await;
+        b.sync().await;
+        a.set_title("1", "Title from A").await;
+        a.set_body("1", "Body from A").await;
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        b.set_body("1", "Body from B").await;
+
+        // Act
+
+        a.sync().await;
+        b.sync().await;
+        a.sync().await;
+
+        // Assert
+
+        assert_eq!(note("Title from A", "Body from B"), a.note("1").await);
+        assert_eq!(note("Title from A", "Body from B"), b.note("1").await);
+    }
+
+    #[tokio::test]
+    async fn sync_rows_split_across_pull_pages_all_materialize() {
+        // Arrange
+
+        let server = Arc::new(FakeServer::default());
+        let a = Device::new(&server).await;
+        let ids: Vec<String> = (0..7).map(|i| format!("paged-{i}")).collect();
+        for id in &ids {
+            a.insert(id, &format!("Title {id}"), &format!("Body {id}"))
+                .await;
+        }
+        a.sync().await;
+        let b = Device::new(&server).await;
+
+        // Act
+
+        b.sync().await;
+
+        // Assert
+
+        for id in &ids {
+            assert_eq!(
+                note(&format!("Title {id}"), &format!("Body {id}")),
+                b.note(id).await
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn sync_edits_during_a_running_sync_succeed_win_and_reach_the_other_device() {
+        // Arrange
+
+        let server = Arc::new(FakeServer::default());
+        let a = Device::new(&server).await;
+        let b = Arc::new(Device::new(&server).await);
+        a.insert("1", "Original", "Body").await;
+        a.sync().await;
+        b.sync().await;
+        for i in 0..10 {
+            a.insert(&format!("bulk-{i}"), "Bulk", "Bulk").await;
+        }
+        a.set_title("1", "Older edit from A").await;
+        a.sync().await;
+        server.set_latency(Duration::from_millis(30));
+
+        let edits = async {
+            for i in 0..10 {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                b.insert(&format!("during-{i}"), "During", "Body").await;
+            }
+            b.set_title("1", "Newer edit from B").await;
+        };
+
+        // Act
+
+        // Spawned, as the server's blocking latency would otherwise stall the edits in this task too.
+        let syncing = tokio::spawn({
+            let b = b.clone();
+            async move { b.sync().await }
+        });
+        edits.await;
+        syncing.await.unwrap();
+        server.set_latency(Duration::ZERO);
+        b.sync().await;
+        a.sync().await;
+
+        // Assert
+
+        assert_eq!(note("Newer edit from B", "Body"), a.note("1").await);
+        assert_eq!(note("Newer edit from B", "Body"), b.note("1").await);
+        for i in 0..10 {
+            assert_eq!(note("During", "Body"), a.note(&format!("during-{i}")).await);
+        }
+        assert!(b.pending_row_ids().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn sync_delete_on_one_device_removes_the_row_on_the_other() {
+        // Arrange
+
+        let server = Arc::new(FakeServer::default());
+        let a = Device::new(&server).await;
+        let b = Device::new(&server).await;
+        a.insert("1", "Title", "Body").await;
+        a.sync().await;
+        b.sync().await;
+        a.delete("1").await;
+
+        // Act
+
+        a.sync().await;
+        b.sync().await;
+
+        // Assert
+
+        assert_eq!(None, b.note("1").await);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn sync_simultaneous_syncs_from_two_devices_both_reach_a_third() {
+        // Arrange
+
+        let server = Arc::new(FakeServer::default());
+        let a = Arc::new(Device::new(&server).await);
+        let b = Arc::new(Device::new(&server).await);
+        let c = Arc::new(Device::new(&server).await);
+        for i in 0..10 {
+            a.insert(&format!("a-{i}"), "A", "A").await;
+            b.insert(&format!("b-{i}"), "B", "B").await;
+        }
+        server.set_latency(Duration::from_millis(10));
+
+        // Act
+
+        let syncs = [&a, &b, &c].map(|device| {
+            let device = device.clone();
+            tokio::spawn(async move { device.sync().await })
+        });
+        for sync in syncs {
+            sync.await.unwrap();
+        }
+        c.sync().await;
+
+        // Assert
+
+        for i in 0..10 {
+            assert_eq!(note("A", "A"), c.note(&format!("a-{i}")).await);
+            assert_eq!(note("B", "B"), c.note(&format!("b-{i}")).await);
+        }
+    }
+
+    #[tokio::test]
+    async fn sync_after_a_pull_failed_midway_resumes_and_converges() {
+        // Arrange
+
+        let server = Arc::new(FakeServer::default());
+        let a = Device::new(&server).await;
+        for i in 0..7 {
+            a.insert(&format!("{i}"), "Title", "Body").await;
+        }
+        a.sync().await;
+        let b = Device::new(&server).await;
+        b.insert("local", "Local", "Body").await;
+        server.fail_pull_after(1);
+
+        // Act
+
+        let failed = b.try_sync().await;
+        let b_after_failure = b.note("0").await;
+        b.sync().await;
+        a.sync().await;
+
+        // Assert
+
+        assert!(failed.is_err());
+        assert_eq!(note("Title", "Body"), b_after_failure);
+        for i in 0..7 {
+            assert_eq!(note("Title", "Body"), b.note(&format!("{i}")).await);
+        }
+        assert_eq!(note("Local", "Body"), a.note("local").await);
+        assert!(!b.pending_row_ids().await.contains(&single_row_id("local")));
+    }
+
+    #[tokio::test]
+    async fn sync_stopped_between_apply_batches_resumes_and_converges() {
+        // Arrange
+
+        let server = Arc::new(FakeServer::default());
+        let a = Device::new(&server).await;
+        for i in 0..7 {
+            a.insert(&format!("{i}"), "Title", "Body").await;
+        }
+        a.sync().await;
+        // Rewritten cells move to the end of the pull, away from the rest of their row.
+        a.set_title("0", "Edited").await;
+        a.set_title("3", "Edited").await;
+        a.sync().await;
+        let b = Device::new(&server).await;
+        {
+            let scope = b.injector.start_scope();
+            let store = scope.resolve::<dyn SyncStore>().await;
+            let mut since = None;
+            loop {
+                let page = server.pull(since).unwrap();
+                store
+                    .stage_remote(ChangeBatch { cells: page.cells })
+                    .await
+                    .unwrap();
+                store
+                    .set_last_pulled_server_seq(page.next_server_seq)
+                    .await
+                    .unwrap();
+                since = Some(page.next_server_seq);
+                if !page.has_more {
+                    break;
+                }
+            }
+            scope.save_changes().await.unwrap();
+        }
+
+        // Act
+
+        for _ in 0..2 {
+            // Each batch commits, then the sync stops, as a quit or crash between batches would leave it.
+            let scope = b.injector.start_scope();
+            let store = scope.resolve::<dyn SyncStore>().await;
+            let batch = store.take_staged(2).await.unwrap();
+            store.apply_remote(batch, false).await.unwrap();
+            scope.save_changes().await.unwrap();
+        }
+        let after_crash = b.note("0").await;
+        b.sync().await;
+
+        // Assert
+
+        assert_eq!(note("Edited", "Body"), after_crash);
+        for i in 0..7 {
+            let title = if i == 0 || i == 3 { "Edited" } else { "Title" };
+            assert_eq!(note(title, "Body"), b.note(&format!("{i}")).await);
+        }
+    }
+}
+
+mod live_backend;

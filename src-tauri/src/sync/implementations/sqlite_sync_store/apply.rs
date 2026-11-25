@@ -17,8 +17,8 @@ use super::pending_buffer::PendingBuffer;
 use super::schema_gate;
 use super::trigger_sql::{parse_row_id, quote_ident};
 
-/// Applies one page of a remote batch, buffering column-mode cells in `pending` until their row is
-/// complete; a row still missing a `NOT NULL` column waits for the next sync and holds off FK repair.
+/// Applies one batch of remote cells, writing each row it completes; a column-mode row still missing a
+/// `NOT NULL` column stays in `pending`, waits for the rest of its cells and holds off FK repair.
 pub(super) async fn apply_remote(
     tx: &mut SqliteConnection,
     batch: ChangeBatch,
@@ -57,31 +57,8 @@ pub(super) async fn apply_remote(
     Ok(())
 }
 
-/// [`try_flush_pending`] outside an [`apply_remote`] page, raising the `sync_applying` guard itself:
-/// unguarded, materializing a row would re-stage pulled data as this device's own edit.
-pub(super) async fn flush_pending_outside_page(
-    tx: &mut SqliteConnection,
-    pending: &PendingBuffer,
-) -> Result<bool, SyncError> {
-    mark_applying(tx).await?;
-
-    let result = try_flush_pending(&mut *tx, pending).await;
-
-    // Must always run, but must not shadow a real flush failure.
-    if let Err(err) = clear_applying(tx).await {
-        if result.is_ok() {
-            return Err(err);
-        }
-        log::error!(
-            "Failed to clear sync_applying guard after flush_pending_outside_page: {err:?}"
-        );
-    }
-
-    result
-}
-
 /// Flushes `pending`, each row in its own `SAVEPOINT` (complete rows are written, incomplete ones stay);
-/// returns whether any is left. Needs the `sync_applying` guard: outside a page use [`flush_pending_outside_page`].
+/// returns whether any is left. Needs the `sync_applying` guard.
 async fn try_flush_pending(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
@@ -132,10 +109,10 @@ async fn apply_remote_page_inner(
 ) -> Result<(), SyncError> {
     apply_remote_inner(tx, batch, pending, clock).await?;
 
-    if is_last_page
-        && try_flush_pending(tx, pending).await?
-        && discard_incomplete_deleted_rows(tx, pending).await?
-    {
+    // Every batch, as each commits and takes its cells out of the inbox: a row left only in `pending` would be
+    // lost if the sync stopped there. One still incomplete is rebuilt from `sync_cells` when its next cell comes.
+    let incomplete = try_flush_pending(tx, pending).await?;
+    if is_last_page && incomplete && discard_incomplete_deleted_rows(tx, pending).await? {
         log::warn!(
             "apply_remote: reached the last pulled page with one or more rows still \
              missing required columns; left them buffered for a retry on the next sync"
@@ -204,7 +181,7 @@ pub(super) async fn deleted_rows(
 }
 
 /// Drops incomplete deleted rows, whose missing cells were deleted with them and
-/// would otherwise stall the pull cursor. Returns whether any row is still buffered.
+/// would otherwise hold off FK repair. Returns whether any row is still buffered.
 async fn discard_incomplete_deleted_rows(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
@@ -681,7 +658,7 @@ async fn apply_row_upsert_columns(
 }
 
 /// Fills a new row's columns this pull didn't deliver from `sync_cells`: a row can lose buffered columns
-/// mid-cycle while the cursor commits past them, and the server won't resend those.
+/// when a batch or sync committed past them, and the server won't resend those.
 async fn backfill_missing_columns_from_cell_log(
     tx: &mut SqliteConnection,
     key: &RowKey,

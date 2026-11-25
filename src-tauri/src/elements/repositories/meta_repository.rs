@@ -50,6 +50,7 @@ pub trait MetaRepository: Send + Sync {
         id: ElementId,
         new_name: &str,
     ) -> Result<bool, RepositoryError>;
+    /// Whether the element has both its meta and its content row.
     async fn exists(&self, id: ElementId) -> Result<bool, RepositoryError>;
 
     async fn get_name(&self, id: ElementId) -> Result<String, RepositoryError>;

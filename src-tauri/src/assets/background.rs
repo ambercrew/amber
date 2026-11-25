@@ -12,6 +12,7 @@ use crate::local_configurations::repositories::local_configuration_repository::{
 };
 use crate::sync::sync_completion::SyncCompletion;
 use crate::sync::sync_lock::SyncLock;
+use crate::sync::utils::unapplied_changes::has_unapplied_remote_changes;
 
 const TIME_BETWEEN_ASSET_MAINTENANCE_IN_MINUTES: u64 = 12 * 60;
 const EMBEDDED_IMAGES_MIGRATED_CONFIGURATION_NAME: &str = "EMBEDDED_IMAGES_MIGRATED";
@@ -134,6 +135,10 @@ async fn migrate_embedded_images(injector: &Injector, sync_lock: &SyncLock) -> b
 async fn sweep_unreferenced_assets(injector: &Injector, sync_lock: &SyncLock) {
     let _guard = sync_lock.0.lock().await;
     let scope = injector.start_scope();
+    if has_unapplied_remote_changes(&scope).await {
+        log::info!("Skipping the asset sweep until a sync applies the changes it left staged.");
+        return;
+    }
     match scope
         .resolve::<dyn AssetService>()
         .await

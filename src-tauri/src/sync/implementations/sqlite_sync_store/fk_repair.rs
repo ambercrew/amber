@@ -35,7 +35,7 @@ struct DiscardReference {
 }
 
 /// Resolves dangling references, to a fixpoint. A row is only discarded if its parent has a
-/// tombstone, as a discard reaches every device; other orphans wait and hold the cursor back.
+/// tombstone, as a discard reaches every device; other orphans are kept until their parent arrives.
 pub(super) async fn repair_foreign_keys(tx: &mut SqliteConnection) -> Result<(), SyncError> {
     let policies = load_policies(tx).await?;
     let discard_references = load_discard_references(tx, &policies).await?;
@@ -56,39 +56,6 @@ pub(super) async fn repair_foreign_keys(tx: &mut SqliteConnection) -> Result<(),
     }
 
     Err(SyncError::FkRepairDidNotConverge)
-}
-
-/// Whether any synced row violates a foreign key: configured policies cover non-SQL references,
-/// `PRAGMA foreign_key_check` the declared ones without a policy.
-pub(super) async fn has_unresolved_foreign_keys(
-    tx: &mut SqliteConnection,
-) -> Result<bool, SyncError> {
-    for policy in load_policies(tx).await? {
-        let predicate =
-            violation_predicate(&policy.tbl, &policy.col, &policy.ref_tbl, &policy.ref_col);
-        let sql = format!(
-            "SELECT EXISTS(SELECT 1 FROM {} WHERE {predicate})",
-            quote_ident(&policy.tbl)
-        );
-        let exists: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
-            .fetch_one(&mut *tx)
-            .await?;
-        if exists {
-            return Ok(true);
-        }
-    }
-
-    for table in registered_tables(tx).await? {
-        let sql = format!("PRAGMA foreign_key_check({})", quote_ident(&table));
-        let violation = sqlx::query(sqlx::AssertSqlSafe(sql))
-            .fetch_optional(&mut *tx)
-            .await?;
-        if violation.is_some() {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
 }
 
 async fn load_policies(tx: &mut SqliteConnection) -> Result<Vec<StoredFkPolicy>, SyncError> {

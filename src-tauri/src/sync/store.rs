@@ -38,17 +38,19 @@ pub trait SyncStore: Send + Sync {
 
     async fn set_last_pulled_server_seq(&self, seq: i64) -> Result<(), SyncError>;
 
-    /// Merges one page of a remote batch (LWW by HLC) into the base tables, all or nothing. Call pages in
+    /// Stores a pulled page for `take_staged`, advancing the HLC clock past it. Errors, staging nothing, on a
+    /// page from a device on a newer schema.
+    async fn stage_remote(&self, batch: ChangeBatch) -> Result<(), SyncError>;
+
+    /// Removes and returns up to `limit` of the oldest staged cells, in pull order, for `apply_remote`; a
+    /// rollback puts them back. Holds the write lock from its start.
+    async fn take_staged(&self, limit: usize) -> Result<ChangeBatch, SyncError>;
+
+    async fn has_staged(&self) -> Result<bool, SyncError>;
+
+    /// Merges one batch of remote cells (LWW by HLC) into the base tables, all or nothing. Call batches in
     /// order on the same instance, which buffers new rows' columns, with `is_last_page` on the last.
     async fn apply_remote(&self, batch: ChangeBatch, is_last_page: bool) -> Result<(), SyncError>;
-
-    /// Attempts to materialize any row still buffered. Returns whether any
-    /// remains; `false` means the changes so far are safe to commit.
-    async fn has_pending_changes(&self) -> Result<bool, SyncError>;
-
-    /// Whether any synced row violates a declared FK in the current transaction. A later page may still
-    /// bring the parent, so pair it with `has_pending_changes` before committing.
-    async fn has_unresolved_foreign_keys(&self) -> Result<bool, SyncError>;
 
     /// Publishes this device's latest migration, so a device behind it stops syncing.
     async fn record_local_schema_version(&self) -> Result<(), SyncError>;

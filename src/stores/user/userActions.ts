@@ -15,6 +15,7 @@ import {
 	deleteUser as deleteUserApi,
 } from "../../api/backend/api/userApi";
 import { reloadApplicationState } from "../app/appActions";
+import { withoutSync } from "../sync/syncActions";
 import { AppDispatch } from "../store";
 import {
 	setLoggedOf,
@@ -82,15 +83,16 @@ export function signUp(navigate: NavigateFunction, request: SignUpRequestDto) {
 export function signOut(navigate: NavigateFunction) {
 	return async function (dispatch: AppDispatch): Promise<void> {
 		try {
-			await signOutApi();
+			// Signing out switches the backend to another database, which mustn't happen mid-sync.
+			await dispatch(
+				withoutSync(() => signedOutAfter(signOutApi, dispatch)),
+			);
 		} catch (e) {
 			// eslint-disable-next-line no-console
 			console.error(e);
 			notifications.show({ message: errorToString(e), color: "red" });
 			return;
 		}
-		clearCachedUserInformation();
-		dispatch(setLoggedOf());
 		await dispatch(reloadApplicationState(navigate));
 	};
 }
@@ -127,9 +129,19 @@ export function updateUserPassword(oldPassword: string, newPassword: string) {
 
 export function deleteAccount(navigate: NavigateFunction) {
 	return async function (dispatch: AppDispatch): Promise<void> {
-		await deleteUserApi();
-		clearCachedUserInformation();
-		dispatch(setLoggedOf());
+		await dispatch(
+			withoutSync(() => signedOutAfter(deleteUserApi, dispatch)),
+		);
 		await dispatch(reloadApplicationState(navigate));
 	};
+}
+
+/** Runs `leave` and marks the user signed out, inside `withoutSync`, so a sync queued behind it sees them gone. */
+async function signedOutAfter(
+	leave: () => Promise<unknown>,
+	dispatch: AppDispatch,
+) {
+	await leave();
+	clearCachedUserInformation();
+	dispatch(setLoggedOf());
 }

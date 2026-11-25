@@ -5,7 +5,7 @@ import useAppSelector from "../../../hooks/useAppSelector";
 import { AppDispatch } from "../../../stores/store";
 import { selectSettings } from "../../../stores/settings/settingsSelectors";
 import SettingsDto, { Theme } from "../../../api/settings/dto/settingsDto";
-import { sync } from "../../../stores/sync/syncActions";
+import { syncBeforeClose } from "../../../stores/sync/syncActions";
 import { defaultCloseRequestedEventManager } from "../../../managers/closeRequestedEventManager";
 import { tryGetCurrentWebView, isMobile } from "../../../utils/tauriUtils";
 import { applyFontVariable } from "../utils/fontCssUtils";
@@ -52,9 +52,8 @@ async function applySettings(settings: SettingsDto, dispatch: AppDispatch) {
 	defaultCloseRequestedEventManager.addHandler(
 		SETTINGS_CLOSE_REQUESTED_HANDLER_NAME,
 		{
-			cb: async () => {
-				if (settings.autoSync) await dispatch(sync());
-			},
+			// Waits for a background sync even with auto sync off, so closing never cuts one short.
+			cb: () => dispatch(syncBeforeClose(settings.autoSync)),
 			// Must be executed after everything.
 			priority: 9999,
 		},

@@ -284,7 +284,13 @@ impl MetaRepository for SqliteMetaRepository {
         let mut tx = self.tx.lock().await;
         let tx = tx.as_mut();
         let row = sqlx::query!(
-            r#"SELECT EXISTS(SELECT 1 FROM meta WHERE element_id = $1) as "exists: bool""#,
+            // Requires the content row too, so an element a sync has half applied reads as absent.
+            r#"SELECT EXISTS(SELECT 1 FROM meta m WHERE m.element_id = $1 AND CASE m.element_type
+                WHEN 'folder' THEN EXISTS(SELECT 1 FROM folders WHERE id = m.element_id)
+                WHEN 'learning_asset' THEN EXISTS(SELECT 1 FROM learning_assets WHERE id = m.element_id)
+                WHEN 'extract' THEN EXISTS(SELECT 1 FROM extracts WHERE id = m.element_id)
+                WHEN 'card' THEN EXISTS(SELECT 1 FROM cards WHERE id = m.element_id)
+                ELSE 0 END) as "exists: bool""#,
             uuid
         )
         .fetch_one(&mut *tx)

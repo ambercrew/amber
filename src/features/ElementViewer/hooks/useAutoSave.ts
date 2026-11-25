@@ -17,7 +17,8 @@ interface Props<T> {
 }
 
 interface ReturnValue<T> {
-	saveChanges: () => Promise<void>;
+	/** Resolves whether there was anything to save. */
+	saveChanges: () => Promise<boolean>;
 	onContentUpdate: (getContent: () => T) => void;
 }
 
@@ -44,7 +45,7 @@ function useAutoSave<T = string>({
 			autoSaveTimeoutId.current = null;
 		}
 
-		if (pendingContent.current === null) return;
+		if (pendingContent.current === null) return false;
 
 		await callApi(async () => {
 			const getContent = pendingContent.current!;
@@ -53,6 +54,7 @@ function useAutoSave<T = string>({
 			await onSave(getContent());
 			await onSaveComplete?.();
 		});
+		return true;
 	}, [callApi, onSave, onSaveComplete]);
 
 	// Stable, so callers can depend on it without re-subscribing listeners every render.
@@ -81,7 +83,9 @@ function useAutoSave<T = string>({
 		defaultCloseRequestedEventManager.addHandler(
 			closeRequestedHandlerName,
 			{
-				cb: saveChanges,
+				cb: async () => {
+					await saveChanges();
+				},
 				// Must be executed at start!
 				priority: 0,
 			},
@@ -101,6 +105,19 @@ function useAutoSave<T = string>({
 		return () =>
 			defaultGlobalSyncEventManager.removeListener(
 				ListenerType.PreSyncStart,
+				saveChanges,
+			);
+	}, [saveChanges]);
+
+	// Saves what was typed during a background sync before the sync's refresh reloads the element.
+	useEffect(() => {
+		defaultGlobalSyncEventManager.addListener(
+			ListenerType.PreSyncComplete,
+			saveChanges,
+		);
+		return () =>
+			defaultGlobalSyncEventManager.removeListener(
+				ListenerType.PreSyncComplete,
 				saveChanges,
 			);
 	}, [saveChanges]);

@@ -6,7 +6,7 @@ use injector_derive::ScopeInjectable;
 
 use super::pending_buffer::PendingBuffer;
 use super::schema_gate;
-use super::{apply, fk_repair, push_pull, register};
+use super::{apply, inbox, push_pull, register};
 use crate::generated_code::ChangeBatch;
 use crate::infrastructure::value_objects::db_pool::DbPool;
 use crate::infrastructure::value_objects::db_transaction::DbTransaction;
@@ -66,6 +66,22 @@ impl SyncStore for SqliteSyncStore {
         push_pull::set_last_pulled_server_seq(guard.as_mut(), seq).await
     }
 
+    async fn stage_remote(&self, batch: ChangeBatch) -> Result<(), SyncError> {
+        let sync_clock = self.db_pool.sync_clock().await;
+        let mut guard = self.tx.lock().await;
+        inbox::stage(guard.as_mut(), &batch, sync_clock.get()).await
+    }
+
+    async fn take_staged(&self, limit: usize) -> Result<ChangeBatch, SyncError> {
+        let mut guard = self.tx.lock().await;
+        inbox::take(guard.as_mut(), limit).await
+    }
+
+    async fn has_staged(&self) -> Result<bool, SyncError> {
+        let mut guard = self.tx.lock().await;
+        inbox::has_staged(guard.as_mut()).await
+    }
+
     async fn apply_remote(&self, batch: ChangeBatch, is_last_page: bool) -> Result<(), SyncError> {
         let sync_clock = self.db_pool.sync_clock().await;
         let mut guard = self.tx.lock().await;
@@ -77,16 +93,6 @@ impl SyncStore for SqliteSyncStore {
             sync_clock.get(),
         )
         .await
-    }
-
-    async fn has_pending_changes(&self) -> Result<bool, SyncError> {
-        let mut guard = self.tx.lock().await;
-        apply::flush_pending_outside_page(guard.as_mut(), &self.pending).await
-    }
-
-    async fn has_unresolved_foreign_keys(&self) -> Result<bool, SyncError> {
-        let mut guard = self.tx.lock().await;
-        fk_repair::has_unresolved_foreign_keys(guard.as_mut()).await
     }
 
     async fn record_local_schema_version(&self) -> Result<(), SyncError> {

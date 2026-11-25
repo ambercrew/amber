@@ -55,8 +55,8 @@ impl SyncClock {
     }
 }
 
-/// Seeds past the highest HLC this database has seen, or from wall time on a
-/// fresh database.
+/// Seeds past the highest HLC this database has seen, staged pulled cells included, or from wall time
+/// on a fresh database.
 // A plain `max(hlc)` reads all of `idx_sync_cells_device_hlc` (500 ms cold on a hard disk); this
 // walks it per device instead, two seeks each, so no migration is needed for an `hlc` index.
 const MAX_STORED_HLC_SQL: &str = "
@@ -66,10 +66,14 @@ const MAX_STORED_HLC_SQL: &str = "
         SELECT (SELECT min(device_id) FROM sync_cells WHERE device_id > devices.id)
         FROM devices WHERE devices.id IS NOT NULL
     )
-    SELECT max((SELECT max(hlc) FROM sync_cells WHERE device_id = devices.id))
-    FROM devices WHERE devices.id IS NOT NULL";
+    SELECT max(hlc) FROM (
+        SELECT (SELECT max(hlc) FROM sync_cells WHERE device_id = devices.id) AS hlc
+        FROM devices WHERE devices.id IS NOT NULL
+        UNION ALL
+        SELECT max(hlc) FROM sync_inbox
+    )";
 
-/// The highest HLC stored in `sync_cells`, from any device.
+/// The highest HLC stored in `sync_cells` or `sync_inbox`, from any device.
 async fn max_stored_hlc(pool: &SqlitePool) -> Result<Option<String>, sqlx::Error> {
     sqlx::query_scalar::<_, Option<String>>(MAX_STORED_HLC_SQL)
         .fetch_one(pool)
@@ -182,6 +186,41 @@ mod tests {
         // Assert
 
         assert_eq!(Some(highest.format()), actual);
+    }
+
+    #[tokio::test]
+    async fn max_stored_hlc_staged_cell_newer_than_stored_ones_returns_staged_hlc() {
+        // Arrange
+
+        let (pool, _) = create_sqlite_pool("sqlite::memory:").await.unwrap();
+        sqlx::query("DELETE FROM sync_cells")
+            .execute(&pool)
+            .await
+            .unwrap();
+        insert_cell(
+            &pool,
+            "1",
+            &Hlc::new(1_000, 0, DeviceId::from_name("device-a")),
+        )
+        .await;
+        let staged = Hlc::new(5_000, 0, DeviceId::from_name("device-b"));
+        sqlx::query(
+            "INSERT INTO sync_inbox(tbl, row_id, col, value, hlc, device_id)
+             VALUES ('test', '[\"2\"]', 'col', NULL, ?1, ?2)",
+        )
+        .bind(staged.format())
+        .bind(staged.device_id.to_string())
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // Act
+
+        let actual = max_stored_hlc(&pool).await.unwrap();
+
+        // Assert
+
+        assert_eq!(Some(staged.format()), actual);
     }
 
     #[tokio::test]
