@@ -1,6 +1,6 @@
 use sqlx::SqliteConnection;
 
-use super::column_info::{primary_key_columns, read_table_info};
+use super::column_info::{column_affinity, primary_key_columns, read_table_info};
 use super::models::TableSchema;
 use super::trigger_sql;
 use crate::sync::errors::SyncError;
@@ -17,6 +17,18 @@ pub(crate) async fn register_table(
     let columns = read_table_info(tx, table).await?;
     if columns.is_empty() {
         return Err(SyncError::TableNotFound(table.to_string()));
+    }
+
+    // A row-mode cell's value is its row as JSON, built when pushed (`cell_values`).
+    if granularity == Granularity::Row
+        && let Some(blob) = columns
+            .iter()
+            .find(|c| !c.is_primary_key() && column_affinity(&c.col_type) == "BLOB")
+    {
+        return Err(SyncError::BlobColumnInRowMode {
+            table: table.to_string(),
+            col: blob.name.clone(),
+        });
     }
 
     for constraint in fk_constraints {

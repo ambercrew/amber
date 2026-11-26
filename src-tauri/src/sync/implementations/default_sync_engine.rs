@@ -1034,8 +1034,8 @@ mod tests {
         {
             let mut guard = tx.lock().await;
             sqlx::query(
-                "INSERT INTO sync_cells(tbl, row_id, col, value, hlc, device_id)
-                 VALUES ('parents', json_array('missing-parent'), ?1, NULL, hlc_now(), device_id())",
+                "INSERT INTO sync_cells(tbl, row_id, col, hlc, is_remote)
+                 VALUES ('parents', json_array('missing-parent'), ?1, hlc_now(), 0)",
             )
             .bind(merge::DELETED_COL)
             .execute(guard.as_mut())

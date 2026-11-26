@@ -6,7 +6,7 @@ use tokio_rusqlite::ffi;
 
 use super::clock::SyncClock;
 
-/// Registers `hlc_now()` and `device_id()` on `connection`, bound to `clock`. Per connection, not
+/// Registers `hlc_now()` (an `Hlc::to_bytes` blob) and `device_id()` on `connection`, bound to `clock`. Per connection, not
 /// `sqlite3_auto_extension`, so a statement uses its own database's clock even with two open.
 pub(crate) async fn register_sync_sql_functions(
     connection: &mut SqliteConnection,
@@ -86,7 +86,13 @@ unsafe extern "C" fn hlc_now_function(
             return;
         };
 
-        result_text(ctx, &clock.now().format());
+        let bytes = clock.now().to_bytes();
+        ffi::sqlite3_result_blob(
+            ctx,
+            bytes.as_ptr().cast(),
+            bytes.len() as c_int,
+            ffi::SQLITE_TRANSIENT(),
+        );
     }
 }
 

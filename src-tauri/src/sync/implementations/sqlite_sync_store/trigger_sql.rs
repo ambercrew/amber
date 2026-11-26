@@ -2,7 +2,9 @@ use super::models::TableSchema;
 use crate::sync::errors::SyncError;
 use crate::sync::utils::merge::{DELETED_COL, ROW_COL};
 
-const UPSERT_CONFLICT_CLAUSE: &str = "ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id";
+/// Cells hold no value, read from the row when pushed (see `cell_values`).
+const UPSERT_CONFLICT_CLAUSE: &str =
+    "ON CONFLICT(tbl,row_id,col) DO UPDATE SET hlc=excluded.hlc, is_remote=0";
 const APPLYING_GUARD: &str = "WHEN NOT EXISTS (SELECT 1 FROM sync_applying)";
 /// Lets `backfill_via_trigger` bypass the `au` trigger's per-column "did this
 /// change" filter, so its no-op self-assignment `UPDATE` still writes a cell.
@@ -24,9 +26,8 @@ pub fn column_mode_triggers(schema: &TableSchema) -> Vec<String> {
         .non_pk_columns
         .iter()
         .map(|col| {
-            let quoted_col = quote_ident(col);
             format!(
-                "  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('{table}', {row_id_new}, '{col}', CAST(NEW.{quoted_col} AS BLOB), hlc_now(), device_id())
+                "  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote) VALUES ('{table}', {row_id_new}, '{col}', hlc_now(), 0)
   {UPSERT_CONFLICT_CLAUSE};
 "
             )
@@ -47,8 +48,8 @@ BEGIN
         .map(|col| {
             let quoted_col = quote_ident(col);
             format!(
-                "  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)
-  SELECT '{table}', {row_id_new}, '{col}', CAST(NEW.{quoted_col} AS BLOB), hlc_now(), device_id()
+                "  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote)
+  SELECT '{table}', {row_id_new}, '{col}', hlc_now(), 0
   WHERE NEW.{quoted_col} IS NOT OLD.{quoted_col} {BACKFILLING_BYPASS}
   {UPSERT_CONFLICT_CLAUSE};
 "
@@ -74,19 +75,20 @@ pub fn row_mode_triggers(schema: &TableSchema) -> Vec<String> {
     let row_id_new = row_id_expr("NEW", &schema.pk_columns);
     let quoted_table = quote_ident(table);
 
-    let json_pairs: String = schema
+    // The row's JSON is only built when pushed, so a BLOB value is refused here, where its writer sees it.
+    let blob_check: String = schema
         .pk_columns
         .iter()
-        .chain(schema.non_pk_columns.iter())
-        .map(|col| {
-            let quoted_col = quote_ident(col);
-            format!("'{col}', NEW.{quoted_col}")
-        })
+        .chain(&schema.non_pk_columns)
+        .map(|col| format!("typeof(NEW.{}) = 'blob'", quote_ident(col)))
         .collect::<Vec<_>>()
-        .join(", ");
-
+        .join(" OR ");
+    let message =
+        format!("Table '{table}' syncs by row, whose JSON payload can't hold a BLOB value")
+            .replace('\'', "''");
     let row_upsert = format!(
-        "  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('{table}', {row_id_new}, '{ROW_COL}', json_object({json_pairs}), hlc_now(), device_id())
+        "  SELECT RAISE(ABORT, '{message}') WHERE {blob_check};
+  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote) VALUES ('{table}', {row_id_new}, '{ROW_COL}', hlc_now(), 0)
   {UPSERT_CONFLICT_CLAUSE};
 "
     );
@@ -130,8 +132,7 @@ pub fn backfill_via_trigger(schema: &TableSchema) -> Vec<String> {
     ]
 }
 
-/// Drops the row's other cells before writing its tombstone, so only the
-/// tombstone is pushed and no copy of the payload (a whole PDF) is kept.
+/// Drops the row's other cells before writing its tombstone, so only the tombstone is pushed.
 fn delete_trigger(table: &str, pk_columns: &[String], quoted_table: &str) -> String {
     let row_id_old = row_id_expr("OLD", pk_columns);
     format!(
@@ -139,7 +140,7 @@ fn delete_trigger(table: &str, pk_columns: &[String], quoted_table: &str) -> Str
 {guard}
 BEGIN
   DELETE FROM sync_cells WHERE tbl = '{table}' AND row_id = {row_id_old} AND col <> '{DELETED_COL}';
-  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('{table}', {row_id_old}, '{DELETED_COL}', NULL, hlc_now(), device_id())
+  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote) VALUES ('{table}', {row_id_old}, '{DELETED_COL}', hlc_now(), 0)
   {UPSERT_CONFLICT_CLAUSE};
 END;",
         guard = APPLYING_GUARD
@@ -255,17 +256,17 @@ mod tests {
         // Assert
 
         assert_eq!(
-            "CREATE TRIGGER sync_notes_ai AFTER INSERT ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(NEW.\"id\"), 'title', CAST(NEW.\"title\" AS BLOB), hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(NEW.\"id\"), 'body', CAST(NEW.\"body\" AS BLOB), hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
+            "CREATE TRIGGER sync_notes_ai AFTER INSERT ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote) VALUES ('notes', json_array(NEW.\"id\"), 'title', hlc_now(), 0)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET hlc=excluded.hlc, is_remote=0;\n  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote) VALUES ('notes', json_array(NEW.\"id\"), 'body', hlc_now(), 0)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET hlc=excluded.hlc, is_remote=0;\nEND;",
             actual[0]
         );
 
         assert_eq!(
-            "CREATE TRIGGER sync_notes_au AFTER UPDATE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)\n  SELECT 'notes', json_array(NEW.\"id\"), 'title', CAST(NEW.\"title\" AS BLOB), hlc_now(), device_id()\n  WHERE NEW.\"title\" IS NOT OLD.\"title\" OR EXISTS (SELECT 1 FROM sync_backfilling)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id)\n  SELECT 'notes', json_array(NEW.\"id\"), 'body', CAST(NEW.\"body\" AS BLOB), hlc_now(), device_id()\n  WHERE NEW.\"body\" IS NOT OLD.\"body\" OR EXISTS (SELECT 1 FROM sync_backfilling)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
+            "CREATE TRIGGER sync_notes_au AFTER UPDATE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote)\n  SELECT 'notes', json_array(NEW.\"id\"), 'title', hlc_now(), 0\n  WHERE NEW.\"title\" IS NOT OLD.\"title\" OR EXISTS (SELECT 1 FROM sync_backfilling)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET hlc=excluded.hlc, is_remote=0;\n  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote)\n  SELECT 'notes', json_array(NEW.\"id\"), 'body', hlc_now(), 0\n  WHERE NEW.\"body\" IS NOT OLD.\"body\" OR EXISTS (SELECT 1 FROM sync_backfilling)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET hlc=excluded.hlc, is_remote=0;\nEND;",
             actual[1]
         );
 
         assert_eq!(
-            "CREATE TRIGGER sync_notes_ad AFTER DELETE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  DELETE FROM sync_cells WHERE tbl = 'notes' AND row_id = json_array(OLD.\"id\") AND col <> '__deleted';\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(OLD.\"id\"), '__deleted', NULL, hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
+            "CREATE TRIGGER sync_notes_ad AFTER DELETE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  DELETE FROM sync_cells WHERE tbl = 'notes' AND row_id = json_array(OLD.\"id\") AND col <> '__deleted';\n  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote) VALUES ('notes', json_array(OLD.\"id\"), '__deleted', hlc_now(), 0)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET hlc=excluded.hlc, is_remote=0;\nEND;",
             actual[2]
         );
     }
@@ -283,17 +284,17 @@ mod tests {
         // Assert
 
         assert_eq!(
-            "CREATE TRIGGER sync_notes_ai AFTER INSERT ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(NEW.\"id\"), '__row', json_object('id', NEW.\"id\", 'title', NEW.\"title\", 'body', NEW.\"body\"), hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
+            "CREATE TRIGGER sync_notes_ai AFTER INSERT ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  SELECT RAISE(ABORT, 'Table ''notes'' syncs by row, whose JSON payload can''t hold a BLOB value') WHERE typeof(NEW.\"id\") = 'blob' OR typeof(NEW.\"title\") = 'blob' OR typeof(NEW.\"body\") = 'blob';\n  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote) VALUES ('notes', json_array(NEW.\"id\"), '__row', hlc_now(), 0)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET hlc=excluded.hlc, is_remote=0;\nEND;",
             actual[0]
         );
 
         assert_eq!(
-            "CREATE TRIGGER sync_notes_au AFTER UPDATE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(NEW.\"id\"), '__row', json_object('id', NEW.\"id\", 'title', NEW.\"title\", 'body', NEW.\"body\"), hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
+            "CREATE TRIGGER sync_notes_au AFTER UPDATE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  SELECT RAISE(ABORT, 'Table ''notes'' syncs by row, whose JSON payload can''t hold a BLOB value') WHERE typeof(NEW.\"id\") = 'blob' OR typeof(NEW.\"title\") = 'blob' OR typeof(NEW.\"body\") = 'blob';\n  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote) VALUES ('notes', json_array(NEW.\"id\"), '__row', hlc_now(), 0)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET hlc=excluded.hlc, is_remote=0;\nEND;",
             actual[1]
         );
 
         assert_eq!(
-            "CREATE TRIGGER sync_notes_ad AFTER DELETE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  DELETE FROM sync_cells WHERE tbl = 'notes' AND row_id = json_array(OLD.\"id\") AND col <> '__deleted';\n  INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES ('notes', json_array(OLD.\"id\"), '__deleted', NULL, hlc_now(), device_id())\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id;\nEND;",
+            "CREATE TRIGGER sync_notes_ad AFTER DELETE ON \"notes\"\nWHEN NOT EXISTS (SELECT 1 FROM sync_applying)\nBEGIN\n  DELETE FROM sync_cells WHERE tbl = 'notes' AND row_id = json_array(OLD.\"id\") AND col <> '__deleted';\n  INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote) VALUES ('notes', json_array(OLD.\"id\"), '__deleted', hlc_now(), 0)\n  ON CONFLICT(tbl,row_id,col) DO UPDATE SET hlc=excluded.hlc, is_remote=0;\nEND;",
             actual[2]
         );
     }
@@ -312,23 +313,6 @@ mod tests {
 
         assert!(actual[0].contains("json_array(NEW.\"workspace_id\", NEW.\"id\")"));
         assert!(actual[2].contains("json_array(OLD.\"workspace_id\", OLD.\"id\")"));
-    }
-
-    #[test]
-    fn row_mode_triggers_composite_key_folds_every_key_column_into_json_payload() {
-        // Arrange
-
-        let schema = notes_composite_schema();
-
-        // Act
-
-        let actual = row_mode_triggers(&schema);
-
-        // Assert
-
-        assert!(actual[0].contains(
-            "json_object('workspace_id', NEW.\"workspace_id\", 'id', NEW.\"id\", 'title', NEW.\"title\")"
-        ));
     }
 
     #[test]
@@ -365,6 +349,6 @@ mod tests {
 
         // Assert
 
-        assert!(actual[0].contains("NEW.\"a\"\"b\""));
+        assert!(actual[1].contains("NEW.\"a\"\"b\" IS NOT OLD.\"a\"\"b\""));
     }
 }

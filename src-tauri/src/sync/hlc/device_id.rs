@@ -13,6 +13,14 @@ impl DeviceId {
         Self(Uuid::new_v4())
     }
 
+    pub fn as_bytes(&self) -> &[u8; 16] {
+        self.0.as_bytes()
+    }
+
+    pub fn from_bytes(bytes: [u8; 16]) -> Self {
+        Self(Uuid::from_bytes(bytes))
+    }
+
     /// Derives a `DeviceId` from a name, so tests can use readable labels.
     #[cfg(test)]
     pub fn from_name(name: &str) -> Self {

@@ -27,11 +27,7 @@ impl SyncClock {
 
         let max_hlc = max_stored_hlc(pool).await?;
 
-        let seed = compute_seed(
-            max_hlc.and_then(|value| Hlc::parse(&value).ok()),
-            crate::sync::hlc::wall_time_ms(),
-            device_id,
-        );
+        let seed = compute_seed(max_hlc, crate::sync::hlc::wall_time_ms(), device_id);
 
         assert!(
             self.clock.set(HlcClock::new(seed)).is_ok(),
@@ -55,29 +51,25 @@ impl SyncClock {
     }
 }
 
-/// Seeds past the highest HLC this database has seen, staged pulled cells included, or from wall time
-/// on a fresh database.
-// A plain `max(hlc)` reads all of `idx_sync_cells_device_hlc` (500 ms cold on a hard disk); this
-// walks it per device instead, two seeks each, so no migration is needed for an `hlc` index.
-const MAX_STORED_HLC_SQL: &str = "
-    WITH RECURSIVE devices(id) AS (
-        SELECT min(device_id) FROM sync_cells
-        UNION ALL
-        SELECT (SELECT min(device_id) FROM sync_cells WHERE device_id > devices.id)
-        FROM devices WHERE devices.id IS NOT NULL
+/// The highest HLC this database has seen, staged pulled cells included, from any device: a seek per
+/// `is_remote` value and one into `sync_inbox`, whose text HLCs never compare with the cell log's blobs.
+async fn max_stored_hlc(pool: &SqlitePool) -> Result<Option<Hlc>, sqlx::Error> {
+    let stored: Option<Vec<u8>> = sqlx::query_scalar(
+        "SELECT max(hlc) FROM (
+            SELECT max(hlc) AS hlc FROM sync_cells WHERE is_remote = 0
+            UNION ALL
+            SELECT max(hlc) FROM sync_cells WHERE is_remote = 1
+        )",
     )
-    SELECT max(hlc) FROM (
-        SELECT (SELECT max(hlc) FROM sync_cells WHERE device_id = devices.id) AS hlc
-        FROM devices WHERE devices.id IS NOT NULL
-        UNION ALL
-        SELECT max(hlc) FROM sync_inbox
-    )";
-
-/// The highest HLC stored in `sync_cells` or `sync_inbox`, from any device.
-async fn max_stored_hlc(pool: &SqlitePool) -> Result<Option<String>, sqlx::Error> {
-    sqlx::query_scalar::<_, Option<String>>(MAX_STORED_HLC_SQL)
+    .fetch_one(pool)
+    .await?;
+    let staged: Option<String> = sqlx::query_scalar("SELECT max(hlc) FROM sync_inbox")
         .fetch_one(pool)
-        .await
+        .await?;
+
+    let stored = stored.and_then(|bytes| Hlc::from_bytes(&bytes).ok());
+    let staged = staged.and_then(|text| Hlc::parse(&text).ok());
+    Ok(stored.max(staged))
 }
 
 fn compute_seed(max_hlc: Option<Hlc>, wall_ms: u64, device_id: DeviceId) -> Hlc {
@@ -136,14 +128,13 @@ mod tests {
             .unwrap();
     }
 
-    async fn insert_cell(pool: &SqlitePool, row_id: &str, hlc: &Hlc) {
+    async fn insert_cell(pool: &SqlitePool, row_id: &str, hlc: &Hlc, is_remote: bool) {
         sqlx::query(
-            "INSERT INTO sync_cells(tbl, row_id, col, value, hlc, device_id)
-             VALUES ('test', ?1, 'col', NULL, ?2, ?3)",
+            "INSERT INTO sync_cells(tbl, row_id, col, hlc, is_remote) VALUES ('test', ?1, 'col', ?2, ?3)",
         )
         .bind(row_id)
-        .bind(hlc.format())
-        .bind(hlc.device_id.to_string())
+        .bind(hlc.to_bytes())
+        .bind(is_remote)
         .execute(pool)
         .await
         .unwrap();
@@ -163,19 +154,22 @@ mod tests {
             &pool,
             "1",
             &Hlc::new(1_000, 7, DeviceId::from_name("device-a")),
+            false,
         )
         .await;
         insert_cell(
             &pool,
             "2",
             &Hlc::new(2_000, 0, DeviceId::from_name("device-a")),
+            false,
         )
         .await;
-        insert_cell(&pool, "3", &highest).await;
+        insert_cell(&pool, "3", &highest, true).await;
         insert_cell(
             &pool,
             "4",
             &Hlc::new(2_500, 9, DeviceId::from_name("device-c")),
+            true,
         )
         .await;
 
@@ -185,7 +179,7 @@ mod tests {
 
         // Assert
 
-        assert_eq!(Some(highest.format()), actual);
+        assert_eq!(Some(highest), actual);
     }
 
     #[tokio::test]
@@ -201,6 +195,7 @@ mod tests {
             &pool,
             "1",
             &Hlc::new(1_000, 0, DeviceId::from_name("device-a")),
+            false,
         )
         .await;
         let staged = Hlc::new(5_000, 0, DeviceId::from_name("device-b"));
@@ -220,7 +215,7 @@ mod tests {
 
         // Assert
 
-        assert_eq!(Some(staged.format()), actual);
+        assert_eq!(Some(staged), actual);
     }
 
     #[tokio::test]
@@ -328,18 +323,18 @@ mod tests {
 
         // Act
 
-        let first: String = sqlx::query_scalar("SELECT hlc_now()")
+        let first: Vec<u8> = sqlx::query_scalar("SELECT hlc_now()")
             .fetch_one(&pool)
             .await
             .unwrap();
-        let second: String = sqlx::query_scalar("SELECT hlc_now()")
+        let second: Vec<u8> = sqlx::query_scalar("SELECT hlc_now()")
             .fetch_one(&pool)
             .await
             .unwrap();
 
         // Assert
 
-        assert!(Hlc::parse(&second).unwrap() > Hlc::parse(&first).unwrap());
+        assert!(Hlc::from_bytes(&second).unwrap() > Hlc::from_bytes(&first).unwrap());
     }
 
     #[tokio::test]

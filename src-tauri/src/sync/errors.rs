@@ -40,6 +40,9 @@ pub enum SyncError {
     #[error("Invalid row payload for table '{table}': {reason}")]
     InvalidRowPayload { table: String, reason: String },
 
+    #[error("Table '{table}' syncs by row, whose JSON payload can't hold BLOB column '{col}'")]
+    BlobColumnInRowMode { table: String, col: String },
+
     #[error("Unknown column '{col}' in table '{table}'")]
     UnknownColumn { table: String, col: String },
 

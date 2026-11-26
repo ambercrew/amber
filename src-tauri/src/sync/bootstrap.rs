@@ -589,13 +589,21 @@ mod tests {
 
         // Assert
 
-        let cells: Vec<(String, Vec<u8>)> =
-            sqlx::query_as("SELECT col, value FROM sync_cells WHERE tbl = 'learning_asset_skips'")
-                .fetch_all(guard.as_mut())
-                .await
-                .unwrap();
+        drop(guard);
+        let pushed = scope
+            .resolve::<dyn SyncStore>()
+            .await
+            .changes_since_last_push()
+            .await
+            .unwrap();
+        let cells: Vec<(String, Option<Vec<u8>>)> = pushed
+            .cells
+            .into_iter()
+            .filter(|cell| cell.tbl == "learning_asset_skips")
+            .map(|cell| (cell.col, cell.value))
+            .collect();
         assert_eq!(
-            vec![("skipped_at".to_string(), b"1800000000000".to_vec())],
+            vec![("skipped_at".to_string(), Some(b"1800000000000".to_vec()))],
             cells
         );
     }

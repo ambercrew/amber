@@ -2,6 +2,7 @@ use sqlx::Row;
 
 use injector::injector_scope::InjectorScope;
 
+use super::cell_values;
 use crate::generated_code::{CellChange, ChangeBatch};
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
 use crate::infrastructure::value_objects::db_pool::DbPool;
@@ -118,20 +119,48 @@ fn single_row_id(id: &str) -> String {
     row_id_json(&[id])
 }
 
+/// A cell's value as a push would send it, read from its row (see `cell_values`).
+async fn cell_values_of(
+    conn: &mut sqlx::SqliteConnection,
+    table: &str,
+    id: &str,
+    cols: &[String],
+) -> std::collections::HashMap<cell_values::CellKey, Option<Vec<u8>>> {
+    let granularity: String =
+        sqlx::query_scalar("SELECT granularity FROM sync_registry WHERE tbl = ?1")
+            .bind(table)
+            .fetch_one(&mut *conn)
+            .await
+            .unwrap();
+    let keys: Vec<cell_values::CellKey> = cols
+        .iter()
+        .map(|col| (single_row_id(id), col.clone()))
+        .collect();
+    cell_values::read(conn, table, granularity.parse().unwrap(), &keys)
+        .await
+        .unwrap()
+}
+
 async fn get_cells(tx: &DbTransaction, table: &str, id: &str) -> Vec<(String, Option<Vec<u8>>)> {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
-    let rows = sqlx::query("SELECT col, value FROM sync_cells WHERE tbl = ?1 AND row_id = ?2")
-        .bind(table)
-        .bind(single_row_id(id))
-        .fetch_all(&mut *conn)
-        .await
-        .unwrap();
-    rows.into_iter()
-        .map(|row| (row.try_get("col").unwrap(), row.try_get("value").unwrap()))
+    let cols: Vec<String> =
+        sqlx::query_scalar("SELECT col FROM sync_cells WHERE tbl = ?1 AND row_id = ?2")
+            .bind(table)
+            .bind(single_row_id(id))
+            .fetch_all(&mut *conn)
+            .await
+            .unwrap();
+    let mut values = cell_values_of(conn, table, id, &cols).await;
+    cols.into_iter()
+        .map(|col| {
+            let value = values.remove(&(single_row_id(id), col.clone())).flatten();
+            (col, value)
+        })
         .collect()
 }
 
+/// A cell's value (as `get_cells`), HLC and the device id the HLC names.
 async fn get_cell(
     tx: &DbTransaction,
     table: &str,
@@ -140,22 +169,25 @@ async fn get_cell(
 ) -> Option<(Option<Vec<u8>>, String, String)> {
     let mut guard = tx.lock().await;
     let conn = guard.as_mut();
-    sqlx::query(
-        "SELECT value, hlc, device_id FROM sync_cells WHERE tbl=?1 AND row_id=?2 AND col=?3",
-    )
-    .bind(table)
-    .bind(single_row_id(id))
-    .bind(col)
-    .fetch_optional(&mut *conn)
-    .await
-    .unwrap()
-    .map(|row| {
-        (
-            row.try_get("value").unwrap(),
-            row.try_get("hlc").unwrap(),
-            row.try_get("device_id").unwrap(),
-        )
-    })
+    let hlc: Vec<u8> =
+        sqlx::query_scalar("SELECT hlc FROM sync_cells WHERE tbl=?1 AND row_id=?2 AND col=?3")
+            .bind(table)
+            .bind(single_row_id(id))
+            .bind(col)
+            .fetch_optional(&mut *conn)
+            .await
+            .unwrap()?;
+    let hlc = Hlc::from_bytes(&hlc).unwrap();
+    let mut values = cell_values_of(conn, table, id, &[col.to_string()]).await;
+    let value = values
+        .remove(&(single_row_id(id), col.to_string()))
+        .flatten();
+    Some((value, hlc.format(), hlc.device_id.to_string()))
+}
+
+/// The device id `remote_cell`'s HLCs name.
+fn remote_device_id() -> String {
+    DeviceId::from_name("remote-device").to_string()
 }
 
 fn remote_cell(
@@ -714,6 +746,108 @@ async fn mark_pushed_advances_cursor() {
 
     let actual = engine.changes_since_last_push().await.unwrap();
     assert!(actual.cells.is_empty());
+}
+
+#[tokio::test]
+async fn row_mode_insert_blob_value_returns_error() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Row, &[])
+        .await
+        .unwrap();
+
+    // Act
+
+    let actual = {
+        let mut guard = tx.lock().await;
+        sqlx::query("INSERT INTO notes(id, title, body) VALUES ('1', X'00', 'Body')")
+            .execute(guard.as_mut())
+            .await
+    };
+
+    // Assert
+
+    let message = actual.unwrap_err().to_string();
+    assert!(message.contains("can't hold a BLOB value"), "{message}");
+}
+
+#[tokio::test]
+async fn changes_since_last_push_unregistered_table_returns_unregistered_table() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Title", "Body").await;
+    {
+        let mut guard = tx.lock().await;
+        sqlx::query("DELETE FROM sync_registry WHERE tbl = 'notes'")
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+    }
+
+    // Act
+
+    let actual = engine.changes_since_last_push().await;
+
+    // Assert
+
+    assert!(matches!(actual, Err(SyncError::UnregisteredTable(table)) if table == "notes"));
+}
+
+#[tokio::test]
+async fn changes_since_last_push_cell_of_missing_column_is_dropped() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Title", "Body").await;
+    {
+        let mut guard = tx.lock().await;
+        sqlx::query(
+            "INSERT INTO sync_cells(tbl, row_id, col, hlc, is_remote)
+             SELECT tbl, row_id, 'gone', hlc, 0 FROM sync_cells WHERE col = 'title'",
+        )
+        .execute(guard.as_mut())
+        .await
+        .unwrap();
+    }
+
+    // Act
+
+    let actual = engine.changes_since_last_push().await.unwrap();
+
+    // Assert
+
+    let mut cols: Vec<&str> = actual.cells.iter().map(|c| c.col.as_str()).collect();
+    cols.sort_unstable();
+    assert_eq!(vec!["body", "title"], cols);
+    let remaining: Vec<String> = get_cells(&tx, "notes", "1")
+        .await
+        .into_iter()
+        .map(|(col, _)| col)
+        .collect();
+    assert!(!remaining.contains(&"gone".to_string()));
 }
 
 #[tokio::test]
@@ -1567,7 +1701,7 @@ async fn apply_remote_does_not_retrigger_local_sync_cells() {
     let cells = get_cells(&tx, "notes", "1").await;
     assert_eq!(1, cells.len());
     let (_, _, device_id) = get_cell(&tx, "notes", "1", "title").await.unwrap();
-    assert_eq!("remote-device", device_id);
+    assert_eq!(remote_device_id(), device_id);
 }
 
 #[tokio::test]
@@ -2323,6 +2457,63 @@ async fn apply_remote_reinsert_split_across_syncs_after_tombstone_restores_every
 }
 
 #[tokio::test]
+async fn apply_remote_tombstone_after_partial_row_in_earlier_sync_forgets_its_stored_cells() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_required_notes_table(&tx).await;
+    let engine = scope.resolve::<dyn SyncStore>().await;
+    engine
+        .register_table("required_notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell_for(
+                    "required_notes",
+                    "1",
+                    "body",
+                    Some(b"Body".to_vec()),
+                    ms,
+                    0,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+    assert_eq!(1, pending_cells(&tx).await.len());
+
+    // Act
+
+    engine
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![remote_cell_for(
+                    "required_notes",
+                    "1",
+                    merge::DELETED_COL,
+                    None,
+                    ms,
+                    1,
+                )],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert!(pending_cells(&tx).await.is_empty());
+    assert_eq!(None, get_required_note(&tx, "1").await);
+}
+
+#[tokio::test]
 async fn apply_remote_tombstone_drops_older_cells_but_keeps_newer_ones() {
     // Arrange
 
@@ -2634,8 +2825,8 @@ async fn child_parent_id(tx: &DbTransaction, table: &str, id: &str) -> Option<Op
 async fn insert_parent_tombstone(tx: &DbTransaction, id: &str) {
     let mut guard = tx.lock().await;
     sqlx::query(
-        "INSERT INTO sync_cells(tbl, row_id, col, value, hlc, device_id)
-         VALUES ('parents', json_array(?1), ?2, NULL, hlc_now(), device_id())",
+        "INSERT INTO sync_cells(tbl, row_id, col, hlc, is_remote)
+         VALUES ('parents', json_array(?1), ?2, hlc_now(), 0)",
     )
     .bind(id)
     .bind(merge::DELETED_COL)
@@ -3373,7 +3564,7 @@ async fn apply_remote_last_page_repair_records_local_tombstone_in_sync_cells() {
     let (_, _, device_id) = get_cell(&tx, "children", "c1", merge::DELETED_COL)
         .await
         .unwrap();
-    assert_ne!("remote-device", device_id);
+    assert_ne!(remote_device_id(), device_id);
 }
 
 #[tokio::test]
@@ -4350,3 +4541,302 @@ mod multi_device {
 }
 
 mod live_backend;
+
+async fn pending_cells(tx: &DbTransaction) -> Vec<(String, String, Option<Vec<u8>>)> {
+    let mut guard = tx.lock().await;
+    sqlx::query_as("SELECT tbl, col, value FROM sync_pending_cells ORDER BY tbl, row_id, col")
+        .fetch_all(guard.as_mut())
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn apply_remote_newer_cell_and_older_tombstone_in_one_page_keeps_the_newer_value() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let store = scope.resolve::<dyn SyncStore>().await;
+    store
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Local", "Body").await;
+    let ms = far_future_ms();
+
+    // Act
+
+    store
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![
+                    remote_cell("1", "title", Some(b"New".to_vec()), ms, 2),
+                    remote_cell("1", merge::DELETED_COL, None, ms, 1),
+                ],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(
+        Some((Some("New".to_string()), None)),
+        get_note(&tx, "1").await
+    );
+}
+
+#[tokio::test]
+async fn apply_remote_incomplete_row_stores_its_cells_until_it_is_written() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_required_notes_table(&tx).await;
+    let store = scope.resolve::<dyn SyncStore>().await;
+    store
+        .register_table("required_notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    let body = remote_cell_for("required_notes", "1", "body", Some(b"Body".to_vec()), ms, 0);
+    store
+        .apply_remote(ChangeBatch { cells: vec![body] }, true)
+        .await
+        .unwrap();
+    let stored_while_incomplete = pending_cells(&tx).await;
+
+    // Act
+
+    let title = remote_cell_for("required_notes", "1", "title", Some(b"Hi".to_vec()), ms, 1);
+    store
+        .apply_remote(ChangeBatch { cells: vec![title] }, true)
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(
+        vec![(
+            "required_notes".to_string(),
+            "body".to_string(),
+            Some(b"Body".to_vec())
+        )],
+        stored_while_incomplete
+    );
+    assert!(pending_cells(&tx).await.is_empty());
+    assert_eq!(
+        Some(("Hi".to_string(), Some("Body".to_string()))),
+        get_required_note(&tx, "1").await
+    );
+}
+
+#[tokio::test]
+async fn read_row_not_in_its_table_returns_its_stored_values() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_required_notes_table(&tx).await;
+    let store = scope.resolve::<dyn SyncStore>().await;
+    store
+        .register_table("required_notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    let ms = far_future_ms();
+    let body = remote_cell_for("required_notes", "1", "body", Some(b"Body".to_vec()), ms, 0);
+    store
+        .apply_remote(ChangeBatch { cells: vec![body] }, true)
+        .await
+        .unwrap();
+
+    // Act
+
+    let actual = get_cells(&tx, "required_notes", "1").await;
+
+    // Assert
+
+    assert_eq!(vec![("body".to_string(), Some(b"Body".to_vec()))], actual);
+}
+
+#[tokio::test]
+async fn changes_since_last_push_row_mode_edit_sends_the_rows_current_json() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let store = scope.resolve::<dyn SyncStore>().await;
+    store
+        .register_table("notes", Granularity::Row, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Old", "Body").await;
+    {
+        let mut guard = tx.lock().await;
+        sqlx::query("UPDATE notes SET title = 'New' WHERE id = '1'")
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+    }
+
+    // Act
+
+    let actual = store.changes_since_last_push().await.unwrap();
+
+    // Assert
+
+    let values: Vec<(String, Option<Vec<u8>>)> = actual
+        .cells
+        .into_iter()
+        .map(|cell| (cell.col, cell.value))
+        .collect();
+    assert_eq!(
+        vec![(
+            merge::ROW_COL.to_string(),
+            Some(br#"{"id":"1","title":"New","body":"Body"}"#.to_vec())
+        )],
+        values
+    );
+}
+
+#[tokio::test]
+async fn changes_since_last_push_row_gone_without_tombstone_skips_and_drops_its_cells() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_notes_table(&tx).await;
+    let store = scope.resolve::<dyn SyncStore>().await;
+    store
+        .register_table("notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    insert_note(&tx, "1", "Title", "Body").await;
+    insert_note(&tx, "2", "Kept", "Body").await;
+    {
+        // As a cascade during an apply does, with the triggers off.
+        let mut guard = tx.lock().await;
+        for sql in [
+            "INSERT INTO sync_applying(x) VALUES (1)",
+            "DELETE FROM notes WHERE id = '1'",
+            "DELETE FROM sync_applying",
+        ] {
+            sqlx::query(sql).execute(guard.as_mut()).await.unwrap();
+        }
+    }
+
+    // Act
+
+    let actual = store.changes_since_last_push().await.unwrap();
+
+    // Assert
+
+    let mut pushed: Vec<(String, String)> = actual
+        .cells
+        .into_iter()
+        .map(|cell| (cell.row_id, cell.col))
+        .collect();
+    pushed.sort();
+    assert_eq!(
+        vec![
+            (single_row_id("2"), "body".to_string()),
+            (single_row_id("2"), "title".to_string()),
+        ],
+        pushed
+    );
+    assert!(get_cells(&tx, "notes", "1").await.is_empty());
+}
+
+#[tokio::test]
+async fn apply_remote_row_cascaded_away_then_newer_cell_and_its_tombstone_keeps_it_deleted() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    create_required_notes_table(&tx).await;
+    let store = scope.resolve::<dyn SyncStore>().await;
+    store
+        .register_table("required_notes", Granularity::Column, &[])
+        .await
+        .unwrap();
+    {
+        // Written locally, then deleted by a cascade during an apply, with the triggers off.
+        let mut guard = tx.lock().await;
+        for sql in [
+            "INSERT INTO required_notes(id, title, body) VALUES ('1', 'Title', 'Body')",
+            "INSERT INTO sync_applying(x) VALUES (1)",
+            "DELETE FROM required_notes WHERE id = '1'",
+            "DELETE FROM sync_applying",
+        ] {
+            sqlx::query(sql).execute(guard.as_mut()).await.unwrap();
+        }
+    }
+    let ms = far_future_ms();
+    let newer = remote_cell_for("required_notes", "1", "body", Some(b"New".to_vec()), ms, 2);
+    let tombstone = remote_cell_for("required_notes", "1", merge::DELETED_COL, None, ms, 1);
+    store
+        .apply_remote(ChangeBatch { cells: vec![newer] }, false)
+        .await
+        .unwrap();
+
+    // Act
+
+    store
+        .apply_remote(
+            ChangeBatch {
+                cells: vec![tombstone],
+            },
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Assert
+
+    assert_eq!(None, get_required_note(&tx, "1").await);
+    assert_eq!(
+        vec![(
+            "required_notes".to_string(),
+            "body".to_string(),
+            Some(b"New".to_vec())
+        )],
+        pending_cells(&tx).await
+    );
+}
+
+#[tokio::test]
+async fn register_table_row_mode_blob_column_returns_error() {
+    // Arrange
+
+    let injector = create_test_injector().await;
+    let scope = injector.start_scope();
+    let tx = scope.resolve::<DbTransaction>().await;
+    {
+        let mut guard = tx.lock().await;
+        sqlx::query("CREATE TABLE files (id TEXT PRIMARY KEY, data BLOB)")
+            .execute(guard.as_mut())
+            .await
+            .unwrap();
+    }
+    let store = scope.resolve::<dyn SyncStore>().await;
+
+    // Act
+
+    let actual = store.register_table("files", Granularity::Row, &[]).await;
+
+    // Assert
+
+    assert!(matches!(
+        actual,
+        Err(SyncError::BlobColumnInRowMode { table, col }) if table == "files" && col == "data"
+    ));
+}

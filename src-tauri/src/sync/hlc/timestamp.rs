@@ -3,6 +3,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use super::DeviceId;
 use crate::sync::errors::SyncError;
 
+const HLC_BYTES_LEN: usize = 28;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Hlc {
     pub physical_ms: u64,
@@ -26,6 +28,30 @@ impl Hlc {
             "{:015}-{:08X}-{}",
             self.physical_ms, self.counter, self.device_id
         )
+    }
+
+    /// The 28-byte form `sync_cells` stores: big-endian time and counter, then the device id, so
+    /// comparing the bytes orders HLCs exactly as `format`'s text does, in half the space.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(HLC_BYTES_LEN);
+        bytes.extend_from_slice(&self.physical_ms.to_be_bytes());
+        bytes.extend_from_slice(&self.counter.to_be_bytes());
+        bytes.extend_from_slice(self.device_id.as_bytes());
+        bytes
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, SyncError> {
+        let bytes: [u8; HLC_BYTES_LEN] = bytes
+            .try_into()
+            .map_err(|_| SyncError::InvalidHlc(format!("{bytes:02X?}")))?;
+        let (physical, rest) = bytes.split_first_chunk::<8>().expect("28 bytes");
+        let (counter, device_id) = rest.split_first_chunk::<4>().expect("20 bytes");
+
+        Ok(Hlc {
+            physical_ms: u64::from_be_bytes(*physical),
+            counter: u32::from_be_bytes(*counter),
+            device_id: DeviceId::from_bytes(device_id.try_into().expect("16 bytes")),
+        })
     }
 
     pub fn parse(value: &str) -> Result<Self, SyncError> {
@@ -124,6 +150,61 @@ mod tests {
         // Assert
 
         assert_eq!(hlc, actual);
+    }
+
+    #[test]
+    fn to_bytes_from_bytes_roundtrip_preserves_fields() {
+        // Arrange
+
+        let hlc = Hlc::new(1_700_000_000_123, 42, DeviceId::from_name("device-a"));
+
+        // Act
+
+        let actual = Hlc::from_bytes(&hlc.to_bytes()).unwrap();
+
+        // Assert
+
+        assert_eq!(hlc, actual);
+    }
+
+    #[test]
+    fn to_bytes_byte_order_matches_text_order() {
+        // Arrange
+
+        let hlcs = [
+            Hlc::new(999, 0xFFFF_FFFF, DeviceId::from_name("device-b")),
+            Hlc::new(1000, 0, DeviceId::from_name("device-b")),
+            Hlc::new(1000, 0xFF, DeviceId::from_name("device-a")),
+            Hlc::new(1000, 0x100, DeviceId::from_name("device-a")),
+            Hlc::new(1000, 0x100, DeviceId::from_name("device-b")),
+            Hlc::new(1_700_000_000_123, 1, DeviceId::from_name("device-a")),
+        ];
+
+        // Act
+
+        let mut by_bytes = hlcs.to_vec();
+        by_bytes.sort_by_key(Hlc::to_bytes);
+        let mut by_text = hlcs.to_vec();
+        by_text.sort_by_key(Hlc::format);
+
+        // Assert
+
+        assert_eq!(by_text, by_bytes);
+    }
+
+    #[test]
+    fn from_bytes_wrong_length_returns_invalid_hlc_error() {
+        // Arrange
+
+        let input = [0u8; 27];
+
+        // Act
+
+        let actual = Hlc::from_bytes(&input);
+
+        // Assert
+
+        assert!(matches!(actual, Err(SyncError::InvalidHlc(_))));
     }
 
     #[test]

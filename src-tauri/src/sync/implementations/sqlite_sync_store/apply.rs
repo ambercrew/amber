@@ -10,15 +10,17 @@ use crate::sync::utils::merge::{self, MergeAction};
 use crate::sync::value_objects::granularity::Granularity;
 
 use super::applying_guard::{clear_applying, mark_applying};
+use super::cell_values;
 use super::column_info::{column_affinity, primary_key_columns, read_table_info};
 use super::fk_repair;
 use super::models::{ColumnInfo, PendingCell, RowKey};
 use super::pending_buffer::PendingBuffer;
+use super::pending_cells;
 use super::schema_gate;
 use super::trigger_sql::{parse_row_id, quote_ident};
 
 /// Applies one batch of remote cells, writing each row it completes; a column-mode row still missing a
-/// `NOT NULL` column stays in `pending`, waits for the rest of its cells and holds off FK repair.
+/// `NOT NULL` column stays in `pending` (and `sync_pending_cells`), waits for its cells and holds off FK repair.
 pub(super) async fn apply_remote(
     tx: &mut SqliteConnection,
     batch: ChangeBatch,
@@ -78,7 +80,8 @@ async fn try_flush_pending(
                 sqlx::query("RELEASE SAVEPOINT try_flush_pending")
                     .execute(&mut *tx)
                     .await?;
-                pending.remove(&key.tbl, &key.row_id).await;
+                pending.take(&key.tbl, &key.row_id).await;
+                pending_cells::forget(tx, &key.tbl, &key.row_id).await?;
             }
             Err(err) => {
                 log::debug!(
@@ -110,8 +113,9 @@ async fn apply_remote_page_inner(
     apply_remote_inner(tx, batch, pending, clock).await?;
 
     // Every batch, as each commits and takes its cells out of the inbox: a row left only in `pending` would be
-    // lost if the sync stopped there. One still incomplete is rebuilt from `sync_cells` when its next cell comes.
+    // lost if the sync stopped there. One still incomplete is stored, and rebuilt when its next cell comes.
     let incomplete = try_flush_pending(tx, pending).await?;
+    pending_cells::persist(tx, pending).await?;
     if is_last_page && incomplete && discard_incomplete_deleted_rows(tx, pending).await? {
         log::warn!(
             "apply_remote: reached the last pulled page with one or more rows still \
@@ -168,7 +172,6 @@ pub(super) async fn deleted_rows(
     primary_keys: &[String],
 ) -> Result<HashSet<String>, SyncError> {
     let keys = serde_json::to_string(primary_keys).expect("a list of strings always serializes");
-    // Qualified, as `sync_cells` has a `value` column of its own.
     let predicate = deleted_predicate(tx, table, "keys.value").await?;
     let sql = format!("SELECT keys.value FROM json_each(?2) AS keys WHERE {predicate}");
     let rows: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
@@ -180,7 +183,7 @@ pub(super) async fn deleted_rows(
     Ok(rows.into_iter().collect())
 }
 
-/// Drops incomplete deleted rows, whose missing cells were deleted with them and
+/// Unbuffers incomplete deleted rows, whose missing cells were deleted with them and
 /// would otherwise hold off FK repair. Returns whether any row is still buffered.
 async fn discard_incomplete_deleted_rows(
     tx: &mut SqliteConnection,
@@ -202,15 +205,16 @@ async fn discard_incomplete_deleted_rows(
                 key.tbl,
                 key.row_id
             );
-            pending.remove(&key.tbl, &key.row_id).await;
+            // Stays stored, as a re-insert split across syncs completes it.
+            pending.take(&key.tbl, &key.row_id).await;
         }
     }
 
     Ok(!pending.is_empty().await)
 }
 
-/// Logs every row still buffered after the last flush, with the columns `sync_cells` holds, to tell
-/// "not sent yet" (next sync fixes it) from "committed past" (must come from the cell log).
+/// Logs every row still buffered after the last flush, with the columns stored for it, to tell
+/// "not sent yet" (next sync fixes it) from "committed past" (must come from `sync_pending_cells`).
 async fn log_incomplete_pending_rows(
     tx: &mut SqliteConnection,
     pending: &PendingBuffer,
@@ -229,7 +233,7 @@ async fn log_incomplete_pending_rows(
             .collect();
 
         let known_locally: Vec<String> = sqlx::query_scalar(
-            "SELECT col FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 ORDER BY col",
+            "SELECT col FROM sync_pending_cells WHERE tbl = ?1 AND row_id = ?2 ORDER BY col",
         )
         .bind(&key.tbl)
         .bind(&key.row_id)
@@ -243,7 +247,7 @@ async fn log_incomplete_pending_rows(
 
         log::warn!(
             "sync-incomplete-row: tbl={} row_id={} arrived_this_pull={:?} missing_required={:?} \
-             already_in_local_sync_cells={:?} of_which_missing_are_recoverable_locally={:?}",
+             already_stored={:?} of_which_missing_are_recoverable_locally={:?}",
             key.tbl,
             key.row_id,
             arrived,
@@ -277,17 +281,14 @@ async fn apply_remote_inner(
         merge::validate_cell_shape(&cell.tbl, &cell.col, granularity)?;
 
         let won = sqlx::query(
-            "INSERT INTO sync_cells(tbl,row_id,col,value,hlc,device_id) VALUES (?1,?2,?3,?4,?5,?6)
-             ON CONFLICT(tbl,row_id,col) DO UPDATE SET
-                value=excluded.value, hlc=excluded.hlc, device_id=excluded.device_id
+            "INSERT INTO sync_cells(tbl,row_id,col,hlc,is_remote) VALUES (?1,?2,?3,?4,1)
+             ON CONFLICT(tbl,row_id,col) DO UPDATE SET hlc=excluded.hlc, is_remote=1
              WHERE excluded.hlc > sync_cells.hlc",
         )
         .bind(&cell.tbl)
         .bind(&cell.row_id)
         .bind(&cell.col)
-        .bind(cell.value.as_deref())
-        .bind(&cell.hlc)
-        .bind(&cell.device_id)
+        .bind(incoming_hlc.to_bytes())
         .execute(&mut *tx)
         .await?
         .rows_affected()
@@ -295,11 +296,14 @@ async fn apply_remote_inner(
 
         clock.observe(&incoming_hlc);
 
-        if !won && !is_unmaterialized_cell(tx, cell, granularity, &mut column_cache).await? {
+        if !won
+            && !is_unmaterialized_cell(tx, cell, &incoming_hlc, granularity, &mut column_cache)
+                .await?
+        {
             continue;
         }
 
-        let tombstone_hlc: Option<String> = sqlx::query_scalar(
+        let tombstone_hlc: Option<Vec<u8>> = sqlx::query_scalar(
             "SELECT hlc FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 AND col = ?3",
         )
         .bind(&cell.tbl)
@@ -307,7 +311,7 @@ async fn apply_remote_inner(
         .bind(merge::DELETED_COL)
         .fetch_optional(&mut *tx)
         .await?;
-        let tombstone_hlc = tombstone_hlc.map(|v| Hlc::parse(&v)).transpose()?;
+        let tombstone_hlc = tombstone_hlc.map(|v| Hlc::from_bytes(&v)).transpose()?;
 
         let action = merge::decide(
             &cell.col,
@@ -371,6 +375,7 @@ async fn apply_remote_inner(
 async fn is_unmaterialized_cell(
     tx: &mut SqliteConnection,
     cell: &CellChange,
+    hlc: &Hlc,
     granularity: Granularity,
     column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
 ) -> Result<bool, SyncError> {
@@ -378,7 +383,7 @@ async fn is_unmaterialized_cell(
         return Ok(false);
     }
 
-    let stored_hlc: Option<String> = sqlx::query_scalar(
+    let stored_hlc: Option<Vec<u8>> = sqlx::query_scalar(
         "SELECT hlc FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 AND col = ?3",
     )
     .bind(&cell.tbl)
@@ -386,7 +391,7 @@ async fn is_unmaterialized_cell(
     .bind(&cell.col)
     .fetch_optional(&mut *tx)
     .await?;
-    if stored_hlc.as_deref() != Some(cell.hlc.as_str()) {
+    if stored_hlc != Some(hlc.to_bytes()) {
         return Ok(false);
     }
 
@@ -404,9 +409,40 @@ async fn delete_row(
     pending: &PendingBuffer,
     column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
 ) -> Result<(), SyncError> {
-    // A delete makes buffered column updates for this row moot.
-    pending.remove(&cell.tbl, &cell.row_id).await;
-    drop_cells_older_than(tx, &cell.tbl, &cell.row_id, &cell.hlc).await?;
+    let tombstone_hlc = Hlc::parse(&cell.hlc)?.to_bytes();
+    // A delete makes buffered column updates moot, except those newer than it, replayed below.
+    let buffered = pending.take(&cell.tbl, &cell.row_id).await;
+    drop_cells_older_than(tx, &cell.tbl, &cell.row_id, &tombstone_hlc).await?;
+
+    let newer: Vec<String> = sqlx::query_scalar(
+        "SELECT col FROM sync_cells
+         WHERE tbl = ?1 AND row_id = ?2 AND col <> ?3 AND hlc > ?4
+         ORDER BY hlc",
+    )
+    .bind(&cell.tbl)
+    .bind(&cell.row_id)
+    .bind(merge::DELETED_COL)
+    .bind(&tombstone_hlc)
+    .fetch_all(&mut *tx)
+    .await?;
+    // Read before the delete, from the row; a buffered value is newer than the row's.
+    let keys: Vec<cell_values::CellKey> = newer
+        .iter()
+        .map(|col| (cell.row_id.clone(), col.clone()))
+        .collect();
+    let mut values = if keys.is_empty() {
+        HashMap::new()
+    } else {
+        cell_values::read(tx, &cell.tbl, granularity, &keys).await?
+    };
+    for buffered_cell in buffered {
+        let key = (cell.row_id.clone(), buffered_cell.col);
+        if newer.contains(&key.1) {
+            values.insert(key, buffered_cell.value);
+        }
+    }
+    pending_cells::forget(tx, &cell.tbl, &cell.row_id).await?;
+
     apply_action(
         tx,
         &cell.tbl,
@@ -415,7 +451,7 @@ async fn delete_row(
         column_cache,
     )
     .await?;
-    replay_cells_newer_than(tx, cell, granularity, pending, column_cache).await
+    replay_cells_newer_than(tx, cell, granularity, newer, values, pending, column_cache).await
 }
 
 /// Re-applies the row's cells that outrank its tombstone, so a delete applied after
@@ -424,22 +460,20 @@ async fn replay_cells_newer_than(
     tx: &mut SqliteConnection,
     tombstone: &CellChange,
     granularity: Granularity,
+    newer: Vec<String>,
+    mut values: HashMap<cell_values::CellKey, Option<Vec<u8>>>,
     pending: &PendingBuffer,
     column_cache: &mut HashMap<String, Vec<ColumnInfo>>,
 ) -> Result<(), SyncError> {
-    let newer: Vec<(String, Option<Vec<u8>>)> = sqlx::query_as(
-        "SELECT col, value FROM sync_cells
-         WHERE tbl = ?1 AND row_id = ?2 AND col <> ?3 AND hlc > ?4
-         ORDER BY hlc",
-    )
-    .bind(&tombstone.tbl)
-    .bind(&tombstone.row_id)
-    .bind(merge::DELETED_COL)
-    .bind(&tombstone.hlc)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    for (col, value) in newer {
+    for col in newer {
+        let Some(value) = values.remove(&(tombstone.row_id.clone(), col.clone())) else {
+            log::warn!(
+                "Can't replay {}/{}.{col} over its tombstone: its value is gone",
+                tombstone.tbl,
+                tombstone.row_id
+            );
+            continue;
+        };
         match granularity {
             Granularity::Column => {
                 pending
@@ -471,7 +505,7 @@ async fn is_latest_tombstone(
     tx: &mut SqliteConnection,
     cell: &CellChange,
 ) -> Result<bool, SyncError> {
-    let hlc: Option<String> = sqlx::query_scalar(
+    let hlc: Option<Vec<u8>> = sqlx::query_scalar(
         "SELECT hlc FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 AND col = ?3",
     )
     .bind(&cell.tbl)
@@ -479,7 +513,7 @@ async fn is_latest_tombstone(
     .bind(merge::DELETED_COL)
     .fetch_optional(&mut *tx)
     .await?;
-    Ok(hlc.as_deref() == Some(cell.hlc.as_str()))
+    Ok(hlc == Some(Hlc::parse(&cell.hlc)?.to_bytes()))
 }
 
 /// Whether `table`'s delete guard holds for this existing row, i.e. the remote
@@ -555,7 +589,7 @@ async fn drop_cells_older_than(
     tx: &mut SqliteConnection,
     table: &str,
     row_id: &str,
-    hlc: &str,
+    hlc: &[u8],
 ) -> Result<(), SyncError> {
     sqlx::query("DELETE FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 AND col <> ?3 AND hlc < ?4")
         .bind(table)
@@ -568,7 +602,7 @@ async fn drop_cells_older_than(
     Ok(())
 }
 
-async fn drop_cell(
+pub(super) async fn drop_cell(
     tx: &mut SqliteConnection,
     table: &str,
     row_id: &str,
@@ -651,15 +685,22 @@ async fn apply_row_upsert_columns(
     // A newer app version may sync columns this one lacks; row mode ignores them too.
     values.retain(|col, _| columns.iter().any(|c| &c.name == col));
 
-    backfill_missing_columns_from_cell_log(tx, key, &pk_columns, &pk_values, &columns, &mut values)
-        .await?;
+    backfill_missing_columns_from_stored_cells(
+        tx,
+        key,
+        &pk_columns,
+        &pk_values,
+        &columns,
+        &mut values,
+    )
+    .await?;
 
     upsert_row(tx, table, &pk_columns, &pk_values, &columns, values).await
 }
 
-/// Fills a new row's columns this pull didn't deliver from `sync_cells`: a row can lose buffered columns
+/// Fills a new row's columns this pull didn't deliver from `sync_pending_cells`: a row loses buffered columns
 /// when a batch or sync committed past them, and the server won't resend those.
-async fn backfill_missing_columns_from_cell_log(
+async fn backfill_missing_columns_from_stored_cells(
     tx: &mut SqliteConnection,
     key: &RowKey,
     pk_columns: &[&ColumnInfo],
@@ -667,33 +708,23 @@ async fn backfill_missing_columns_from_cell_log(
     columns: &[ColumnInfo],
     values: &mut HashMap<String, Option<Vec<u8>>>,
 ) -> Result<(), SyncError> {
-    let missing: Vec<&str> = columns
+    let missing: HashSet<&str> = columns
         .iter()
         .filter(|c| !c.is_primary_key() && !values.contains_key(&c.name))
         .map(|c| c.name.as_str())
         .collect();
-
     if missing.is_empty() || row_exists(tx, &key.tbl, pk_columns, pk_values).await? {
         return Ok(());
     }
 
-    for col in missing {
-        let value: Option<Option<Vec<u8>>> = sqlx::query_scalar(
-            "SELECT value FROM sync_cells WHERE tbl = ?1 AND row_id = ?2 AND col = ?3",
-        )
-        .bind(&key.tbl)
-        .bind(&key.row_id)
-        .bind(col)
-        .fetch_optional(&mut *tx)
-        .await?;
-
-        if let Some(value) = value {
+    for (col, value) in pending_cells::stored(tx, &key.tbl, &key.row_id).await? {
+        if missing.contains(col.as_str()) {
             log::debug!(
-                "backfilled column '{col}' for {}/{} from the local cell log",
+                "backfilled column '{col}' for {}/{} from its stored cells",
                 key.tbl,
                 key.row_id
             );
-            values.insert(col.to_string(), value);
+            values.insert(col, value);
         }
     }
 
@@ -764,7 +795,7 @@ async fn apply_row_upsert(
     upsert_row(tx, table, pk_columns, pk_values, columns, values).await
 }
 
-async fn load_registry(
+pub(super) async fn load_registry(
     tx: &mut SqliteConnection,
 ) -> Result<HashMap<String, Granularity>, SyncError> {
     let rows = sqlx::query("SELECT tbl, granularity FROM sync_registry")
@@ -796,7 +827,7 @@ async fn load_delete_guards(
     Ok(guards)
 }
 
-async fn get_or_load_columns(
+pub(super) async fn get_or_load_columns(
     tx: &mut SqliteConnection,
     table: &str,
     cache: &mut HashMap<String, Vec<ColumnInfo>>,

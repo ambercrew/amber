@@ -1084,11 +1084,13 @@ async fn sync_card_deleted_for_good_in_amber_deletes_its_anki_note() {
 async fn add_old_tombstone(scope: &injector::injector_scope::InjectorScope<'_>, card_id: Uuid) {
     let tx = scope.resolve::<DbTransaction>().await;
     let mut guard = tx.lock().await;
+    let old = crate::sync::hlc::Hlc::new(1, 0, Uuid::nil());
     sqlx::query(
-        "INSERT INTO sync_cells(tbl, row_id, col, value, hlc, device_id) \
-         VALUES ('cards', json_array(?1), '__deleted', NULL, '000000000000001-00000000-old', 'old')",
+        "INSERT INTO sync_cells(tbl, row_id, col, hlc, is_remote) \
+         VALUES ('cards', json_array(?1), '__deleted', ?2, 1)",
     )
     .bind(card_id.hyphenated().to_string())
+    .bind(old.to_bytes())
     .execute(guard.as_mut())
     .await
     .unwrap();
