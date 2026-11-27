@@ -1,4 +1,7 @@
-import { convertMath } from "../../../../features/Import/normalize/convertMath";
+import {
+	convertMath,
+	markMath,
+} from "../../../../features/Import/normalize/convertMath";
 import {
 	decodeEquation,
 	EQUATION_ATTRIBUTE_NAME,
@@ -192,5 +195,144 @@ describe("convertMath", () => {
 				.querySelector(`[${EQUATION_ATTRIBUTE_NAME}]`)
 				?.hasAttribute(EQUATION_DISPLAY_ATTRIBUTE_NAME),
 		).toBe(true);
+	});
+
+	it("Should extract extsrc as display math when given Wikipedia Parsoid standalone dd markup", () => {
+		// Arrange
+
+		const extsrc =
+			" X_v \\perp\\!\\!\\!\\perp X_{V \\,\\smallsetminus\\, \\operatorname{de}(v)} \\mid X_{\\operatorname{pa}(v)} \\quad\\text{for all }v \\in V";
+		const dataMw = JSON.stringify({
+			name: "math",
+			attrs: {},
+			body: { extsrc },
+		});
+		const html = `<dl><dd><math class="mwe-math-element mwe-math-element-inline" data-mw='${dataMw}'><mrow><msub><mi>X</mi><mi>v</mi></msub></mrow></math></dd></dl>`;
+
+		// Act
+
+		const actual = convert(html);
+
+		// Assert
+
+		expect(actual.equations).toEqual([
+			{
+				equation: extsrc.trim(),
+				display: true,
+			},
+		]);
+	});
+
+	it("Should keep math inline when a Wikipedia dd also contains surrounding text", () => {
+		// Arrange
+
+		const dataMw = JSON.stringify({
+			name: "math",
+			attrs: {},
+			body: { extsrc: "x > 0" },
+		});
+		const html = `<dl><dd>where <math class="mwe-math-element mwe-math-element-inline" data-mw='${dataMw}'><mi>x</mi></math>.</dd></dl>`;
+
+		// Act
+
+		const actual = convert(html);
+
+		// Assert
+
+		expect(actual.equations).toEqual([
+			{ equation: "x > 0", display: false },
+		]);
+		expect(actual.text).toBe("where .");
+	});
+
+	it("Should fall back to MathML conversion when data-mw belongs to a chem tag", () => {
+		// Arrange
+
+		const dataMw = JSON.stringify({
+			name: "chem",
+			attrs: {},
+			body: { extsrc: "H2O" },
+		});
+		const html = `<p><math class="mwe-math-element" data-mw='${dataMw}'><msub><mi mathvariant="normal">H</mi><mn>2</mn></msub><mi mathvariant="normal">O</mi></math></p>`;
+
+		// Act
+
+		const actual = convert(html);
+
+		// Assert
+
+		expect(actual.equations).toHaveLength(1);
+		expect(actual.equations[0].equation).not.toBe("H2O");
+		expect(actual.equations[0].equation).toContain("_");
+	});
+
+	it("Should normalize MediaWiki texvc macros, unnumbered align, and bare sqrt denominators", () => {
+		// Arrange
+
+		const dataMw = JSON.stringify({
+			name: "math",
+			attrs: {},
+			body: {
+				extsrc: "\\begin{align}\\lambda \\in \\C &= \\frac{1}\\sqrt{\\mu_0\\mu_{\\mbox{r}}} \\\\ y &= \\sgn(\\xi)\\end{align}",
+			},
+		});
+		const html = `<table><tr><td><math class="mwe-math-element mwe-math-element-inline" data-mw='${dataMw}'><mi>x</mi></math></td></tr></table>`;
+
+		// Act
+
+		const actual = convert(html);
+
+		// Assert
+
+		expect(actual.equations).toEqual([
+			{
+				equation:
+					"\\begin{aligned}\\lambda \\in \\mathbb{C} &= \\frac{1}{\\sqrt{\\mu_0\\mu_{\\text{r}}}} \\\\ y &= \\operatorname{sgn}(\\xi)\\end{aligned}",
+				display: false,
+			},
+		]);
+	});
+
+	it("Should stash data-latex and block display when markMath prepares a document for Defuddle", () => {
+		// Arrange
+
+		const dataMw = JSON.stringify({
+			name: "math",
+			attrs: {},
+			body: { extsrc: "X_v \\in V" },
+		});
+		const doc = new DOMParser().parseFromString(
+			`<dl><dd><math class="mwe-math-element" data-mw='${dataMw}'><msub><mi>X</mi><mi>v</mi></msub></math></dd></dl>`,
+			"text/html",
+		);
+
+		// Act
+
+		markMath(doc);
+
+		// Assert
+
+		const math = doc.querySelector("math");
+		expect(math?.getAttribute("data-latex")).toBe("X_v \\in V");
+		expect(math?.getAttribute("display")).toBe("block");
+	});
+
+	it("Should leave assistive MathML unmarked when followed by a MathJax source script", () => {
+		// Arrange
+
+		const doc = new DOMParser().parseFromString(
+			'<p><span class="MathJax"><math><msup><mi>x</mi><mn>2</mn></msup></math></span><script type="math/tex">x_0^2</script></p>',
+			"text/html",
+		);
+
+		// Act
+
+		markMath(doc);
+
+		// Assert
+
+		expect(doc.querySelector("math")?.hasAttribute("data-latex")).toBe(
+			false,
+		);
 	});
 });

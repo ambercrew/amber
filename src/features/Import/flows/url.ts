@@ -6,6 +6,7 @@ import { base64ToArrayBuffer } from "../../../utils/base64ToArrayBuffer";
 import { normalize } from "../normalize";
 import { hydrateLazyImages } from "../normalize/hydrateLazyImages";
 import { markCodeLanguages } from "../normalize/codeBlocks";
+import { markMath } from "../normalize/convertMath";
 import { hasContent } from "../html/extract";
 import { deriveTitle } from "../utils/deriveTitle";
 import { createImportedLearningAsset } from "../utils/createImportedLearningAsset";
@@ -76,6 +77,7 @@ export async function runUrlImport(
 	// before Defuddle, which drops images without one.
 	hydrateLazyImages(doc);
 	markCodeLanguages(doc);
+	markMath(doc);
 
 	// Defuddle mutates the document while parsing, so capture the raw markup
 	// for the no-article fallback beforehand.
