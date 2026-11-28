@@ -11,7 +11,7 @@ import {
 import { CommandId, commandsById } from "../../../commands/commands";
 import { useRunCommand } from "../../../commands/useRunCommand";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
-import { GoToMarkIcon, SetMarkIcon } from "../../../config/icons";
+import { GoToIcon, MarkIcon } from "../../../config/icons";
 import {
 	MARK_SLOTS,
 	MarkSlot,
@@ -125,7 +125,7 @@ function MarkSplitButton({ slot }: { slot: MarkSlot }) {
 	const setLabel = setMarkLabel(slot, progress);
 	const setShortcut = commandsById[`set-mark-${slot}`].shortcut;
 	const setCommand: CommandId = `set-mark-${slot}`;
-	const arrow = <GoToMarkIcon size={14} />;
+	const arrow = <GoToIcon size={14} />;
 
 	if (mark) {
 		return (
@@ -152,7 +152,7 @@ function MarkSplitButton({ slot }: { slot: MarkSlot }) {
 					variant="light"
 					color={color}
 					style={{ border: outline, borderInlineStart: 0 }}>
-					<SetMarkIcon weight="fill" />
+					<MarkIcon weight="fill" />
 				</MarkButton>
 			</Button.Group>
 		);
@@ -187,7 +187,7 @@ function MarkSplitButton({ slot }: { slot: MarkSlot }) {
 					variant="light"
 					color={color}
 					style={{ border: outline }}>
-					<SetMarkIcon />
+					<MarkIcon />
 				</MarkButton>
 			</Button.Group>
 		</AppTooltip>

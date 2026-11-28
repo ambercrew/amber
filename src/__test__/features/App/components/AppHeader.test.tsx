@@ -184,7 +184,7 @@ describe("AppHeader", () => {
 		expect(onToggleAside).toHaveBeenCalledOnce();
 	});
 
-	it("Should open the command palette when the command button is clicked", async () => {
+	it("Should open the command palette when Commands is clicked in quick settings", async () => {
 		// Arrange
 
 		const user = userEvent.setup();
@@ -199,13 +199,29 @@ describe("AppHeader", () => {
 			{ preloadedState: BASE_STATE },
 		);
 		await user.click(
-			screen.getByRole("button", { name: "Open command palette" }),
+			screen.getByRole("button", { name: "Quick settings" }),
 		);
+		await user.click(screen.getByRole("button", { name: "Commands" }));
 
 		// Assert
 
 		expect(
 			await screen.findByPlaceholderText("Search commands..."),
+		).toBeInTheDocument();
+	});
+
+	it("Should show quick settings when no learning asset is open", () => {
+		// Arrange & Act
+
+		renderWithProviders(
+			<AppHeader onToggleSidebar={vi.fn()} onToggleAside={vi.fn()} />,
+			{ preloadedState: BASE_STATE },
+		);
+
+		// Assert
+
+		expect(
+			screen.getByRole("button", { name: "Quick settings" }),
 		).toBeInTheDocument();
 	});
 });

@@ -19,7 +19,6 @@ import {
 	MagnifyingGlassIcon,
 	MagnifyingGlassMinusIcon,
 	MagnifyingGlassPlusIcon,
-	MapPinIcon,
 	MoonIcon,
 	SignOutIcon,
 	QueueIcon,
@@ -118,9 +117,9 @@ import {
 	BrowserIcon,
 	HomeIcon,
 	NewAiPromptIcon,
-	GoToMarkIcon,
+	GoToIcon,
+	MarkIcon,
 	ReadPointIcon,
-	SetMarkIcon,
 } from "../config/icons";
 import {
 	LeftSidebarTab,
@@ -339,7 +338,7 @@ export const commandsById: Record<CommandId, Command> = {
 		label: "Go to read point",
 		searchOnly: true,
 		shortcut: GO_TO_READ_POINT_SHORTCUT,
-		icon: createElement(MapPinIcon),
+		icon: createElement(GoToIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
 		execute: dispatch =>
 			dispatch(runReadingCommand({ type: "go-to-read-point" })),
@@ -630,7 +629,7 @@ function setMarkCommand(slot: MarkSlot, shortcut: string): Command {
 		label: `Set mark ${slot}`,
 		searchOnly: true,
 		shortcut,
-		icon: createElement(SetMarkIcon),
+		icon: createElement(MarkIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
 		execute: dispatch =>
 			dispatch(runReadingCommand({ type: "set-mark", slot })),
@@ -644,7 +643,7 @@ function goToMarkCommand(slot: MarkSlot, shortcut: string): Command {
 		label: `Go to mark ${slot}`,
 		searchOnly: true,
 		shortcut,
-		icon: createElement(GoToMarkIcon),
+		icon: createElement(GoToIcon),
 		enabled: state => selectCurrentElement(state)?.type === "learningAsset",
 		execute: dispatch =>
 			dispatch(runReadingCommand({ type: "go-to-mark", slot })),

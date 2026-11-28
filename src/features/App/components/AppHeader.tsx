@@ -1,17 +1,16 @@
 import { ActionIcon, Box, Group, Text } from "@mantine/core";
-import { CommandIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
-import { spotlight } from "@mantine/spotlight";
+import { SidebarSimpleIcon } from "@phosphor-icons/react";
 import { ReactNode } from "react";
 import { useLocation } from "react-router";
 import ElementNodeIcon from "../../../components/ElementNodeIcon/ElementNodeIcon";
 import useAppSelector from "../../../hooks/useAppSelector";
 import { selectCurrentElement } from "../../../stores/elements/elementsSelectors";
 import {
-	SPOTLIGHT_SHORTCUT,
 	TOGGLE_LEFT_SIDEBAR_SHORTCUT,
 	TOGGLE_RIGHT_SIDEBAR_SHORTCUT,
 } from "../../../config/shortcuts";
 import StudyModeToggle from "../../Study/components/StudyModeToggle";
+import QuickSettings from "./QuickSettings";
 import AppTooltip from "../../../components/AppTooltip/AppTooltip";
 import { BrowserIcon, HomeIcon } from "../../../config/icons";
 import { paths } from "../../../paths";
@@ -65,6 +64,7 @@ function AppHeader({ onToggleSidebar, onToggleAside }: AppHeaderProps) {
 						variant="subtle"
 						size="lg"
 						aria-label="Toggle left sidebar"
+						style={{ flexShrink: 0 }}
 						onClick={onToggleSidebar}>
 						<SidebarSimpleIcon size={18} />
 					</ActionIcon>
@@ -80,19 +80,14 @@ function AppHeader({ onToggleSidebar, onToggleAside }: AppHeaderProps) {
 				)}
 			</Group>
 
-			<Group gap={6} align="center" wrap="nowrap">
+			{/* Never shrinks: ActionIcons have no min width, so a narrow header squeezed them; the title truncates instead. */}
+			<Group
+				gap={6}
+				align="center"
+				wrap="nowrap"
+				style={{ flexShrink: 0 }}>
 				<StudyModeToggle />
-				<AppTooltip
-					label="Open command palette"
-					shortcut={SPOTLIGHT_SHORTCUT}>
-					<ActionIcon
-						variant="subtle"
-						size="lg"
-						aria-label="Open command palette"
-						onClick={() => spotlight.open()}>
-						<CommandIcon size={18} />
-					</ActionIcon>
-				</AppTooltip>
+				<QuickSettings />
 				<AppTooltip
 					label="Toggle right sidebar"
 					shortcut={TOGGLE_RIGHT_SIDEBAR_SHORTCUT}>

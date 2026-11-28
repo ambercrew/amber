@@ -17,7 +17,10 @@ document each) as a virtualized stack: live editors near the viewport, placehold
 - `plugins/` — features (`readPoint`, `marks`, `search`, `tableOfContents`, `sourceReveal`), each a `LearningAssetPlugin`
   (`plugins/types.ts`) listed in `plugins/index.ts`.
 - `../marks/`, `../readPoint/` — shared with the PDF view (mark storage and UI, read point
-  precedence and saving); keep them renderer-agnostic.
+  precedence and saving); keep them renderer-agnostic. `useReadPointPlacement` publishes the
+  current precedence to `app.readPointSource` and `useMarks` the set slots to `app.markSlots`
+  (both cleared on unmount) for the header's `QuickSettings`, so a change never needs a
+  separate dispatch to show there.
 
 ## Adding a feature
 

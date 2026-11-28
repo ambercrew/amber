@@ -69,3 +69,9 @@ export const selectChromeInsets = createSelector(
 	(headerShown, footerShown) =>
 		chromeInsets(headerShown, footerShown, SAFE_AREA_TOP, SAFE_AREA_BOTTOM),
 );
+
+export const selectReadPointSource = (state: RootState) =>
+	state.app.readPointSource?.source ?? null;
+
+export const selectMarkSlots = (state: RootState) =>
+	state.app.markSlots?.slots ?? null;

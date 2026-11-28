@@ -10,8 +10,10 @@ import {
 	CheckSquareIcon,
 	CircleHalfIcon,
 	EraserIcon,
+	DotsThreeOutlineIcon,
 	ClockCounterClockwiseIcon,
 	FileTextIcon,
+	FlagIcon,
 	FolderIcon,
 	FolderOpenIcon,
 	GitForkIcon,
@@ -68,10 +70,13 @@ export const ELEMENT_STATUS_ICONS: Record<ElementStatus, Icon> = {
 	finished: CheckSquareIcon,
 };
 
-// Read point and marks in a learning asset's reading view.
+// Read point and marks in a learning asset's reading view: a bookmark where you stopped, flags you plant.
 export const ReadPointIcon = BookmarkSimpleIcon;
-export const SetMarkIcon = BookmarkSimpleIcon;
-export const GoToMarkIcon = ArrowRightIcon;
+export const MarkIcon = FlagIcon;
+/** Going to the read point or a mark; setting one uses its own icon. */
+export const GoToIcon = ArrowRightIcon;
+/** The header's quick settings, for the open page and the app. */
+export const QuickSettingsIcon = DotsThreeOutlineIcon;
 
 /** Anki desktop, wherever syncing with it is offered. */
 export const AnkiIcon = StarIcon;

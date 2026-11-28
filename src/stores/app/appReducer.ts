@@ -1,6 +1,8 @@
 import { PayloadAction, createSlice } from "@reduxjs/toolkit";
 import { loadVirtualKeyboardSuppressed } from "./virtualKeyboardStorage";
 import { PriorityNeighborsResponseDto } from "../../api/elements/dto/priorityNeighborsDto";
+import { ReadPointSource } from "../../types/elements/readPointSource";
+import { MarkSlot } from "../../types/elements/learningAssetMark";
 
 export type AuthModalTab = "sign-in" | "sign-up";
 
@@ -26,8 +28,18 @@ export interface AppState {
 	/** When true the editor never asks for the on-screen keyboard, so a touch
 	 * user can select text and make extracts without it covering the page. */
 	virtualKeyboardSuppressed: boolean;
+	/** Which marks the open learning asset has set, for quick settings; null with none open. */
+	markSlots: {
+		learningAssetId: string;
+		slots: MarkSlot[];
+	} | null;
 	/** A focus request waiting for its target to mount. */
 	pendingFocus: FocusTarget | null;
+	/** What last placed the open learning asset's read point, shown in the header; null with none open. */
+	readPointSource: {
+		learningAssetId: string;
+		source: ReadPointSource;
+	} | null;
 	/** Whether the main scroll area's headroom shows the header (and footer, while studying). */
 	mainScrollPinned: boolean;
 	/** Set by a view that scrolls its own container (the PDF view) to drive the header instead; null hands it back. */
@@ -59,6 +71,8 @@ const initialState: AppState = {
 	manageAccountModalOpened: false,
 	virtualKeyboardSuppressed: loadVirtualKeyboardSuppressed(),
 	pendingFocus: null,
+	readPointSource: null,
+	markSlots: null,
 	mainScrollPinned: true,
 	headroomOverride: null,
 	pendingTreeReveal: null,
@@ -161,6 +175,34 @@ const appSlice = createSlice({
 			if (state.pendingFocus === action.payload)
 				state.pendingFocus = null;
 		},
+		readPointSourceChanged: (
+			state,
+			action: PayloadAction<{
+				learningAssetId: string;
+				source: ReadPointSource;
+			}>,
+		) => {
+			state.readPointSource = action.payload;
+		},
+		/** Clears only `learningAssetId`'s, so a view unmounting after the next one mounted keeps it. */
+		readPointSourceCleared: (state, action: PayloadAction<string>) => {
+			if (state.readPointSource?.learningAssetId === action.payload)
+				state.readPointSource = null;
+		},
+		markSlotsChanged: (
+			state,
+			action: PayloadAction<{
+				learningAssetId: string;
+				slots: MarkSlot[];
+			}>,
+		) => {
+			state.markSlots = action.payload;
+		},
+		/** Clears only `learningAssetId`'s, so a view unmounting after the next one mounted keeps it. */
+		markSlotsCleared: (state, action: PayloadAction<string>) => {
+			if (state.markSlots?.learningAssetId === action.payload)
+				state.markSlots = null;
+		},
 		mainScrollPinnedChanged: (state, action: PayloadAction<boolean>) => {
 			state.mainScrollPinned = action.payload;
 		},
@@ -213,6 +255,10 @@ export const {
 	setVirtualKeyboardSuppressed,
 	requestFocus,
 	focusTaken,
+	readPointSourceChanged,
+	readPointSourceCleared,
+	markSlotsChanged,
+	markSlotsCleared,
 	requestTreeReveal,
 	mainScrollPinnedChanged,
 	headroomOverrideSet,

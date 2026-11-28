@@ -59,6 +59,8 @@ function renderModal(opened: boolean) {
 				manageAccountModalOpened: false,
 				virtualKeyboardSuppressed: false,
 				pendingFocus: null,
+				readPointSource: null,
+				markSlots: null,
 				mainScrollPinned: true,
 				headroomOverride: null,
 				pendingTreeReveal: null,

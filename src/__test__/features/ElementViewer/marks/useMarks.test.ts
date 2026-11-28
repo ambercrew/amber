@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createReadingCommandStore } from "../../../test-utils/readingCommandStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useMarks } from "../../../../features/ElementViewer/marks/useMarks";
+import { selectMarkSlots } from "../../../../stores/app/appSelectors";
 import {
 	LearningAssetMark,
 	MarkSlot,
@@ -260,5 +261,36 @@ describe("useMarks", () => {
 			message:
 				"Couldn't place mark 2 here yet, try again once the text has loaded",
 		});
+	});
+
+	it("Should publish the set marks' slots when they load", async () => {
+		// Arrange & Act
+
+		await renderMarks([
+			{ slot: 1, anchor: { split: 1, block: 0 } },
+			{ slot: 3, anchor: { split: 2, block: 4 } },
+		]);
+
+		// Assert
+
+		expect(selectMarkSlots(readingCommands.store.getState())).toEqual([
+			1, 3,
+		]);
+	});
+
+	it("Should clear the published slots when unmounted", async () => {
+		// Arrange
+
+		const { unmount } = await renderMarks([
+			{ slot: 1, anchor: { split: 1, block: 0 } },
+		]);
+
+		// Act
+
+		unmount();
+
+		// Assert
+
+		expect(selectMarkSlots(readingCommands.store.getState())).toBeNull();
 	});
 });

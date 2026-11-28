@@ -16,6 +16,11 @@ import {
 } from "../../../types/elements/learningAssetMark";
 import { ReadingPosition } from "../../../types/elements/readingPosition";
 import { useReadingCommand } from "../../../commands/readingCommands";
+import useAppDispatch from "../../../hooks/useAppDispatch";
+import {
+	markSlotsChanged,
+	markSlotsCleared,
+} from "../../../stores/app/appReducer";
 import { findMark, withMark } from "./markLogic";
 import { showMarkUndoNotification } from "./markUndoNotification";
 
@@ -39,6 +44,21 @@ export function useMarks({
 	useEffect(() => {
 		marksRef.current = marks;
 	}, [marks]);
+
+	// Published for the header's quick settings, which offers going to the set ones.
+	const dispatch = useAppDispatch();
+	useEffect(() => {
+		dispatch(
+			markSlotsChanged({
+				learningAssetId,
+				slots: marks.map(mark => mark.slot),
+			}),
+		);
+	}, [dispatch, learningAssetId, marks]);
+	useEffect(
+		() => () => void dispatch(markSlotsCleared(learningAssetId)),
+		[dispatch, learningAssetId],
+	);
 
 	const { callApi, errorMessage, clearErrorMessage } = useApi();
 	useEffect(() => {

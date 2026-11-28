@@ -6,6 +6,11 @@ import { isSamePosition } from "./readingPosition";
 import useAutoSave from "../hooks/useAutoSave";
 import { canPlaceReadPoint } from "./readPointPrecedence";
 import { ReadPointSource } from "../../../types/elements/readPointSource";
+import useAppDispatch from "../../../hooks/useAppDispatch";
+import {
+	readPointSourceChanged,
+	readPointSourceCleared,
+} from "../../../stores/app/appReducer";
 
 interface Props {
 	learningAssetId: string;
@@ -41,6 +46,26 @@ export function useReadPointPlacement({
 	}, [onLeave]);
 	// Declared before the PDF view's own reset on unmount, so it reports the visit's precedence.
 	useEffect(() => () => onLeaveRef.current?.(sourceRef.current), []);
+
+	// Published for the header; only on a change, as automatic tracking places on every scroll.
+	const dispatch = useAppDispatch();
+	// Off once unmounting, as the PDF view resets the precedence in its own cleanup, after this clears it.
+	const publishingRef = useRef(false);
+	const publishSource = useCallback(
+		(source: ReadPointSource) => {
+			if (!publishingRef.current) return;
+			dispatch(readPointSourceChanged({ learningAssetId, source }));
+		},
+		[dispatch, learningAssetId],
+	);
+	useEffect(() => {
+		publishingRef.current = true;
+		publishSource(sourceRef.current);
+		return () => {
+			publishingRef.current = false;
+			dispatch(readPointSourceCleared(learningAssetId));
+		};
+	}, [dispatch, learningAssetId, publishSource]);
 	const lastSavedRef = useRef(initial);
 
 	const { callApi } = useApi();
@@ -62,16 +87,18 @@ export function useReadPointPlacement({
 	const place = useCallback(
 		(readPoint: ReadingPosition, source: ReadPointSource) => {
 			if (!canPlaceReadPoint(source, sourceRef.current)) return false;
+			if (source !== sourceRef.current) publishSource(source);
 			sourceRef.current = source;
 			// Captured now, not read at flush time: views may tear down before the flush runs.
 			onContentUpdate(() => readPoint);
 			return true;
 		},
-		[onContentUpdate],
+		[onContentUpdate, publishSource],
 	);
 	const reset = useCallback(() => {
+		if (sourceRef.current !== openingSource) publishSource(openingSource);
 		sourceRef.current = openingSource;
-	}, [openingSource]);
+	}, [openingSource, publishSource]);
 
 	return { place, accepts, reset };
 }
