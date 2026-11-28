@@ -9,13 +9,14 @@ use crate::assets::dto::create_assets_request_dto::CreateAssetsRequestDto;
 use crate::assets::services::asset_service::AssetService;
 use crate::common::api_error::ApiError;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
+use crate::infrastructure::extensions::write_scope::WriteScopeExt;
 
 #[tauri::command]
 pub async fn create_asset(
     injector: State<'_, Arc<Injector>>,
     dto: CreateAssetRequestDto,
 ) -> Result<AssetResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let id = scope
         .resolve::<dyn AssetService>()
         .await
@@ -33,7 +34,7 @@ pub async fn create_assets(
     injector: State<'_, Arc<Injector>>,
     dto: CreateAssetsRequestDto,
 ) -> Result<Vec<Option<AssetResponseDto>>, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let asset_service = scope.resolve::<dyn AssetService>().await;
     let mut assets = Vec::with_capacity(dto.data_uris.len());
     for data_uri in &dto.data_uris {

@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::common::api_error::ApiError;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
+use crate::infrastructure::extensions::write_scope::WriteScopeExt;
 use crate::saved_searches::dto::saved_search_create_request_dto::SavedSearchCreateRequestDto;
 use crate::saved_searches::dto::saved_search_filter_dto::SavedSearchFilterDto;
 use crate::saved_searches::dto::saved_search_rename_request_dto::SavedSearchRenameRequestDto;
@@ -51,7 +52,7 @@ pub async fn create_saved_search(
     injector: State<'_, Arc<Injector>>,
     dto: SavedSearchCreateRequestDto,
 ) -> Result<SavedSearchResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let filters = dto.filters.into_iter().map(Into::into).collect();
     let saved_search = scope
         .resolve::<dyn SavedSearchService>()
@@ -68,7 +69,7 @@ pub async fn rename_saved_search(
     id: Uuid,
     dto: SavedSearchRenameRequestDto,
 ) -> Result<SavedSearchResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let saved_search = scope
         .resolve::<dyn SavedSearchService>()
         .await
@@ -84,7 +85,7 @@ pub async fn update_saved_search_filters(
     id: Uuid,
     dto: SavedSearchUpdateFiltersRequestDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let filters = dto.filters.into_iter().map(Into::into).collect();
     scope
         .resolve::<dyn SavedSearchService>()
@@ -100,7 +101,7 @@ pub async fn duplicate_saved_search(
     injector: State<'_, Arc<Injector>>,
     id: Uuid,
 ) -> Result<SavedSearchResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let saved_search = scope
         .resolve::<dyn SavedSearchService>()
         .await
@@ -115,7 +116,7 @@ pub async fn delete_saved_search(
     injector: State<'_, Arc<Injector>>,
     id: Uuid,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn SavedSearchService>()
         .await

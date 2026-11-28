@@ -10,7 +10,7 @@ target/
 temp/*
 
 .env
-temp.db
+temp.db*
 
 data/
 jniLibs/

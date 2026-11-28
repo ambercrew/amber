@@ -47,6 +47,7 @@ use crate::elements::value_objects::element_id::ElementId;
 use crate::elements::value_objects::name_source::NameSource;
 use crate::elements::value_objects::reading_position::ReadingPosition;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
+use crate::infrastructure::extensions::write_scope::WriteScopeExt;
 use crate::study::services::profile_resolution_service::ProfileResolutionService;
 use injector::injector::Injector;
 
@@ -69,7 +70,7 @@ pub async fn rename_element(
     element_id: ElementId,
     new_name: String,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn MetaRepository>()
         .await
@@ -85,7 +86,7 @@ pub async fn set_element_name_source(
     element_id: ElementId,
     name_source: NameSource,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn ElementNamingService>()
         .await
@@ -100,7 +101,7 @@ pub async fn create_folder(
     injector: State<'_, Arc<Injector>>,
     dto: CreateFolderDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn ElementCreationService>()
         .await
@@ -115,7 +116,7 @@ pub async fn create_learning_asset(
     injector: State<'_, Arc<Injector>>,
     dto: CreateLearningAssetDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn ElementCreationService>()
         .await
@@ -130,7 +131,7 @@ pub async fn create_extract(
     injector: State<'_, Arc<Injector>>,
     dto: CreateExtractDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn ElementCreationService>()
         .await
@@ -173,7 +174,7 @@ pub async fn create_card(
     injector: State<'_, Arc<Injector>>,
     dto: CreateCardDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn ElementCreationService>()
         .await
@@ -188,7 +189,7 @@ pub async fn update_learning_asset(
     injector: State<'_, Arc<Injector>>,
     dto: UpdateLearningAssetDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn ElementContentService>()
         .await
@@ -314,7 +315,7 @@ pub async fn update_pdf_highlights(
     injector: State<'_, Arc<Injector>>,
     dto: UpdatePdfHighlightsDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn LearningAssetRepository>()
         .await
@@ -329,7 +330,7 @@ pub async fn update_read_point(
     injector: State<'_, Arc<Injector>>,
     dto: UpdateReadPointDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn LearningAssetRepository>()
         .await
@@ -361,7 +362,7 @@ pub async fn set_learning_asset_mark(
     injector: State<'_, Arc<Injector>>,
     dto: SetLearningAssetMarkRequestDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn LearningAssetMarkRepository>()
         .await
@@ -380,7 +381,7 @@ pub async fn clear_learning_asset_mark(
     injector: State<'_, Arc<Injector>>,
     dto: ClearLearningAssetMarkRequestDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn LearningAssetMarkRepository>()
         .await
@@ -395,7 +396,7 @@ pub async fn update_extract(
     injector: State<'_, Arc<Injector>>,
     dto: UpdateExtractDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn ElementContentService>()
         .await
@@ -411,7 +412,7 @@ pub async fn update_interval_multiplier(
     element_id: ElementId,
     interval_multiplier: f32,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     match element_id {
         ElementId::LearningAsset(id) => {
             scope
@@ -442,7 +443,7 @@ pub async fn update_card(
     injector: State<'_, Arc<Injector>>,
     dto: UpdateCardDto,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn ElementContentService>()
         .await
@@ -458,7 +459,7 @@ pub async fn update_element_tags(
     element_id: ElementId,
     tags: Vec<String>,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn MetaRepository>()
         .await
@@ -489,7 +490,7 @@ pub async fn add_tag_bulk(
     element_ids: Vec<ElementId>,
     tags: Vec<String>,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let meta_repository = scope.resolve::<dyn MetaRepository>().await;
     for element_id in element_ids {
         meta_repository.add_tags(element_id, tags.clone()).await?;
@@ -504,7 +505,7 @@ pub async fn remove_tag_bulk(
     element_ids: Vec<ElementId>,
     tags: Vec<String>,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let meta_repository = scope.resolve::<dyn MetaRepository>().await;
     for element_id in element_ids {
         meta_repository
@@ -521,7 +522,7 @@ pub async fn set_derived_from(
     element_id: ElementId,
     derived_from: Option<ElementId>,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn MetaRepository>()
         .await
@@ -536,7 +537,7 @@ pub async fn move_element(
     injector: State<'_, Arc<Injector>>,
     dto: MoveElementRequestDto,
 ) -> Result<MoveElementResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let moved = scope
         .resolve::<dyn ElementMoveService>()
         .await
@@ -634,7 +635,7 @@ pub async fn set_element_priority_by_position(
     element_id: ElementId,
     position: i64,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn PriorityService>()
         .await
@@ -695,7 +696,7 @@ pub async fn set_element_priority_by_percentile(
     element_id: ElementId,
     percentile: f64,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn PriorityService>()
         .await

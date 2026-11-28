@@ -12,6 +12,7 @@ use crate::bibliographical_sources::services::bibliographical_source_service::{
 use crate::common::api_error::ApiError;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
+use crate::infrastructure::extensions::write_scope::WriteScopeExt;
 use injector::injector::Injector;
 
 #[tauri::command]
@@ -49,7 +50,7 @@ pub async fn create_bibliographical_source(
     injector: State<'_, Arc<Injector>>,
     dto: BibliographicalSourceRequestDto,
 ) -> Result<BibliographicalSourceResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let bibliographical_source = scope
         .resolve::<dyn BibliographicalSourceService>()
         .await
@@ -69,7 +70,7 @@ pub async fn update_bibliographical_source(
     id: Uuid,
     dto: BibliographicalSourceRequestDto,
 ) -> Result<BibliographicalSourceResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let service = scope.resolve::<dyn BibliographicalSourceService>().await;
     let bibliographical_source = service
         .update_bibliographical_source(id, dto.into())
@@ -91,7 +92,7 @@ pub async fn delete_bibliographical_source(
     injector: State<'_, Arc<Injector>>,
     id: Uuid,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn BibliographicalSourceService>()
         .await
@@ -107,7 +108,7 @@ pub async fn assign_bibliographical_source(
     element_id: ElementId,
     bibliographical_source_id: Option<Uuid>,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn BibliographicalSourceService>()
         .await
@@ -123,7 +124,7 @@ pub async fn assign_bibliographical_source_bulk(
     element_ids: Vec<ElementId>,
     bibliographical_source_id: Option<Uuid>,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn BibliographicalSourceService>()
         .await

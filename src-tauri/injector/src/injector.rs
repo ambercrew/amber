@@ -73,6 +73,14 @@ impl Injector {
         );
     }
 
+    /// The registered singleton of type `T`, if any, without starting a scope.
+    pub fn singleton<T: Any + Send + Sync + ?Sized + 'static>(&self) -> Option<Arc<T>> {
+        self.singleton_registry
+            .get(&TypeId::of::<T>())
+            .and_then(|boxed| boxed.downcast_ref::<Arc<T>>())
+            .cloned()
+    }
+
     pub fn start_scope(&self) -> InjectorScope<'_> {
         InjectorScope::new(self)
     }

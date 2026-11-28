@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use crate::common::api_error::ApiError;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
+use crate::infrastructure::extensions::write_scope::WriteScopeExt;
 use crate::local_configurations::repositories::local_configuration_repository::LocalConfigurationRepositoryExt;
 use crate::local_configurations::repositories::synced_configuration_repository::SyncedConfigurationRepository;
 use crate::study::dto::card_review_request_dto::CardReviewRequestDto;
@@ -66,6 +67,7 @@ pub async fn get_due_elements(
     injector: State<'_, Arc<Injector>>,
     study_scope: Option<StudyScopeRequestDto>,
 ) -> Result<Vec<DueElementDto>, ApiError> {
+    // A plain scope: the scan is long and only rarely writes, so it doesn't hold the write lock.
     let scope = injector.start_scope();
     let due_elements = scope
         .resolve::<dyn DueElementsService>()
@@ -83,7 +85,7 @@ pub async fn skip_learning_asset(
     injector: State<'_, Arc<Injector>>,
     element_id: ElementId,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn LearningAssetSkipRepository>()
         .await
@@ -102,7 +104,7 @@ pub async fn register_card_review(
     rating: Rating,
     duration_ms: Option<u32>,
 ) -> Result<RegisteredCardReviewResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let result = scope
         .resolve::<dyn CardGradingService>()
         .await
@@ -134,7 +136,7 @@ pub async fn next_learning_asset(
     element_id: ElementId,
     duration_ms: Option<u32>,
 ) -> Result<LearningAssetReviewResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let result = scope
         .resolve::<dyn LearningAssetSchedulingService>()
         .await
@@ -164,7 +166,7 @@ pub async fn finish_learning_asset(
     element_id: ElementId,
     duration_ms: Option<u32>,
 ) -> Result<LearningAssetReviewResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let result = scope
         .resolve::<dyn LearningAssetSchedulingService>()
         .await
@@ -191,7 +193,7 @@ pub async fn set_fuzz_factor(
     injector: State<'_, Arc<Injector>>,
     fuzz_factor: u8,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn SyncedConfigurationRepository>()
         .await
@@ -209,7 +211,7 @@ pub async fn unfinish_learning_asset(
     injector: State<'_, Arc<Injector>>,
     element_id: ElementId,
 ) -> Result<LearningAssetReviewResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let result = scope
         .resolve::<dyn LearningAssetSchedulingService>()
         .await
@@ -225,7 +227,7 @@ pub async fn set_elements_status(
     element_ids: Vec<ElementId>,
     status: ElementStatus,
 ) -> Result<usize, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let applied = scope
         .resolve::<dyn ElementStatusService>()
         .await
@@ -241,7 +243,7 @@ pub async fn set_element_due(
     element_id: ElementId,
     due: DateTime<Utc>,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     match element_id {
         ElementId::Card(card_id) => {
             scope
@@ -270,7 +272,7 @@ pub async fn set_element_due_bulk(
     element_ids: Vec<ElementId>,
     due: DateTime<Utc>,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let card_service = scope.resolve::<dyn CardGradingService>().await;
     let learning_asset_service = scope.resolve::<dyn LearningAssetSchedulingService>().await;
 
@@ -295,7 +297,7 @@ pub async fn reset_repetitions_bulk(
     injector: State<'_, Arc<Injector>>,
     element_ids: Vec<ElementId>,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
 
     let card_ids = element_ids
         .into_iter()

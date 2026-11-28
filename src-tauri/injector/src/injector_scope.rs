@@ -53,6 +53,14 @@ impl<'a> InjectorScope<'a> {
 
         panic!("Could not resolve {}", type_name::<T>())
     }
+
+    /// Seeds the scope with `value`, which resolving `T` then returns instead of running `T`'s factory.
+    pub async fn provide<T: Any + Send + Sync + ?Sized + 'static>(&self, value: Arc<T>) {
+        self.resolved_scopes
+            .lock()
+            .await
+            .insert(TypeId::of::<T>(), Box::new(value));
+    }
 }
 
 fn find_by_type<T: Any + Send + Sync + ?Sized + 'static>(
@@ -104,5 +112,47 @@ mod tests {
 
         assert_eq!(1, *last);
         assert_eq!(1, called_times.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    pub async fn resolve_provided_value_returned_without_calling_factory() {
+        // Arrange
+
+        let mut injector = Injector::default();
+        let called = Arc::new(AtomicI32::new(0));
+        let called_clone = called.clone();
+        injector.register_scope_factory::<i32>(move |_| {
+            called_clone.fetch_add(1, Ordering::Relaxed);
+            Box::pin(async { Arc::new(1) })
+        });
+        let scope = injector.start_scope();
+        scope.provide(Arc::new(42)).await;
+
+        // Act
+
+        let actual = scope.resolve::<i32>().await;
+
+        // Assert
+
+        assert_eq!(42, *actual);
+        assert_eq!(0, called.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    pub async fn singleton_registered_returns_it_and_unregistered_returns_none() {
+        // Arrange
+
+        let mut injector = Injector::default();
+        injector.register_singleton(Arc::new(7_u8));
+
+        // Act
+
+        let registered = injector.singleton::<u8>();
+        let unregistered = injector.singleton::<u16>();
+
+        // Assert
+
+        assert_eq!(Some(7), registered.map(|value| *value));
+        assert!(unregistered.is_none());
     }
 }

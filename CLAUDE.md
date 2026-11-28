@@ -95,13 +95,15 @@ A custom `injector` crate (with derive macros in `injector_derive`) wires everyt
 ```rust
 #[tauri::command]
 async fn some_command(injector: State<'_, Arc<Injector>>, ...) -> Result<Dto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;  // `start_scope()` for a command that only reads
     let service = scope.resolve::<dyn SomeService>();
     let result = service.do_work(...).await?;
     scope.save_changes().await?;  // Unit of Work — commits DB transaction
     Ok(result)
 }
 ```
+
+**Write scopes:** a command that writes starts its scope with `start_write_scope()` (`infrastructure/extensions/write_scope.rs`), whose transaction is `BEGIN IMMEDIATE`. A plain scope's transaction takes a read snapshot at its first read, and SQLite then refuses its first write at once with `SQLITE_BUSY` ("The database is busy") if another connection is writing: the busy timeout only waits for a transaction that hasn't read yet. Making an extract, which saves the asset's content and read point at the same moment, hit exactly that. Keep a plain scope where the command waits on something slow while its transaction is open (the network, the frontend request bridge, an AI, Anki, cloud sync: `ai_integration`, `import`, `anki_sync`, `sync`, `backend`, `image_occlusion`), as it would hold the write lock meanwhile; such a command writes first or keeps its write short. A long read that only rarely writes (`get_due_elements`) keeps a plain scope too.
 
 ### Bulk Operations
 

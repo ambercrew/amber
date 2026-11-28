@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::common::api_error::ApiError;
 use crate::elements::value_objects::element_id::ElementId;
 use crate::infrastructure::extensions::unit_of_work::UnitOfWorkExt;
+use crate::infrastructure::extensions::write_scope::WriteScopeExt;
 use crate::study::dto::study_profile_dto::{
     EffectiveProfileResponseDto, OptimizedFsrsParamsResponseDto, StudyProfileRequestDto,
     StudyProfileResponseDto,
@@ -35,7 +36,7 @@ pub async fn create_study_profile(
     injector: State<'_, Arc<Injector>>,
     dto: StudyProfileRequestDto,
 ) -> Result<StudyProfileResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let profile = scope
         .resolve::<dyn StudyProfileService>()
         .await
@@ -51,7 +52,7 @@ pub async fn update_study_profile(
     id: Uuid,
     dto: StudyProfileRequestDto,
 ) -> Result<StudyProfileResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let profile = scope
         .resolve::<dyn StudyProfileService>()
         .await
@@ -67,7 +68,7 @@ pub async fn rename_study_profile(
     id: Uuid,
     name: String,
 ) -> Result<StudyProfileResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let profile = scope
         .resolve::<dyn StudyProfileService>()
         .await
@@ -82,7 +83,7 @@ pub async fn delete_study_profile(
     injector: State<'_, Arc<Injector>>,
     id: Uuid,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn StudyProfileService>()
         .await
@@ -97,7 +98,7 @@ pub async fn clone_study_profile(
     injector: State<'_, Arc<Injector>>,
     id: Uuid,
 ) -> Result<StudyProfileResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let profile = scope
         .resolve::<dyn StudyProfileService>()
         .await
@@ -112,7 +113,7 @@ pub async fn set_default_study_profile(
     injector: State<'_, Arc<Injector>>,
     id: Uuid,
 ) -> Result<StudyProfileResponseDto, ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     let profile = scope
         .resolve::<dyn StudyProfileService>()
         .await
@@ -128,7 +129,7 @@ pub async fn assign_study_profile(
     element_id: ElementId,
     profile_id: Option<Uuid>,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn StudyProfileService>()
         .await
@@ -144,7 +145,7 @@ pub async fn assign_study_profile_bulk(
     element_ids: Vec<ElementId>,
     profile_id: Option<Uuid>,
 ) -> Result<(), ApiError> {
-    let scope = injector.start_scope();
+    let scope = injector.start_write_scope().await?;
     scope
         .resolve::<dyn StudyProfileService>()
         .await
