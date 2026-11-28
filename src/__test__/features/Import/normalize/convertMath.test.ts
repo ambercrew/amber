@@ -293,6 +293,63 @@ describe("convertMath", () => {
 		]);
 	});
 
+	it.each([
+		["\\hat\\mathbf{x}_{k}", "\\hat{\\mathbf{x}}_{k}"],
+		["\\dot\\boldsymbol{q}", "\\dot{\\boldsymbol{q}}"],
+		[
+			"\\frac \\mathrm{opposite}\\mathrm{hypotenuse}",
+			"\\frac {\\mathrm{opposite}}{\\mathrm{hypotenuse}}",
+		],
+		["\\frac 1\\sqrt[3]{2}", "\\frac 1{\\sqrt[3]{2}}"],
+		["r \\operatorname\\mathrm{cis}", "r \\operatorname{\\mathrm{cis}}"],
+		["\\sigma_\\dot{x}^2", "\\sigma_{\\dot{x}}^2"],
+		["r^\\left(a\\right) + b", "r^{\\left(a\\right)} + b"],
+		["\\vphantom\\big) x", "\\vphantom{\\big)} x"],
+		[
+			"\\frac{a}{b}^{\\hat\\mathbf{y}}",
+			"\\frac{a}{b}^{\\hat{\\mathbf{y}}}",
+		],
+	])(
+		"Should brace a command argument texvc leaves bare when given %s",
+		(extsrc, expected) => {
+			// Arrange
+
+			const dataMw = JSON.stringify({
+				name: "math",
+				attrs: {},
+				body: { extsrc },
+			});
+			const html = `<p><math class="mwe-math-element" data-mw='${dataMw}'><mi>x</mi></math></p>`;
+
+			// Act
+
+			const actual = convert(html);
+
+			// Assert
+
+			expect(actual.equations[0].equation).toBe(expected);
+		},
+	);
+
+	it("Should keep a trailing control space when the TeX ends in one", () => {
+		// Arrange
+
+		const dataMw = JSON.stringify({
+			name: "math",
+			attrs: {},
+			body: { extsrc: " a f(t) + b g(t) \\ " },
+		});
+		const html = `<p><math class="mwe-math-element" data-mw='${dataMw}'><mi>x</mi></math></p>`;
+
+		// Act
+
+		const actual = convert(html);
+
+		// Assert
+
+		expect(actual.equations[0].equation).toBe("a f(t) + b g(t) \\ ");
+	});
+
 	it("Should stash data-latex and block display when markMath prepares a document for Defuddle", () => {
 		// Arrange
 

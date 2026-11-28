@@ -61,6 +61,78 @@ const TEXVC_MACRO_REGEX = new RegExp(
 	`(^|[^\\\\])((?:\\\\\\\\)*)\\\\(${Object.keys(TEXVC_MACROS).join("|")})(?![a-zA-Z])`,
 	"g",
 );
+// How many arguments a command takes, for bracing the ones `texvc` leaves bare.
+const TEX_COMMAND_ARITY = new Map<string, number>([
+	...[
+		"mathbf",
+		"mathrm",
+		"mathit",
+		"mathsf",
+		"mathtt",
+		"mathcal",
+		"mathbb",
+		"mathfrak",
+		"mathscr",
+		"boldsymbol",
+		"bm",
+		"text",
+		"textbf",
+		"textit",
+		"textrm",
+		"operatorname",
+		"hat",
+		"widehat",
+		"dot",
+		"ddot",
+		"dddot",
+		"bar",
+		"vec",
+		"tilde",
+		"widetilde",
+		"breve",
+		"check",
+		"acute",
+		"grave",
+		"overline",
+		"underline",
+		"overrightarrow",
+		"overleftarrow",
+		"overbrace",
+		"underbrace",
+		"phantom",
+		"vphantom",
+		"hphantom",
+		"sqrt",
+		"big",
+		"Big",
+		"bigg",
+		"Bigg",
+		"bigl",
+		"bigr",
+		"bigm",
+		"Bigl",
+		"Bigr",
+		"Bigm",
+		"biggl",
+		"biggr",
+		"biggm",
+		"Biggl",
+		"Biggr",
+		"Biggm",
+	].map(name => [name, 1] as const),
+	...[
+		"frac",
+		"dfrac",
+		"tfrac",
+		"cfrac",
+		"binom",
+		"dbinom",
+		"tbinom",
+		"overset",
+		"underset",
+		"stackrel",
+	].map(name => [name, 2] as const),
+]);
 const MEDIAWIKI_UNNUMBERED_ENVS: Record<string, string> = {
 	align: "aligned",
 	"align*": "aligned",
@@ -184,48 +256,127 @@ function normalizeMediaWikiTex(latex: string): string {
 				`\\${bound}{${MEDIAWIKI_UNNUMBERED_ENVS[env]}}`,
 		);
 	}
-	return wrapBareSqrtDenominator(normalized);
+	return braceCommandArguments(normalized);
 }
 
-// MediaWiki's `texvc` accepts `\frac{1}\sqrt{…}` without braces around the denominator.
-function wrapBareSqrtDenominator(latex: string): string {
+// MediaWiki's `texvc` accepts a command as an unbraced argument (`\hat\mathbf{x}`,
+// `\frac 1\sqrt{2}`, `x_\dot{y}`), which KaTeX rejects, so each such argument is braced.
+function braceCommandArguments(latex: string): string {
 	let result = "";
-	let cursor = 0;
-	for (const match of latex.matchAll(/\\[cdt]?frac(?![a-zA-Z])/g)) {
-		if (match.index < cursor) continue;
-		const numEnd = endOfTexArg(latex, match.index + match[0].length);
-		if (numEnd === -1) continue;
-		const sqrt = /^\s*(\\sqrt(?:\[[^\]]*\])?)\{/.exec(latex.slice(numEnd));
-		if (!sqrt) continue;
-		const braceStart = numEnd + sqrt[0].length - 1;
-		const denEnd = closingBraceIndex(latex, braceStart);
-		if (denEnd === -1) continue;
-		const denStart = braceStart - sqrt[1].length;
-		result += `${latex.slice(cursor, denStart)}{${latex.slice(denStart, denEnd + 1)}}`;
-		cursor = denEnd + 1;
+	let i = 0;
+	while (i < latex.length) {
+		const char = latex[i];
+		if (char === "_" || char === "^") {
+			result += char;
+			i = braceArgument(latex, i + 1, out => (result += out));
+			continue;
+		}
+		const command = texToken(latex, i);
+		result += command;
+		i += command.length;
+		const arity = TEX_COMMAND_ARITY.get(command.slice(1));
+		if (char !== "\\" || arity === undefined) continue;
+		if (command === "\\sqrt")
+			i = skipOptionalArgument(latex, i, out => (result += out));
+		for (let arg = 0; arg < arity; arg++)
+			i = braceArgument(latex, i, out => (result += out));
 	}
-	return result + latex.slice(cursor);
+	return result;
 }
 
-function endOfTexArg(latex: string, from: number): number {
+// Emits the argument at `from` (braced if it's a command taking arguments) and returns where it ends.
+function braceArgument(
+	latex: string,
+	from: number,
+	emit: (out: string) => void,
+): number {
 	let i = from;
 	while (i < latex.length && /\s/.test(latex[i])) i++;
-	if (i >= latex.length) return -1;
+	emit(latex.slice(from, i));
+	const close = latex[i] === "{" ? closingBraceIndex(latex, i) : -1;
+	if (close !== -1) {
+		emit(`{${braceCommandArguments(latex.slice(i + 1, close))}}`);
+		return close + 1;
+	}
+	const token = texToken(latex, i);
+	if (!takesArguments(token)) {
+		emit(token);
+		return i + token.length;
+	}
+	const end = endOfCommand(latex, i);
+	emit(`{${braceCommandArguments(latex.slice(i, end))}}`);
+	return end;
+}
+
+function skipOptionalArgument(
+	latex: string,
+	from: number,
+	emit: (out: string) => void,
+): number {
+	if (latex[from] !== "[") return from;
+	const close = latex.indexOf("]", from);
+	if (close === -1) return from;
+	emit(latex.slice(from, close + 1));
+	return close + 1;
+}
+
+// End of the command at `from` together with all of its arguments.
+function endOfCommand(latex: string, from: number): number {
+	const command = texToken(latex, from);
+	let i = from + command.length;
+	if (command === "\\left") {
+		let depth = 1;
+		while (i < latex.length) {
+			const token = texToken(latex, i);
+			i += token.length;
+			if (token === "\\left") depth++;
+			else if (token === "\\right" && --depth === 0)
+				return endOfArgument(latex, i);
+		}
+		return latex.length;
+	}
+	if (command === "\\sqrt" && latex[i] === "[") {
+		const close = latex.indexOf("]", i);
+		if (close !== -1) i = close + 1;
+	}
+	for (
+		let arg = 0;
+		arg < (TEX_COMMAND_ARITY.get(command.slice(1)) ?? 0);
+		arg++
+	)
+		i = endOfArgument(latex, i);
+	return i;
+}
+
+function endOfArgument(latex: string, from: number): number {
+	let i = from;
+	while (i < latex.length && /\s/.test(latex[i])) i++;
+	if (i >= latex.length) return i;
 	if (latex[i] === "{") {
 		const close = closingBraceIndex(latex, i);
-		return close === -1 ? -1 : close + 1;
+		return close === -1 ? latex.length : close + 1;
 	}
-	if (latex[i] === "\\") {
-		const command = /^\\[a-zA-Z]+/.exec(latex.slice(i));
-		return command ? i + command[0].length : Math.min(i + 2, latex.length);
-	}
-	return i + 1;
+	if (takesArguments(texToken(latex, i))) return endOfCommand(latex, i);
+	return i + texToken(latex, i).length;
+}
+
+function takesArguments(token: string): boolean {
+	return (
+		token === "\\left" || (TEX_COMMAND_ARITY.get(token.slice(1)) ?? 0) > 0
+	);
+}
+
+// A control word (`\alpha`), control symbol (`\\`, `\{`) or single character.
+function texToken(latex: string, from: number): string {
+	if (latex[from] !== "\\") return latex.slice(from, from + 1);
+	return /^\\(?:[a-zA-Z]+|.?)/su.exec(latex.slice(from))![0];
 }
 
 function nonBlank(value: string | null | undefined): string | null {
 	const trimmed = value?.trim();
 	if (!trimmed) return null;
-	return trimmed;
+	// Trimming a trailing control space (`x \ `) would leave a lone backslash.
+	return /(?:^|[^\\])(?:\\\\)*\\$/.test(trimmed) ? `${trimmed} ` : trimmed;
 }
 
 function convertMathML(math: Element): string | null {
